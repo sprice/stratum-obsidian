@@ -1,76 +1,8 @@
-import {
-  AbstractInputSuggest,
-  ItemView,
-  SearchComponent,
-  WorkspaceLeaf,
-} from "obsidian";
-import type { App } from "obsidian";
+import { ItemView, SearchComponent, WorkspaceLeaf } from "obsidian";
 import { PLUGIN_NAME, VIEW_TYPE_STRATUM } from "./constants";
-import type StratumPlugin from "./main";
-import type { ZoteroSearchResult } from "./backend-client";
-
-const ABSTRACT_TEASER_LENGTH = 220;
-
-interface SettingsManager {
-  open(): void;
-  openTabById(id: string): void;
-}
-
-function getSettingsManager(app: App): SettingsManager | null {
-  return (app as App & { setting?: SettingsManager }).setting ?? null;
-}
-
-function getAbstractTeaser(text: string): string {
-  if (text.length <= ABSTRACT_TEASER_LENGTH) {
-    return text;
-  }
-
-  const teaser = text.slice(0, ABSTRACT_TEASER_LENGTH);
-  const lastSpaceIndex = teaser.lastIndexOf(" ");
-  const trimmedTeaser =
-    lastSpaceIndex > ABSTRACT_TEASER_LENGTH * 0.6
-      ? teaser.slice(0, lastSpaceIndex)
-      : teaser;
-
-  return `${trimmedTeaser.trimEnd()}...`;
-}
-
-class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchResult> {
-  plugin: StratumPlugin;
-  private onStateChange: () => void;
-
-  constructor(
-    view: StratumView,
-    component: SearchComponent,
-    onStateChange: () => void
-  ) {
-    super(view.app, component.inputEl);
-    this.plugin = view.plugin;
-    this.onStateChange = onStateChange;
-    this.limit = 24;
-  }
-
-  protected async getSuggestions(query: string): Promise<ZoteroSearchResult[]> {
-    const results = await this.plugin.fetchLibrarySuggestions(query);
-    this.onStateChange();
-    return results;
-  }
-
-  renderSuggestion(value: ZoteroSearchResult, el: HTMLElement): void {
-    el.addClass("stratum-native-suggestion");
-    el.createDiv({
-      cls: "stratum-native-suggestion-label",
-      text: value.title,
-    });
-  }
-
-  selectSuggestion(value: ZoteroSearchResult): void {
-    this.setValue(value.title);
-    this.close();
-    this.onStateChange();
-    void this.plugin.selectLibrarySearchResult(value);
-  }
-}
+import type StratumPlugin from "./plugin";
+import { getAbstractTeaser, getSettingsManager, ABSTRACT_TEASER_LENGTH } from "./view-helpers";
+import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
@@ -238,7 +170,7 @@ export class StratumView extends ItemView {
           refreshButton.disabled = true;
         }
         refreshButton.addEventListener("click", () => {
-          void this.plugin.refreshLibrarySearch();
+          void this.plugin.library.refreshSearch();
         });
       };
 
@@ -249,7 +181,7 @@ export class StratumView extends ItemView {
       );
       searchComponent.onChange((value) => {
         if (!value.trim() && this.plugin.selectedLibraryResult) {
-          this.plugin.clearSelectedLibraryResult({
+          this.plugin.library.clearSelection({
             resetQuery: true,
           });
           return;
@@ -321,7 +253,7 @@ export class StratumView extends ItemView {
                 : "Show full abstract",
             });
             toggleAbstractButton.addEventListener("click", () => {
-              this.plugin.toggleSelectedLibraryAbstract();
+              this.plugin.library.toggleAbstract();
             });
           }
         }
@@ -333,7 +265,7 @@ export class StratumView extends ItemView {
           text: "Choose another paper",
         });
         clearSelectionButton.addEventListener("click", () => {
-          this.plugin.clearSelectedLibraryResult({
+          this.plugin.library.clearSelection({
             resetQuery: true,
           });
         });
@@ -348,7 +280,7 @@ export class StratumView extends ItemView {
           createButton.disabled = true;
         }
         createButton.addEventListener("click", () => {
-          void this.plugin.createLiteratureNote(selected);
+          void this.plugin.library.createNote(selected);
         });
 
         selectedCard.createEl("p", {

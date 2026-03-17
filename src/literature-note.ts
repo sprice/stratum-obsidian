@@ -1,33 +1,35 @@
-import {
-  TFile,
-  htmlToMarkdown,
-  normalizePath,
-  parseYaml,
-  stringifyYaml,
-} from "obsidian";
+import { TFile, htmlToMarkdown, parseYaml, stringifyYaml } from "obsidian";
 import type { App } from "obsidian";
 import type { ZoteroItemDetail } from "./backend-client";
 import {
   buildLiteratureNoteContent,
-  FILENAME_STEM_FRONTMATTER_KEY,
-  findExistingLiteratureNoteMatch,
   getLiteratureNoteSummary,
   markLiteratureNoteAsDeletedContent,
-  type LiteratureNoteCandidate,
-  type LiteratureNoteIdentity,
-  type LiteratureNoteSummary,
   splitFrontmatterContent,
+  type LiteratureNoteSummary,
 } from "./literature-note-content";
 import {
-  getAsciiFallbackFileStem,
-  getCollisionSuffix,
   getGeneratedFileStem,
   isLegacyManagedFileStem,
   resolveExistingFilenameStemState,
   type LiteratureNoteFilenameFormat,
 } from "./literature-note-filenames";
+import {
+  createLiteratureNoteFile,
+  ensureFolder,
+  renameLiteratureNoteFile,
+} from "./literature-note-files";
+import {
+  findExistingLiteratureNote,
+  getNormalizedNotesFolder,
+  getStoredFilenameStem,
+  getStoredZoteroVersion,
+  toIdentity,
+} from "./literature-note-helpers";
 
-export type { LiteratureNoteSummary } from "./literature-note-content";
+export type { LiteratureNoteIdentity, LiteratureNoteSummary } from "./literature-note-content";
+export { getLiteratureNoteSummary };
+export { findExistingLiteratureNote, isPathInsideFolder } from "./literature-note-helpers";
 
 export interface LiteratureNoteWriteResult {
   created: boolean;
@@ -40,211 +42,7 @@ export interface LiteratureNoteDeleteMarkResult {
   changed: boolean;
 }
 
-export async function ensureFolder(app: App, folderPath: string): Promise<void> {
-  const normalizedFolder = normalizePath(folderPath).replace(/\/$/, "");
-  if (!normalizedFolder) {
-    return;
-  }
-
-  const segments = normalizedFolder.split("/");
-  let currentPath = "";
-  for (const segment of segments) {
-    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-    if (await app.vault.adapter.exists(currentPath)) {
-      continue;
-    }
-
-    await app.vault.createFolder(currentPath);
-  }
-}
-
-function toIdentity(detail: ZoteroItemDetail): LiteratureNoteIdentity {
-  return {
-    libraryType: detail.library.type,
-    libraryId: detail.library.id,
-    itemKey: detail.item.key,
-  };
-}
-
-function getNormalizedNotesFolder(notesFolder?: string): string {
-  return normalizePath(notesFolder?.trim() ?? "").replace(/\/+$/, "");
-}
-
-export function isPathInsideFolder(path: string, folder: string): boolean {
-  if (!folder) {
-    return !normalizePath(path).includes("/");
-  }
-
-  const normalizedPath = normalizePath(path);
-  return normalizedPath === folder || normalizedPath.startsWith(`${folder}/`);
-}
-
-function getLiteratureNoteCandidates(
-  app: App,
-  preferredFolder?: string
-): LiteratureNoteCandidate[] {
-  const normalizedFolder = getNormalizedNotesFolder(preferredFolder);
-  return app.vault
-    .getMarkdownFiles()
-    .filter((file) => isPathInsideFolder(file.path, normalizedFolder))
-    .map((file) => ({
-      path: file.path,
-      name: file.name,
-      frontmatter:
-        (app.metadataCache.getFileCache(file)?.frontmatter as
-          | Record<string, unknown>
-          | undefined) ?? null,
-    }));
-}
-
-function getStoredFilenameStem(frontmatter: Record<string, unknown>): string | null {
-  const value = frontmatter[FILENAME_STEM_FRONTMATTER_KEY];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function getStoredZoteroVersion(frontmatter: Record<string, unknown>): number | null {
-  const values = [
-    frontmatter.zotero_item_version,
-    frontmatter.zotero_version,
-  ];
-
-  for (const value of values) {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-
-    if (typeof value === "string") {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) {
-        return parsed;
-      }
-    }
-  }
-
-  return null;
-}
-
-function buildPathFromStem(folder: string, stem: string): string {
-  const filename = `${stem}.md`;
-  return normalizePath(folder ? `${folder}/${filename}` : filename);
-}
-
-function toError(value: unknown, fallbackMessage: string): Error {
-  return value instanceof Error ? value : new Error(fallbackMessage);
-}
-
-function getStemVariants(
-  detail: ZoteroItemDetail,
-  format: LiteratureNoteFilenameFormat,
-  collisionIndex: number
-): string[] {
-  const suffix = getCollisionSuffix(collisionIndex);
-  const primary = getGeneratedFileStem(detail, format, suffix);
-  const asciiFallback = getAsciiFallbackFileStem(primary);
-
-  return asciiFallback === primary ? [primary] : [primary, asciiFallback];
-}
-
-async function createLiteratureNoteFile(params: {
-  app: App;
-  notesFolder: string;
-  detail: ZoteroItemDetail;
-  filenameFormat: LiteratureNoteFilenameFormat;
-}): Promise<{ file: TFile; filenameStem: string }> {
-  let lastError: unknown = null;
-
-  for (let collisionIndex = 0; collisionIndex < 512; collisionIndex += 1) {
-    for (const filenameStem of getStemVariants(
-      params.detail,
-      params.filenameFormat,
-      collisionIndex
-    )) {
-      const path = buildPathFromStem(params.notesFolder, filenameStem);
-      if (params.app.vault.getAbstractFileByPath(path)) {
-        continue;
-      }
-
-      const initialContent = buildLiteratureNoteContent({
-        detail: params.detail,
-        filenameStem,
-        parseYaml,
-        stringifyYaml,
-        htmlToMarkdown,
-      });
-
-      try {
-        const file = await params.app.vault.create(path, initialContent);
-        return { file, filenameStem };
-      } catch (error) {
-        lastError = error;
-      }
-    }
-  }
-
-  throw toError(lastError, "Failed to create a unique literature note filename.");
-}
-
-async function renameLiteratureNoteFile(params: {
-  app: App;
-  file: TFile;
-  notesFolder: string;
-  detail: ZoteroItemDetail;
-  filenameFormat: LiteratureNoteFilenameFormat;
-}): Promise<{ file: TFile; filenameStem: string }> {
-  const currentPath = normalizePath(params.file.path);
-  let lastError: unknown = null;
-
-  for (let collisionIndex = 0; collisionIndex < 512; collisionIndex += 1) {
-    for (const filenameStem of getStemVariants(
-      params.detail,
-      params.filenameFormat,
-      collisionIndex
-    )) {
-      const path = buildPathFromStem(params.notesFolder, filenameStem);
-      const existing = params.app.vault.getAbstractFileByPath(path);
-      if (existing && existing.path !== params.file.path) {
-        continue;
-      }
-
-      if (path === currentPath) {
-        return { file: params.file, filenameStem };
-      }
-
-      try {
-        await params.app.fileManager.renameFile(params.file, path);
-        const renamedFile = params.app.vault.getAbstractFileByPath(path);
-        return {
-          file: renamedFile instanceof TFile ? renamedFile : params.file,
-          filenameStem,
-        };
-      } catch (error) {
-        lastError = error;
-      }
-    }
-  }
-
-  throw toError(lastError, "Failed to rename the literature note.");
-}
-
-export { getLiteratureNoteSummary };
-
-export function findExistingLiteratureNote(
-  app: App,
-  identity: LiteratureNoteIdentity,
-  preferredFolder?: string
-): TFile | null {
-  const match = findExistingLiteratureNoteMatch(
-    getLiteratureNoteCandidates(app, preferredFolder),
-    identity,
-    preferredFolder
-  );
-  if (!match) {
-    return null;
-  }
-
-  const file = app.vault.getAbstractFileByPath(match.candidate.path);
-  return file instanceof TFile ? file : null;
-}
+export { ensureFolder };
 
 export async function createOrUpdateLiteratureNote(params: {
   app: App;
