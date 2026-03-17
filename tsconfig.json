@@ -1,30 +1,25 @@
 {
 	"compilerOptions": {
 		"baseUrl": "src",
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["DOM", "ES2022"],
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"noEmit": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
 		"inlineSourceMap": true,
 		"inlineSources": true,
-		"module": "ESNext",
-		"target": "ES6",
-		"allowJs": true,
-		"noImplicitAny": true,
-		"noImplicitThis": true,
-		"noImplicitReturns": true,
-		"moduleResolution": "node",
 		"importHelpers": true,
-		"noUncheckedIndexedAccess": true,
-		"isolatedModules": true,
-		"strictNullChecks": true,
+		"noImplicitReturns": true,
+		"noUncheckedIndexedAccess": false,
 		"strictBindCallApply": true,
-		"allowSyntheticDefaultImports": true,
-		"useUnknownInCatchVariables": true,
-		"lib": [
-			"DOM",
-			"ES5",
-			"ES6",
-			"ES7"
-		]
+		"useUnknownInCatchVariables": true
 	},
-	"include": [
-		"src/**/*.ts"
-	]
+	"include": ["src/**/*.ts"]
 }

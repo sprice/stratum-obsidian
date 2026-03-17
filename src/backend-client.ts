@@ -1,0 +1,401 @@
+import {
+  requestUrl,
+  type RequestUrlParam,
+  type RequestUrlResponse,
+} from "obsidian";
+import {
+  PLUGIN_API_BASE_URL,
+  PLUGIN_SUPABASE_PUBLISHABLE_KEY,
+  PLUGIN_SUPABASE_URL,
+} from "./build-config";
+import type { PersistedAuthSession } from "./settings";
+
+const REFRESH_BUFFER_SECONDS = 60;
+const AUTH_ERROR_STATUSES = new Set([401, 403]);
+
+export interface BackendAuthState {
+  session: PersistedAuthSession | null;
+}
+
+export interface AuthenticatedUserSummary {
+  email: string | null;
+}
+
+export interface ZoteroConnectionState {
+  connected: boolean;
+  zoteroUsername: string | null;
+  zoteroUserId: string | null;
+  lastSyncedAt: string | null;
+}
+
+export interface ZoteroSearchResult {
+  key: string;
+  version: number;
+  title: string;
+  creators: string[];
+  year: string | null;
+  itemType: string | null;
+  abstract: string | null;
+  doi: string | null;
+}
+
+export interface ZoteroSearchMeta {
+  source: "live" | "cache" | "stale-cache";
+  stale: boolean;
+  rateLimited: boolean;
+  retryAfterSeconds: number | null;
+  libraryVersion: number | null;
+}
+
+export interface ZoteroSearchResponse {
+  results: ZoteroSearchResult[];
+  meta: ZoteroSearchMeta;
+}
+
+export interface ZoteroItemDetail {
+  zoteroUserId: string;
+  library: {
+    type: "user" | "group";
+    id: string;
+    zoteroUriSegment: "library" | "groups";
+    identity: string;
+  };
+  item: {
+    key: string;
+    version: number;
+    title: string;
+    creators: string[];
+    year: string | null;
+    date: string | null;
+    itemType: string | null;
+    abstract: string | null;
+    doi: string | null;
+    url: string | null;
+    publicationTitle: string | null;
+    collections: Array<{
+      key: string;
+      name: string;
+    }>;
+    tags: string[];
+    zoteroSelectUri: string;
+  };
+  attachments: Array<{
+    key: string;
+    title: string;
+    itemType: string;
+    contentType: string | null;
+    linkMode: string | null;
+    filename: string | null;
+    url: string | null;
+    zoteroSelectUri: string;
+    zoteroOpenPdfUri: string | null;
+  }>;
+  zoteroNotes: Array<{
+    key: string;
+    parentItemKey: string | null;
+    html: string;
+    dateAdded: string | null;
+    dateModified: string | null;
+    zoteroSelectUri: string;
+  }>;
+  annotations: Array<{
+    key: string;
+    attachmentKey: string;
+    type: string | null;
+    color: string | null;
+    pageLabel: string | null;
+    text: string | null;
+    comment: string | null;
+    dateModified: string | null;
+    zoteroOpenPdfUri: string | null;
+  }>;
+}
+
+export interface ZoteroLibraryChangesResponse {
+  library: {
+    type: "user";
+    id: string;
+    identity: string;
+  };
+  sinceVersion: number | null;
+  latestLibraryVersion: number | null;
+  changedParentKeys: string[];
+  deletedItemKeys: string[];
+}
+
+type BackendErrorPayload = {
+  error?: string;
+  retryAfterSeconds?: number | null;
+  rateLimited?: boolean;
+};
+
+type RefreshResponse = {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: number;
+  expires_in?: number;
+  user?: {
+    email?: string | null;
+  };
+};
+
+type AuthenticatedUserResponse = {
+  email?: string | null;
+};
+
+type AuthedRequestOptions = Omit<RequestUrlParam, "throw" | "url">;
+
+export class BackendClient {
+  private state: BackendAuthState;
+  private onSessionChange: (session: PersistedAuthSession | null) => Promise<void>;
+  private onUserChange: (user: AuthenticatedUserSummary | null) => Promise<void>;
+
+  constructor(options: {
+    initialSession: PersistedAuthSession | null;
+    onSessionChange: (session: PersistedAuthSession | null) => Promise<void>;
+    onUserChange: (user: AuthenticatedUserSummary | null) => Promise<void>;
+  }) {
+    this.state = {
+      session: options.initialSession,
+    };
+    this.onSessionChange = options.onSessionChange;
+    this.onUserChange = options.onUserChange;
+  }
+
+  hasSession(): boolean {
+    return Boolean(this.state.session?.accessToken);
+  }
+
+  getSession(): PersistedAuthSession | null {
+    return this.state.session;
+  }
+
+  async setSession(params: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number | null;
+    email?: string | null;
+  }): Promise<void> {
+    this.state.session = {
+      accessToken: params.accessToken,
+      refreshToken: params.refreshToken,
+      expiresAt: params.expiresAt,
+    };
+
+    await this.onSessionChange(this.state.session);
+    await this.onUserChange({
+      email: params.email ?? null,
+    });
+  }
+
+  async clearSession(): Promise<void> {
+    this.state.session = null;
+    await this.onSessionChange(null);
+    await this.onUserChange(null);
+  }
+
+  async validateSession(): Promise<AuthenticatedUserSummary | null> {
+    const accessToken = await this.getValidAccessToken();
+    if (!accessToken) {
+      return null;
+    }
+
+    const response = await requestUrl({
+      url: `${PLUGIN_SUPABASE_URL}/auth/v1/user`,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: PLUGIN_SUPABASE_PUBLISHABLE_KEY,
+      },
+      throw: false,
+    });
+
+    if (!this.isOk(response)) {
+      if (AUTH_ERROR_STATUSES.has(response.status)) {
+        await this.clearSession();
+      }
+      return null;
+    }
+
+    const payload = this.readJson<AuthenticatedUserResponse>(response);
+    const user = {
+      email: payload.email ?? null,
+    };
+    await this.onUserChange(user);
+    return user;
+  }
+
+  async getZoteroConnectionStatus(): Promise<ZoteroConnectionState | null> {
+    const response = await this.authedFetch("/zotero-connection-status");
+    if (!this.isOk(response)) {
+      return null;
+    }
+
+    return this.readJson<ZoteroConnectionState>(response);
+  }
+
+  async searchZoteroLibrary(
+    query: string,
+    options?: { refresh?: boolean }
+  ): Promise<ZoteroSearchResponse> {
+    const encodedQuery = encodeURIComponent(query.trim());
+    const refreshSuffix = options?.refresh ? "&refresh=1" : "";
+    const response = await this.authedFetch(
+      `/zotero-library-search?q=${encodedQuery}${refreshSuffix}`
+    );
+
+    if (!this.isOk(response)) {
+      const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
+      if (payload.rateLimited && payload.retryAfterSeconds) {
+        throw new Error(
+          `${payload.error ?? "Zotero library search is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
+        );
+      }
+
+      throw new Error(payload.error ?? "Zotero library search failed");
+    }
+
+    return this.readJson<ZoteroSearchResponse>(response);
+  }
+
+  async getZoteroItemDetail(itemKey: string): Promise<ZoteroItemDetail> {
+    const response = await this.authedFetch(
+      `/zotero-item-detail?key=${encodeURIComponent(itemKey)}`
+    );
+
+    if (!this.isOk(response)) {
+      const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
+      if (payload.rateLimited && payload.retryAfterSeconds) {
+        throw new Error(
+          `${payload.error ?? "Zotero item detail is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
+        );
+      }
+
+      throw new Error(payload.error ?? "Failed to load Zotero item detail");
+    }
+
+    return this.readJson<ZoteroItemDetail>(response);
+  }
+
+  async getZoteroLibraryChanges(
+    sinceVersion: number | null
+  ): Promise<ZoteroLibraryChangesResponse> {
+    const query = sinceVersion === null ? "" : `?since=${encodeURIComponent(String(sinceVersion))}`;
+    const response = await this.authedFetch(`/zotero-library-changes${query}`);
+
+    if (!this.isOk(response)) {
+      const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
+      if (payload.rateLimited && payload.retryAfterSeconds) {
+        throw new Error(
+          `${payload.error ?? "Zotero sync is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
+        );
+      }
+
+      throw new Error(payload.error ?? "Failed to load Zotero library changes");
+    }
+
+    return this.readJson<ZoteroLibraryChangesResponse>(response);
+  }
+
+  async authedFetch(
+    path: string,
+    init?: AuthedRequestOptions
+  ): Promise<RequestUrlResponse> {
+    const accessToken = await this.getValidAccessToken();
+    if (!accessToken) {
+      throw new Error("No authenticated app session available.");
+    }
+
+    const response = await requestUrl({
+      ...init,
+      url: `${PLUGIN_API_BASE_URL}${path}`,
+      throw: false,
+      headers: {
+        ...(init?.headers ?? {}),
+        Authorization: `Bearer ${accessToken}`,
+        apikey: PLUGIN_SUPABASE_PUBLISHABLE_KEY,
+      },
+    });
+
+    if (AUTH_ERROR_STATUSES.has(response.status)) {
+      await this.clearSession();
+    }
+
+    return response;
+  }
+
+  private async getValidAccessToken(): Promise<string | null> {
+    const session = this.state.session;
+    if (!session) {
+      return null;
+    }
+
+    const expiresAt = session.expiresAt;
+    if (!expiresAt || expiresAt - REFRESH_BUFFER_SECONDS > Date.now() / 1000) {
+      return session.accessToken;
+    }
+
+    const refreshed = await this.refreshSession(session.refreshToken);
+    return refreshed?.accessToken ?? null;
+  }
+
+  private async refreshSession(
+    refreshToken: string
+  ): Promise<PersistedAuthSession | null> {
+    const response = await requestUrl({
+      url: `${PLUGIN_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
+      method: "POST",
+      headers: {
+        apikey: PLUGIN_SUPABASE_PUBLISHABLE_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        refresh_token: refreshToken,
+      }),
+      throw: false,
+    });
+
+    if (!this.isOk(response)) {
+      await this.clearSession();
+      return null;
+    }
+
+    const payload = this.readJson<RefreshResponse>(response);
+    const nextSession: PersistedAuthSession = {
+      accessToken: payload.access_token,
+      refreshToken: payload.refresh_token,
+      expiresAt:
+        payload.expires_at ??
+        (payload.expires_in
+          ? Math.floor(Date.now() / 1000) + payload.expires_in
+          : null),
+    };
+
+    this.state.session = nextSession;
+    await this.onSessionChange(nextSession);
+    if (payload.user?.email) {
+      await this.onUserChange({ email: payload.user.email });
+    }
+
+    return nextSession;
+  }
+
+  private isOk(response: RequestUrlResponse): boolean {
+    return response.status >= 200 && response.status < 300;
+  }
+
+  private readJson<T>(response: RequestUrlResponse): T {
+    return response.json as T;
+  }
+
+  private tryReadJson<T>(response: RequestUrlResponse): T | null {
+    if (!response.text.trim()) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(response.text) as T;
+    } catch {
+      return null;
+    }
+  }
+}

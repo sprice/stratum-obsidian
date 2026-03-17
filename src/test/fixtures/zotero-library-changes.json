@@ -1,0 +1,11 @@
+{
+	"library": {
+		"type": "user",
+		"id": "19946899",
+		"identity": "user:19946899"
+	},
+	"sinceVersion": 30,
+	"latestLibraryVersion": 42,
+	"changedParentKeys": ["YC2RW7WT", "ABCD1234"],
+	"deletedItemKeys": ["OLD_KEY_1"]
+}

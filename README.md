@@ -1,90 +1,84 @@
-# Obsidian Sample Plugin
+# Stratum
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Stratum creates structured literature notes in Obsidian from your Zotero cloud library without Better BibTeX, running Zotero, or custom templates. It generates readable markdown and keeps managed sections in sync while leaving your own writing alone.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+> **Requires a Stratum account**
+>
+> Stratum is an open-source plugin paired with a [Stratum](https://stratumnotes.com) account. You need an account and internet access, but the core workflow is free to start. Sign-in, Zotero auth, and sync all run through Stratum's service. The same architecture will support server-side enrichment features in the future.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## What it does
 
-## First time developing plugins?
+- Search your Zotero library inside Obsidian.
+- Create literature notes with readable filenames, aliases, and useful frontmatter.
+- Pull in all your Zotero notes and annotations.
+- Group highlights by color, with deep links back to Zotero.
+- Auto-sync your literature notes with updates from Zotero without overwriting your own changes.
+- Rewrite only Stratum's managed section and preserve everything below `## My Notes`.
+- Mark notes as deleted if the source item disappears from Zotero instead of deleting the file from your vault.
 
-Quick starting guide for new plugin devs:
+## Install
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+Stratum requires Obsidian `1.11.4` or newer.
 
-## Releasing new releases
+While we wait on Community Plugin approval, install Stratum with [BRAT](https://tfthacker.com/BRAT):
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+1. Install the [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) plugin from Obsidian's **Community plugins** browser.
+2. Open **BRAT** settings and choose **Add Beta plugin**.
+3. Enter `https://github.com/sprice/stratum-obsidian` as the plugin repository.
+4. Let BRAT install the plugin, then enable **Stratum** in **Settings -> Community plugins**.
+5. Use BRAT to pull future Stratum updates.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## Setup
 
-## Adding your plugin to the community plugin list
+1. Open **Settings -> Stratum**.
+2. Click **Sign in** and finish the browser-based email code flow.
+3. Click **Connect Zotero** and approve Zotero access in the browser.
+4. Open the Stratum library view.
+5. Search by title, author, or year and create a literature note.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+After that, Stratum keeps tracked notes fresh automatically.
 
-## How to use
+## Note format
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+Each generated note has a managed section and a user section.
 
-## Manually installing the plugin
+- The managed section includes a reference block, abstract, imported Zotero notes, grouped highlights, and Zotero deep links.
+- The user section starts at `## My Notes`.
+- Sync rewrites the managed section only.
+- Your writing below `## My Notes` is preserved across updates.
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+## Current scope
 
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
+Stratum is deliberately opinionated. It isn't trying to be every Zotero plugin at once.
 
-## Funding URL
+- One-way sync from Zotero into Obsidian.
+- Personal Zotero libraries today.
+- Tracked-note sync, not full-library mirroring.
+- No Better BibTeX, local bridge, or templating language.
+- No bulk import, citation insertion, or bibliography workflow yet.
+- Not a zero-network or offline-only plugin.
 
-You can include funding URLs where people who use your plugin can financially support it.
+## Why it requires an account
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+The account-backed design lets Stratum skip the usual Zotero plugin setup burden.
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
+- Sign-in happens in the browser instead of inside Obsidian.
+- Zotero authentication uses OAuth instead of asking you for a manually managed API key.
+- The backend handles Zotero API access, rate limiting, and cache-backed search.
+- The same backend will power future server-side enrichment: citation counts, related papers, open-access links, citation graphs, and AI-generated summaries.
 
-If you have multiple URLs, you can also do:
+## Privacy
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+- No telemetry, no analytics, no ad tech, no third-party tracking SDKs in the plugin.
+- The Stratum web app uses cookie-free analytics to track anonymous usage metrics.
+- Stratum's backend makes Zotero Web API requests on your behalf. It keeps per-account search caches so the plugin stays responsive and handles rate limits gracefully.
+- Your vault stays local. Stratum writes markdown into your vault but doesn't upload your vault or its path.
+- The content you write below `## My Notes` is preserved locally and isn't sent to Stratum.
+- The plugin stores session tokens in Obsidian's platform-native `secretStorage` to stay signed in across restarts. It doesn't store your Zotero OAuth secret locally.
+- Zotero OAuth secrets live server-side, encrypted at rest.
+- Server-side database access is scoped per authenticated user.
+- When enrichment features arrive, those lookups will happen server-side. The plugin won't call third-party enrichment APIs directly.
 
-## API Documentation
+## License
 
-See https://docs.obsidian.md
+Released under the [MIT License](LICENSE).

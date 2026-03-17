@@ -1,0 +1,75 @@
+{
+	"zoteroUserId": "19946899",
+	"library": {
+		"type": "user",
+		"id": "19946899",
+		"zoteroUriSegment": "library",
+		"identity": "user:19946899"
+	},
+	"item": {
+		"key": "YC2RW7WT",
+		"version": 34,
+		"title": "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment",
+		"creators": ["Andreas Glöckner", "Moritz Michels", "Daniel Giersch"],
+		"year": "2020",
+		"date": "2020-04-17",
+		"itemType": "preprint",
+		"abstract": "We investigate the feasibility and accuracy of predicting personality test scores using machine learning models trained on behavioral and demographic data. Our results suggest that certain personality dimensions can be predicted with moderate accuracy, opening new avenues for scalable psychological assessment methods that complement traditional self-report measures.",
+		"doi": "10.31234/osf.io/ysd3f",
+		"url": "https://osf.io/preprints/psyarxiv/ysd3f",
+		"publicationTitle": null,
+		"collections": [
+			{ "key": "COLL1", "name": "Machine Learning" },
+			{ "key": "COLL2", "name": "Psychology" }
+		],
+		"tags": ["personality", "machine-learning", "assessment"],
+		"zoteroSelectUri": "zotero://select/library/items/YC2RW7WT"
+	},
+	"attachments": [
+		{
+			"key": "ATTACH1",
+			"title": "Glöckner et al. - 2020 - Predicting Personality.pdf",
+			"itemType": "attachment",
+			"contentType": "application/pdf",
+			"linkMode": "imported_file",
+			"filename": "Glöckner et al. - 2020 - Predicting Personality.pdf",
+			"url": null,
+			"zoteroSelectUri": "zotero://select/library/items/ATTACH1",
+			"zoteroOpenPdfUri": "zotero://open-pdf/library/items/ATTACH1"
+		}
+	],
+	"zoteroNotes": [
+		{
+			"key": "NOTE1",
+			"parentItemKey": "YC2RW7WT",
+			"html": "<p>Key finding: Random forests outperformed linear models for predicting openness and conscientiousness.</p>\n<p>Limitation: Sample was drawn entirely from university students, limiting generalizability.</p>",
+			"dateAdded": "2024-06-10T14:30:00Z",
+			"dateModified": "2024-06-12T09:15:00Z",
+			"zoteroSelectUri": "zotero://select/library/items/NOTE1"
+		}
+	],
+	"annotations": [
+		{
+			"key": "ANNOT1",
+			"attachmentKey": "ATTACH1",
+			"type": "highlight",
+			"color": "#ffd400",
+			"pageLabel": "4",
+			"text": "Our models achieved prediction accuracies ranging from r = .31 to r = .58 across the Big Five dimensions.",
+			"comment": "Core result - moderate accuracy across dimensions",
+			"dateModified": "2024-06-10T15:00:00Z",
+			"zoteroOpenPdfUri": "zotero://open-pdf/library/items/ATTACH1?page=4&annotation=ANNOT1"
+		},
+		{
+			"key": "ANNOT2",
+			"attachmentKey": "ATTACH1",
+			"type": "highlight",
+			"color": "#ff6666",
+			"pageLabel": "12",
+			"text": "The generalizability of these findings to non-WEIRD populations remains an open question.",
+			"comment": null,
+			"dateModified": "2024-06-10T15:20:00Z",
+			"zoteroOpenPdfUri": "zotero://open-pdf/library/items/ATTACH1?page=12&annotation=ANNOT2"
+		}
+	]
+}
