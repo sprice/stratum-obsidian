@@ -78,6 +78,16 @@ function buildAliases(detail: ZoteroItemDetail): string[] {
     aliases.add(fullTitle);
   }
 
+  const shortTitle = detail.item.shortTitle?.trim();
+  if (shortTitle && shortTitle !== mainTitle && shortTitle !== fullTitle) {
+    aliases.add(shortTitle);
+  }
+
+  const citationKey = detail.item.citationKey?.trim();
+  if (citationKey) {
+    aliases.add(`@${citationKey}`);
+  }
+
   return Array.from(aliases);
 }
 
@@ -170,12 +180,20 @@ export function renderFrontmatterContent(
   zoteroStatus: ZoteroSyncStatus,
   stringifyYaml: YamlStringifier
 ): string {
-  const preservedAliases = toStringList(existingFrontmatter.aliases);
+  const existingAliases = toStringList(existingFrontmatter.aliases);
+  const previousManagedAliases = new Set(
+    toStringList(existingFrontmatter.stratum_managed_aliases)
+  );
+  const userAliases = existingAliases.filter(
+    (alias) => !previousManagedAliases.has(alias)
+  );
+  const managedAliases = buildAliases(detail);
   const preservedTags = toStringList(existingFrontmatter.tags);
   const nextFrontmatter = filterExistingFrontmatter(existingFrontmatter);
   const sourceUrl = buildSourceUrl(detail);
   const nativeFrontmatter: Record<string, unknown> = {
-    aliases: Array.from(new Set([...buildAliases(detail), ...preservedAliases])),
+    aliases: Array.from(new Set([...managedAliases, ...userAliases])),
+    stratum_managed_aliases: managedAliases,
     tags: Array.from(new Set([...buildNativeTags(detail), ...preservedTags])),
     zotero_link: detail.item.zoteroSelectUri,
   };
@@ -202,6 +220,45 @@ export function renderFrontmatterContent(
     nativeFrontmatter.collections = detail.item.collections.map(
       (collection) => collection.name
     );
+  }
+  if (detail.item.volume) {
+    nativeFrontmatter.volume = detail.item.volume;
+  }
+  if (detail.item.issue) {
+    nativeFrontmatter.issue = detail.item.issue;
+  }
+  if (detail.item.pages) {
+    nativeFrontmatter.pages = detail.item.pages;
+  }
+  if (detail.item.isbn) {
+    nativeFrontmatter.isbn = detail.item.isbn;
+  }
+  if (detail.item.issn) {
+    nativeFrontmatter.issn = detail.item.issn;
+  }
+  if (detail.item.language) {
+    nativeFrontmatter.language = detail.item.language;
+  }
+  if (detail.item.citationKey) {
+    nativeFrontmatter.citation_key = detail.item.citationKey;
+  }
+  if (detail.item.publisher) {
+    nativeFrontmatter.publisher = detail.item.publisher;
+  }
+  if (detail.item.dateAdded) {
+    nativeFrontmatter.date_added = detail.item.dateAdded;
+  }
+  if (detail.item.pmid) {
+    nativeFrontmatter.pmid = detail.item.pmid;
+  }
+  if (detail.item.pmcid) {
+    nativeFrontmatter.pmcid = detail.item.pmcid;
+  }
+  if (detail.item.arxivId) {
+    nativeFrontmatter.arxiv = detail.item.arxivId;
+  }
+  if (detail.item.shortTitle) {
+    nativeFrontmatter.short_title = detail.item.shortTitle;
   }
 
   const merged = {

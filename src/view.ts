@@ -22,7 +22,7 @@ export class StratumView extends ItemView {
   }
 
   getIcon(): string {
-    return "search";
+    return "book-open-text";
   }
 
   async onOpen(): Promise<void> {

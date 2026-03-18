@@ -9,7 +9,57 @@ import {
 } from "../literature-note-content";
 import type { ZoteroItemDetail } from "../backend-client";
 
-function createDetail(overrides?: Partial<ZoteroItemDetail>): ZoteroItemDetail {
+const DEFAULT_ITEM: ZoteroItemDetail["item"] = {
+  key: "ABCD1234",
+  version: 12,
+  title: "Using Machine Learning to Advance Personality Assessment and Theory",
+  creators: ["Wiebke Bleidorn", "Christopher James Hopwood"],
+  year: "2019",
+  date: "2019-05-01",
+  itemType: "journalArticle",
+  abstract: "An abstract from Zotero.",
+  doi: "10.0000/example",
+  url: "https://example.com/paper",
+  publicationTitle: "Journal of Examples",
+  collections: [{ key: "COLLECTION1", name: "Machine Learning Review" }],
+  tags: ["personality", "ml"],
+  zoteroSelectUri: "zotero://select/library/items/ABCD1234",
+  isbn: null,
+  issn: null,
+  volume: null,
+  issue: null,
+  pages: null,
+  publisher: null,
+  place: null,
+  language: null,
+  shortTitle: null,
+  citationKey: null,
+  edition: null,
+  numPages: null,
+  series: null,
+  seriesTitle: null,
+  seriesNumber: null,
+  journalAbbreviation: null,
+  conferenceName: null,
+  university: null,
+  bookTitle: null,
+  reportNumber: null,
+  reportType: null,
+  thesisType: null,
+  pmid: null,
+  pmcid: null,
+  arxivId: null,
+  dateAdded: null,
+  dateModified: null,
+  citation: null,
+};
+
+function createDetail(
+  overrides?: Omit<Partial<ZoteroItemDetail>, "item"> & {
+    item?: Partial<ZoteroItemDetail["item"]>;
+  }
+): ZoteroItemDetail {
+  const { item: itemOverrides, ...rest } = overrides ?? {};
   return {
     zoteroUserId: "123456",
     library: {
@@ -18,27 +68,7 @@ function createDetail(overrides?: Partial<ZoteroItemDetail>): ZoteroItemDetail {
       zoteroUriSegment: "library",
       identity: "user:123456",
     },
-    item: {
-      key: "ABCD1234",
-      version: 12,
-      title: "Using Machine Learning to Advance Personality Assessment and Theory",
-      creators: ["Wiebke Bleidorn", "Christopher James Hopwood"],
-      year: "2019",
-      date: "2019-05-01",
-      itemType: "journalArticle",
-      abstract: "An abstract from Zotero.",
-      doi: "10.0000/example",
-      url: "https://example.com/paper",
-      publicationTitle: "Journal of Examples",
-      collections: [
-        {
-          key: "COLLECTION1",
-          name: "Machine Learning Review",
-        },
-      ],
-      tags: ["personality", "ml"],
-      zoteroSelectUri: "zotero://select/library/items/ABCD1234",
-    },
+    item: { ...DEFAULT_ITEM, ...itemOverrides },
     attachments: [
       {
         key: "ATTACH1",
@@ -54,7 +84,7 @@ function createDetail(overrides?: Partial<ZoteroItemDetail>): ZoteroItemDetail {
     ],
     zoteroNotes: [],
     annotations: [],
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -122,6 +152,8 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
   assert.match(output, /collections: \[Machine Learning Review\]/);
   assert.match(output, /\*\*Authors\*\*: \[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]/);
   assert.match(output, /\*\*Publication\*\*: \[\[Journal of Examples\]\]/);
+  // Collections and Topics are now in the Details callout
+  assert.match(output, /\[!example\]- Details/);
   assert.match(output, /\*\*Collections\*\*: \[\[Machine Learning Review\]\]/);
   assert.match(output, /\*\*Topics\*\*: #zotero\/personality #zotero\/ml/);
   assert.match(output, /> \[!abstract\]\+ Abstract/);
@@ -416,4 +448,208 @@ test("preprocessZoteroNoteHtml adds Zotero links for annotation and citation dat
   );
   assert.match(output, /Go to annotation/);
   assert.match(output, /<a href="zotero:\/\/select\/library\/items\/ABCD1234">\(Bleidorn, 2019\)<\/a>/);
+});
+
+// --- New tests for expanded metadata and redesigned layout ---
+
+test("journal article with volume/issue/pages renders location in Details callout", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        volume: "23",
+        issue: "2",
+        pages: "190-203",
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /\[!example\]- Details/);
+  assert.match(output, /\*\*Location\*\*: Vol\. 23 · No\. 2 · pp\. 190–203/);
+});
+
+test("book with ISBN and no DOI shows ISBN as primary identifier in Cite callout", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        itemType: "book",
+        doi: null,
+        isbn: "978-0-123456-78-9",
+        publicationTitle: null,
+        publisher: "Academic Press",
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /\[!cite\] Reference/);
+  assert.match(output, /\*\*ISBN\*\*: 978-0-123456-78-9/);
+  assert.match(output, /\*\*Publisher\*\*: Academic Press/);
+  assert.doesNotMatch(output, /\*\*DOI\*\*/);
+});
+
+test("preprint with arXiv shows arXiv as primary identifier in Cite callout", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        itemType: "preprint",
+        doi: null,
+        arxivId: "2301.12345",
+        publicationTitle: null,
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /\*\*arXiv\*\*: \[2301\.12345\]\(https:\/\/arxiv\.org\/abs\/2301\.12345\)/);
+});
+
+test("conference paper renders type-aware venue label", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        itemType: "conferencePaper",
+        conferenceName: "KDD '19",
+        publicationTitle: null,
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /\*\*Conference\*\*: \[\[KDD '19\]\]/);
+});
+
+test("thesis renders university as type-aware venue", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        itemType: "thesis",
+        university: "MIT",
+        publicationTitle: null,
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /\*\*University\*\*: \[\[MIT\]\]/);
+});
+
+test("formatted citation renders as plain blockquote", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        citation:
+          "Bleidorn, W., & Hopwood, C. J. (2019). Using machine learning to advance personality assessment and theory. https://doi.org/10.0000/example",
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /> Bleidorn, W\., & Hopwood, C\. J\. \(2019\)\./);
+});
+
+test("PMID and PMCID render as linked identifiers in Details callout", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        pmid: "12345678",
+        pmcid: "PMC9876543",
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /\*\*PMID\*\*: \[12345678\]\(https:\/\/pubmed\.ncbi\.nlm\.nih\.gov\/12345678\/\)/);
+  assert.match(output, /\*\*PMCID\*\*: \[PMC9876543\]\(https:\/\/www\.ncbi\.nlm\.nih\.gov\/pmc\/articles\/PMC9876543\/\)/);
+});
+
+test("new frontmatter fields are emitted when present", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        volume: "10",
+        isbn: "978-0-123456-78-9",
+        citationKey: "bleidorn2019",
+        language: "English",
+        publisher: "Academic Press",
+        dateAdded: "2024-01-15T10:00:00Z",
+        pmid: "12345678",
+        pmcid: "PMC9876543",
+        arxivId: "2301.12345",
+        issn: "1088-8683",
+        shortTitle: "ML for Personality",
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /citation_key: bleidorn2019/);
+  assert.match(output, /volume: 10/);
+  assert.match(output, /isbn: 978-0-123456-78-9/);
+  assert.match(output, /language: English/);
+  assert.match(output, /publisher: Academic Press/);
+  assert.match(output, /pmid: 12345678/);
+  assert.match(output, /pmcid: PMC9876543/);
+  assert.match(output, /arxiv: 2301\.12345/);
+  assert.match(output, /issn: 1088-8683/);
+  assert.match(output, /short_title: ML for Personality/);
+});
+
+test("expanded aliases include @citationKey and shortTitle", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        citationKey: "bleidorn2019",
+        shortTitle: "ML for Personality",
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /@bleidorn2019/);
+  assert.match(output, /ML for Personality/);
+});
+
+test("Details callout is omitted when all detail fields are null", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        collections: [],
+        tags: [],
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.doesNotMatch(output, /\[!example\]- Details/);
 });
