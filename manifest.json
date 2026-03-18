@@ -1,10 +1,10 @@
 {
-	"id": "stratum-obsidian",
-	"name": "Stratum",
-	"version": "0.0.1",
-	"minAppVersion": "1.11.4",
-	"description": "Create enriched structured literature notes from your Zotero library.",
-	"author": "Shawn Price",
-	"authorUrl": "https://shawnprice.com",
-	"isDesktopOnly": false
+  "id": "stratum-obsidian",
+  "name": "Stratum",
+  "version": "0.0.2",
+  "minAppVersion": "1.11.4",
+  "description": "Create enriched structured literature notes from your Zotero library.",
+  "author": "Shawn Price",
+  "authorUrl": "https://shawnprice.com",
+  "isDesktopOnly": false
 }

@@ -1,33 +1,33 @@
 {
-	"name": "stratum-obsidian",
-	"version": "0.0.1",
-	"description": "Create enriched structured literature notes from your Zotero library.",
-	"packageManager": "pnpm@10.12.4",
-	"main": "main.js",
-	"type": "module",
-	"scripts": {
-		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"typecheck": "tsc --noEmit",
-		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"test": "node --test --import tsx src/test/*.test.ts",
-		"lint": "eslint src"
-	},
-	"keywords": [],
-	"license": "MIT",
-	"devDependencies": {
-		"@eslint/js": "9.39.4",
-		"@types/node": "22.19.15",
-		"dotenv": "17.3.1",
-		"esbuild": "0.27.4",
-		"eslint": "9.39.4",
-		"eslint-plugin-obsidianmd": "0.1.9",
-		"globals": "17.4.0",
-		"jiti": "2.6.1",
-		"obsidian": "1.12.3",
-		"tslib": "2.8.1",
-		"tsx": "4.21.0",
-		"typescript": "5.9.3",
-		"typescript-eslint": "8.57.1"
-	}
+  "name": "stratum-obsidian",
+  "version": "0.0.2",
+  "description": "Create enriched structured literature notes from your Zotero library.",
+  "packageManager": "pnpm@10.12.4",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "typecheck": "tsc --noEmit",
+    "version": "node version-bump.mjs && git add manifest.json versions.json",
+    "test": "node --test --import tsx src/test/*.test.ts",
+    "lint": "eslint src"
+  },
+  "keywords": [],
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "@types/node": "22.19.15",
+    "dotenv": "17.3.1",
+    "esbuild": "0.27.4",
+    "eslint": "9.39.4",
+    "eslint-plugin-obsidianmd": "0.1.9",
+    "globals": "17.4.0",
+    "jiti": "2.6.1",
+    "obsidian": "1.12.3",
+    "tslib": "2.8.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.57.1"
+  }
 }
