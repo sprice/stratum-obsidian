@@ -1,9 +1,10 @@
-import type { ZoteroSearchResult } from "./backend-client";
+import { type ZoteroSearchResult, ZoteroTokenInvalidError } from "./backend-client";
 import type StratumPlugin from "./plugin";
 import {
   cancelLibraryPickerClose,
   syncSelectedLibraryResult,
 } from "./plugin-library-selection";
+import { markZoteroTokenInvalid } from "./plugin-sync-helpers";
 
 const LIBRARY_SEARCH_DEBOUNCE_MS = 150;
 
@@ -111,8 +112,14 @@ export async function fetchLibrarySuggestions(
 
     plugin.librarySearchResults = [];
     plugin.librarySearchMeta = null;
-    plugin.librarySearchError =
-      error instanceof Error ? error.message : "Library search failed.";
+    if (error instanceof ZoteroTokenInvalidError) {
+      markZoteroTokenInvalid(plugin);
+      plugin.librarySearchError =
+        "Zotero connection is no longer valid. Please reconnect in settings.";
+    } else {
+      plugin.librarySearchError =
+        error instanceof Error ? error.message : "Library search failed.";
+    }
     return [];
   } finally {
     if (requestId === plugin.librarySearchRequestId) {
@@ -187,8 +194,14 @@ async function performLibrarySearch(
     plugin.librarySearchResults = [];
     plugin.librarySearchMeta = null;
     plugin.highlightedLibrarySearchIndex = -1;
-    plugin.librarySearchError =
-      error instanceof Error ? error.message : "Library search failed.";
+    if (error instanceof ZoteroTokenInvalidError) {
+      markZoteroTokenInvalid(plugin);
+      plugin.librarySearchError =
+        "Zotero connection is no longer valid. Please reconnect in settings.";
+    } else {
+      plugin.librarySearchError =
+        error instanceof Error ? error.message : "Library search failed.";
+    }
   } finally {
     if (shouldRefresh) {
       plugin.isSearchingLibrary = false;

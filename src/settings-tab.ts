@@ -60,38 +60,42 @@ export class StratumSettingTab extends PluginSettingTab {
           })
       );
 
+    const tokenInvalid = zoteroConnection?.tokenValid === false;
     new Setting(workspaceSection)
       .setName("Zotero library")
       .setDesc(
         accountEmail
           ? this.plugin.isLoadingZoteroConnection
             ? "Checking Zotero connection status..."
-            : zoteroConnected
-              ? zoteroLinkedAt
-                ? `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}. Last confirmed on ${zoteroLinkedAt}.`
-                : `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}.`
-              : "Not connected yet."
+            : tokenInvalid
+              ? "Zotero connection is no longer valid. Please reconnect."
+              : zoteroConnected
+                ? zoteroLinkedAt
+                  ? `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}. Last confirmed on ${zoteroLinkedAt}.`
+                  : `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}.`
+                : "Not connected yet."
           : "Sign in to your Stratum account first."
       )
       .addButton((button) => {
         const canConnectZotero = Boolean(accountEmail);
+        const needsReconnect = tokenInvalid || !zoteroConnected;
         button
-          .setButtonText(zoteroConnected ? "Refresh status" : "Connect Zotero")
+          .setButtonText(needsReconnect ? "Connect Zotero" : "Refresh status")
           .setDisabled(!canConnectZotero || this.plugin.isLoadingZoteroConnection)
           .onClick(async () => {
             if (!canConnectZotero) {
               return;
             }
 
-            if (zoteroConnected) {
-              await this.plugin.refreshZoteroConnection();
-            } else {
+            if (needsReconnect) {
               await this.plugin.startZoteroConnect();
+            } else {
+              await this.plugin.refreshZoteroConnection();
             }
             this.display();
           });
 
-        if (!zoteroConnected) {
+        if (needsReconnect) {
           button.setCta();
         }
       });

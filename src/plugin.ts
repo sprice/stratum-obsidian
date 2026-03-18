@@ -128,7 +128,7 @@ export default class StratumPlugin extends Plugin {
       (leaf) => new StratumView(leaf, this)
     );
 
-    this.addRibbonIcon("search", "Open library view", () => {
+    this.addRibbonIcon("book-open-text", "Open library view", () => {
       void this.activateView();
     });
 

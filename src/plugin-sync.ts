@@ -3,12 +3,13 @@ import {
   createOrUpdateLiteratureNote,
   markLiteratureNoteDeleted,
 } from "./literature-note";
-import type { ZoteroLibraryChangesResponse } from "./backend-client";
+import { type ZoteroLibraryChangesResponse, ZoteroTokenInvalidError } from "./backend-client";
 import type StratumPlugin from "./plugin";
 import {
   ensureZoteroConnectionForSync,
   getTrackedLiteratureNotes,
   isMissingZoteroItemError,
+  markZoteroTokenInvalid,
 } from "./plugin-sync-helpers";
 import { refreshAutoSyncUi } from "./plugin-sync-status";
 import {
@@ -269,17 +270,25 @@ export async function runZoteroAutoSync(
       new Notice(`${PLUGIN_NAME}: Zotero is already in sync.`);
     }
   } catch (error) {
-    plugin.settings.zoteroAutoSync.lastError =
-      error instanceof Error ? error.message : String(error);
-    await plugin.saveSettings();
-    console.error("stratum: auto-sync failed", error);
-
-    if (reason !== "focus" && reason !== "interval") {
+    if (error instanceof ZoteroTokenInvalidError) {
+      markZoteroTokenInvalid(plugin);
+      console.error("stratum: Zotero token invalid, connection cleared", error);
       new Notice(
-        `${PLUGIN_NAME}: ${
-          error instanceof Error ? error.message : "Zotero sync failed."
-        }`
+        `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
       );
+    } else {
+      plugin.settings.zoteroAutoSync.lastError =
+        error instanceof Error ? error.message : String(error);
+      await plugin.saveSettings();
+      console.error("stratum: auto-sync failed", error);
+
+      if (reason !== "focus" && reason !== "interval") {
+        new Notice(
+          `${PLUGIN_NAME}: ${
+            error instanceof Error ? error.message : "Zotero sync failed."
+          }`
+        );
+      }
     }
   } finally {
     plugin.isAutoSyncRunning = false;

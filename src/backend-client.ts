@@ -24,6 +24,13 @@ import type { PersistedAuthSession } from "./settings";
 const REFRESH_BUFFER_SECONDS = 60;
 const AUTH_ERROR_STATUSES = new Set([401, 403]);
 
+export class ZoteroTokenInvalidError extends Error {
+  constructor(message?: string) {
+    super(message ?? "Zotero authorization failed. Please reconnect your Zotero account.");
+    this.name = "ZoteroTokenInvalidError";
+  }
+}
+
 type AuthedRequestOptions = Omit<RequestUrlParam, "throw" | "url">;
 
 export type {
@@ -140,6 +147,9 @@ export class BackendClient {
 
     if (!this.isOk(response)) {
       const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
+      if (payload.zoteroTokenInvalid) {
+        throw new ZoteroTokenInvalidError(payload.error);
+      }
       if (payload.rateLimited && payload.retryAfterSeconds) {
         throw new Error(
           `${payload.error ?? "Zotero library search is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
@@ -159,6 +169,9 @@ export class BackendClient {
 
     if (!this.isOk(response)) {
       const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
+      if (payload.zoteroTokenInvalid) {
+        throw new ZoteroTokenInvalidError(payload.error);
+      }
       if (payload.rateLimited && payload.retryAfterSeconds) {
         throw new Error(
           `${payload.error ?? "Zotero item detail is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
@@ -179,6 +192,9 @@ export class BackendClient {
 
     if (!this.isOk(response)) {
       const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
+      if (payload.zoteroTokenInvalid) {
+        throw new ZoteroTokenInvalidError(payload.error);
+      }
       if (payload.rateLimited && payload.retryAfterSeconds) {
         throw new Error(
           `${payload.error ?? "Zotero sync is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`

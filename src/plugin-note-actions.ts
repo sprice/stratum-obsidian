@@ -5,8 +5,9 @@ import {
 } from "./literature-note";
 import { promptExistingLiteratureNote } from "./literature-note-update-modal";
 import { PLUGIN_NAME } from "./constants";
-import type { ZoteroSearchResult } from "./backend-client";
+import { type ZoteroSearchResult, ZoteroTokenInvalidError } from "./backend-client";
 import type StratumPlugin from "./plugin";
+import { markZoteroTokenInvalid } from "./plugin-sync-helpers";
 
 export async function createLiteratureNote(
   plugin: StratumPlugin,
@@ -71,13 +72,20 @@ export async function createLiteratureNote(
     );
   } catch (error) {
     console.error("stratum: failed to create literature note", error);
-    new Notice(
-      `${PLUGIN_NAME}: ${
-        error instanceof Error
-          ? error.message
-          : "Literature note creation failed."
-      }`
-    );
+    if (error instanceof ZoteroTokenInvalidError) {
+      markZoteroTokenInvalid(plugin);
+      new Notice(
+        `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
+      );
+    } else {
+      new Notice(
+        `${PLUGIN_NAME}: ${
+          error instanceof Error
+            ? error.message
+            : "Literature note creation failed."
+        }`
+      );
+    }
   } finally {
     plugin.activeNoteActionKey = null;
     plugin.refreshViews();

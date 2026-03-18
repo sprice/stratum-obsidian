@@ -34,6 +34,18 @@ export function isMissingZoteroItemError(error: unknown): boolean {
   );
 }
 
+export function markZoteroTokenInvalid(plugin: StratumPlugin): void {
+  plugin.zoteroConnection = {
+    connected: false,
+    tokenValid: false,
+    zoteroUserId: plugin.zoteroConnection?.zoteroUserId ?? null,
+    zoteroUsername: plugin.zoteroConnection?.zoteroUsername ?? null,
+    lastSyncedAt: plugin.zoteroConnection?.lastSyncedAt ?? null,
+  };
+  plugin.refreshSettingTab();
+  plugin.refreshViews();
+}
+
 export async function ensureZoteroConnectionForSync(
   plugin: StratumPlugin
 ): Promise<boolean> {

@@ -13,6 +13,7 @@ export interface ZoteroConnectionState {
   zoteroUsername: string | null;
   zoteroUserId: string | null;
   lastSyncedAt: string | null;
+  tokenValid: boolean | null;
 }
 
 export interface ZoteroSearchResult {
@@ -114,6 +115,7 @@ export type BackendErrorPayload = {
   error?: string;
   retryAfterSeconds?: number | null;
   rateLimited?: boolean;
+  zoteroTokenInvalid?: boolean;
 };
 
 export type RefreshResponse = {
