@@ -199,7 +199,7 @@ export function renderFrontmatterContent(
   };
 
   if (detail.item.creators.length > 0) {
-    nativeFrontmatter.authors = detail.item.creators;
+    nativeFrontmatter.authors = detail.item.creators.map((c) => toWikiLink(c));
   }
   if (detail.item.year) {
     nativeFrontmatter.year = detail.item.year;
@@ -208,7 +208,7 @@ export function renderFrontmatterContent(
     nativeFrontmatter.reference_type = humanizeItemType(detail.item.itemType);
   }
   if (detail.item.publicationTitle) {
-    nativeFrontmatter.publication = detail.item.publicationTitle;
+    nativeFrontmatter.publication = toWikiLink(detail.item.publicationTitle);
   }
   if (detail.item.doi) {
     nativeFrontmatter.doi = detail.item.doi;

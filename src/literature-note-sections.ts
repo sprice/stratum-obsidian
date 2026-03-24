@@ -2,11 +2,31 @@ import type { ZoteroItemDetail } from "./backend-client";
 import { preprocessZoteroNoteHtml } from "./literature-note-content-html";
 import {
   getColorCategory,
+  getHighlightCalloutType,
   getHighlightGroupCalloutTitle,
   getZoteroNoteCalloutTitle,
   toCalloutBlock,
   toFoldableCalloutBlock,
 } from "./literature-note-section-helpers";
+
+function extractNoteAnnotationColor(
+  html: string,
+  annotations: ZoteroItemDetail["annotations"]
+): string | null {
+  // Try background-color in the HTML first
+  const bgMatch = html.match(/background-color:\s*(#[0-9a-fA-F]{6})/);
+  if (bgMatch) return bgMatch[1];
+
+  // Fall back to matching annotation keys referenced in the note
+  const keyPattern = /annotation=([A-Z0-9]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = keyPattern.exec(html)) !== null) {
+    const annotation = annotations.find((a) => a.key === match![1]);
+    if (annotation?.color) return annotation.color;
+  }
+
+  return null;
+}
 import {
   MANAGED_END,
   MANAGED_START,
@@ -112,7 +132,11 @@ function renderCiteCallout(detail: ZoteroItemDetail): string {
 
 function renderCitationBlockquote(detail: ZoteroItemDetail): string | null {
   if (!detail.item.citation) return null;
-  return `> ${detail.item.citation}`;
+  const citation = detail.item.citation.replace(
+    /(https?:\/\/doi\.org\/[^\s)]+)/g,
+    (url) => `[${url}](${url})`
+  );
+  return `> ${citation}`;
 }
 
 function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
@@ -217,8 +241,9 @@ function renderZoteroNotesSection(
   }
 
   const notes = detail.zoteroNotes.map((note, index) => {
+    const processedHtml = preprocessZoteroNoteHtml(note.html);
     const markdown =
-      htmlToMarkdown(preprocessZoteroNoteHtml(note.html)).trim() ||
+      htmlToMarkdown(processedHtml).trim() ||
       "_Empty Zotero note._";
     const metadataLine = [
       `[Open in Zotero](${note.zoteroSelectUri})`,
@@ -227,8 +252,13 @@ function renderZoteroNotesSection(
       .filter((line): line is string => Boolean(line))
       .join(" · ");
 
+    const noteColor = extractNoteAnnotationColor(processedHtml, detail.annotations);
+    const calloutType = noteColor
+      ? getHighlightCalloutType(getColorCategory(noteColor))
+      : "note";
+
     return toFoldableCalloutBlock(
-      "note",
+      calloutType,
       getZoteroNoteCalloutTitle(markdown, index),
       [metadataLine, "", ...markdown.split("\n")],
       false
@@ -268,7 +298,7 @@ function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
       });
 
       return toFoldableCalloutBlock(
-        "quote",
+        getHighlightCalloutType(label),
         getHighlightGroupCalloutTitle(label, annotations),
         bodyLines,
         false
@@ -302,8 +332,6 @@ export function renderManagedBlock(
 
   return [
     MANAGED_START,
-    `# ${detail.item.title}`,
-    "",
     ...deletedWarning,
     "> [!info] Stratum managed content",
     "> Stratum refreshes this reference block, Zotero notes, and PDF highlights.",

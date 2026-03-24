@@ -277,7 +277,7 @@ test("buildLiteratureNoteContent renders highlights as grouped callouts", () => 
   });
 
   assert.match(output, /## Highlights/);
-  assert.match(output, /> \[!quote\]\+ Yellow · 1 highlight/);
+  assert.match(output, /> \[!stratum-yellow\]\+ Yellow · 1 highlight/);
   assert.match(output, /> \*\*Page 4\*\* · highlight/);
   assert.match(output, /> A useful highlighted sentence\./);
   assert.match(output, /> Comment: This matters\./);
@@ -332,8 +332,8 @@ test("buildLiteratureNoteContent keeps grouped highlights expanded when there ar
     htmlToMarkdown: (html) => html,
   });
 
-  assert.match(output, /> \[!quote\]\+ Yellow · 2 highlights/);
-  assert.match(output, /> \[!quote\]\+ Green · 1 highlight/);
+  assert.match(output, /> \[!stratum-yellow\]\+ Yellow · 2 highlights/);
+  assert.match(output, /> \[!stratum-green\]\+ Green · 1 highlight/);
 });
 
 test("buildLiteratureNoteContent removes stale managed frontmatter keys on update", () => {

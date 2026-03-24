@@ -4,7 +4,9 @@ import type { StratumView } from "./view";
 
 export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchResult> {
   private readonly view: StratumView;
+  private readonly inputEl: HTMLInputElement;
   private readonly onStateChange: () => void;
+  private watchedPendingSearch: Promise<ZoteroSearchResult[]> | null = null;
 
   constructor(
     view: StratumView,
@@ -13,14 +15,35 @@ export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchR
   ) {
     super(view.app, component.inputEl);
     this.view = view;
+    this.inputEl = component.inputEl;
     this.onStateChange = onStateChange;
     this.limit = 24;
   }
 
-  protected async getSuggestions(query: string): Promise<ZoteroSearchResult[]> {
-    const results = await this.view.plugin.library.fetchSuggestions(query);
+  protected getSuggestions(query: string): ZoteroSearchResult[] {
+    const snapshot = this.view.plugin.library.fetchSuggestions(query);
+    if (
+      snapshot.pending &&
+      snapshot.pending !== this.watchedPendingSearch
+    ) {
+      this.watchedPendingSearch = snapshot.pending;
+      void snapshot.pending.then(() => {
+        if (this.watchedPendingSearch !== snapshot.pending) {
+          return;
+        }
+
+        this.watchedPendingSearch = null;
+        this.onStateChange();
+        if (this.inputEl.value !== query) {
+          return;
+        }
+
+        this.inputEl.dispatchEvent(new Event("input"));
+      });
+    }
+
     this.onStateChange();
-    return results;
+    return snapshot.results;
   }
 
   renderSuggestion(value: ZoteroSearchResult, el: HTMLElement): void {

@@ -1,7 +1,14 @@
 import { ItemView, SearchComponent, WorkspaceLeaf } from "obsidian";
 import { PLUGIN_NAME, VIEW_TYPE_STRATUM } from "./constants";
+import {
+  isLibrarySearchQueryReady,
+} from "./library-search-query";
 import type StratumPlugin from "./plugin";
-import { getAbstractTeaser, getSettingsManager, ABSTRACT_TEASER_LENGTH } from "./view-helpers";
+import {
+  ABSTRACT_TEASER_LENGTH,
+  getAbstractTeaser,
+  getSettingsManager,
+} from "./view-helpers";
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 
 export class StratumView extends ItemView {
@@ -83,7 +90,7 @@ export class StratumView extends ItemView {
     searchSection.createEl("p", {
       cls: "stratum-placeholder",
       text:
-        "Click to browse recent papers, or type to narrow by title, creator, or year.",
+        "Search your Zotero library by title, author, or year, then choose a paper to create or update its literature note.",
     });
 
     {
@@ -92,7 +99,7 @@ export class StratumView extends ItemView {
       });
       const searchLabel = searchBox.createEl("label", {
         cls: "stratum-search-label",
-        text: "Search by title, author, or year",
+        text: "Search your library",
       });
       const searchId = "stratum-paper-search";
       const searchComponent = new SearchComponent(searchBox);
@@ -103,12 +110,22 @@ export class StratumView extends ItemView {
       if (this.plugin.activeNoteActionKey) {
         searchComponent.setDisabled(true);
       }
+      const searchInputContainer = searchBox.querySelector(".search-input-container");
+      const loadingSpinner = searchInputContainer?.createDiv({
+        cls: "stratum-search-spinner",
+      });
+      loadingSpinner?.setAttr("aria-hidden", "true");
 
       const feedbackContainer = searchSection.createDiv({
         cls: "stratum-search-feedback",
       });
       let cacheContainer: HTMLElement | null = null;
       const renderSearchFeedback = () => {
+        const isReadyQuery = isLibrarySearchQueryReady(this.plugin.librarySearchQuery);
+        const showSpinner = this.plugin.isSearchingLibrary && isReadyQuery;
+        searchBox.classList.toggle("is-loading", showSpinner);
+        loadingSpinner?.classList.toggle("is-visible", showSpinner);
+
         feedbackContainer.empty();
         cacheContainer?.empty();
 
@@ -129,23 +146,29 @@ export class StratumView extends ItemView {
         }
 
         if (
+          this.plugin.librarySearchQuery.trim() &&
+          !isReadyQuery
+        ) {
+          feedbackContainer.createEl("p", {
+            cls: "stratum-meta stratum-combobox-status",
+            text: "Keep typing to search your Zotero library.",
+          });
+          return;
+        }
+
+        if (
           !this.plugin.isSearchingLibrary &&
           this.plugin.librarySearchMeta &&
           this.plugin.librarySearchResults.length === 0
         ) {
           feedbackContainer.createEl("p", {
             cls: "stratum-meta stratum-combobox-status",
-            text: this.plugin.librarySearchQuery.trim()
-              ? "No matching papers in your Zotero library."
-              : "No recent papers available yet.",
+            text: "No matching papers in your Zotero library.",
           });
           return;
         }
 
-        const isCachedSearch =
-          this.plugin.librarySearchMeta?.source === "cache" ||
-          this.plugin.librarySearchMeta?.stale;
-        if (!isCachedSearch || !cacheContainer) {
+        if (!this.plugin.librarySearchMeta?.stale || !cacheContainer) {
           return;
         }
 
@@ -154,13 +177,9 @@ export class StratumView extends ItemView {
         });
         cacheRow.createEl("p", {
           cls: "stratum-meta stratum-combobox-status",
-          text: this.plugin.librarySearchMeta?.stale
-            ? this.plugin.librarySearchMeta.retryAfterSeconds
-              ? `Showing cached papers while Zotero asks us to slow down. Live refresh should resume in about ${this.plugin.librarySearchMeta.retryAfterSeconds} seconds.`
-              : "Showing cached papers while Zotero asks us to slow down."
-            : this.plugin.librarySearchQuery.trim()
-            ? "Showing cached matches from the last validated Zotero search."
-            : "Showing cached recent papers to avoid unnecessary API requests.",
+          text: this.plugin.librarySearchMeta.retryAfterSeconds
+            ? `Showing cached papers while Zotero asks us to slow down. Live refresh should resume in about ${this.plugin.librarySearchMeta.retryAfterSeconds} seconds.`
+            : "Showing cached papers while Zotero asks us to slow down.",
         });
         const refreshButton = cacheRow.createEl("button", {
           cls: "stratum-inline-action",
@@ -170,7 +189,10 @@ export class StratumView extends ItemView {
           refreshButton.disabled = true;
         }
         refreshButton.addEventListener("click", () => {
-          void this.plugin.library.refreshSearch();
+          void this.plugin.library.refreshSearch().then(() => {
+            renderSearchFeedback();
+            searchComponent.inputEl.dispatchEvent(new Event("input"));
+          });
         });
       };
 
@@ -187,12 +209,21 @@ export class StratumView extends ItemView {
           return;
         }
 
-        this.plugin.librarySearchQuery = value;
+        this.plugin.library.setQuery(value);
+        if (!isLibrarySearchQueryReady(value)) {
+          this.paperSuggest?.close();
+        }
         renderSearchFeedback();
       });
 
       const openSuggestions = () => {
         if (this.plugin.activeNoteActionKey) {
+          return;
+        }
+
+        renderSearchFeedback();
+        if (!isLibrarySearchQueryReady(searchComponent.getValue())) {
+          this.paperSuggest?.close();
           return;
         }
 

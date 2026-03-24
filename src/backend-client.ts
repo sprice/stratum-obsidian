@@ -8,6 +8,7 @@ import {
   PLUGIN_SUPABASE_PUBLISHABLE_KEY,
   PLUGIN_SUPABASE_URL,
 } from "./build-config";
+import { ZoteroTokenInvalidError } from "./zotero-errors";
 import type {
   AuthenticatedUserResponse,
   AuthenticatedUserSummary,
@@ -24,13 +25,6 @@ import type { PersistedAuthSession } from "./settings";
 const REFRESH_BUFFER_SECONDS = 60;
 const AUTH_ERROR_STATUSES = new Set([401, 403]);
 
-export class ZoteroTokenInvalidError extends Error {
-  constructor(message?: string) {
-    super(message ?? "Zotero authorization failed. Please reconnect your Zotero account.");
-    this.name = "ZoteroTokenInvalidError";
-  }
-}
-
 type AuthedRequestOptions = Omit<RequestUrlParam, "throw" | "url">;
 
 export type {
@@ -46,6 +40,7 @@ export type {
   ZoteroSearchResponse,
   ZoteroSearchResult,
 } from "./backend-types";
+export { ZoteroTokenInvalidError } from "./zotero-errors";
 
 export class BackendClient {
   private state: BackendAuthState;

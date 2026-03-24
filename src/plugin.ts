@@ -28,11 +28,11 @@ import {
 } from "./plugin-auth";
 import {
   clearLibrarySearchDebounce,
+  getLibrarySuggestions,
   searchLibrary,
   setLibrarySearchQuery,
   openLibraryPicker,
   refreshLibrarySearch,
-  fetchLibrarySuggestions,
 } from "./plugin-library-search";
 import {
   cancelLibraryPickerClose,
@@ -91,6 +91,16 @@ export default class StratumPlugin extends Plugin {
   activeNoteActionKey: string | null = null;
   librarySearchRequestId = 0;
   librarySearchDebounceTimer: number | null = null;
+  librarySearchPendingPromise: Promise<ZoteroSearchResult[]> | null = null;
+  librarySearchPendingQuery: string | null = null;
+  librarySearchCache = new Map<
+    string,
+    {
+      query: string;
+      results: ZoteroSearchResult[];
+      meta: ZoteroSearchMeta;
+    }
+  >();
   libraryPickerCloseTimer: number | null = null;
   itemFileMapPersistTimer: number | null = null;
   autoSyncIntervalTimer: number | null = null;
@@ -112,8 +122,7 @@ export default class StratumPlugin extends Plugin {
       clearSelectedLibraryResult(this, options),
     toggleAbstract: () => toggleSelectedLibraryAbstract(this),
     refreshSearch: () => refreshLibrarySearch(this),
-    fetchSuggestions: (query: string, options?: { refresh?: boolean }) =>
-      fetchLibrarySuggestions(this, query, options),
+    fetchSuggestions: (query: string) => getLibrarySuggestions(this, query),
     createNote: (result: ZoteroSearchResult) => createLiteratureNote(this, result),
   };
 

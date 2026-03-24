@@ -71,6 +71,24 @@ export function getHighlightGroupCalloutTitle(
   return `${label} · ${annotations.length} ${suffix}`;
 }
 
+export function getHighlightCalloutType(colorCategory: string): string {
+  const map: Record<string, string> = {
+    Yellow: "stratum-yellow",
+    Red: "stratum-red",
+    Green: "stratum-green",
+    Blue: "stratum-blue",
+    Purple: "stratum-purple",
+    Magenta: "stratum-magenta",
+    Orange: "stratum-orange",
+    Cyan: "stratum-cyan",
+    Gray: "stratum-gray",
+    Black: "stratum-gray",
+    White: "stratum-gray",
+    Uncolored: "quote",
+  };
+  return map[colorCategory] ?? "quote";
+}
+
 export function getColorCategory(hex: string | null): string {
   if (!hex) {
     return "Uncolored";
