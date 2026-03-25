@@ -4,6 +4,7 @@ import {
 } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
+  PLUGIN_NAME,
   VIEW_TYPE_STRATUM,
 } from "./constants";
 import {
@@ -138,6 +139,7 @@ export default class StratumPlugin extends Plugin {
   async onload(): Promise<void> {
     await loadPluginSettings(this);
     this.backend = createBackendClient(this);
+    const openStratumRibbonLabel = `Open ${PLUGIN_NAME}`;
 
     this.settingTab = new StratumSettingTab(this);
     this.addSettingTab(this.settingTab);
@@ -146,7 +148,7 @@ export default class StratumPlugin extends Plugin {
       (leaf) => new StratumView(leaf, this)
     );
 
-    this.addRibbonIcon("book-open-text", "Open Stratum", () => {
+    this.addRibbonIcon("book-open-text", openStratumRibbonLabel, () => {
       void this.activateView();
     });
 

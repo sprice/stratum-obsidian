@@ -43,6 +43,10 @@ function delay(ms: number): Promise<void> {
   });
 }
 
+function throwBulkSyncError(error: Error): never {
+  throw error;
+}
+
 function queueBulkLibrarySyncUiRefresh(plugin: StratumPlugin): void {
   if (plugin.bulkLibrarySyncUiRefreshTimer !== null) {
     return;
@@ -213,7 +217,7 @@ async function processCatalogPage(
 
   let nextIndex = 0;
   let processedCount = 0;
-  let fatalError: unknown = null;
+  let fatalError: Error | null = null;
   let nextStartAt = Date.now();
 
   const reserveStartSlot = async (): Promise<void> => {
@@ -259,7 +263,9 @@ async function processCatalogPage(
           error instanceof ZoteroTokenInvalidError ||
           error instanceof ZoteroNotConnectedError
         ) {
-          fatalError = fatalError ?? error;
+          fatalError =
+            fatalError ??
+            (error instanceof Error ? error : new Error(String(error)));
         } else if (isMissingZoteroItemError(error)) {
           result.skippedCount += 1;
         } else {
@@ -275,8 +281,8 @@ async function processCatalogPage(
   });
 
   await Promise.all(workers);
-  if (fatalError) {
-    throw fatalError;
+  if (fatalError !== null) {
+    throwBulkSyncError(fatalError);
   }
 
   return result;
