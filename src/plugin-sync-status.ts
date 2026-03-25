@@ -6,6 +6,7 @@ const AUTO_SYNC_STATUS_REFRESH_MS = 60_000;
 export function getAutoSyncStatusLabel(plugin: StratumPlugin): string {
   return getSyncStatusLabel({
     isSyncing: plugin.isAutoSyncRunning,
+    isBulkSyncing: plugin.isBulkLibrarySyncRunning(),
     autoSyncEnabled: plugin.settings.autoSyncEnabled,
     state: plugin.settings.zoteroAutoSync,
   });
@@ -16,11 +17,15 @@ export function refreshAutoSyncUi(plugin: StratumPlugin): void {
     plugin.statusBarItemEl.setText(getAutoSyncStatusLabel(plugin));
     plugin.statusBarItemEl.setAttribute(
       "aria-label",
-      plugin.settings.zoteroAutoSync.lastError
+      plugin.isBulkLibrarySyncRunning()
+        ? "Zotero bulk sync is running"
+        : plugin.settings.zoteroAutoSync.lastError
         ? `Zotero sync status: ${plugin.settings.zoteroAutoSync.lastError}`
         : getAutoSyncStatusLabel(plugin)
     );
-    plugin.statusBarItemEl.title = plugin.settings.zoteroAutoSync.lastError
+    plugin.statusBarItemEl.title = plugin.isBulkLibrarySyncRunning()
+      ? "Bulk Zotero sync is running"
+      : plugin.settings.zoteroAutoSync.lastError
       ? plugin.settings.zoteroAutoSync.lastError
       : "Click to sync Zotero changes now";
   }

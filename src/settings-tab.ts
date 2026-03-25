@@ -125,9 +125,16 @@ export class StratumSettingTab extends PluginSettingTab {
       .addButton((button) =>
         button
           .setButtonText(
-            this.plugin.isZoteroAutoSyncRunning() ? "Syncing..." : "Sync now"
+            this.plugin.isBulkLibrarySyncRunning()
+              ? "Bulk sync running..."
+              : this.plugin.isZoteroAutoSyncRunning()
+              ? "Syncing..."
+              : "Sync now"
           )
-          .setDisabled(this.plugin.isZoteroAutoSyncRunning())
+          .setDisabled(
+            this.plugin.isZoteroAutoSyncRunning() ||
+              this.plugin.isBulkLibrarySyncRunning()
+          )
           .setCta()
           .onClick(async () => {
             await this.plugin.runZoteroAutoSync("manual");

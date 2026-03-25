@@ -4,3 +4,16 @@ export class ZoteroTokenInvalidError extends Error {
     this.name = "ZoteroTokenInvalidError";
   }
 }
+
+export class ZoteroRateLimitedError extends Error {
+  retryAfterSeconds: number;
+
+  constructor(message?: string, retryAfterSeconds = 60) {
+    super(
+      message ??
+        `Zotero asked Stratum to slow down. Retry in about ${retryAfterSeconds} seconds.`
+    );
+    this.name = "ZoteroRateLimitedError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}

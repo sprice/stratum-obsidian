@@ -65,6 +65,10 @@ import {
   runZoteroAutoSync,
 } from "./plugin-sync";
 import {
+  getBulkLibrarySyncProcessedCount,
+  runBulkLibrarySync,
+} from "./plugin-bulk-sync";
+import {
   clearAutoSyncInterval,
   configureAutoSyncInterval,
   getAutoSyncStatusLabel,
@@ -107,6 +111,10 @@ export default class StratumPlugin extends Plugin {
   autoSyncStatusTimer: number | null = null;
   lastFocusSyncAt = 0;
   isAutoSyncRunning = false;
+  bulkLibrarySyncRunPromise: Promise<void> | null = null;
+  bulkLibrarySyncCurrentPageProcessedCount = 0;
+  bulkLibrarySyncCurrentPageTotalCount = 0;
+  bulkLibrarySyncUiRefreshTimer: number | null = null;
   statusBarItemEl: HTMLElement | null = null;
   readonly library = {
     search: (query: string) => searchLibrary(this, query),
@@ -154,6 +162,14 @@ export default class StratumPlugin extends Plugin {
       name: "Sync Zotero changes now",
       callback: () => {
         void this.runZoteroAutoSync("manual");
+      },
+    });
+
+    this.addCommand({
+      id: "sync-all-zotero-papers",
+      name: "Sync all Zotero papers",
+      callback: () => {
+        void this.runBulkLibrarySync();
       },
     });
 
@@ -218,6 +234,10 @@ export default class StratumPlugin extends Plugin {
       window.clearTimeout(this.itemFileMapPersistTimer);
       this.itemFileMapPersistTimer = null;
     }
+    if (this.bulkLibrarySyncUiRefreshTimer !== null) {
+      window.clearTimeout(this.bulkLibrarySyncUiRefreshTimer);
+      this.bulkLibrarySyncUiRefreshTimer = null;
+    }
   }
 
   async loadSettings(): Promise<void> {
@@ -260,6 +280,14 @@ export default class StratumPlugin extends Plugin {
 
   isZoteroAutoSyncRunning(): boolean { return this.isAutoSyncRunning; }
 
+  isBulkLibrarySyncRunning(): boolean {
+    return this.bulkLibrarySyncRunPromise !== null;
+  }
+
+  getBulkLibrarySyncProcessedCount(): number {
+    return getBulkLibrarySyncProcessedCount(this);
+  }
+
   refreshAutoSyncUi(): void { refreshAutoSyncUi(this); }
 
   configureAutoSyncInterval(): void { configureAutoSyncInterval(this); }
@@ -296,5 +324,9 @@ export default class StratumPlugin extends Plugin {
     reason: "startup" | "focus" | "interval" | "manual"
   ): Promise<void> {
     await runZoteroAutoSync(this, reason);
+  }
+
+  async runBulkLibrarySync(): Promise<void> {
+    await runBulkLibrarySync(this);
   }
 }

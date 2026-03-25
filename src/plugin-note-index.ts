@@ -172,7 +172,7 @@ export async function rebuildItemFileMap(plugin: StratumPlugin): Promise<void> {
   await plugin.saveSettings();
 }
 
-function getIdentityCacheKey(identity: {
+export function getIdentityCacheKey(identity: {
   libraryType: string;
   libraryId: string;
   itemKey: string;

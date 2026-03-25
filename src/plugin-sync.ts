@@ -86,7 +86,7 @@ async function runInitialLiteratureRefresh(plugin: StratumPlugin): Promise<{
   };
 }
 
-async function applyZoteroLibraryChanges(
+export async function applyZoteroLibraryChanges(
   plugin: StratumPlugin,
   changes: ZoteroLibraryChangesResponse
 ): Promise<{
@@ -203,6 +203,13 @@ export async function runZoteroAutoSync(
   plugin: StratumPlugin,
   reason: "startup" | "focus" | "interval" | "manual"
 ): Promise<void> {
+  if (plugin.isBulkLibrarySyncRunning()) {
+    if (reason === "manual") {
+      new Notice(`${PLUGIN_NAME}: Zotero bulk sync is already running.`);
+    }
+    return;
+  }
+
   if (plugin.isAutoSyncRunning) {
     if (reason === "manual") {
       new Notice(`${PLUGIN_NAME}: Zotero sync is already running.`);

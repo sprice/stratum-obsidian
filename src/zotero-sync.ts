@@ -6,6 +6,16 @@ import {
 
 export const AUTO_SYNC_FOCUS_COOLDOWN_MS = 30_000;
 
+export const BULK_LIBRARY_SYNC_PHASES = [
+  "idle",
+  "running",
+  "paused-rate-limit",
+  "paused-error",
+  "completed",
+] as const;
+
+export type BulkLibrarySyncPhase = (typeof BULK_LIBRARY_SYNC_PHASES)[number];
+
 export interface ZoteroAutoSyncState {
   libraryVersion: number | null;
   lastSuccessfulSyncAt: string | null;
@@ -13,10 +23,46 @@ export interface ZoteroAutoSyncState {
   initialRefreshCompleted: boolean;
 }
 
+export interface BulkLibrarySyncState {
+  phase: BulkLibrarySyncPhase;
+  startedAt: string | null;
+  completedAt: string | null;
+  snapshotLibraryVersion: number | null;
+  totalResults: number | null;
+  nextStart: number;
+  pageSize: number;
+  processedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  lastError: string | null;
+  retryAfterSeconds: number | null;
+  failedItemKeys: string[];
+}
+
 export interface DeletedChildLookupCandidate {
   path: string;
   frontmatter?: Record<string, unknown> | null;
 }
+
+export const DEFAULT_BULK_LIBRARY_SYNC_STATE: BulkLibrarySyncState = {
+  phase: "idle",
+  startedAt: null,
+  completedAt: null,
+  snapshotLibraryVersion: null,
+  totalResults: null,
+  nextStart: 0,
+  pageSize: 100,
+  processedCount: 0,
+  createdCount: 0,
+  updatedCount: 0,
+  skippedCount: 0,
+  failedCount: 0,
+  lastError: null,
+  retryAfterSeconds: null,
+  failedItemKeys: [],
+};
 
 function toStringList(value: unknown): string[] {
   if (typeof value === "string") {
@@ -84,10 +130,15 @@ export function formatRelativeSyncTime(
 
 export function getSyncStatusLabel(params: {
   isSyncing: boolean;
+  isBulkSyncing?: boolean;
   autoSyncEnabled: boolean;
   state: ZoteroAutoSyncState;
   now?: number;
 }): string {
+  if (params.isBulkSyncing) {
+    return "Zotero: syncing all papers...";
+  }
+
   if (params.isSyncing) {
     return "Zotero: syncing...";
   }
@@ -117,6 +168,57 @@ export function shouldSkipFocusSync(
   cooldownMs = AUTO_SYNC_FOCUS_COOLDOWN_MS
 ): boolean {
   return lastFocusSyncAt > 0 && now - lastFocusSyncAt < cooldownMs;
+}
+
+export function getBulkLibrarySyncButtonLabel(
+  state: BulkLibrarySyncState
+): string {
+  if (state.phase === "running") {
+    return "Syncing Zotero papers...";
+  }
+
+  if (state.phase === "paused-rate-limit" || state.phase === "paused-error") {
+    return "Resume Zotero sync";
+  }
+
+  return "Sync all Zotero papers";
+}
+
+export function getBulkLibrarySyncStatusMessage(params: {
+  state: BulkLibrarySyncState;
+  processedCount?: number;
+}): string | null {
+  const processedCount = params.processedCount ?? params.state.processedCount;
+
+  if (params.state.phase === "running") {
+    if (params.state.totalResults && params.state.totalResults > 0) {
+      return `Syncing ${Math.min(processedCount, params.state.totalResults)} of ${params.state.totalResults} papers.`;
+    }
+
+    return processedCount > 0
+      ? `Syncing papers. ${processedCount} processed so far.`
+      : "Preparing your Zotero library...";
+  }
+
+  if (params.state.phase === "paused-rate-limit") {
+    return params.state.retryAfterSeconds
+      ? `Paused while Zotero asks us to slow down. Resume in about ${params.state.retryAfterSeconds} seconds.`
+      : "Paused while Zotero asks us to slow down.";
+  }
+
+  if (params.state.phase === "paused-error") {
+    return params.state.lastError ?? "Sync paused. Resume when ready.";
+  }
+
+  if (params.state.phase === "completed") {
+    if (params.state.totalResults && params.state.totalResults > 0) {
+      return `Finished syncing ${params.state.totalResults} papers.`;
+    }
+
+    return "Finished syncing your Zotero papers.";
+  }
+
+  return "Create or update literature notes for every paper in your Zotero library.";
 }
 
 export function findAffectedPathsForDeletedChildKeys(

@@ -1,6 +1,10 @@
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
-import type { ZoteroAutoSyncState } from "./zotero-sync";
+import {
+  DEFAULT_BULK_LIBRARY_SYNC_STATE,
+  type BulkLibrarySyncState,
+  type ZoteroAutoSyncState,
+} from "./zotero-sync";
 
 export interface PersistedAuthSession {
   accessToken: string;
@@ -25,6 +29,7 @@ export interface StratumSettings {
   authSessionExpiresAt: number | null;
   itemFileMap: Record<string, ItemFileMapEntry>;
   zoteroAutoSync: ZoteroAutoSyncState;
+  bulkLibrarySync: BulkLibrarySyncState;
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
@@ -43,4 +48,5 @@ export const DEFAULT_SETTINGS: StratumSettings = {
     lastError: null,
     initialRefreshCompleted: false,
   },
+  bulkLibrarySync: DEFAULT_BULK_LIBRARY_SYNC_STATE,
 };

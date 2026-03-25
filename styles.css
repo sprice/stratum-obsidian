@@ -321,6 +321,20 @@
 	min-height: 0;
 }
 
+.stratum-bulk-sync {
+	display: grid;
+	gap: 0.45rem;
+	margin-top: 1.5rem;
+}
+
+.stratum-bulk-sync .mod-cta {
+	justify-self: start;
+}
+
+.stratum-bulk-sync-status {
+	margin: 0;
+}
+
 .stratum-combobox-list {
 	margin-top: 0.35rem;
 	border: 1px solid var(--background-modifier-border);

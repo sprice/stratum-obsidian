@@ -13,6 +13,11 @@ export async function createLiteratureNote(
   plugin: StratumPlugin,
   result: ZoteroSearchResult
 ): Promise<void> {
+  if (plugin.isBulkLibrarySyncRunning()) {
+    new Notice(`${PLUGIN_NAME}: Wait for the Zotero bulk sync to finish first.`);
+    return;
+  }
+
   if (plugin.activeNoteActionKey) {
     return;
   }

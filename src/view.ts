@@ -10,6 +10,10 @@ import {
   getSettingsManager,
 } from "./view-helpers";
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
+import {
+  getBulkLibrarySyncButtonLabel as getBulkSyncButtonLabel,
+  getBulkLibrarySyncStatusMessage as getBulkSyncStatusMessage,
+} from "./zotero-sync";
 
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
@@ -234,6 +238,40 @@ export class StratumView extends ItemView {
       searchComponent.inputEl.addEventListener("focus", openSuggestions);
       searchComponent.inputEl.addEventListener("click", openSuggestions);
 
+      cacheContainer = searchSection.createDiv({
+        cls: "stratum-search-cache",
+      });
+      renderSearchFeedback();
+
+      const bulkSyncSection = searchSection.createDiv({
+        cls: "stratum-bulk-sync",
+      });
+      const bulkSyncButton = bulkSyncSection.createEl("button", {
+        cls: "mod-cta",
+        text: getBulkSyncButtonLabel(this.plugin.settings.bulkLibrarySync),
+      });
+      if (
+        this.plugin.activeNoteActionKey ||
+        this.plugin.isBulkLibrarySyncRunning() ||
+        this.plugin.isZoteroAutoSyncRunning()
+      ) {
+        bulkSyncButton.disabled = true;
+      }
+      bulkSyncButton.addEventListener("click", () => {
+        void this.plugin.runBulkLibrarySync();
+      });
+
+      const bulkSyncStatus = getBulkSyncStatusMessage({
+        state: this.plugin.settings.bulkLibrarySync,
+        processedCount: this.plugin.getBulkLibrarySyncProcessedCount(),
+      });
+      if (bulkSyncStatus) {
+        bulkSyncSection.createEl("p", {
+          cls: "stratum-meta stratum-bulk-sync-status",
+          text: bulkSyncStatus,
+        });
+      }
+
       if (this.plugin.selectedLibraryResult) {
         const selected = this.plugin.selectedLibraryResult;
         const selectedCard = searchSection.createDiv({
@@ -305,9 +343,11 @@ export class StratumView extends ItemView {
           text:
             this.plugin.activeNoteActionKey === selected.key
               ? "Working..."
+              : this.plugin.isBulkLibrarySyncRunning()
+              ? "Bulk sync running..."
               : "Create or update literature note",
         });
-        if (this.plugin.activeNoteActionKey) {
+        if (this.plugin.activeNoteActionKey || this.plugin.isBulkLibrarySyncRunning()) {
           createButton.disabled = true;
         }
         createButton.addEventListener("click", () => {
@@ -320,11 +360,6 @@ export class StratumView extends ItemView {
             "Safe updates rewrite only managed sections and leave your own notes alone.",
         });
       }
-
-      cacheContainer = searchSection.createDiv({
-        cls: "stratum-search-cache",
-      });
-      renderSearchFeedback();
     }
 
   }

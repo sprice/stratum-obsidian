@@ -16,6 +16,12 @@ export interface ZoteroConnectionState {
   tokenValid: boolean | null;
 }
 
+export interface ZoteroLibraryIdentity {
+  type: "user" | "group";
+  id: string;
+  identity: string;
+}
+
 export interface ZoteroSearchResult {
   key: string;
   version: number;
@@ -43,7 +49,7 @@ export interface ZoteroSearchResponse {
 export interface ZoteroItemDetail {
   zoteroUserId: string;
   library: {
-    type: "user" | "group";
+    type: ZoteroLibraryIdentity["type"];
     id: string;
     zoteroUriSegment: "library" | "groups";
     identity: string;
@@ -128,15 +134,27 @@ export interface ZoteroItemDetail {
 }
 
 export interface ZoteroLibraryChangesResponse {
-  library: {
-    type: "user";
-    id: string;
-    identity: string;
-  };
+  library: ZoteroLibraryIdentity;
   sinceVersion: number | null;
   latestLibraryVersion: number | null;
   changedParentKeys: string[];
   deletedItemKeys: string[];
+}
+
+export interface ZoteroLibraryCatalogItem {
+  key: string;
+  version: number;
+}
+
+export interface ZoteroLibraryCatalogPageResponse {
+  library: ZoteroLibraryIdentity;
+  snapshotLibraryVersion: number | null;
+  totalResults: number | null;
+  items: ZoteroLibraryCatalogItem[];
+  start: number;
+  limit: number;
+  nextStart: number | null;
+  hasMore: boolean;
 }
 
 export type BackendErrorPayload = {

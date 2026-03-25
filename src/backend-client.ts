@@ -8,13 +8,14 @@ import {
   PLUGIN_SUPABASE_PUBLISHABLE_KEY,
   PLUGIN_SUPABASE_URL,
 } from "./build-config";
-import { ZoteroTokenInvalidError } from "./zotero-errors";
+import { ZoteroRateLimitedError, ZoteroTokenInvalidError } from "./zotero-errors";
 import type {
   AuthenticatedUserResponse,
   AuthenticatedUserSummary,
   BackendErrorPayload,
   BackendAuthState,
   RefreshResponse,
+  ZoteroLibraryCatalogPageResponse,
   ZoteroConnectionState,
   ZoteroItemDetail,
   ZoteroLibraryChangesResponse,
@@ -33,6 +34,9 @@ export type {
   BackendErrorPayload,
   BackendAuthState,
   RefreshResponse,
+  ZoteroLibraryCatalogItem,
+  ZoteroLibraryCatalogPageResponse,
+  ZoteroLibraryIdentity,
   ZoteroConnectionState,
   ZoteroItemDetail,
   ZoteroLibraryChangesResponse,
@@ -40,7 +44,7 @@ export type {
   ZoteroSearchResponse,
   ZoteroSearchResult,
 } from "./backend-types";
-export { ZoteroTokenInvalidError } from "./zotero-errors";
+export { ZoteroRateLimitedError, ZoteroTokenInvalidError } from "./zotero-errors";
 
 export class BackendClient {
   private state: BackendAuthState;
@@ -140,21 +144,26 @@ export class BackendClient {
       `/zotero-library-search?q=${encodedQuery}${refreshSuffix}`
     );
 
-    if (!this.isOk(response)) {
-      const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
-      if (payload.zoteroTokenInvalid) {
-        throw new ZoteroTokenInvalidError(payload.error);
-      }
-      if (payload.rateLimited && payload.retryAfterSeconds) {
-        throw new Error(
-          `${payload.error ?? "Zotero library search is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
-        );
-      }
-
-      throw new Error(payload.error ?? "Zotero library search failed");
-    }
+    this.throwIfBackendError(response, "Zotero library search failed");
 
     return this.readJson<ZoteroSearchResponse>(response);
+  }
+
+  async getZoteroLibraryCatalogPage(params: {
+    start: number;
+    limit: number;
+  }): Promise<ZoteroLibraryCatalogPageResponse> {
+    const query = new URLSearchParams({
+      start: String(params.start),
+      limit: String(params.limit),
+    });
+    const response = await this.authedFetch(
+      `/zotero-library-catalog-page?${query.toString()}`
+    );
+
+    this.throwIfBackendError(response, "Failed to load Zotero library catalog page");
+
+    return this.readJson<ZoteroLibraryCatalogPageResponse>(response);
   }
 
   async getZoteroItemDetail(itemKey: string): Promise<ZoteroItemDetail> {
@@ -162,19 +171,7 @@ export class BackendClient {
       `/zotero-item-detail?key=${encodeURIComponent(itemKey)}`
     );
 
-    if (!this.isOk(response)) {
-      const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
-      if (payload.zoteroTokenInvalid) {
-        throw new ZoteroTokenInvalidError(payload.error);
-      }
-      if (payload.rateLimited && payload.retryAfterSeconds) {
-        throw new Error(
-          `${payload.error ?? "Zotero item detail is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
-        );
-      }
-
-      throw new Error(payload.error ?? "Failed to load Zotero item detail");
-    }
+    this.throwIfBackendError(response, "Failed to load Zotero item detail");
 
     return this.readJson<ZoteroItemDetail>(response);
   }
@@ -185,19 +182,7 @@ export class BackendClient {
     const query = sinceVersion === null ? "" : `?since=${encodeURIComponent(String(sinceVersion))}`;
     const response = await this.authedFetch(`/zotero-library-changes${query}`);
 
-    if (!this.isOk(response)) {
-      const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
-      if (payload.zoteroTokenInvalid) {
-        throw new ZoteroTokenInvalidError(payload.error);
-      }
-      if (payload.rateLimited && payload.retryAfterSeconds) {
-        throw new Error(
-          `${payload.error ?? "Zotero sync is temporarily rate limited."} Retry in about ${payload.retryAfterSeconds} seconds.`
-        );
-      }
-
-      throw new Error(payload.error ?? "Failed to load Zotero library changes");
-    }
+    this.throwIfBackendError(response, "Failed to load Zotero library changes");
 
     return this.readJson<ZoteroLibraryChangesResponse>(response);
   }
@@ -287,6 +272,31 @@ export class BackendClient {
 
   private isOk(response: RequestUrlResponse): boolean {
     return response.status >= 200 && response.status < 300;
+  }
+
+  private throwIfBackendError(
+    response: RequestUrlResponse,
+    fallbackMessage: string
+  ): void {
+    if (this.isOk(response)) {
+      return;
+    }
+
+    const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
+    if (payload.zoteroTokenInvalid) {
+      throw new ZoteroTokenInvalidError(payload.error);
+    }
+
+    if (payload.rateLimited) {
+      throw new ZoteroRateLimitedError(
+        payload.retryAfterSeconds
+          ? `${payload.error ?? fallbackMessage} Retry in about ${payload.retryAfterSeconds} seconds.`
+          : payload.error ?? fallbackMessage,
+        payload.retryAfterSeconds ?? 60
+      );
+    }
+
+    throw new Error(payload.error ?? fallbackMessage);
   }
 
   private readJson<T>(response: RequestUrlResponse): T {
