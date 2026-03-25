@@ -6,6 +6,10 @@ import {
   getStoredAuthSession,
   persistAuthSessionSecrets,
 } from "./plugin-persistence";
+import {
+  applyLastKnownZoteroSnapshot,
+  updateLastKnownZoteroSnapshot,
+} from "./plugin-sync-helpers";
 import type StratumPlugin from "./plugin";
 
 export function createBackendClient(plugin: StratumPlugin): BackendClient {
@@ -18,11 +22,37 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
     },
     onUserChange: async (user) => {
       const nextEmail = user?.email ?? null;
+      const previousEmail = plugin.settings.accountEmail;
       let changed = false;
 
-      if (plugin.settings.accountEmail !== nextEmail) {
+      if (previousEmail !== nextEmail) {
         plugin.settings.accountEmail = nextEmail;
         changed = true;
+      }
+
+      const shouldClearZoteroSnapshot =
+        nextEmail === null ||
+        (previousEmail !== null &&
+          nextEmail !== null &&
+          previousEmail !== nextEmail);
+
+      if (shouldClearZoteroSnapshot) {
+        if (plugin.settings.lastKnownZoteroUserId !== null) {
+          plugin.settings.lastKnownZoteroUserId = null;
+          changed = true;
+        }
+        if (plugin.settings.lastKnownZoteroUsername !== null) {
+          plugin.settings.lastKnownZoteroUsername = null;
+          changed = true;
+        }
+        if (plugin.settings.lastKnownZoteroConfirmedAt !== null) {
+          plugin.settings.lastKnownZoteroConfirmedAt = null;
+          changed = true;
+        }
+        if (plugin.zoteroConnection !== null) {
+          plugin.zoteroConnection = null;
+          changed = true;
+        }
       }
 
       if (nextEmail) {
@@ -81,6 +111,13 @@ export async function startZoteroConnect(plugin: StratumPlugin): Promise<void> {
   new Notice(`${PLUGIN_NAME}: opened Zotero connect flow in the browser.`);
 }
 
+export async function signOutFromPlugin(plugin: StratumPlugin): Promise<void> {
+  plugin.settings.lastDeviceCode = null;
+  await plugin.saveSettings();
+  await plugin.backend.clearSession();
+  new Notice(`${PLUGIN_NAME}: signed out of Stratum on this device.`);
+}
+
 async function ensureAuthenticatedSessionState(
   plugin: StratumPlugin
 ): Promise<boolean> {
@@ -130,11 +167,25 @@ export async function refreshZoteroConnection(
   plugin.refreshViews();
   plugin.refreshSettingTab();
 
+  const previousConnection = plugin.zoteroConnection;
+
   try {
-    plugin.zoteroConnection = await plugin.backend.getZoteroConnectionStatus();
+    const nextConnection = await plugin.backend.getZoteroConnectionStatus();
+    if (nextConnection) {
+      plugin.zoteroConnection = applyLastKnownZoteroSnapshot(plugin, nextConnection);
+      if (updateLastKnownZoteroSnapshot(plugin, plugin.zoteroConnection)) {
+        await plugin.saveSettings();
+      }
+    } else {
+      plugin.zoteroConnection = plugin.backend.hasSession()
+        ? previousConnection
+        : null;
+    }
   } catch (error) {
     console.error("stratum: failed to load Zotero connection state", error);
-    plugin.zoteroConnection = null;
+    plugin.zoteroConnection = plugin.backend.hasSession()
+      ? previousConnection
+      : null;
   } finally {
     plugin.isLoadingZoteroConnection = false;
     plugin.refreshAutoSyncUi();

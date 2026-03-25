@@ -8,8 +8,14 @@ import {
   cancelLibraryPickerClose,
   syncSelectedLibraryResult,
 } from "./plugin-library-selection";
-import { markZoteroTokenInvalid } from "./plugin-sync-helpers";
-import { ZoteroTokenInvalidError } from "./zotero-errors";
+import {
+  markZoteroDisconnected,
+  markZoteroTokenInvalid,
+} from "./plugin-sync-helpers";
+import {
+  ZoteroNotConnectedError,
+  ZoteroTokenInvalidError,
+} from "./zotero-errors";
 
 const LIBRARY_SEARCH_DEBOUNCE_MS = 500;
 
@@ -222,6 +228,10 @@ async function runLibrarySearchRequest(
       markZoteroTokenInvalid(plugin);
       plugin.librarySearchError =
         "Zotero connection is no longer valid. Please reconnect in settings.";
+    } else if (error instanceof ZoteroNotConnectedError) {
+      markZoteroDisconnected(plugin);
+      plugin.librarySearchError =
+        "Zotero is not connected. Please connect it again in settings.";
     } else {
       plugin.librarySearchError =
         error instanceof Error ? error.message : "Library search failed.";

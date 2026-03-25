@@ -30,11 +30,15 @@ export class StratumSettingTab extends PluginSettingTab {
     const accountEmail = this.plugin.settings.accountEmail;
     const zoteroConnection = this.plugin.zoteroConnection;
     const zoteroConnected = Boolean(zoteroConnection?.connected);
+    const lastKnownZoteroUsername =
+      zoteroConnection?.zoteroUsername ?? this.plugin.settings.lastKnownZoteroUsername;
     const linkedAt = this.plugin.settings.accountLinkedAt
       ? new Date(this.plugin.settings.accountLinkedAt).toLocaleString()
       : null;
-    const zoteroLinkedAt = zoteroConnection?.lastSyncedAt
-      ? new Date(zoteroConnection.lastSyncedAt).toLocaleString()
+    const lastKnownZoteroLinkedAt =
+      zoteroConnection?.lastSyncedAt ?? this.plugin.settings.lastKnownZoteroConfirmedAt;
+    const zoteroLinkedAt = lastKnownZoteroLinkedAt
+      ? new Date(lastKnownZoteroLinkedAt).toLocaleString()
       : null;
 
     const workspaceSection = this.createSection(containerEl, "Workspace");
@@ -48,19 +52,28 @@ export class StratumSettingTab extends PluginSettingTab {
             : `Signed in as ${accountEmail}.`
           : this.plugin.settings.lastDeviceCode
             ? "Browser sign-in has been opened for this device. Finish the flow and return to Obsidian."
-            : "Not signed in yet."
+            : "Sign in to Stratum."
       )
       .addButton((button) =>
         button
-          .setButtonText(accountEmail ? "Reconnect sign-in" : "Sign in")
+          .setButtonText(accountEmail ? "Sign out of Stratum" : "Sign in")
           .setCta()
           .onClick(async () => {
-            await this.plugin.startDeviceHandoff();
+            if (accountEmail) {
+              await this.plugin.signOutFromPlugin();
+            } else {
+              await this.plugin.startDeviceHandoff();
+            }
             this.display();
           })
       );
 
     const tokenInvalid = zoteroConnection?.tokenValid === false;
+    const lastKnownZoteroSummary = lastKnownZoteroUsername
+      ? zoteroLinkedAt
+        ? `Last connected as ${lastKnownZoteroUsername}. Last confirmed on ${zoteroLinkedAt}.`
+        : `Last connected as ${lastKnownZoteroUsername}.`
+      : null;
     new Setting(workspaceSection)
       .setName("Zotero library")
       .setDesc(
@@ -68,12 +81,16 @@ export class StratumSettingTab extends PluginSettingTab {
           ? this.plugin.isLoadingZoteroConnection
             ? "Checking Zotero connection status..."
             : tokenInvalid
-              ? "Zotero connection is no longer valid. Please reconnect."
+              ? lastKnownZoteroSummary
+                ? `Connect to Zotero. ${lastKnownZoteroSummary}`
+                : "Connect to Zotero."
               : zoteroConnected
                 ? zoteroLinkedAt
                   ? `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}. Last confirmed on ${zoteroLinkedAt}.`
                   : `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}.`
-                : "Not connected yet."
+                : lastKnownZoteroSummary
+                  ? `Signed out of Zotero. Connect Zotero again to search and sync papers. ${lastKnownZoteroSummary}`
+                  : "Not connected yet."
           : "Sign in to your Stratum account first."
       )
       .addButton((button) => {
@@ -100,15 +117,6 @@ export class StratumSettingTab extends PluginSettingTab {
         }
       });
 
-    new Setting(workspaceSection)
-      .setName("Open library view")
-      .setDesc("Jump back to the paper picker and literature-note workflow.")
-      .addButton((button) =>
-        button.setButtonText("Open view").onClick(async () => {
-          await this.plugin.activateView();
-        })
-      );
-
     const syncSection = this.createSection(containerEl, "Sync");
 
     new Setting(syncSection)
@@ -132,6 +140,8 @@ export class StratumSettingTab extends PluginSettingTab {
               : "Sync now"
           )
           .setDisabled(
+            !accountEmail ||
+              !zoteroConnected ||
             this.plugin.isZoteroAutoSyncRunning() ||
               this.plugin.isBulkLibrarySyncRunning()
           )

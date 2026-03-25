@@ -22,6 +22,9 @@ type StoredSettingsData = Partial<
     | "accountEmail"
     | "accountLinkedAt"
     | "authSessionExpiresAt"
+    | "lastKnownZoteroUserId"
+    | "lastKnownZoteroUsername"
+    | "lastKnownZoteroConfirmedAt"
   >
 > & {
   authSession?: PersistedAuthSession | null;
@@ -242,6 +245,24 @@ function readStoredSettings(
     nextSettings.authSessionExpiresAt = value.authSessionExpiresAt;
   } else if (value.authSessionExpiresAt === null) {
     nextSettings.authSessionExpiresAt = null;
+  }
+  if (
+    typeof value.lastKnownZoteroUserId === "string" ||
+    value.lastKnownZoteroUserId === null
+  ) {
+    nextSettings.lastKnownZoteroUserId = value.lastKnownZoteroUserId;
+  }
+  if (
+    typeof value.lastKnownZoteroUsername === "string" ||
+    value.lastKnownZoteroUsername === null
+  ) {
+    nextSettings.lastKnownZoteroUsername = value.lastKnownZoteroUsername;
+  }
+  if (
+    typeof value.lastKnownZoteroConfirmedAt === "string" ||
+    value.lastKnownZoteroConfirmedAt === null
+  ) {
+    nextSettings.lastKnownZoteroConfirmedAt = value.lastKnownZoteroConfirmedAt;
   }
 
   return nextSettings;

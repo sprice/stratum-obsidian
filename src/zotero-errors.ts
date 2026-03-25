@@ -5,6 +5,13 @@ export class ZoteroTokenInvalidError extends Error {
   }
 }
 
+export class ZoteroNotConnectedError extends Error {
+  constructor(message?: string) {
+    super(message ?? "Zotero account is not connected.");
+    this.name = "ZoteroNotConnectedError";
+  }
+}
+
 export class ZoteroRateLimitedError extends Error {
   retryAfterSeconds: number;
 

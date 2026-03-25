@@ -4,6 +4,7 @@ import {
   type ZoteroLibraryCatalogItem,
   type ZoteroLibraryCatalogPageResponse,
   type ZoteroLibraryIdentity,
+  ZoteroNotConnectedError,
   ZoteroRateLimitedError,
   ZoteroTokenInvalidError,
 } from "./backend-client";
@@ -12,8 +13,9 @@ import type StratumPlugin from "./plugin";
 import { getIdentityCacheKey } from "./plugin-note-index";
 import { applyZoteroLibraryChanges } from "./plugin-sync";
 import {
-  ensureZoteroConnectionForSync,
+  ensureZoteroConnection,
   isMissingZoteroItemError,
+  markZoteroDisconnected,
   markZoteroTokenInvalid,
 } from "./plugin-sync-helpers";
 import {
@@ -254,7 +256,8 @@ async function processCatalogPage(
       } catch (error) {
         if (
           error instanceof ZoteroRateLimitedError ||
-          error instanceof ZoteroTokenInvalidError
+          error instanceof ZoteroTokenInvalidError ||
+          error instanceof ZoteroNotConnectedError
         ) {
           fatalError = fatalError ?? error;
         } else if (isMissingZoteroItemError(error)) {
@@ -365,7 +368,8 @@ async function retryFailedCatalogItems(plugin: StratumPlugin): Promise<{
     } catch (error) {
       if (
         error instanceof ZoteroRateLimitedError ||
-        error instanceof ZoteroTokenInvalidError
+        error instanceof ZoteroTokenInvalidError ||
+        error instanceof ZoteroNotConnectedError
       ) {
         throw error;
       }
@@ -404,7 +408,7 @@ export async function runBulkLibrarySync(plugin: StratumPlugin): Promise<void> {
         return;
       }
 
-      if (!(await ensureZoteroConnectionForSync(plugin))) {
+      if (!(await ensureZoteroConnection(plugin, { refresh: true }))) {
         new Notice(`${PLUGIN_NAME}: Connect Zotero before syncing your library.`);
         return;
       }
@@ -487,6 +491,14 @@ export async function runBulkLibrarySync(plugin: StratumPlugin): Promise<void> {
         new Notice(
           `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
         );
+      } else if (error instanceof ZoteroNotConnectedError) {
+        markZoteroDisconnected(plugin);
+        plugin.settings.bulkLibrarySync.phase = "paused-error";
+        plugin.settings.bulkLibrarySync.lastError =
+          "Zotero is not connected. Please connect it again in settings.";
+        plugin.settings.bulkLibrarySync.retryAfterSeconds = null;
+        await plugin.saveSettings();
+        new Notice(`${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`);
       } else if (error instanceof ZoteroRateLimitedError) {
         plugin.settings.bulkLibrarySync.phase = "paused-rate-limit";
         plugin.settings.bulkLibrarySync.lastError = error.message;

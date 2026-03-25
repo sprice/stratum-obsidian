@@ -335,6 +335,15 @@
 	margin: 0;
 }
 
+.stratum-bulk-sync-status.is-auto-fade {
+	opacity: 1;
+	transition: opacity 250ms ease;
+}
+
+.stratum-bulk-sync-status.is-auto-fade.is-faded {
+	opacity: 0;
+}
+
 .stratum-combobox-list {
 	margin-top: 0.35rem;
 	border: 1px solid var(--background-modifier-border);

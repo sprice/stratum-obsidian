@@ -147,8 +147,11 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
   assert.match(output, /zotero_annotation_keys: \[\]/);
   assert.doesNotMatch(output, /zotero_version:/);
   assert.match(output, /tags: \[literature-note, source\/zotero, reference\/journal-article, zotero\/personality, zotero\/ml\]/);
-  assert.match(output, /authors: \[Wiebke Bleidorn, Christopher James Hopwood\]/);
-  assert.match(output, /publication: Journal of Examples/);
+  assert.match(
+    output,
+    /authors: \[\[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]\]/
+  );
+  assert.match(output, /publication: \[\[Journal of Examples\]\]/);
   assert.match(output, /collections: \[Machine Learning Review\]/);
   assert.match(output, /\*\*Authors\*\*: \[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]/);
   assert.match(output, /\*\*Publication\*\*: \[\[Journal of Examples\]\]/);

@@ -11,13 +11,51 @@ import {
 } from "./view-helpers";
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 import {
+  type BulkLibrarySyncState,
   getBulkLibrarySyncButtonLabel as getBulkSyncButtonLabel,
   getBulkLibrarySyncStatusMessage as getBulkSyncStatusMessage,
 } from "./zotero-sync";
 
+const BULK_SYNC_COMPLETION_STATUS_DELAY_MS = 4_000;
+const BULK_SYNC_COMPLETION_STATUS_FADE_MS = 250;
+
+function getBulkSyncCompletionFadeState(
+  state: BulkLibrarySyncState,
+  now = Date.now()
+): { fadeInMs: number; removeInMs: number; startFaded: boolean } | null {
+  if (state.phase !== "completed") {
+    return null;
+  }
+
+  const completedAt = state.completedAt ? Date.parse(state.completedAt) : Number.NaN;
+  if (!Number.isFinite(completedAt)) {
+    return {
+      fadeInMs: BULK_SYNC_COMPLETION_STATUS_DELAY_MS,
+      removeInMs:
+        BULK_SYNC_COMPLETION_STATUS_DELAY_MS + BULK_SYNC_COMPLETION_STATUS_FADE_MS,
+      startFaded: false,
+    };
+  }
+
+  const elapsedMs = Math.max(0, now - completedAt);
+  const removeAfterMs =
+    BULK_SYNC_COMPLETION_STATUS_DELAY_MS + BULK_SYNC_COMPLETION_STATUS_FADE_MS;
+  if (elapsedMs >= removeAfterMs) {
+    return null;
+  }
+
+  return {
+    fadeInMs: Math.max(0, BULK_SYNC_COMPLETION_STATUS_DELAY_MS - elapsedMs),
+    removeInMs: Math.max(0, removeAfterMs - elapsedMs),
+    startFaded: elapsedMs >= BULK_SYNC_COMPLETION_STATUS_DELAY_MS,
+  };
+}
+
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
   private paperSuggest: LibraryPaperInputSuggest | null = null;
+  private bulkSyncStatusFadeTimer: number | null = null;
+  private bulkSyncStatusRemoveTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: StratumPlugin) {
     super(leaf);
@@ -40,7 +78,23 @@ export class StratumView extends ItemView {
     this.render();
   }
 
+  async onClose(): Promise<void> {
+    this.clearBulkSyncStatusTimers();
+  }
+
+  private clearBulkSyncStatusTimers(): void {
+    if (this.bulkSyncStatusFadeTimer !== null) {
+      window.clearTimeout(this.bulkSyncStatusFadeTimer);
+      this.bulkSyncStatusFadeTimer = null;
+    }
+    if (this.bulkSyncStatusRemoveTimer !== null) {
+      window.clearTimeout(this.bulkSyncStatusRemoveTimer);
+      this.bulkSyncStatusRemoveTimer = null;
+    }
+  }
+
   render(): void {
+    this.clearBulkSyncStatusTimers();
     this.paperSuggest?.close();
     this.paperSuggest = null;
 
@@ -52,6 +106,8 @@ export class StratumView extends ItemView {
     const zoteroConnection = this.plugin.zoteroConnection;
     const isAppConnected = Boolean(signedInEmail);
     const isZoteroConnected = Boolean(zoteroConnection?.connected);
+    const lastKnownZoteroUsername =
+      zoteroConnection?.zoteroUsername ?? this.plugin.settings.lastKnownZoteroUsername;
     const isReadyForSearch = isAppConnected && isZoteroConnected;
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
     const openSettings = () => {
@@ -78,7 +134,11 @@ export class StratumView extends ItemView {
       emptyState.createEl("p", {
         cls: "stratum-meta",
         text:
-          "Connect your account and library in settings. Once setup is complete, this view stays focused on creating and updating literature notes.",
+          !isAppConnected
+            ? "Sign in to your Stratum account in settings, then connect Zotero to search your library and create literature notes."
+            : lastKnownZoteroUsername
+              ? `Reconnect Zotero in settings to keep searching and syncing your library. Last connected as ${lastKnownZoteroUsername}.`
+              : "Connect Zotero in settings to search your library and create literature notes.",
       });
       const settingsButton = emptyState.createEl("button", {
         text: "Open plugin settings",
@@ -265,10 +325,38 @@ export class StratumView extends ItemView {
         state: this.plugin.settings.bulkLibrarySync,
         processedCount: this.plugin.getBulkLibrarySyncProcessedCount(),
       });
-      if (bulkSyncStatus) {
+      const bulkSyncCompletionFade = getBulkSyncCompletionFadeState(
+        this.plugin.settings.bulkLibrarySync
+      );
+      const shouldRenderBulkSyncStatus =
+        Boolean(bulkSyncStatus) &&
+        (this.plugin.settings.bulkLibrarySync.phase !== "completed" ||
+          bulkSyncCompletionFade !== null);
+      const bulkSyncStatusText = bulkSyncStatus ?? "";
+      if (shouldRenderBulkSyncStatus && bulkSyncCompletionFade !== null) {
+        const bulkSyncStatusEl = bulkSyncSection.createEl("p", {
+          cls: "stratum-meta stratum-bulk-sync-status",
+          text: bulkSyncStatusText,
+        });
+        bulkSyncStatusEl.addClass("is-auto-fade");
+        if (bulkSyncCompletionFade.startFaded) {
+          bulkSyncStatusEl.addClass("is-faded");
+        } else {
+          this.bulkSyncStatusFadeTimer = window.setTimeout(() => {
+            if (bulkSyncStatusEl.isConnected) {
+              bulkSyncStatusEl.addClass("is-faded");
+            }
+          }, bulkSyncCompletionFade.fadeInMs);
+        }
+        this.bulkSyncStatusRemoveTimer = window.setTimeout(() => {
+          if (bulkSyncStatusEl.isConnected) {
+            bulkSyncStatusEl.remove();
+          }
+        }, bulkSyncCompletionFade.removeInMs);
+      } else if (shouldRenderBulkSyncStatus) {
         bulkSyncSection.createEl("p", {
           cls: "stratum-meta stratum-bulk-sync-status",
-          text: bulkSyncStatus,
+          text: bulkSyncStatusText,
         });
       }
 
@@ -329,14 +417,6 @@ export class StratumView extends ItemView {
 
         const selectedActions = selectedCard.createDiv({
           cls: "stratum-actions",
-        });
-        const clearSelectionButton = selectedActions.createEl("button", {
-          text: "Choose another paper",
-        });
-        clearSelectionButton.addEventListener("click", () => {
-          this.plugin.library.clearSelection({
-            resetQuery: true,
-          });
         });
         const createButton = selectedActions.createEl("button", {
           cls: "mod-cta",

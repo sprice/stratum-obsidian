@@ -27,6 +27,9 @@ export interface StratumSettings {
   accountEmail: string | null;
   accountLinkedAt: string | null;
   authSessionExpiresAt: number | null;
+  lastKnownZoteroUserId: string | null;
+  lastKnownZoteroUsername: string | null;
+  lastKnownZoteroConfirmedAt: string | null;
   itemFileMap: Record<string, ItemFileMapEntry>;
   zoteroAutoSync: ZoteroAutoSyncState;
   bulkLibrarySync: BulkLibrarySyncState;
@@ -41,6 +44,9 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   accountEmail: null,
   accountLinkedAt: null,
   authSessionExpiresAt: null,
+  lastKnownZoteroUserId: null,
+  lastKnownZoteroUsername: null,
+  lastKnownZoteroConfirmedAt: null,
   itemFileMap: {},
   zoteroAutoSync: {
     libraryVersion: null,

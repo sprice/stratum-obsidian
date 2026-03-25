@@ -7,7 +7,12 @@ import { promptExistingLiteratureNote } from "./literature-note-update-modal";
 import { PLUGIN_NAME } from "./constants";
 import { type ZoteroSearchResult, ZoteroTokenInvalidError } from "./backend-client";
 import type StratumPlugin from "./plugin";
-import { markZoteroTokenInvalid } from "./plugin-sync-helpers";
+import {
+  ensureZoteroConnection,
+  markZoteroDisconnected,
+  markZoteroTokenInvalid,
+} from "./plugin-sync-helpers";
+import { ZoteroNotConnectedError } from "./zotero-errors";
 
 export async function createLiteratureNote(
   plugin: StratumPlugin,
@@ -24,6 +29,11 @@ export async function createLiteratureNote(
 
   if (!plugin.backend.hasSession()) {
     new Notice(`${PLUGIN_NAME}: sign in before creating a literature note.`);
+    return;
+  }
+
+  if (!(await ensureZoteroConnection(plugin, { refresh: true }))) {
+    new Notice(`${PLUGIN_NAME}: Connect Zotero before creating a literature note.`);
     return;
   }
 
@@ -82,6 +92,9 @@ export async function createLiteratureNote(
       new Notice(
         `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
       );
+    } else if (error instanceof ZoteroNotConnectedError) {
+      markZoteroDisconnected(plugin);
+      new Notice(`${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`);
     } else {
       new Notice(
         `${PLUGIN_NAME}: ${

@@ -23,6 +23,7 @@ import {
   createBackendClient,
   handleAuthProtocol,
   refreshZoteroConnection,
+  signOutFromPlugin,
   startDeviceHandoff,
   startZoteroConnect,
 } from "./plugin-auth";
@@ -313,6 +314,8 @@ export default class StratumPlugin extends Plugin {
   }
 
   async startDeviceHandoff(): Promise<void> { await startDeviceHandoff(this); }
+
+  async signOutFromPlugin(): Promise<void> { await signOutFromPlugin(this); }
 
   async startZoteroConnect(): Promise<void> { await startZoteroConnect(this); }
 

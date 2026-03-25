@@ -3,12 +3,17 @@ import {
   createOrUpdateLiteratureNote,
   markLiteratureNoteDeleted,
 } from "./literature-note";
-import { type ZoteroLibraryChangesResponse, ZoteroTokenInvalidError } from "./backend-client";
+import {
+  type ZoteroLibraryChangesResponse,
+  ZoteroNotConnectedError,
+  ZoteroTokenInvalidError,
+} from "./backend-client";
 import type StratumPlugin from "./plugin";
 import {
-  ensureZoteroConnectionForSync,
+  ensureZoteroConnection,
   getTrackedLiteratureNotes,
   isMissingZoteroItemError,
+  markZoteroDisconnected,
   markZoteroTokenInvalid,
 } from "./plugin-sync-helpers";
 import { refreshAutoSyncUi } from "./plugin-sync-status";
@@ -217,7 +222,11 @@ export async function runZoteroAutoSync(
     return;
   }
 
-  if (!(await ensureZoteroConnectionForSync(plugin))) {
+  if (
+    !(await ensureZoteroConnection(plugin, {
+      refresh: reason === "manual",
+    }))
+  ) {
     if (reason === "manual") {
       new Notice(`${PLUGIN_NAME}: Connect Zotero before syncing changes.`);
     }
@@ -283,6 +292,10 @@ export async function runZoteroAutoSync(
       new Notice(
         `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
       );
+    } else if (error instanceof ZoteroNotConnectedError) {
+      markZoteroDisconnected(plugin);
+      console.error("stratum: Zotero not connected, connection cleared", error);
+      new Notice(`${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`);
     } else {
       plugin.settings.zoteroAutoSync.lastError =
         error instanceof Error ? error.message : String(error);

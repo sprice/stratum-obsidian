@@ -8,7 +8,11 @@ import {
   PLUGIN_SUPABASE_PUBLISHABLE_KEY,
   PLUGIN_SUPABASE_URL,
 } from "./build-config";
-import { ZoteroRateLimitedError, ZoteroTokenInvalidError } from "./zotero-errors";
+import {
+  ZoteroNotConnectedError,
+  ZoteroRateLimitedError,
+  ZoteroTokenInvalidError,
+} from "./zotero-errors";
 import type {
   AuthenticatedUserResponse,
   AuthenticatedUserSummary,
@@ -44,7 +48,11 @@ export type {
   ZoteroSearchResponse,
   ZoteroSearchResult,
 } from "./backend-types";
-export { ZoteroRateLimitedError, ZoteroTokenInvalidError } from "./zotero-errors";
+export {
+  ZoteroNotConnectedError,
+  ZoteroRateLimitedError,
+  ZoteroTokenInvalidError,
+} from "./zotero-errors";
 
 export class BackendClient {
   private state: BackendAuthState;
@@ -285,6 +293,13 @@ export class BackendClient {
     const payload = this.tryReadJson<BackendErrorPayload>(response) ?? {};
     if (payload.zoteroTokenInvalid) {
       throw new ZoteroTokenInvalidError(payload.error);
+    }
+
+    if (
+      typeof payload.error === "string" &&
+      /zotero account is not connected/i.test(payload.error)
+    ) {
+      throw new ZoteroNotConnectedError(payload.error);
     }
 
     if (payload.rateLimited) {
