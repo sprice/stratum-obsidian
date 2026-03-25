@@ -10,8 +10,7 @@
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "typecheck": "tsc --noEmit",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
-    "test": "pnpm lint && pnpm typecheck && pnpm test:unit",
-    "test:unit": "node --test --import tsx src/test/*.test.ts",
+    "test": "node --test --import tsx src/test/*.test.ts",
     "lint": "eslint src"
   },
   "keywords": [],
