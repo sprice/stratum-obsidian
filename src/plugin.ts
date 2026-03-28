@@ -47,7 +47,12 @@ import {
   selectLibrarySearchResult,
   toggleSelectedLibraryAbstract,
 } from "./plugin-library-selection";
-import { createLiteratureNote } from "./plugin-note-actions";
+import {
+  createLiteratureNote,
+  insertLiteratureNoteLink,
+  insertPandocCitation,
+  openLiteratureNoteFromModal,
+} from "./plugin-note-actions";
 import {
   findExistingLiteratureNoteFile,
   handleItemFileDelete,
@@ -178,6 +183,24 @@ export default class StratumPlugin extends Plugin {
       callback: () => {
         void this.runBulkLibrarySync();
       },
+    });
+
+    this.addCommand({
+      id: "open-literature-note",
+      name: "Open literature note",
+      callback: () => openLiteratureNoteFromModal(this),
+    });
+
+    this.addCommand({
+      id: "insert-literature-note-link",
+      name: "Insert literature note link",
+      editorCallback: (editor) => insertLiteratureNoteLink(this, editor),
+    });
+
+    this.addCommand({
+      id: "insert-pandoc-citation",
+      name: "Insert pandoc citation",
+      editorCallback: (editor) => insertPandocCitation(this, editor),
     });
 
     this.registerObsidianProtocolHandler(AUTH_PROTOCOL_ACTION, (params) => {

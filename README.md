@@ -6,7 +6,7 @@ Stratum creates structured literature notes in Obsidian from your Zotero cloud l
 >
 > Stratum is an open-source plugin paired with a [Stratum](https://stratumnotes.com) account. You need an account and internet access, but the core workflow is free to start. Sign-in, Zotero auth, and sync all run through Stratum's service. The same architecture will support server-side enrichment features in the future.
 
-## What it does
+## Features
 
 - Search your Zotero library inside Obsidian.
 - Create literature notes with readable filenames, aliases, and useful frontmatter.
@@ -47,6 +47,21 @@ Each generated note has a managed section and a user section.
 - Sync rewrites the managed section only.
 - Your writing below `## My Notes` is preserved across updates.
 
+## Commands
+
+Use the side panel to discover papers and create notes. Use keyboard commands to reference them while writing.
+
+| Command                      | Description                                                    |
+| ---------------------------- | -------------------------------------------------------------- |
+| Open library view            | Opens the Stratum side panel                                   |
+| Open literature note         | Search your literature notes and open one                      |
+| Insert literature note link  | Insert a `[[wikilink]]` to a literature note at the cursor     |
+| Insert pandoc citation       | Insert `[@citekey]` and auto-manage a `stratum.bib` file       |
+| Sync Zotero changes now      | Manually trigger a Zotero sync                                 |
+| Sync all Zotero papers       | Sync your entire Zotero library                                |
+
+Assign hotkeys in **Settings -> Hotkeys** by searching for "Stratum".
+
 ## Current scope
 
 Stratum is deliberately opinionated. It isn't trying to be every Zotero plugin at once.
@@ -55,7 +70,6 @@ Stratum is deliberately opinionated. It isn't trying to be every Zotero plugin a
 - Personal Zotero libraries today.
 - Tracked-note sync, not full-library mirroring.
 - No Better BibTeX, local bridge, or templating language.
-- No bulk import, citation insertion, or bibliography workflow yet.
 - Not a zero-network or offline-only plugin.
 
 ## Why it requires an account

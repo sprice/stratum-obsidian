@@ -1,4 +1,4 @@
-import { Notice } from "obsidian";
+import { Notice, type Editor } from "obsidian";
 import {
   createOrUpdateLiteratureNote,
   getLiteratureNoteSummary,
@@ -13,6 +13,11 @@ import {
   markZoteroTokenInvalid,
 } from "./plugin-sync-helpers";
 import { ZoteroNotConnectedError } from "./zotero-errors";
+import {
+  buildLiteratureNoteEntries,
+  LiteratureNoteSearchModal,
+} from "./library-search-modal";
+import { buildCitekey, ensureBibEntry } from "./bibtex";
 
 export async function createLiteratureNote(
   plugin: StratumPlugin,
@@ -113,3 +118,62 @@ export async function createLiteratureNote(
     plugin.refreshViews();
   }
 }
+
+function getActiveEditor(plugin: StratumPlugin): Editor | null {
+  return plugin.app.workspace.activeEditor?.editor ?? null;
+}
+
+export function openLiteratureNoteFromModal(plugin: StratumPlugin): void {
+  const entries = buildLiteratureNoteEntries(plugin);
+  if (entries.length === 0) {
+    new Notice(
+      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`
+    );
+    return;
+  }
+
+  new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
+    void plugin.app.workspace.getLeaf(true).openFile(entry.file);
+  }).open();
+}
+
+export function insertLiteratureNoteLink(
+  plugin: StratumPlugin,
+  editor: Editor
+): void {
+  const entries = buildLiteratureNoteEntries(plugin);
+  if (entries.length === 0) {
+    new Notice(
+      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`
+    );
+    return;
+  }
+
+  new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
+    const target = getActiveEditor(plugin) ?? editor;
+    const wikilink = `[[${entry.file.basename}]]`;
+    target.replaceSelection(wikilink);
+  }).open();
+}
+
+export function insertPandocCitation(
+  plugin: StratumPlugin,
+  editor: Editor
+): void {
+  const entries = buildLiteratureNoteEntries(plugin);
+  if (entries.length === 0) {
+    new Notice(
+      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`
+    );
+    return;
+  }
+
+  new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
+    const target = getActiveEditor(plugin) ?? editor;
+    const citekey = buildCitekey(entry);
+    void ensureBibEntry(plugin.app, entry).then(() => {
+      target.replaceSelection(`[@${citekey}]`);
+    });
+  }).open();
+}
+
