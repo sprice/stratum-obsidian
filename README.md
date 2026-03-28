@@ -79,20 +79,19 @@ The account-backed design lets Stratum skip the usual Zotero plugin setup burden
 - Sign-in happens in the browser instead of inside Obsidian.
 - Zotero authentication uses OAuth instead of asking you for a manually managed API key.
 - The backend handles Zotero API access, rate limiting, and cache-backed search.
-- The same backend will power future server-side enrichment: citation counts, related papers, open-access links, citation graphs, and AI-generated summaries.
+- The backend enriches your literature notes with citation data from OpenAlex, a free and open academic database. Only the paper's DOI is sent to look up this data. The server never stores your notes or note content.
 
 ## Privacy
 
 - No telemetry, no analytics, no ad tech, no third-party tracking SDKs in the plugin.
 - The Stratum web app uses cookie-free analytics to track anonymous usage metrics.
-- Stratum's backend makes Zotero Web API requests on your behalf. It keeps per-account search caches so the plugin stays responsive and handles rate limits gracefully.
-- Your vault stays local. Stratum writes markdown into your vault but doesn't upload your vault or its path.
-- The content you write below `## My Notes` is preserved locally and isn't sent to Stratum.
-- The plugin writes diagnostic logs (sync timing, API response codes) to the browser console at the `debug` (verbose) level. These logs stay local in your Obsidian developer console and are not sent anywhere. They are hidden by default and only visible when you enable verbose logging in devtools.
+- Your notes never leave your device. Stratum writes markdown files into your vault locally. The server never sees, stores, or transmits your note content. Everything you write below `## My Notes` stays on your machine.
+- The server doesn't store note data. When you sync, the server fetches metadata from Zotero and enrichment data from OpenAlex, passes it to the plugin, and discards it. Nothing about your notes is saved on the server.
+- Enrichment uses only DOIs. To look up citation counts, topics, and other academic metadata, the server sends the paper's DOI to OpenAlex. No vault content, filenames, annotations, or personal information is shared.
 - The plugin stores session tokens in Obsidian's platform-native `secretStorage` to stay signed in across restarts. It doesn't store your Zotero OAuth secret locally.
-- Zotero OAuth secrets live server-side, encrypted at rest.
+- Zotero OAuth secrets live server-side, encrypted at rest with AES-256 encryption.
 - Server-side database access is scoped per authenticated user.
-- When enrichment features arrive, those lookups will happen server-side. The plugin won't call third-party enrichment APIs directly.
+- The plugin writes diagnostic logs (sync timing, API response codes) to the browser console at the `debug` level. These logs stay local and are not sent anywhere.
 
 ## License
 
