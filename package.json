@@ -1,6 +1,6 @@
 {
   "name": "stratum-obsidian",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Create enriched structured literature notes from your Zotero library.",
   "packageManager": "pnpm@10.12.4",
   "main": "main.js",
