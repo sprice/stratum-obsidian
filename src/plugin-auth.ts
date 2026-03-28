@@ -2,6 +2,7 @@ import { Notice, type ObsidianProtocolData } from "obsidian";
 import { PLUGIN_WEB_APP_URL } from "./build-config";
 import { BackendClient } from "./backend-client";
 import { PLUGIN_NAME } from "./constants";
+import { log } from "./log";
 import {
   getStoredAuthSession,
   persistAuthSessionSecrets,
@@ -11,6 +12,36 @@ import {
   updateLastKnownZoteroSnapshot,
 } from "./plugin-sync-helpers";
 import type StratumPlugin from "./plugin";
+
+/**
+ * Hydrate `plugin.zoteroConnection` from locally cached settings so the view
+ * renders "Find a paper" immediately instead of flashing "Finish setup".
+ * Called once during `onload`, before any network calls.  The background
+ * `bootstrapRemoteState` will reconcile with the server and correct the state
+ * if the session or Zotero token has been revoked.
+ */
+export function hydrateZoteroConnectionFromCache(
+  plugin: StratumPlugin
+): void {
+  if (!plugin.backend.hasSession()) {
+    return;
+  }
+
+  const { lastKnownZoteroUserId, lastKnownZoteroUsername, lastKnownZoteroConfirmedAt } =
+    plugin.settings;
+
+  if (!lastKnownZoteroUserId) {
+    return;
+  }
+
+  plugin.zoteroConnection = {
+    connected: true,
+    tokenValid: null,
+    zoteroUserId: lastKnownZoteroUserId,
+    zoteroUsername: lastKnownZoteroUsername,
+    lastSyncedAt: lastKnownZoteroConfirmedAt,
+  };
+}
 
 export function createBackendClient(plugin: StratumPlugin): BackendClient {
   return new BackendClient({
@@ -118,43 +149,11 @@ export async function signOutFromPlugin(plugin: StratumPlugin): Promise<void> {
   new Notice(`${PLUGIN_NAME}: signed out of Stratum on this device.`);
 }
 
-async function ensureAuthenticatedSessionState(
-  plugin: StratumPlugin
-): Promise<boolean> {
-  if (!plugin.backend.hasSession()) {
-    return false;
-  }
-
-  try {
-    const user = await plugin.backend.validateSession();
-    if (user) {
-      return true;
-    }
-  } catch (error) {
-    console.error("stratum: failed to validate app session", error);
-    return plugin.backend.hasSession();
-  }
-
-  plugin.zoteroConnection = null;
-  plugin.refreshAutoSyncUi();
-  plugin.refreshViews();
-  plugin.refreshSettingTab();
-  return false;
-}
-
 export async function refreshZoteroConnection(
   plugin: StratumPlugin
 ): Promise<void> {
+  log("auth", "refreshing zotero connection");
   if (!plugin.backend.hasSession()) {
-    plugin.zoteroConnection = null;
-    plugin.isLoadingZoteroConnection = false;
-    plugin.refreshAutoSyncUi();
-    plugin.refreshViews();
-    plugin.refreshSettingTab();
-    return;
-  }
-
-  if (!(await ensureAuthenticatedSessionState(plugin))) {
     plugin.zoteroConnection = null;
     plugin.isLoadingZoteroConnection = false;
     plugin.refreshAutoSyncUi();
@@ -164,7 +163,6 @@ export async function refreshZoteroConnection(
   }
 
   plugin.isLoadingZoteroConnection = true;
-  plugin.refreshViews();
   plugin.refreshSettingTab();
 
   const previousConnection = plugin.zoteroConnection;
@@ -188,6 +186,10 @@ export async function refreshZoteroConnection(
       : null;
   } finally {
     plugin.isLoadingZoteroConnection = false;
+    log("auth", "zotero connection refreshed", {
+      connected: Boolean(plugin.zoteroConnection?.connected),
+      tokenValid: plugin.zoteroConnection?.tokenValid ?? "unknown",
+    });
     plugin.refreshAutoSyncUi();
     plugin.refreshViews();
     plugin.refreshSettingTab();
@@ -253,11 +255,17 @@ export async function handleAuthProtocol(
 
 export async function bootstrapRemoteState(plugin: StratumPlugin): Promise<void> {
   if (!plugin.backend.hasSession()) {
+    log("auth", "bootstrap skipped, no session");
     return;
   }
 
+  log("auth", "bootstrapping remote state");
   await refreshZoteroConnection(plugin);
   if (plugin.settings.autoSyncEnabled) {
     void plugin.runZoteroAutoSync("startup");
   }
+  log("auth", "bootstrap dispatched", {
+    connected: Boolean(plugin.zoteroConnection?.connected),
+    autoSyncFired: plugin.settings.autoSyncEnabled,
+  });
 }

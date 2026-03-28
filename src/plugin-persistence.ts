@@ -329,6 +329,14 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
     shouldPersist = true;
   }
 
+  // If secrets exist but settings were wiped (plugin was deleted and reinstalled),
+  // clear the orphaned secrets so the user starts fresh.
+  if (storedSession && !plugin.settings.accountEmail) {
+    persistAuthSessionSecrets(plugin, null);
+    plugin.settings.authSessionExpiresAt = null;
+    shouldPersist = true;
+  }
+
   if (legacySession) {
     shouldPersist = true;
   }

@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 import { createOrUpdateLiteratureNote } from "./literature-note";
+import { log } from "./log";
 import {
   type ZoteroLibraryCatalogItem,
   type ZoteroLibraryCatalogPageResponse,
@@ -429,6 +430,7 @@ export async function runBulkLibrarySync(plugin: StratumPlugin): Promise<void> {
       resetBulkLibrarySyncRuntime(plugin);
       queueBulkLibrarySyncUiRefresh(plugin);
 
+      log("bulk-sync", "starting", { resuming: shouldResume });
       if (shouldResume) {
         new Notice(`${PLUGIN_NAME}: resuming Zotero paper sync...`);
       } else {
@@ -437,6 +439,10 @@ export async function runBulkLibrarySync(plugin: StratumPlugin): Promise<void> {
 
       while (true) {
         const state = plugin.settings.bulkLibrarySync;
+        log("bulk-sync", "fetching catalog page", {
+          start: state.nextStart,
+          limit: state.pageSize,
+        });
         const page = await plugin.backend.getZoteroLibraryCatalogPage({
           start: state.nextStart,
           limit: state.pageSize,
@@ -447,6 +453,12 @@ export async function runBulkLibrarySync(plugin: StratumPlugin): Promise<void> {
         queueBulkLibrarySyncUiRefresh(plugin);
 
         const pageResult = await processCatalogPage(plugin, page);
+        log("bulk-sync", "page processed", {
+          created: pageResult.createdCount,
+          updated: pageResult.updatedCount,
+          skipped: pageResult.skippedCount,
+          failed: pageResult.failedCount,
+        });
         commitBulkCatalogPage(plugin, page, pageResult);
         resetBulkLibrarySyncRuntime(plugin);
         await plugin.saveSettings();
@@ -479,8 +491,15 @@ export async function runBulkLibrarySync(plugin: StratumPlugin): Promise<void> {
         return;
       }
 
+      resetBulkLibrarySyncRuntime(plugin);
+      log("bulk-sync", "running final catch-up");
       await runFinalBulkSyncCatchUp(plugin);
       plugin.settings.bulkLibrarySync.phase = "completed";
+      log("bulk-sync", "completed", {
+        processed: plugin.settings.bulkLibrarySync.processedCount,
+        created: plugin.settings.bulkLibrarySync.createdCount,
+        updated: plugin.settings.bulkLibrarySync.updatedCount,
+      });
       plugin.settings.bulkLibrarySync.completedAt = new Date().toISOString();
       plugin.settings.bulkLibrarySync.lastError = null;
       plugin.settings.bulkLibrarySync.retryAfterSeconds = null;
@@ -527,6 +546,7 @@ export async function runBulkLibrarySync(plugin: StratumPlugin): Promise<void> {
     } finally {
       resetBulkLibrarySyncRuntime(plugin);
       plugin.bulkLibrarySyncRunPromise = null;
+      log("bulk-sync", "cleanup done, refreshing UI");
       plugin.refreshViews();
       plugin.refreshSettingTab();
       plugin.refreshAutoSyncUi();

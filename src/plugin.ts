@@ -23,6 +23,7 @@ import {
   bootstrapRemoteState,
   createBackendClient,
   handleAuthProtocol,
+  hydrateZoteroConnectionFromCache,
   refreshZoteroConnection,
   signOutFromPlugin,
   startDeviceHandoff,
@@ -137,8 +138,10 @@ export default class StratumPlugin extends Plugin {
   };
 
   async onload(): Promise<void> {
+    console.log("stratum: loading Stratum plugin");
     await loadPluginSettings(this);
     this.backend = createBackendClient(this);
+    hydrateZoteroConnectionFromCache(this);
     const openStratumRibbonLabel = `Open ${PLUGIN_NAME}`;
 
     this.settingTab = new StratumSettingTab(this);

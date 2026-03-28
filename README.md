@@ -74,6 +74,7 @@ The account-backed design lets Stratum skip the usual Zotero plugin setup burden
 - Stratum's backend makes Zotero Web API requests on your behalf. It keeps per-account search caches so the plugin stays responsive and handles rate limits gracefully.
 - Your vault stays local. Stratum writes markdown into your vault but doesn't upload your vault or its path.
 - The content you write below `## My Notes` is preserved locally and isn't sent to Stratum.
+- The plugin writes diagnostic logs (sync timing, API response codes) to the browser console at the `debug` (verbose) level. These logs stay local in your Obsidian developer console and are not sent anywhere. They are hidden by default and only visible when you enable verbose logging in devtools.
 - The plugin stores session tokens in Obsidian's platform-native `secretStorage` to stay signed in across restarts. It doesn't store your Zotero OAuth secret locally.
 - Zotero OAuth secrets live server-side, encrypted at rest.
 - Server-side database access is scoped per authenticated user.

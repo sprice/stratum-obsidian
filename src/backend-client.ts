@@ -13,6 +13,7 @@ import {
   ZoteroRateLimitedError,
   ZoteroTokenInvalidError,
 } from "./zotero-errors";
+import { log } from "./log";
 import type {
   AuthenticatedUserResponse,
   AuthenticatedUserSummary,
@@ -204,6 +205,10 @@ export class BackendClient {
       throw new Error("No authenticated app session available.");
     }
 
+    const method = init?.method ?? "GET";
+    const start = performance.now();
+    log("fetch", `${method} ${path}`);
+
     const response = await requestUrl({
       ...init,
       url: `${PLUGIN_API_BASE_URL}${path}`,
@@ -213,6 +218,11 @@ export class BackendClient {
         Authorization: `Bearer ${accessToken}`,
         apikey: PLUGIN_SUPABASE_PUBLISHABLE_KEY,
       },
+    });
+
+    log("fetch", `${method} ${path} done`, {
+      status: response.status,
+      ms: Math.round(performance.now() - start),
     });
 
     if (AUTH_ERROR_STATUSES.has(response.status)) {
@@ -233,6 +243,7 @@ export class BackendClient {
       return session.accessToken;
     }
 
+    log("auth", "access token expiring, refreshing session");
     const refreshed = await this.refreshSession(session.refreshToken);
     return refreshed?.accessToken ?? null;
   }
@@ -254,10 +265,12 @@ export class BackendClient {
     });
 
     if (!this.isOk(response)) {
+      log("auth", "session refresh failed", { status: response.status });
       await this.clearSession();
       return null;
     }
 
+    log("auth", "session refreshed");
     const payload = this.readJson<RefreshResponse>(response);
     const nextSession: PersistedAuthSession = {
       accessToken: payload.access_token,

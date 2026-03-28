@@ -8,6 +8,7 @@ import {
   ZoteroNotConnectedError,
   ZoteroTokenInvalidError,
 } from "./backend-client";
+import { log } from "./log";
 import type StratumPlugin from "./plugin";
 import {
   ensureZoteroConnection,
@@ -30,6 +31,7 @@ async function runInitialLiteratureRefresh(plugin: StratumPlugin): Promise<{
   deletedCount: number;
 }> {
   const trackedNotes = getTrackedLiteratureNotes(plugin);
+  log("sync", "initial refresh starting", { noteCount: trackedNotes.length });
   if (trackedNotes.length > 0) {
     new Notice(
       `${PLUGIN_NAME}: First sync: refreshing ${trackedNotes.length} literature notes from Zotero…`
@@ -85,6 +87,7 @@ async function runInitialLiteratureRefresh(plugin: StratumPlugin): Promise<{
     );
   }
 
+  log("sync", "initial refresh completed", { updatedCount, deletedCount });
   return {
     updatedCount,
     deletedCount,
@@ -222,6 +225,8 @@ export async function runZoteroAutoSync(
     return;
   }
 
+  log("sync", "auto-sync starting", { reason });
+
   if (
     !(await ensureZoteroConnection(plugin, {
       refresh: reason === "manual",
@@ -235,6 +240,7 @@ export async function runZoteroAutoSync(
 
   plugin.isAutoSyncRunning = true;
   refreshAutoSyncUi(plugin);
+  plugin.refreshViews();
 
   try {
     if (!plugin.settings.zoteroAutoSync.initialRefreshCompleted) {
@@ -261,9 +267,14 @@ export async function runZoteroAutoSync(
       return;
     }
 
-    const changes = await plugin.backend.getZoteroLibraryChanges(
-      plugin.settings.zoteroAutoSync.libraryVersion
-    );
+    const sinceVersion = plugin.settings.zoteroAutoSync.libraryVersion;
+    const changes = await plugin.backend.getZoteroLibraryChanges(sinceVersion);
+    log("sync", "library changes received", {
+      sinceVersion: sinceVersion ?? "null",
+      latestVersion: changes.latestLibraryVersion ?? "null",
+      changed: changes.changedParentKeys.length,
+      deleted: changes.deletedItemKeys.length,
+    });
     const result = await applyZoteroLibraryChanges(plugin, changes);
     plugin.settings.zoteroAutoSync.libraryVersion = changes.latestLibraryVersion;
     plugin.settings.zoteroAutoSync.lastSuccessfulSyncAt = new Date().toISOString();
@@ -312,6 +323,8 @@ export async function runZoteroAutoSync(
     }
   } finally {
     plugin.isAutoSyncRunning = false;
+    log("sync", "auto-sync finished", { reason });
     refreshAutoSyncUi(plugin);
+    plugin.refreshViews();
   }
 }
