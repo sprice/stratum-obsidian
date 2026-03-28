@@ -6,7 +6,7 @@ import {
   stringifyYaml,
 } from "obsidian";
 import type { App } from "obsidian";
-import type { ZoteroItemDetail } from "./backend-client";
+import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { buildLiteratureNoteContent } from "./literature-note-content";
 import {
   getAsciiFallbackFileStem,
@@ -59,6 +59,7 @@ export async function createLiteratureNoteFile(params: {
   notesFolder: string;
   detail: ZoteroItemDetail;
   filenameFormat: LiteratureNoteFilenameFormat;
+  enrichment?: OpenAlexEnrichment | null;
 }): Promise<{ file: TFile; filenameStem: string }> {
   let lastError: unknown = null;
 
@@ -79,6 +80,7 @@ export async function createLiteratureNoteFile(params: {
         parseYaml,
         stringifyYaml,
         htmlToMarkdown,
+        enrichment: params.enrichment,
       });
 
       try {

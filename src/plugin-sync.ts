@@ -50,12 +50,16 @@ async function runInitialLiteratureRefresh(plugin: StratumPlugin): Promise<{
 
     try {
       const detail = await plugin.backend.getZoteroItemDetail(itemKey);
+      const enrichment = detail.item.doi
+        ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
+        : null;
       const writeResult = await createOrUpdateLiteratureNote({
         app: plugin.app,
         notesFolder: plugin.settings.notesFolder,
         filenameFormat: plugin.settings.filenameFormat,
         detail,
         existingFile: entry.file,
+        enrichment,
       });
       plugin.rememberLiteratureNoteFile(detail, writeResult.file);
       updatedCount += 1;
@@ -154,12 +158,16 @@ export async function applyZoteroLibraryChanges(
 
     try {
       const detail = await plugin.backend.getZoteroItemDetail(parentKey);
+      const enrichment = detail.item.doi
+        ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
+        : null;
       const writeResult = await createOrUpdateLiteratureNote({
         app: plugin.app,
         notesFolder: plugin.settings.notesFolder,
         filenameFormat: plugin.settings.filenameFormat,
         detail,
         existingFile: file,
+        enrichment,
       });
       plugin.rememberLiteratureNoteFile(detail, writeResult.file);
       updatedCount += 1;

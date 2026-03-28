@@ -1,4 +1,4 @@
-import type { ZoteroItemDetail } from "./backend-client";
+import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import {
   MANAGED_START,
   USER_NOTES_HEADING,
@@ -66,29 +66,39 @@ export function buildLiteratureNoteContent(params: {
   parseYaml: YamlParser;
   stringifyYaml: YamlStringifier;
   htmlToMarkdown: HtmlToMarkdownTransformer;
+  enrichment?: OpenAlexEnrichment | null;
 }): string {
   const zoteroStatus = params.zoteroStatus ?? "active";
-  const managedBlock = renderManagedBlock(
-    params.detail,
-    params.htmlToMarkdown,
-    zoteroStatus
-  );
 
   if (params.existingContent) {
     const { frontmatter, body } = splitFrontmatterContent(
       params.existingContent,
       params.parseYaml
     );
+    const managedBlock = renderManagedBlock(
+      params.detail,
+      params.htmlToMarkdown,
+      zoteroStatus,
+      params.enrichment
+    );
     const nextFrontmatter = renderFrontmatterContent(
       params.detail,
       frontmatter,
       params.filenameStem,
       zoteroStatus,
-      params.stringifyYaml
+      params.stringifyYaml,
+      params.enrichment
     );
     const nextBody = ensureUserNotesSection(upsertManagedBlock(body, managedBlock));
     return `${nextFrontmatter}\n${nextBody.trimStart()}`.trimEnd() + "\n";
   }
+
+  const managedBlock = renderManagedBlock(
+    params.detail,
+    params.htmlToMarkdown,
+    zoteroStatus,
+    params.enrichment
+  );
 
   return [
     renderFrontmatterContent(
@@ -96,7 +106,8 @@ export function buildLiteratureNoteContent(params: {
       {},
       params.filenameStem,
       zoteroStatus,
-      params.stringifyYaml
+      params.stringifyYaml,
+      params.enrichment
     ),
     managedBlock,
     "",

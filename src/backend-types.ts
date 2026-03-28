@@ -177,3 +177,49 @@ export type RefreshResponse = {
 export type AuthenticatedUserResponse = {
   email?: string | null;
 };
+
+export interface OpenAlexEnrichment {
+  openAlexId: string;
+  doi: string;
+  title: string | null;
+  publicationYear: number | null;
+  publicationDate: string | null;
+  type: string | null;
+  citedByCount: number;
+  countsByYear: Array<{ year: number; citedByCount: number }>;
+  isRetracted: boolean;
+  isOpenAccess: boolean;
+  oaStatus: string | null;
+  oaUrl: string | null;
+  primaryLocation: {
+    sourceName: string | null;
+    sourceType: string | null;
+    landingPageUrl: string | null;
+    pdfUrl: string | null;
+    isOa: boolean;
+  } | null;
+  authorships: Array<{
+    authorName: string;
+    institutions: string[];
+    isCorresponding: boolean;
+  }>;
+  topics: Array<{
+    name: string;
+    score: number;
+    subfield: string | null;
+    field: string | null;
+    domain: string | null;
+  }>;
+  keywords: Array<{ keyword: string; score: number }>;
+  funders: Array<{ name: string; awardId: string | null }>;
+  sustainableDevelopmentGoals: Array<{ name: string; score: number }>;
+  referencedWorksCount: number;
+  relatedWorksCount: number;
+  ids: {
+    openalex: string | null;
+    doi: string | null;
+    pmid: string | null;
+    pmcid: string | null;
+  };
+  updatedDate: string | null;
+}

@@ -7,7 +7,7 @@ import {
   preprocessZoteroNoteHtml,
   type LiteratureNoteCandidate,
 } from "../literature-note-content";
-import type { ZoteroItemDetail } from "../backend-client";
+import type { OpenAlexEnrichment, ZoteroItemDetail } from "../backend-client";
 
 const DEFAULT_ITEM: ZoteroItemDetail["item"] = {
   key: "ABCD1234",
@@ -52,6 +52,70 @@ const DEFAULT_ITEM: ZoteroItemDetail["item"] = {
   dateAdded: null,
   dateModified: null,
   citation: null,
+};
+
+const DEFAULT_OPENALEX_ENRICHMENT: OpenAlexEnrichment = {
+  openAlexId: "https://openalex.org/W1234567890",
+  doi: "https://doi.org/10.0000/example",
+  title: "Using Machine Learning to Advance Personality Assessment and Theory",
+  publicationYear: 2019,
+  publicationDate: "2019-05-01",
+  type: "article",
+  citedByCount: 42,
+  countsByYear: [
+    { year: 2025, citedByCount: 10 },
+    { year: 2024, citedByCount: 9 },
+    { year: 2023, citedByCount: 8 },
+  ],
+  isRetracted: false,
+  isOpenAccess: true,
+  oaStatus: "gold",
+  oaUrl: "https://example.com/open-access.pdf",
+  primaryLocation: {
+    sourceName: "Journal of Examples",
+    sourceType: "journal",
+    landingPageUrl: "https://example.com/paper",
+    pdfUrl: "https://example.com/open-access.pdf",
+    isOa: true,
+  },
+  authorships: [
+    {
+      authorName: "Wiebke Bleidorn",
+      institutions: ["University of Example"],
+      isCorresponding: true,
+    },
+  ],
+  topics: [
+    {
+      name: "Personality Assessment",
+      score: 0.95,
+      subfield: "Personality Psychology",
+      field: "Psychology",
+      domain: "Social Sciences",
+    },
+    {
+      name: "Machine Learning",
+      score: 0.88,
+      subfield: "Artificial Intelligence",
+      field: "Computer Science",
+      domain: "Physical Sciences",
+    },
+  ],
+  keywords: [
+    { keyword: "personality", score: 0.9 },
+    { keyword: "assessment", score: 0.8 },
+  ],
+  funders: [{ name: "Example Foundation", awardId: "EF-123" }],
+  sustainableDevelopmentGoals: [{ name: "Quality Education", score: 0.7 }],
+  referencedWorksCount: 12,
+  relatedWorksCount: 5,
+  ids: {
+    openalex: "https://openalex.org/W1234567890",
+    doi: "https://doi.org/10.0000/example",
+    pmid: null,
+    pmcid: null,
+  },
+  updatedDate: "2026-03-26",
 };
 
 function createDetail(
@@ -156,7 +220,7 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
   assert.match(output, /\*\*Authors\*\*: \[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]/);
   assert.match(output, /\*\*Publication\*\*: \[\[Journal of Examples\]\]/);
   // Collections and Topics are now in the Details callout
-  assert.match(output, /\[!example\]- Details/);
+  assert.match(output, /\[!example\]\+ Details/);
   assert.match(output, /\*\*Collections\*\*: \[\[Machine Learning Review\]\]/);
   assert.match(output, /\*\*Topics\*\*: #zotero\/personality #zotero\/ml/);
   assert.match(output, /> \[!abstract\]\+ Abstract/);
@@ -196,6 +260,35 @@ test("buildLiteratureNoteContent renders Zotero notes as foldable callouts", () 
   );
   assert.match(output, /> First imported insight from Zotero\./);
   assert.match(output, /> Supporting detail\./);
+});
+
+test("buildLiteratureNoteContent strips OpenAlex blocks when enrichment is absent on update", () => {
+  const existingContent = buildLiteratureNoteContent({
+    detail: createDetail(),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: DEFAULT_OPENALEX_ENRICHMENT,
+  });
+
+  const output = buildLiteratureNoteContent({
+    detail: createDetail(),
+    filenameStem: "Managed Name",
+    existingContent,
+    parseYaml: () => ({
+      openalex_id: "https://openalex.org/W1234567890",
+      cited_by_count: 42,
+      openalex_topics: ["Personality Assessment", "Machine Learning"],
+    }),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.doesNotMatch(output, /cited_by_count:/);
+  assert.doesNotMatch(output, /openalex_id:/);
+  assert.doesNotMatch(output, /> \[!bar-chart\]- Impact/);
+  assert.doesNotMatch(output, /> \[!globe\]- OpenAlex/);
 });
 
 test("markLiteratureNoteAsDeletedContent updates frontmatter and adds a warning", () => {
@@ -470,7 +563,7 @@ test("journal article with volume/issue/pages renders location in Details callou
     htmlToMarkdown: (html) => html,
   });
 
-  assert.match(output, /\[!example\]- Details/);
+  assert.match(output, /\[!example\]\+ Details/);
   assert.match(output, /\*\*Location\*\*: Vol\. 23 · No\. 2 · pp\. 190–203/);
 });
 
@@ -552,7 +645,7 @@ test("thesis renders university as type-aware venue", () => {
   assert.match(output, /\*\*University\*\*: \[\[MIT\]\]/);
 });
 
-test("formatted citation renders as plain blockquote", () => {
+test("formatted citation renders as a Citation callout", () => {
   const output = buildLiteratureNoteContent({
     detail: createDetail({
       item: {
@@ -566,6 +659,7 @@ test("formatted citation renders as plain blockquote", () => {
     htmlToMarkdown: (html) => html,
   });
 
+  assert.match(output, /\[!quote\]\+ Citation/);
   assert.match(output, /> Bleidorn, W\., & Hopwood, C\. J\. \(2019\)\./);
 });
 
@@ -654,5 +748,5 @@ test("Details callout is omitted when all detail fields are null", () => {
     htmlToMarkdown: (html) => html,
   });
 
-  assert.doesNotMatch(output, /\[!example\]- Details/);
+  assert.doesNotMatch(output, /\[!example\]\+ Details/);
 });

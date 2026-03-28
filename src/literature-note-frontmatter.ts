@@ -1,4 +1,4 @@
-import type { ZoteroItemDetail } from "./backend-client";
+import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import {
   getReadableAuthorLabel,
   getReadableTitleVariants,
@@ -178,7 +178,8 @@ export function renderFrontmatterContent(
   existingFrontmatter: Record<string, unknown>,
   filenameStem: string | null,
   zoteroStatus: ZoteroSyncStatus,
-  stringifyYaml: YamlStringifier
+  stringifyYaml: YamlStringifier,
+  enrichment?: OpenAlexEnrichment | null
 ): string {
   const existingAliases = toStringList(existingFrontmatter.aliases);
   const previousManagedAliases = new Set(
@@ -259,6 +260,28 @@ export function renderFrontmatterContent(
   }
   if (detail.item.shortTitle) {
     nativeFrontmatter.short_title = detail.item.shortTitle;
+  }
+
+  if (enrichment) {
+    nativeFrontmatter.openalex_status = "enriched";
+    nativeFrontmatter.cited_by_count = enrichment.citedByCount;
+    nativeFrontmatter.is_open_access = enrichment.isOpenAccess ? "true" : "false";
+    nativeFrontmatter.oa_status = enrichment.oaStatus;
+    if (enrichment.oaUrl) {
+      nativeFrontmatter.oa_url = enrichment.oaUrl;
+    }
+    nativeFrontmatter.is_retracted = enrichment.isRetracted ? "true" : "false";
+    nativeFrontmatter.openalex_id = enrichment.openAlexId;
+    if (enrichment.type) {
+      nativeFrontmatter.openalex_type = enrichment.type;
+    }
+    if (enrichment.topics.length > 0) {
+      nativeFrontmatter.openalex_topics = enrichment.topics
+        .slice(0, 3)
+        .map((t) => toWikiLink(t.name));
+    }
+  } else if (detail.item.doi) {
+    nativeFrontmatter.openalex_status = "not_found";
   }
 
   const merged = {

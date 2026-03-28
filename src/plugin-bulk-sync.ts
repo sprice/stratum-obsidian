@@ -188,12 +188,16 @@ async function syncCatalogItem(
 
   await reserveStartSlot();
   const detail = await plugin.backend.getZoteroItemDetail(item.key);
+  const enrichment = detail.item.doi
+    ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
+    : null;
   const writeResult = await createOrUpdateLiteratureNote({
     app: plugin.app,
     notesFolder: plugin.settings.notesFolder,
     filenameFormat: plugin.settings.filenameFormat,
     detail,
     existingFile,
+    enrichment,
   });
   plugin.rememberLiteratureNoteFile(detail, writeResult.file);
   return writeResult.created ? "created" : "updated";
@@ -354,6 +358,9 @@ async function retryFailedCatalogItems(plugin: StratumPlugin): Promise<{
     const itemKey = failedItemKeys[index];
     try {
       const detail = await plugin.backend.getZoteroItemDetail(itemKey);
+      const enrichment = detail.item.doi
+        ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
+        : null;
       const existingFile = plugin.findExistingLiteratureNoteFile({
         libraryType: detail.library.type,
         libraryId: detail.library.id,
@@ -365,6 +372,7 @@ async function retryFailedCatalogItems(plugin: StratumPlugin): Promise<{
         filenameFormat: plugin.settings.filenameFormat,
         detail,
         existingFile,
+        enrichment,
       });
       plugin.rememberLiteratureNoteFile(detail, writeResult.file);
       if (writeResult.created) {

@@ -1,4 +1,4 @@
-import type { ZoteroItemDetail } from "./backend-client";
+import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { preprocessZoteroNoteHtml } from "./literature-note-content-html";
 import {
   getColorCategory,
@@ -136,7 +136,7 @@ function renderCitationBlockquote(detail: ZoteroItemDetail): string | null {
     /(https?:\/\/doi\.org\/[^\s)]+)/g,
     (url) => `[${url}](${url})`
   );
-  return `> ${citation}`;
+  return toFoldableCalloutBlock("quote", "Citation", [citation], false);
 }
 
 function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
@@ -220,7 +220,7 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
 
   if (lines.length === 0) return null;
 
-  return toFoldableCalloutBlock("example", "Details", lines, true);
+  return toFoldableCalloutBlock("example", "Details", lines, false);
 }
 
 function renderAbstractSection(detail: ZoteroItemDetail): string | null {
@@ -308,15 +308,151 @@ function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
   return ["## Highlights", ...sections].join("\n\n");
 }
 
+function renderOpenAlexMetricsCallout(
+  enrichment: OpenAlexEnrichment | null
+): string | null {
+  if (!enrichment) return null;
+
+  const lines: string[] = [];
+
+  lines.push(`**Cited by**: ${enrichment.citedByCount}`);
+
+  const recentYears = enrichment.countsByYear
+    .slice(0, 5)
+    .filter((entry) => entry.citedByCount > 0);
+  if (recentYears.length > 0) {
+    const trend = recentYears
+      .map((entry) => `${entry.year}: ${entry.citedByCount}`)
+      .join(" \u00B7 ");
+    lines.push(`**Citation trend**: ${trend}`);
+  }
+
+  const oaParts: string[] = [];
+  if (enrichment.oaStatus) {
+    oaParts.push(
+      enrichment.oaStatus.charAt(0).toUpperCase() + enrichment.oaStatus.slice(1)
+    );
+  } else {
+    oaParts.push(enrichment.isOpenAccess ? "Yes" : "No");
+  }
+  if (enrichment.oaUrl) {
+    oaParts.push(`[PDF](${enrichment.oaUrl})`);
+  }
+  lines.push(`**Open access**: ${oaParts.join(" \u00B7 ")}`);
+
+  if (enrichment.isRetracted) {
+    lines.push("**Retracted**: **RETRACTED**");
+  }
+
+  if (enrichment.type) {
+    lines.push(`**Type**: ${enrichment.type}`);
+  }
+
+  const openAlexUrl = enrichment.openAlexId.startsWith("http")
+    ? enrichment.openAlexId
+    : `https://openalex.org/${enrichment.openAlexId}`;
+  const shortId = enrichment.openAlexId.replace("https://openalex.org/", "");
+  lines.push(`**OpenAlex**: [${shortId}](${openAlexUrl})`);
+
+  return toFoldableCalloutBlock("bar-chart", "Impact", lines, false);
+}
+
+function renderOpenAlexDetailsCallout(
+  enrichment: OpenAlexEnrichment | null
+): string | null {
+  if (!enrichment) return null;
+
+  const sections: string[][] = [];
+
+  const affiliations = enrichment.authorships
+    .map((a) => {
+      const inst =
+        a.institutions.length > 0 ? ` (${a.institutions.map((i) => `[[${i}]]`).join(", ")})` : "";
+      return `[[${a.authorName}]]${inst}`;
+    });
+  if (affiliations.length > 0) {
+    sections.push([`**Affiliations**: ${affiliations.join(", ")}`]);
+  }
+
+  const topTopics = enrichment.topics.slice(0, 5);
+  if (topTopics.length > 0) {
+    const formatted = topTopics.map((t) => {
+      const hierarchy = [t.field, t.subfield]
+        .filter(Boolean)
+        .map((h) => `[[${h}]]`)
+        .join(" > ");
+      return hierarchy ? `[[${t.name}]] (${hierarchy})` : `[[${t.name}]]`;
+    });
+    sections.push([`**Topics**: ${formatted.join(", ")}`]);
+  }
+
+  const topKeywords = enrichment.keywords.slice(0, 10);
+  if (topKeywords.length > 0) {
+    sections.push([
+      `**Keywords**: ${topKeywords.map((k) => `[[${k.keyword}]]`).join(", ")}`,
+    ]);
+  }
+
+  if (enrichment.funders.length > 0) {
+    const formatted = enrichment.funders.map((f) =>
+      f.awardId ? `${f.name} (${f.awardId})` : f.name
+    );
+    sections.push([`**Funders**: ${formatted.join(", ")}`]);
+  }
+
+  const sdgs = enrichment.sustainableDevelopmentGoals.filter(
+    (g) => g.score >= 0.5
+  );
+  if (sdgs.length > 0) {
+    const formatted = sdgs.map(
+      (g) => `${g.name} (${g.score.toFixed(2)})`
+    );
+    sections.push([`**SDGs**: ${formatted.join(", ")}`]);
+  }
+
+  if (enrichment.primaryLocation) {
+    const loc = enrichment.primaryLocation;
+    const parts: string[] = [];
+    if (loc.sourceName) parts.push(loc.sourceName);
+    if (loc.landingPageUrl) parts.push(`[Landing page](${loc.landingPageUrl})`);
+    if (loc.pdfUrl) parts.push(`[PDF](${loc.pdfUrl})`);
+    if (parts.length > 0) {
+      sections.push([`**Source**: ${parts.join(" \u00B7 ")}`]);
+    }
+  }
+
+  const countParts: string[] = [];
+  if (enrichment.referencedWorksCount > 0) {
+    countParts.push(`**Referenced works**: ${enrichment.referencedWorksCount}`);
+  }
+  if (enrichment.relatedWorksCount > 0) {
+    countParts.push(`**Related works**: ${enrichment.relatedWorksCount}`);
+  }
+  if (countParts.length > 0) {
+    sections.push([countParts.join(" \u00B7 ")]);
+  }
+
+  const lines = sections.flatMap((section, i) =>
+    i < sections.length - 1 ? [...section, ""] : section
+  );
+
+  if (lines.length === 0) return null;
+
+  return toFoldableCalloutBlock("globe", "OpenAlex", lines, false);
+}
+
 export function renderManagedBlock(
   detail: ZoteroItemDetail,
   htmlToMarkdown: HtmlToMarkdownTransformer,
-  zoteroStatus: ZoteroSyncStatus
+  zoteroStatus: ZoteroSyncStatus,
+  enrichment?: OpenAlexEnrichment | null
 ): string {
   const sections = [
     renderCiteCallout(detail),
     renderCitationBlockquote(detail),
+    renderOpenAlexMetricsCallout(enrichment ?? null),
     renderDetailsCallout(detail),
+    renderOpenAlexDetailsCallout(enrichment ?? null),
     renderAbstractSection(detail),
     renderZoteroNotesSection(detail, htmlToMarkdown),
     renderAnnotationsSection(detail),

@@ -1,6 +1,6 @@
 import { TFile, htmlToMarkdown, parseYaml, stringifyYaml } from "obsidian";
 import type { App } from "obsidian";
-import type { ZoteroItemDetail } from "./backend-client";
+import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import {
   buildLiteratureNoteContent,
   getLiteratureNoteSummary,
@@ -50,6 +50,7 @@ export async function createOrUpdateLiteratureNote(params: {
   detail: ZoteroItemDetail;
   filenameFormat: LiteratureNoteFilenameFormat;
   existingFile?: TFile | null;
+  enrichment?: OpenAlexEnrichment | null;
 }): Promise<LiteratureNoteWriteResult> {
   const summary = getLiteratureNoteSummary(params.detail);
   const identity = toIdentity(params.detail);
@@ -103,6 +104,7 @@ export async function createOrUpdateLiteratureNote(params: {
       parseYaml,
       stringifyYaml,
       htmlToMarkdown,
+      enrichment: params.enrichment,
     });
 
     await params.app.vault.modify(file, nextContent);
@@ -122,6 +124,7 @@ export async function createOrUpdateLiteratureNote(params: {
     notesFolder: folder,
     detail: params.detail,
     filenameFormat: params.filenameFormat,
+    enrichment: params.enrichment,
   });
 
   return {

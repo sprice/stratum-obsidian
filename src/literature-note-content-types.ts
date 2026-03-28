@@ -14,6 +14,18 @@ export const ITEM_VERSION_FRONTMATTER_KEY = "zotero_item_version";
 
 export type ZoteroSyncStatus = "active" | "deleted";
 
+export const OPENALEX_MANAGED_FRONTMATTER_KEYS = [
+  "cited_by_count",
+  "is_open_access",
+  "is_retracted",
+  "oa_status",
+  "oa_url",
+  "openalex_id",
+  "openalex_status",
+  "openalex_topics",
+  "openalex_type",
+] as const;
+
 export const MANAGED_FRONTMATTER_KEYS = new Set([
   "aliases",
   "arxiv",
@@ -37,6 +49,7 @@ export const MANAGED_FRONTMATTER_KEYS = new Set([
   "volume",
   "issue",
   "year",
+  ...OPENALEX_MANAGED_FRONTMATTER_KEYS,
   "stratum_filename_stem",
   "stratum_managed_aliases",
   "stratum_note_type",

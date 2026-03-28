@@ -19,6 +19,7 @@ import type {
   AuthenticatedUserSummary,
   BackendErrorPayload,
   BackendAuthState,
+  OpenAlexEnrichment,
   RefreshResponse,
   ZoteroLibraryCatalogPageResponse,
   ZoteroConnectionState,
@@ -31,13 +32,16 @@ import type { PersistedAuthSession } from "./settings";
 const REFRESH_BUFFER_SECONDS = 60;
 const AUTH_ERROR_STATUSES = new Set([401, 403]);
 
-type AuthedRequestOptions = Omit<RequestUrlParam, "throw" | "url">;
+type AuthedRequestOptions = Omit<RequestUrlParam, "throw" | "url"> & {
+  skipSessionClearOnAuthError?: boolean;
+};
 
 export type {
   AuthenticatedUserResponse,
   AuthenticatedUserSummary,
   BackendErrorPayload,
   BackendAuthState,
+  OpenAlexEnrichment,
   RefreshResponse,
   ZoteroLibraryCatalogItem,
   ZoteroLibraryCatalogPageResponse,
@@ -185,6 +189,26 @@ export class BackendClient {
     return this.readJson<ZoteroItemDetail>(response);
   }
 
+  async getOpenAlexEnrichment(
+    doi: string
+  ): Promise<OpenAlexEnrichment | null> {
+    try {
+      const response = await this.authedFetch(
+        `/openalex-enrich?doi=${encodeURIComponent(doi)}`,
+        { skipSessionClearOnAuthError: true }
+      );
+      if (!this.isOk(response)) {
+        return null;
+      }
+      const payload = this.readJson<{
+        enrichment: OpenAlexEnrichment | null;
+      }>(response);
+      return payload.enrichment;
+    } catch {
+      return null;
+    }
+  }
+
   async getZoteroLibraryChanges(
     sinceVersion: number | null
   ): Promise<ZoteroLibraryChangesResponse> {
@@ -205,16 +229,17 @@ export class BackendClient {
       throw new Error("No authenticated app session available.");
     }
 
-    const method = init?.method ?? "GET";
+    const { skipSessionClearOnAuthError, ...requestInit } = init ?? {};
+    const method = requestInit.method ?? "GET";
     const start = performance.now();
     log("fetch", `${method} ${path}`);
 
     const response = await requestUrl({
-      ...init,
+      ...requestInit,
       url: `${PLUGIN_API_BASE_URL}${path}`,
       throw: false,
       headers: {
-        ...(init?.headers ?? {}),
+        ...(requestInit.headers ?? {}),
         Authorization: `Bearer ${accessToken}`,
         apikey: PLUGIN_SUPABASE_PUBLISHABLE_KEY,
       },
@@ -225,7 +250,7 @@ export class BackendClient {
       ms: Math.round(performance.now() - start),
     });
 
-    if (AUTH_ERROR_STATUSES.has(response.status)) {
+    if (AUTH_ERROR_STATUSES.has(response.status) && !skipSessionClearOnAuthError) {
       await this.clearSession();
     }
 

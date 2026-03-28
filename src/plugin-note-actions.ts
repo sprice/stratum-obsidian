@@ -44,6 +44,9 @@ export async function createLiteratureNote(
 
   try {
     const detail = await plugin.backend.getZoteroItemDetail(result.key);
+    const enrichment = detail.item.doi
+      ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
+      : null;
     const existingFile = plugin.findExistingLiteratureNoteFile({
       libraryType: detail.library.type,
       libraryId: detail.library.id,
@@ -75,6 +78,7 @@ export async function createLiteratureNote(
       filenameFormat: plugin.settings.filenameFormat,
       detail,
       existingFile,
+      enrichment,
     });
 
     plugin.rememberLiteratureNoteFile(detail, writeResult.file);
