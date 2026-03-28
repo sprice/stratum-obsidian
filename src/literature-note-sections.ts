@@ -223,8 +223,14 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
   return toFoldableCalloutBlock("example", "Details", lines, false);
 }
 
-function renderAbstractSection(detail: ZoteroItemDetail): string | null {
-  const abstract = detail.item.abstract?.trim();
+function renderAbstractSection(
+  detail: ZoteroItemDetail,
+  enrichment?: OpenAlexEnrichment | null
+): string | null {
+  const abstract =
+    detail.item.abstract?.trim() ||
+    enrichment?.abstractFromOpenAlex?.trim() ||
+    null;
   if (!abstract) {
     return null;
   }
@@ -308,6 +314,14 @@ function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
   return ["## Highlights", ...sections].join("\n\n");
 }
 
+function safeWikiLink(value: string): string {
+  return `[[${value.replace(/[|\]]/g, "\\$&")}]]`;
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
 function renderOpenAlexMetricsCallout(
   enrichment: OpenAlexEnrichment | null
 ): string | null {
@@ -315,14 +329,25 @@ function renderOpenAlexMetricsCallout(
 
   const lines: string[] = [];
 
-  lines.push(`**Cited by**: ${enrichment.citedByCount}`);
+  const citedParts: string[] = [`**Cited by**: ${formatNumber(enrichment.citedByCount)}`];
+  if (enrichment.citationPercentile) {
+    if (enrichment.citationPercentile.isInTop1Percent) {
+      citedParts.push("Top 1%");
+    } else if (enrichment.citationPercentile.isInTop10Percent) {
+      citedParts.push("Top 10%");
+    }
+  }
+  if (enrichment.fwci != null) {
+    citedParts.push(`FWCI: ${enrichment.fwci.toFixed(1)}`);
+  }
+  lines.push(citedParts.join(" \u00B7 "));
 
   const recentYears = enrichment.countsByYear
     .slice(0, 5)
     .filter((entry) => entry.citedByCount > 0);
   if (recentYears.length > 0) {
     const trend = recentYears
-      .map((entry) => `${entry.year}: ${entry.citedByCount}`)
+      .map((entry) => `${entry.year}: ${formatNumber(entry.citedByCount)}`)
       .join(" \u00B7 ");
     lines.push(`**Citation trend**: ${trend}`);
   }
@@ -339,6 +364,20 @@ function renderOpenAlexMetricsCallout(
     oaParts.push(`[PDF](${enrichment.oaUrl})`);
   }
   lines.push(`**Open access**: ${oaParts.join(" \u00B7 ")}`);
+
+  if (enrichment.apc) {
+    try {
+      const formatted = enrichment.apc.value.toLocaleString("en-US", {
+        style: "currency",
+        currency: enrichment.apc.currency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+      lines.push(`**APC**: ${formatted}`);
+    } catch {
+      lines.push(`**APC**: ${formatNumber(enrichment.apc.value)} ${enrichment.apc.currency}`);
+    }
+  }
 
   if (enrichment.isRetracted) {
     lines.push("**Retracted**: **RETRACTED**");
@@ -366,9 +405,10 @@ function renderOpenAlexDetailsCallout(
 
   const affiliations = enrichment.authorships
     .map((a) => {
+      const orcidLink = a.orcid ? ` [ORCID](${a.orcid})` : "";
       const inst =
-        a.institutions.length > 0 ? ` (${a.institutions.map((i) => `[[${i}]]`).join(", ")})` : "";
-      return `[[${a.authorName}]]${inst}`;
+        a.institutions.length > 0 ? ` (${a.institutions.map((i) => safeWikiLink(i)).join(", ")})` : "";
+      return `${safeWikiLink(a.authorName)}${orcidLink}${inst}`;
     });
   if (affiliations.length > 0) {
     sections.push([`**Affiliations**: ${affiliations.join(", ")}`]);
@@ -379,9 +419,9 @@ function renderOpenAlexDetailsCallout(
     const formatted = topTopics.map((t) => {
       const hierarchy = [t.field, t.subfield]
         .filter(Boolean)
-        .map((h) => `[[${h}]]`)
+        .map((h) => safeWikiLink(h as string))
         .join(" > ");
-      return hierarchy ? `[[${t.name}]] (${hierarchy})` : `[[${t.name}]]`;
+      return hierarchy ? `${safeWikiLink(t.name)} (${hierarchy})` : safeWikiLink(t.name);
     });
     sections.push([`**Topics**: ${formatted.join(", ")}`]);
   }
@@ -389,7 +429,7 @@ function renderOpenAlexDetailsCallout(
   const topKeywords = enrichment.keywords.slice(0, 10);
   if (topKeywords.length > 0) {
     sections.push([
-      `**Keywords**: ${topKeywords.map((k) => `[[${k.keyword}]]`).join(", ")}`,
+      `**Keywords**: ${topKeywords.map((k) => safeWikiLink(k.keyword)).join(", ")}`,
     ]);
   }
 
@@ -453,7 +493,7 @@ export function renderManagedBlock(
     renderOpenAlexMetricsCallout(enrichment ?? null),
     renderDetailsCallout(detail),
     renderOpenAlexDetailsCallout(enrichment ?? null),
-    renderAbstractSection(detail),
+    renderAbstractSection(detail, enrichment),
     renderZoteroNotesSection(detail, htmlToMarkdown),
     renderAnnotationsSection(detail),
   ].filter((section): section is string => Boolean(section));

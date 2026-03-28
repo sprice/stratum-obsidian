@@ -11,7 +11,6 @@ import {
 } from "./backend-client";
 import { PLUGIN_NAME } from "./constants";
 import type StratumPlugin from "./plugin";
-import { getIdentityCacheKey } from "./plugin-note-index";
 import { applyZoteroLibraryChanges } from "./plugin-sync";
 import {
   ensureZoteroConnection,
@@ -153,38 +152,15 @@ function getCatalogIdentity(
   };
 }
 
-function shouldSkipCatalogItem(
-  plugin: StratumPlugin,
-  library: ZoteroLibraryIdentity,
-  item: ZoteroLibraryCatalogItem
-): boolean {
-  const cacheKey = getIdentityCacheKey(getCatalogIdentity(library, item.key));
-  const existingEntry = plugin.settings.itemFileMap[cacheKey];
-  if (!existingEntry || existingEntry.zoteroVersion < item.version) {
-    return false;
-  }
-
-  return Boolean(
-    plugin.findExistingLiteratureNoteFile(getCatalogIdentity(library, item.key))
-  );
-}
-
 async function syncCatalogItem(
   plugin: StratumPlugin,
   library: ZoteroLibraryIdentity,
   item: ZoteroLibraryCatalogItem,
   reserveStartSlot: () => Promise<void>
 ): Promise<"created" | "updated" | "skipped"> {
-  if (shouldSkipCatalogItem(plugin, library, item)) {
-    return "skipped";
-  }
-
   const existingFile = plugin.findExistingLiteratureNoteFile(
     getCatalogIdentity(library, item.key)
   );
-  if (shouldSkipCatalogItem(plugin, library, item)) {
-    return "skipped";
-  }
 
   await reserveStartSlot();
   const detail = await plugin.backend.getZoteroItemDetail(item.key);

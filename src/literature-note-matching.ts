@@ -41,7 +41,7 @@ export function findExistingLiteratureNoteMatch(
   identity: LiteratureNoteIdentity,
   preferredFolder?: string
 ): ExistingLiteratureNoteMatch | null {
-  const itemIdentity = `${identity.libraryType}:${identity.libraryId}:${identity.itemKey}`;
+  const itemIdentity = `${identity.libraryType}/${identity.libraryId}/${identity.itemKey}`;
   const legacyIdentity = getLegacyItemIdentity(identity.itemKey);
   const buckets: LiteratureNoteCandidate[][] = [[], [], []];
 

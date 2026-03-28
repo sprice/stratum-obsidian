@@ -185,12 +185,20 @@ export interface OpenAlexEnrichment {
   publicationYear: number | null;
   publicationDate: string | null;
   type: string | null;
+  language: string | null;
   citedByCount: number;
   countsByYear: Array<{ year: number; citedByCount: number }>;
+  fwci: number | null;
+  citationPercentile: {
+    value: number;
+    isInTop1Percent: boolean;
+    isInTop10Percent: boolean;
+  } | null;
   isRetracted: boolean;
   isOpenAccess: boolean;
   oaStatus: string | null;
   oaUrl: string | null;
+  apc: { value: number; currency: string } | null;
   primaryLocation: {
     sourceName: string | null;
     sourceType: string | null;
@@ -200,6 +208,7 @@ export interface OpenAlexEnrichment {
   } | null;
   authorships: Array<{
     authorName: string;
+    orcid: string | null;
     institutions: string[];
     isCorresponding: boolean;
   }>;
@@ -213,6 +222,7 @@ export interface OpenAlexEnrichment {
   keywords: Array<{ keyword: string; score: number }>;
   funders: Array<{ name: string; awardId: string | null }>;
   sustainableDevelopmentGoals: Array<{ name: string; score: number }>;
+  abstractFromOpenAlex: string | null;
   referencedWorksCount: number;
   relatedWorksCount: number;
   ids: {

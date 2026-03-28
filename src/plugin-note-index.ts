@@ -177,7 +177,7 @@ export function getIdentityCacheKey(identity: {
   libraryId: string;
   itemKey: string;
 }): string {
-  return `${identity.libraryType}:${identity.libraryId}:${identity.itemKey}`;
+  return `${identity.libraryType}/${identity.libraryId}/${identity.itemKey}`;
 }
 
 export function findExistingLiteratureNoteFile(

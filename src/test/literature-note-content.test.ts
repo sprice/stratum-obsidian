@@ -61,16 +61,24 @@ const DEFAULT_OPENALEX_ENRICHMENT: OpenAlexEnrichment = {
   publicationYear: 2019,
   publicationDate: "2019-05-01",
   type: "article",
+  language: "en",
   citedByCount: 42,
   countsByYear: [
     { year: 2025, citedByCount: 10 },
     { year: 2024, citedByCount: 9 },
     { year: 2023, citedByCount: 8 },
   ],
+  fwci: 5.2,
+  citationPercentile: {
+    value: 0.95,
+    isInTop1Percent: false,
+    isInTop10Percent: true,
+  },
   isRetracted: false,
   isOpenAccess: true,
   oaStatus: "gold",
   oaUrl: "https://example.com/open-access.pdf",
+  apc: { value: 3000, currency: "USD" },
   primaryLocation: {
     sourceName: "Journal of Examples",
     sourceType: "journal",
@@ -81,6 +89,7 @@ const DEFAULT_OPENALEX_ENRICHMENT: OpenAlexEnrichment = {
   authorships: [
     {
       authorName: "Wiebke Bleidorn",
+      orcid: null,
       institutions: ["University of Example"],
       isCorresponding: true,
     },
@@ -107,6 +116,7 @@ const DEFAULT_OPENALEX_ENRICHMENT: OpenAlexEnrichment = {
   ],
   funders: [{ name: "Example Foundation", awardId: "EF-123" }],
   sustainableDevelopmentGoals: [{ name: "Quality Education", score: 0.7 }],
+  abstractFromOpenAlex: null,
   referencedWorksCount: 12,
   relatedWorksCount: 5,
   ids: {
@@ -185,7 +195,7 @@ test("buildLiteratureNoteContent preserves invalid frontmatter during updates", 
     htmlToMarkdown: (html) => html,
   });
 
-  assert.match(output, /zotero_item_identity: user:123456:ABCD1234/);
+  assert.match(output, /zotero_item_identity: user\/123456\/ABCD1234/);
   assert.match(output, /aliases: \[broken/);
   assert.match(output, /Personal analysis lives here\./);
 });
@@ -479,14 +489,14 @@ test("findExistingLiteratureNoteMatch prefers exact library-aware matches in the
       path: "Archive/ml-note.md",
       name: "ml-note.md",
       frontmatter: {
-        zotero_item_identity: "user:123456:ABCD1234",
+        zotero_item_identity: "user/123456/ABCD1234",
       },
     },
     {
       path: "Literature Notes/ml-note.md",
       name: "ml-note.md",
       frontmatter: {
-        zotero_item_identity: "user:123456:ABCD1234",
+        zotero_item_identity: "user/123456/ABCD1234",
       },
     },
     {

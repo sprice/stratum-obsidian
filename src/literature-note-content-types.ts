@@ -15,12 +15,15 @@ export const ITEM_VERSION_FRONTMATTER_KEY = "zotero_item_version";
 export type ZoteroSyncStatus = "active" | "deleted";
 
 export const OPENALEX_MANAGED_FRONTMATTER_KEYS = [
+  "citation_percentile",
   "cited_by_count",
+  "fwci",
   "is_open_access",
   "is_retracted",
   "oa_status",
   "oa_url",
   "openalex_id",
+  "openalex_language",
   "openalex_status",
   "openalex_topics",
   "openalex_type",

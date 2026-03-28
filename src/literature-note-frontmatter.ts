@@ -16,7 +16,7 @@ import {
 } from "./literature-note-content-types";
 
 export function getItemIdentity(detail: ZoteroItemDetail): string {
-  return `${detail.library.type}:${detail.library.id}:${detail.item.key}`;
+  return `${detail.library.type}/${detail.library.id}/${detail.item.key}`;
 }
 
 function escapeWikiTarget(value: string): string {
@@ -265,15 +265,24 @@ export function renderFrontmatterContent(
   if (enrichment) {
     nativeFrontmatter.openalex_status = "enriched";
     nativeFrontmatter.cited_by_count = enrichment.citedByCount;
-    nativeFrontmatter.is_open_access = enrichment.isOpenAccess ? "true" : "false";
+    if (enrichment.fwci != null) {
+      nativeFrontmatter.fwci = Number(enrichment.fwci.toFixed(1));
+    }
+    if (enrichment.citationPercentile) {
+      nativeFrontmatter.citation_percentile = enrichment.citationPercentile.value;
+    }
+    nativeFrontmatter.is_open_access = enrichment.isOpenAccess ? "yes" : "no";
     nativeFrontmatter.oa_status = enrichment.oaStatus;
     if (enrichment.oaUrl) {
       nativeFrontmatter.oa_url = enrichment.oaUrl;
     }
-    nativeFrontmatter.is_retracted = enrichment.isRetracted ? "true" : "false";
+    nativeFrontmatter.is_retracted = enrichment.isRetracted ? "yes" : "no";
     nativeFrontmatter.openalex_id = enrichment.openAlexId;
     if (enrichment.type) {
       nativeFrontmatter.openalex_type = enrichment.type;
+    }
+    if (enrichment.language) {
+      nativeFrontmatter.openalex_language = enrichment.language;
     }
     if (enrichment.topics.length > 0) {
       nativeFrontmatter.openalex_topics = enrichment.topics
