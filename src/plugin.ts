@@ -9,12 +9,14 @@ import {
 } from "./constants";
 import {
   type ZoteroConnectionState,
+  type ZoteroGroupSummary,
   type ZoteroSearchMeta,
   type ZoteroSearchResult,
   BackendClient,
 } from "./backend-client";
 import {
   DEFAULT_SETTINGS,
+  type EnabledLibrary,
   type StratumSettings,
   StratumSettingTab,
 } from "./settings";
@@ -84,13 +86,19 @@ import {
   startAutoSyncStatusRefresh,
   stopAutoSyncStatusRefresh,
 } from "./plugin-sync-status";
+import {
+  getSelectedSearchLibrary,
+  setSelectedSearchLibrary,
+} from "./plugin-libraries";
 
 export default class StratumPlugin extends Plugin {
   settings: StratumSettings = DEFAULT_SETTINGS;
   settingTab: StratumSettingTab | null = null;
   backend!: BackendClient;
   zoteroConnection: ZoteroConnectionState | null = null;
+  availableGroups: ZoteroGroupSummary[] = [];
   isLoadingZoteroConnection = false;
+  selectedSearchLibrary: EnabledLibrary | null = null;
   librarySearchQuery = "";
   librarySearchResults: ZoteroSearchResult[] = [];
   librarySearchMeta: ZoteroSearchMeta | null = null;
@@ -148,6 +156,7 @@ export default class StratumPlugin extends Plugin {
     await loadPluginSettings(this);
     this.backend = createBackendClient(this);
     hydrateZoteroConnectionFromCache(this);
+    setSelectedSearchLibrary(this, this.selectedSearchLibrary);
     const openStratumRibbonLabel = `Open ${PLUGIN_NAME}`;
 
     this.settingTab = new StratumSettingTab(this);
@@ -174,14 +183,6 @@ export default class StratumPlugin extends Plugin {
       name: "Sync Zotero changes now",
       callback: () => {
         void this.runZoteroAutoSync("manual");
-      },
-    });
-
-    this.addCommand({
-      id: "sync-all-zotero-papers",
-      name: "Sync all Zotero papers",
-      callback: () => {
-        void this.runBulkLibrarySync();
       },
     });
 
@@ -359,6 +360,11 @@ export default class StratumPlugin extends Plugin {
   }
 
   async runBulkLibrarySync(): Promise<void> {
-    await runBulkLibrarySync(this);
+    const selectedLibrary = getSelectedSearchLibrary(this);
+    if (!selectedLibrary) {
+      return;
+    }
+
+    await runBulkLibrarySync(this, selectedLibrary);
   }
 }

@@ -6,6 +6,7 @@ import {
 import { promptExistingLiteratureNote } from "./literature-note-update-modal";
 import { PLUGIN_NAME } from "./constants";
 import { type ZoteroSearchResult, ZoteroTokenInvalidError } from "./backend-client";
+import { getSelectedSearchLibrary } from "./plugin-libraries";
 import type StratumPlugin from "./plugin";
 import {
   ensureZoteroConnection,
@@ -48,7 +49,10 @@ export async function createLiteratureNote(
   plugin.refreshViews();
 
   try {
-    const detail = await plugin.backend.getZoteroItemDetail(result.key);
+    const selectedLibrary = getSelectedSearchLibrary(plugin);
+    const detail = await plugin.backend.getZoteroItemDetail(result.key, {
+      library: selectedLibrary ?? undefined,
+    });
     const enrichment = detail.item.doi
       ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
       : null;
@@ -176,4 +180,3 @@ export function insertPandocCitation(
     });
   }).open();
 }
-

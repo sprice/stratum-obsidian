@@ -36,6 +36,11 @@ type AuthedRequestOptions = Omit<RequestUrlParam, "throw" | "url"> & {
   skipSessionClearOnAuthError?: boolean;
 };
 
+export type LibraryParam = {
+  type: "user" | "group";
+  id: string;
+};
+
 export type {
   AuthenticatedUserResponse,
   AuthenticatedUserSummary,
@@ -45,6 +50,7 @@ export type {
   RefreshResponse,
   ZoteroLibraryCatalogItem,
   ZoteroLibraryCatalogPageResponse,
+  ZoteroGroupSummary,
   ZoteroLibraryIdentity,
   ZoteroConnectionState,
   ZoteroItemDetail,
@@ -149,12 +155,17 @@ export class BackendClient {
 
   async searchZoteroLibrary(
     query: string,
-    options?: { refresh?: boolean }
+    options?: { refresh?: boolean; library?: LibraryParam }
   ): Promise<ZoteroSearchResponse> {
-    const encodedQuery = encodeURIComponent(query.trim());
-    const refreshSuffix = options?.refresh ? "&refresh=1" : "";
+    const queryParams = new URLSearchParams({
+      q: query.trim(),
+    });
+    if (options?.refresh) {
+      queryParams.set("refresh", "1");
+    }
+    appendLibraryParams(queryParams, options?.library);
     const response = await this.authedFetch(
-      `/zotero-library-search?q=${encodedQuery}${refreshSuffix}`
+      `/zotero-library-search?${queryParams.toString()}`
     );
 
     this.throwIfBackendError(response, "Zotero library search failed");
@@ -165,11 +176,13 @@ export class BackendClient {
   async getZoteroLibraryCatalogPage(params: {
     start: number;
     limit: number;
+    library?: LibraryParam;
   }): Promise<ZoteroLibraryCatalogPageResponse> {
     const query = new URLSearchParams({
       start: String(params.start),
       limit: String(params.limit),
     });
+    appendLibraryParams(query, params.library);
     const response = await this.authedFetch(
       `/zotero-library-catalog-page?${query.toString()}`
     );
@@ -179,9 +192,16 @@ export class BackendClient {
     return this.readJson<ZoteroLibraryCatalogPageResponse>(response);
   }
 
-  async getZoteroItemDetail(itemKey: string): Promise<ZoteroItemDetail> {
+  async getZoteroItemDetail(
+    itemKey: string,
+    options?: { library?: LibraryParam },
+  ): Promise<ZoteroItemDetail> {
+    const query = new URLSearchParams({
+      key: itemKey,
+    });
+    appendLibraryParams(query, options?.library);
     const response = await this.authedFetch(
-      `/zotero-item-detail?key=${encodeURIComponent(itemKey)}`
+      `/zotero-item-detail?${query.toString()}`
     );
 
     this.throwIfBackendError(response, "Failed to load Zotero item detail");
@@ -210,10 +230,18 @@ export class BackendClient {
   }
 
   async getZoteroLibraryChanges(
-    sinceVersion: number | null
+    sinceVersion: number | null,
+    options?: { library?: LibraryParam },
   ): Promise<ZoteroLibraryChangesResponse> {
-    const query = sinceVersion === null ? "" : `?since=${encodeURIComponent(String(sinceVersion))}`;
-    const response = await this.authedFetch(`/zotero-library-changes${query}`);
+    const query = new URLSearchParams();
+    if (sinceVersion !== null) {
+      query.set("since", String(sinceVersion));
+    }
+    appendLibraryParams(query, options?.library);
+    const suffix = query.toString();
+    const response = await this.authedFetch(
+      `/zotero-library-changes${suffix ? `?${suffix}` : ""}`
+    );
 
     this.throwIfBackendError(response, "Failed to load Zotero library changes");
 
@@ -367,4 +395,16 @@ export class BackendClient {
       return null;
     }
   }
+}
+
+function appendLibraryParams(
+  query: URLSearchParams,
+  library?: LibraryParam,
+): void {
+  if (!library) {
+    return;
+  }
+
+  query.set("libraryType", library.type);
+  query.set("libraryId", library.id);
 }

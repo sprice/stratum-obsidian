@@ -301,6 +301,12 @@ export function renderFrontmatterContent(
     zotero_status: zoteroStatus,
     zotero_item_identity: getItemIdentity(detail),
     zotero_item_key: detail.item.key,
+    zotero_library_type: detail.library.type,
+    zotero_library_id: detail.library.id,
+    zotero_user_id: detail.zoteroUserId,
+    ...(detail.library.type === "group"
+      ? { zotero_group_name: detail.library.groupName ?? null }
+      : {}),
     zotero_attachment_keys: detail.attachments.map((attachment) => attachment.key),
     zotero_note_keys: detail.zoteroNotes.map((note) => note.key),
     zotero_annotation_keys: detail.annotations.map((annotation) => annotation.key),

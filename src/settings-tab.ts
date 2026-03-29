@@ -2,6 +2,13 @@ import { PluginSettingTab, Setting } from "obsidian";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import type StratumPlugin from "./plugin";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
+import {
+  disableLibrary,
+  enableGroupLibrary,
+  getLibraryAutoSyncState,
+  getPersonalLibrary,
+} from "./plugin-libraries";
+import { getSyncStatusLabel } from "./zotero-sync";
 
 export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
@@ -117,18 +124,63 @@ export class StratumSettingTab extends PluginSettingTab {
         }
       });
 
+    const librariesSection = this.createSection(containerEl, "Libraries");
+    const personalLibrary = getPersonalLibrary(this.plugin);
+    if (personalLibrary) {
+      new Setting(librariesSection)
+        .setName("Personal library")
+        .setDesc(
+          zoteroConnected
+            ? `Always enabled. Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}.`
+            : "Always enabled once Zotero is connected."
+        );
+    }
+
+    if (!accountEmail || !zoteroConnected) {
+      new Setting(librariesSection)
+        .setName("Available groups")
+        .setDesc("Connect Zotero to load your group libraries.");
+    } else if (this.plugin.availableGroups.length === 0) {
+      new Setting(librariesSection)
+        .setName("Available groups")
+        .setDesc("No Zotero group libraries are available for this account.");
+    } else {
+      for (const group of this.plugin.availableGroups) {
+        const identity = `group:${group.id}`;
+        const isEnabled = this.plugin.settings.enabledLibraries.some(
+          (library) => library.identity === identity
+        );
+        new Setting(librariesSection)
+          .setName(group.name)
+          .setDesc(group.type)
+          .addToggle((toggle) =>
+            toggle
+              .setDisabled(
+                this.plugin.isBulkLibrarySyncRunning() ||
+                  this.plugin.isZoteroAutoSyncRunning()
+              )
+              .setValue(isEnabled)
+              .onChange(async (value) => {
+                if (value) {
+                  enableGroupLibrary(this.plugin, group);
+                } else {
+                  disableLibrary(this.plugin, identity);
+                }
+
+                await this.plugin.saveSettings();
+                this.plugin.refreshViews();
+                this.display();
+              })
+          );
+      }
+    }
+
     const syncSection = this.createSection(containerEl, "Sync");
 
     new Setting(syncSection)
-      .setName("Sync status")
+      .setName("Sync libraries")
       .setDesc(
-        this.plugin.settings.zoteroAutoSync.lastError
-          ? `${this.plugin.getAutoSyncStatusLabel()}. Last error: ${this.plugin.settings.zoteroAutoSync.lastError}`
-          : this.plugin.settings.zoteroAutoSync.lastSuccessfulSyncAt
-            ? `${this.plugin.getAutoSyncStatusLabel()}. Last successful sync: ${new Date(
-                this.plugin.settings.zoteroAutoSync.lastSuccessfulSyncAt
-              ).toLocaleString()}.`
-            : this.plugin.getAutoSyncStatusLabel()
+        "Check enabled libraries for remote changes to notes that already exist in your vault."
       )
       .addButton((button) =>
         button
@@ -151,6 +203,33 @@ export class StratumSettingTab extends PluginSettingTab {
             this.display();
           })
       );
+
+    for (const library of this.plugin.settings.enabledLibraries) {
+      const state = getLibraryAutoSyncState(this.plugin, library);
+      new Setting(syncSection)
+        .setName(library.name)
+        .setDesc(
+          state.lastError
+            ? `${getSyncStatusLabel({
+                isSyncing: this.plugin.isZoteroAutoSyncRunning(),
+                autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
+                state,
+              })}. Last error: ${state.lastError}`
+            : state.lastSuccessfulSyncAt
+              ? `${getSyncStatusLabel({
+                  isSyncing: this.plugin.isZoteroAutoSyncRunning(),
+                  autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
+                  state,
+                })}. Last successful sync: ${new Date(
+                  state.lastSuccessfulSyncAt
+                ).toLocaleString()}.`
+              : getSyncStatusLabel({
+                  isSyncing: this.plugin.isZoteroAutoSyncRunning(),
+                  autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
+                  state,
+                })
+        );
+    }
 
     new Setting(syncSection)
       .setName("Auto-sync Zotero changes")

@@ -11,6 +11,11 @@ import {
   applyLastKnownZoteroSnapshot,
   updateLastKnownZoteroSnapshot,
 } from "./plugin-sync-helpers";
+import {
+  buildPersonalLibrary,
+  reconcileLibrariesFromConnection,
+  setSelectedSearchLibrary,
+} from "./plugin-libraries";
 import type StratumPlugin from "./plugin";
 
 /**
@@ -40,6 +45,8 @@ export function hydrateZoteroConnectionFromCache(
     zoteroUserId: lastKnownZoteroUserId,
     zoteroUsername: lastKnownZoteroUsername,
     lastSyncedAt: lastKnownZoteroConfirmedAt,
+    groupsLoaded: false,
+    groups: [],
   };
 }
 
@@ -82,6 +89,34 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
         }
         if (plugin.zoteroConnection !== null) {
           plugin.zoteroConnection = null;
+          changed = true;
+        }
+        if (plugin.availableGroups.length > 0) {
+          plugin.availableGroups = [];
+          changed = true;
+        }
+        if (plugin.settings.enabledLibraries.length > 0) {
+          plugin.settings.enabledLibraries = [];
+          changed = true;
+        }
+        if (Object.keys(plugin.settings.libraryAutoSync).length > 0) {
+          plugin.settings.libraryAutoSync = {};
+          changed = true;
+        }
+        if (Object.keys(plugin.settings.libraryBulkSync).length > 0) {
+          plugin.settings.libraryBulkSync = {};
+          changed = true;
+        }
+        if (plugin.settings.activeBulkSyncLibrary !== null) {
+          plugin.settings.activeBulkSyncLibrary = null;
+          changed = true;
+        }
+        if (plugin.selectedSearchLibrary !== null) {
+          setSelectedSearchLibrary(plugin, null);
+          changed = true;
+        }
+        if (plugin.librarySearchCache.size > 0) {
+          plugin.librarySearchCache.clear();
           changed = true;
         }
       }
@@ -171,19 +206,45 @@ export async function refreshZoteroConnection(
     const nextConnection = await plugin.backend.getZoteroConnectionStatus();
     if (nextConnection) {
       plugin.zoteroConnection = applyLastKnownZoteroSnapshot(plugin, nextConnection);
-      if (updateLastKnownZoteroSnapshot(plugin, plugin.zoteroConnection)) {
+      const resolvedConnection = plugin.zoteroConnection;
+      let connectionChanged = false;
+      if (resolvedConnection?.connected && resolvedConnection.zoteroUserId) {
+        if (plugin.settings.enabledLibraries.length === 0) {
+          plugin.settings.enabledLibraries = [
+            buildPersonalLibrary(resolvedConnection.zoteroUserId),
+          ];
+          connectionChanged = true;
+        }
+        if (resolvedConnection.groupsLoaded) {
+          connectionChanged =
+            reconcileLibrariesFromConnection(plugin, resolvedConnection) ||
+            connectionChanged;
+        }
+      }
+      if (
+        updateLastKnownZoteroSnapshot(plugin, plugin.zoteroConnection) ||
+        connectionChanged
+      ) {
         await plugin.saveSettings();
       }
     } else {
       plugin.zoteroConnection = plugin.backend.hasSession()
         ? previousConnection
         : null;
+      if (!plugin.backend.hasSession()) {
+        plugin.availableGroups = [];
+        setSelectedSearchLibrary(plugin, null);
+      }
     }
   } catch (error) {
     console.error("stratum: failed to load Zotero connection state", error);
     plugin.zoteroConnection = plugin.backend.hasSession()
       ? previousConnection
       : null;
+    if (!plugin.backend.hasSession()) {
+      plugin.availableGroups = [];
+      setSelectedSearchLibrary(plugin, null);
+    }
   } finally {
     plugin.isLoadingZoteroConnection = false;
     log("auth", "zotero connection refreshed", {

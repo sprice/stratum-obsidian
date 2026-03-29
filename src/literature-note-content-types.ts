@@ -62,6 +62,7 @@ export const MANAGED_FRONTMATTER_KEYS = new Set([
   "zotero_creators",
   "zotero_date",
   "zotero_doi",
+  "zotero_group_name",
   "zotero_item_identity",
   "zotero_item_key",
   "zotero_item_version",

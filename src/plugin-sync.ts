@@ -10,6 +10,7 @@ import {
 } from "./backend-client";
 import { log } from "./log";
 import type StratumPlugin from "./plugin";
+import type { EnabledLibrary } from "./settings";
 import {
   ensureZoteroConnection,
   getTrackedLiteratureNotes,
@@ -17,24 +18,44 @@ import {
   markZoteroDisconnected,
   markZoteroTokenInvalid,
 } from "./plugin-sync-helpers";
+import { getLibraryAutoSyncState } from "./plugin-libraries";
 import { refreshAutoSyncUi } from "./plugin-sync-status";
 import {
   findAffectedPathsForDeletedChildKeys,
 } from "./zotero-sync";
 import {
+  getIdentityFromFrontmatter,
   getItemKeyFromFrontmatter,
 } from "./plugin-note-index";
 import { PLUGIN_NAME } from "./constants";
 
-async function runInitialLiteratureRefresh(plugin: StratumPlugin): Promise<{
+function isTrackedNoteInLibrary(
+  frontmatter: Record<string, unknown> | null,
+  library: Pick<EnabledLibrary, "type" | "id">
+): boolean {
+  const identity = getIdentityFromFrontmatter(frontmatter);
+  return identity?.startsWith(`${library.type}/${library.id}/`) ?? false;
+}
+
+async function runInitialLiteratureRefreshForLibrary(
+  plugin: StratumPlugin,
+  library: EnabledLibrary
+): Promise<{
   updatedCount: number;
   deletedCount: number;
 }> {
-  const trackedNotes = getTrackedLiteratureNotes(plugin);
-  log("sync", "initial refresh starting", { noteCount: trackedNotes.length });
+  const trackedNotes = getTrackedLiteratureNotes(plugin).filter((entry) =>
+    isTrackedNoteInLibrary(entry.frontmatter, library)
+  );
+  log("sync", "initial refresh starting", {
+    library: library.identity,
+    noteCount: trackedNotes.length,
+  });
   if (trackedNotes.length > 0) {
     new Notice(
-      `${PLUGIN_NAME}: First sync: refreshing ${trackedNotes.length} literature notes from Zotero…`
+      `${PLUGIN_NAME}: First sync: refreshing ${trackedNotes.length} literature note${
+        trackedNotes.length === 1 ? "" : "s"
+      } from ${library.name}…`
     );
   }
 
@@ -49,7 +70,9 @@ async function runInitialLiteratureRefresh(plugin: StratumPlugin): Promise<{
     }
 
     try {
-      const detail = await plugin.backend.getZoteroItemDetail(itemKey);
+      const detail = await plugin.backend.getZoteroItemDetail(itemKey, {
+        library,
+      });
       const enrichment = detail.item.doi
         ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
         : null;
@@ -91,7 +114,11 @@ async function runInitialLiteratureRefresh(plugin: StratumPlugin): Promise<{
     );
   }
 
-  log("sync", "initial refresh completed", { updatedCount, deletedCount });
+  log("sync", "initial refresh completed", {
+    library: library.identity,
+    updatedCount,
+    deletedCount,
+  });
   return {
     updatedCount,
     deletedCount,
@@ -105,7 +132,9 @@ export async function applyZoteroLibraryChanges(
   updatedCount: number;
   deletedCount: number;
 }> {
-  const trackedNotes = getTrackedLiteratureNotes(plugin);
+  const trackedNotes = getTrackedLiteratureNotes(plugin).filter((entry) =>
+    isTrackedNoteInLibrary(entry.frontmatter, changes.library)
+  );
   const notesByPath = new Map(
     trackedNotes.map((entry) => [entry.file.path, entry] as const)
   );
@@ -157,7 +186,12 @@ export async function applyZoteroLibraryChanges(
     }
 
     try {
-      const detail = await plugin.backend.getZoteroItemDetail(parentKey);
+      const detail = await plugin.backend.getZoteroItemDetail(parentKey, {
+        library: {
+          type: changes.library.type,
+          id: changes.library.id,
+        },
+      });
       const enrichment = detail.item.doi
         ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
         : null;
@@ -249,60 +283,100 @@ export async function runZoteroAutoSync(
   plugin.isAutoSyncRunning = true;
   refreshAutoSyncUi(plugin);
   plugin.refreshViews();
+  plugin.refreshSettingTab();
 
   try {
-    if (!plugin.settings.zoteroAutoSync.initialRefreshCompleted) {
-      const baseline = await plugin.backend.getZoteroLibraryChanges(null);
-      const result = await runInitialLiteratureRefresh(plugin);
-      plugin.settings.zoteroAutoSync.libraryVersion = baseline.latestLibraryVersion;
-      plugin.settings.zoteroAutoSync.initialRefreshCompleted = true;
-      plugin.settings.zoteroAutoSync.lastSuccessfulSyncAt = new Date().toISOString();
-      plugin.settings.zoteroAutoSync.lastError = null;
-      await plugin.saveSettings();
-
-      if (result.updatedCount > 0 || result.deletedCount > 0) {
-        new Notice(
-          `${PLUGIN_NAME}: First sync updated ${result.updatedCount} literature note${
-            result.updatedCount === 1 ? "" : "s"
-          }${
-            result.deletedCount > 0
-              ? ` and marked ${result.deletedCount} as removed from Zotero`
-              : ""
-          }.`
-        );
+    const libraries = [...plugin.settings.enabledLibraries];
+    if (libraries.length === 0) {
+      if (reason === "manual") {
+        new Notice(`${PLUGIN_NAME}: No Zotero libraries are enabled.`);
       }
-
       return;
     }
 
-    const sinceVersion = plugin.settings.zoteroAutoSync.libraryVersion;
-    const changes = await plugin.backend.getZoteroLibraryChanges(sinceVersion);
-    log("sync", "library changes received", {
-      sinceVersion: sinceVersion ?? "null",
-      latestVersion: changes.latestLibraryVersion ?? "null",
-      changed: changes.changedParentKeys.length,
-      deleted: changes.deletedItemKeys.length,
-    });
-    const result = await applyZoteroLibraryChanges(plugin, changes);
-    plugin.settings.zoteroAutoSync.libraryVersion = changes.latestLibraryVersion;
-    plugin.settings.zoteroAutoSync.lastSuccessfulSyncAt = new Date().toISOString();
-    plugin.settings.zoteroAutoSync.lastError = null;
-    await plugin.saveSettings();
+    const updatedLibraries: string[] = [];
+    const failedLibraries: string[] = [];
 
-    if (result.updatedCount > 0 || result.deletedCount > 0) {
-      new Notice(
-        `${PLUGIN_NAME}: Updated ${result.updatedCount} literature note${
-          result.updatedCount === 1 ? "" : "s"
-        } from Zotero${
-          result.deletedCount > 0
-            ? ` and marked ${result.deletedCount} removed item${
-                result.deletedCount === 1 ? "" : "s"
-              }`
-            : ""
-        }.`
-      );
-    } else if (reason === "manual") {
+    for (const library of libraries) {
+      const state = getLibraryAutoSyncState(plugin, library);
+
+      try {
+        if (!state.initialRefreshCompleted) {
+          const baseline = await plugin.backend.getZoteroLibraryChanges(null, {
+            library,
+          });
+          const result = await runInitialLiteratureRefreshForLibrary(plugin, library);
+          state.libraryVersion = baseline.latestLibraryVersion;
+          state.initialRefreshCompleted = true;
+          state.lastSuccessfulSyncAt = new Date().toISOString();
+          state.lastError = null;
+          await plugin.saveSettings();
+          plugin.refreshSettingTab();
+
+          if (result.updatedCount > 0 || result.deletedCount > 0) {
+            updatedLibraries.push(
+              `${library.name}: ${result.updatedCount} updated${
+                result.deletedCount > 0 ? `, ${result.deletedCount} removed` : ""
+              }`,
+            );
+          }
+          continue;
+        }
+
+        const sinceVersion = state.libraryVersion;
+        const changes = await plugin.backend.getZoteroLibraryChanges(sinceVersion, {
+          library,
+        });
+        log("sync", "library changes received", {
+          library: library.identity,
+          sinceVersion: sinceVersion ?? "null",
+          latestVersion: changes.latestLibraryVersion ?? "null",
+          changed: changes.changedParentKeys.length,
+          deleted: changes.deletedItemKeys.length,
+        });
+        const result = await applyZoteroLibraryChanges(plugin, changes);
+        state.libraryVersion = changes.latestLibraryVersion;
+        state.lastSuccessfulSyncAt = new Date().toISOString();
+        state.lastError = null;
+        await plugin.saveSettings();
+        plugin.refreshSettingTab();
+
+        if (result.updatedCount > 0 || result.deletedCount > 0) {
+          updatedLibraries.push(
+            `${library.name}: ${result.updatedCount} updated${
+              result.deletedCount > 0 ? `, ${result.deletedCount} removed` : ""
+            }`,
+          );
+        }
+      } catch (error) {
+        if (error instanceof ZoteroTokenInvalidError) {
+          throw error;
+        }
+        if (error instanceof ZoteroNotConnectedError) {
+          throw error;
+        }
+
+        state.lastError = error instanceof Error ? error.message : String(error);
+        await plugin.saveSettings();
+        plugin.refreshSettingTab();
+        failedLibraries.push(library.name);
+      }
+    }
+
+    if (updatedLibraries.length > 0) {
+      new Notice(`${PLUGIN_NAME}: ${updatedLibraries.join("; ")}.`);
+    } else if (reason === "manual" && failedLibraries.length === 0) {
       new Notice(`${PLUGIN_NAME}: Zotero is already in sync.`);
+    }
+
+    if (
+      failedLibraries.length > 0 &&
+      reason !== "focus" &&
+      reason !== "interval"
+    ) {
+      new Notice(
+        `${PLUGIN_NAME}: Sync failed for ${failedLibraries.join(", ")}. See plugin settings for details.`
+      );
     }
   } catch (error) {
     if (error instanceof ZoteroTokenInvalidError) {
@@ -316,9 +390,6 @@ export async function runZoteroAutoSync(
       console.error("stratum: Zotero not connected, connection cleared", error);
       new Notice(`${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`);
     } else {
-      plugin.settings.zoteroAutoSync.lastError =
-        error instanceof Error ? error.message : String(error);
-      await plugin.saveSettings();
       console.error("stratum: auto-sync failed", error);
 
       if (reason !== "focus" && reason !== "interval") {
@@ -334,5 +405,6 @@ export async function runZoteroAutoSync(
     log("sync", "auto-sync finished", { reason });
     refreshAutoSyncUi(plugin);
     plugin.refreshViews();
+    plugin.refreshSettingTab();
   }
 }

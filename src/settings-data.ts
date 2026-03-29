@@ -1,7 +1,6 @@
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import {
-  DEFAULT_BULK_LIBRARY_SYNC_STATE,
   type BulkLibrarySyncState,
   type ZoteroAutoSyncState,
 } from "./zotero-sync";
@@ -18,6 +17,13 @@ export interface ItemFileMapEntry {
   zoteroVersion: number;
 }
 
+export interface EnabledLibrary {
+  type: "user" | "group";
+  id: string;
+  name: string;
+  identity: string;
+}
+
 export interface StratumSettings {
   notesFolder: string;
   filenameFormat: LiteratureNoteFilenameFormat;
@@ -31,8 +37,10 @@ export interface StratumSettings {
   lastKnownZoteroUsername: string | null;
   lastKnownZoteroConfirmedAt: string | null;
   itemFileMap: Record<string, ItemFileMapEntry>;
-  zoteroAutoSync: ZoteroAutoSyncState;
-  bulkLibrarySync: BulkLibrarySyncState;
+  enabledLibraries: EnabledLibrary[];
+  libraryAutoSync: Record<string, ZoteroAutoSyncState>;
+  libraryBulkSync: Record<string, BulkLibrarySyncState>;
+  activeBulkSyncLibrary: string | null;
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
@@ -48,11 +56,8 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   lastKnownZoteroUsername: null,
   lastKnownZoteroConfirmedAt: null,
   itemFileMap: {},
-  zoteroAutoSync: {
-    libraryVersion: null,
-    lastSuccessfulSyncAt: null,
-    lastError: null,
-    initialRefreshCompleted: false,
-  },
-  bulkLibrarySync: DEFAULT_BULK_LIBRARY_SYNC_STATE,
+  enabledLibraries: [],
+  libraryAutoSync: {},
+  libraryBulkSync: {},
+  activeBulkSyncLibrary: null,
 };

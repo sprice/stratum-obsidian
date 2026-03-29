@@ -49,6 +49,8 @@ export function markZoteroTokenInvalid(plugin: StratumPlugin): void {
     lastSyncedAt:
       plugin.zoteroConnection?.lastSyncedAt ??
       plugin.settings.lastKnownZoteroConfirmedAt,
+    groupsLoaded: plugin.zoteroConnection?.groupsLoaded ?? false,
+    groups: plugin.zoteroConnection?.groups ?? plugin.availableGroups,
   };
   plugin.refreshSettingTab();
   plugin.refreshViews();
@@ -68,6 +70,8 @@ export function markZoteroDisconnected(plugin: StratumPlugin): void {
     lastSyncedAt:
       plugin.zoteroConnection?.lastSyncedAt ??
       plugin.settings.lastKnownZoteroConfirmedAt,
+    groupsLoaded: plugin.zoteroConnection?.groupsLoaded ?? false,
+    groups: plugin.zoteroConnection?.groups ?? plugin.availableGroups,
   };
   plugin.refreshSettingTab();
   plugin.refreshViews();
@@ -88,6 +92,8 @@ export function applyLastKnownZoteroSnapshot(
       state.zoteroUsername ?? plugin.settings.lastKnownZoteroUsername,
     lastSyncedAt:
       state.lastSyncedAt ?? plugin.settings.lastKnownZoteroConfirmedAt,
+    groupsLoaded: state.groupsLoaded ?? false,
+    groups: state.groups ?? [],
   };
 }
 

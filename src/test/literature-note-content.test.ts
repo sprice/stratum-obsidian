@@ -523,6 +523,46 @@ test("findExistingLiteratureNoteMatch prefers exact library-aware matches in the
   assert.equal(match.duplicateCount, 2);
 });
 
+test("findExistingLiteratureNoteMatch keeps personal and group notes distinct for the same item key", () => {
+  const candidates: LiteratureNoteCandidate[] = [
+    {
+      path: "Literature Notes/personal-note.md",
+      name: "personal-note.md",
+      frontmatter: {
+        zotero_item_identity: "user/123456/ABCD1234",
+      },
+    },
+    {
+      path: "Literature Notes/group-note.md",
+      name: "group-note.md",
+      frontmatter: {
+        zotero_item_identity: "group/2001/ABCD1234",
+      },
+    },
+    {
+      path: "Literature Notes/legacy-note.md",
+      name: "legacy-note.md",
+      frontmatter: {
+        zotero_item_key: "ABCD1234",
+      },
+    },
+  ];
+
+  const match = findExistingLiteratureNoteMatch(
+    candidates,
+    {
+      libraryType: "group",
+      libraryId: "2001",
+      itemKey: "ABCD1234",
+    },
+    "Literature Notes"
+  );
+
+  assert.ok(match);
+  assert.equal(match.candidate.path, "Literature Notes/group-note.md");
+  assert.equal(match.duplicateCount, 1);
+});
+
 test("preprocessZoteroNoteHtml adds Zotero links for annotation and citation data", () => {
   const annotationPayload = encodeURIComponent(
     JSON.stringify({
@@ -724,6 +764,30 @@ test("new frontmatter fields are emitted when present", () => {
   assert.match(output, /arxiv: 2301\.12345/);
   assert.match(output, /issn: 1088-8683/);
   assert.match(output, /short_title: ML for Personality/);
+});
+
+test("group-backed notes emit group library metadata in frontmatter", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      library: {
+        type: "group",
+        id: "2001",
+        zoteroUriSegment: "groups",
+        identity: "group:2001",
+        groupName: "sprice",
+      },
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /zotero_item_identity: group\/2001\/ABCD1234/);
+  assert.match(output, /zotero_library_type: group/);
+  assert.match(output, /zotero_library_id: 2001/);
+  assert.match(output, /zotero_user_id: 123456/);
+  assert.match(output, /zotero_group_name: sprice/);
 });
 
 test("expanded aliases include @citationKey and shortTitle", () => {

@@ -4,12 +4,20 @@ import {
 } from "./constants";
 import {
   DEFAULT_SETTINGS,
+  type EnabledLibrary,
   type ItemFileMapEntry,
   type PersistedAuthSession,
   type StratumSettings,
 } from "./settings";
 import type StratumPlugin from "./plugin";
-import { BULK_LIBRARY_SYNC_PHASES } from "./zotero-sync";
+import { buildPersonalLibrary, syncLibraryStateMaps } from "./plugin-libraries";
+import {
+  BULK_LIBRARY_SYNC_PHASES,
+  type BulkLibrarySyncState,
+  type ZoteroAutoSyncState,
+  buildDefaultBulkLibrarySyncState,
+  buildDefaultZoteroAutoSyncState,
+} from "./zotero-sync";
 
 type StoredSettingsData = Partial<
   Pick<
@@ -25,12 +33,16 @@ type StoredSettingsData = Partial<
     | "lastKnownZoteroUserId"
     | "lastKnownZoteroUsername"
     | "lastKnownZoteroConfirmedAt"
+    | "enabledLibraries"
+    | "activeBulkSyncLibrary"
   >
 > & {
   authSession?: PersistedAuthSession | null;
   itemFileMap?: Record<string, ItemFileMapEntry>;
-  zoteroAutoSync?: Partial<StratumSettings["zoteroAutoSync"]>;
-  bulkLibrarySync?: Partial<StratumSettings["bulkLibrarySync"]>;
+  libraryAutoSync?: Record<string, Partial<ZoteroAutoSyncState>>;
+  libraryBulkSync?: Record<string, Partial<BulkLibrarySyncState>>;
+  zoteroAutoSync?: Partial<ZoteroAutoSyncState>;
+  bulkLibrarySync?: Partial<BulkLibrarySyncState>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,6 +75,32 @@ function isItemFileMapEntry(value: unknown): value is ItemFileMapEntry {
   );
 }
 
+function isEnabledLibrary(value: unknown): value is EnabledLibrary {
+  return (
+    isRecord(value) &&
+    (value.type === "user" || value.type === "group") &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.identity === "string"
+  );
+}
+
+function readEnabledLibraries(value: unknown): EnabledLibrary[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isEnabledLibrary)
+    .map((library) => ({
+      type: library.type,
+      id: library.id.trim(),
+      name: library.name.trim(),
+      identity: library.identity.trim(),
+    }))
+    .filter((library) => library.id && library.name && library.identity);
+}
+
 function readItemFileMap(value: unknown): Record<string, ItemFileMapEntry> {
   if (!isRecord(value)) {
     return {};
@@ -81,12 +119,12 @@ function readItemFileMap(value: unknown): Record<string, ItemFileMapEntry> {
 
 function readZoteroAutoSyncState(
   value: unknown
-): Partial<StratumSettings["zoteroAutoSync"]> {
+): Partial<ZoteroAutoSyncState> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const nextState: Partial<StratumSettings["zoteroAutoSync"]> = {};
+  const nextState: Partial<ZoteroAutoSyncState> = {};
 
   if (
     value.libraryVersion === null ||
@@ -111,14 +149,29 @@ function readZoteroAutoSyncState(
   return nextState;
 }
 
-function readBulkLibrarySyncState(
+function readZoteroAutoSyncStateMap(
   value: unknown
-): Partial<StratumSettings["bulkLibrarySync"]> {
+): Record<string, Partial<ZoteroAutoSyncState>> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const nextState: Partial<StratumSettings["bulkLibrarySync"]> = {};
+  return Object.fromEntries(
+    Object.entries(value).map(([identity, state]) => [
+      identity,
+      readZoteroAutoSyncState(state),
+    ]),
+  );
+}
+
+function readBulkLibrarySyncState(
+  value: unknown
+): Partial<BulkLibrarySyncState> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const nextState: Partial<BulkLibrarySyncState> = {};
 
   if (
     typeof value.phase === "string" &&
@@ -126,7 +179,7 @@ function readBulkLibrarySyncState(
       value.phase as (typeof BULK_LIBRARY_SYNC_PHASES)[number]
     )
   ) {
-    nextState.phase = value.phase as StratumSettings["bulkLibrarySync"]["phase"];
+    nextState.phase = value.phase as BulkLibrarySyncState["phase"];
   }
 
   if (typeof value.startedAt === "string" || value.startedAt === null) {
@@ -186,32 +239,58 @@ function readBulkLibrarySyncState(
   return nextState;
 }
 
+function readBulkLibrarySyncStateMap(
+  value: unknown
+): Record<string, Partial<BulkLibrarySyncState>> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([identity, state]) => [
+      identity,
+      readBulkLibrarySyncState(state),
+    ]),
+  );
+}
+
 function readStoredSettings(
   value: unknown
-): Omit<Partial<StratumSettings>, "itemFileMap" | "zoteroAutoSync" | "bulkLibrarySync"> & {
+): Omit<
+  Partial<StratumSettings>,
+  "itemFileMap" | "libraryAutoSync" | "libraryBulkSync"
+> & {
   itemFileMap: Record<string, ItemFileMapEntry>;
-  zoteroAutoSync: Partial<StratumSettings["zoteroAutoSync"]>;
-  bulkLibrarySync: Partial<StratumSettings["bulkLibrarySync"]>;
+  libraryAutoSync: Record<string, Partial<ZoteroAutoSyncState>>;
+  libraryBulkSync: Record<string, Partial<BulkLibrarySyncState>>;
+  legacyZoteroAutoSync: Partial<ZoteroAutoSyncState>;
+  legacyBulkLibrarySync: Partial<BulkLibrarySyncState>;
 } {
   if (!isRecord(value)) {
     return {
       itemFileMap: {},
-      zoteroAutoSync: {},
-      bulkLibrarySync: {},
+      libraryAutoSync: {},
+      libraryBulkSync: {},
+      legacyZoteroAutoSync: {},
+      legacyBulkLibrarySync: {},
     };
   }
 
   const nextSettings: Omit<
     Partial<StratumSettings>,
-    "itemFileMap" | "zoteroAutoSync" | "bulkLibrarySync"
+    "itemFileMap" | "libraryAutoSync" | "libraryBulkSync"
   > & {
     itemFileMap: Record<string, ItemFileMapEntry>;
-    zoteroAutoSync: Partial<StratumSettings["zoteroAutoSync"]>;
-    bulkLibrarySync: Partial<StratumSettings["bulkLibrarySync"]>;
+    libraryAutoSync: Record<string, Partial<ZoteroAutoSyncState>>;
+    libraryBulkSync: Record<string, Partial<BulkLibrarySyncState>>;
+    legacyZoteroAutoSync: Partial<ZoteroAutoSyncState>;
+    legacyBulkLibrarySync: Partial<BulkLibrarySyncState>;
   } = {
     itemFileMap: readItemFileMap(value.itemFileMap),
-    zoteroAutoSync: readZoteroAutoSyncState(value.zoteroAutoSync),
-    bulkLibrarySync: readBulkLibrarySyncState(value.bulkLibrarySync),
+    libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),
+    libraryBulkSync: readBulkLibrarySyncStateMap(value.libraryBulkSync),
+    legacyZoteroAutoSync: readZoteroAutoSyncState(value.zoteroAutoSync),
+    legacyBulkLibrarySync: readBulkLibrarySyncState(value.bulkLibrarySync),
   };
 
   if (typeof value.notesFolder === "string") {
@@ -264,6 +343,10 @@ function readStoredSettings(
   ) {
     nextSettings.lastKnownZoteroConfirmedAt = value.lastKnownZoteroConfirmedAt;
   }
+  if (value.activeBulkSyncLibrary === null || typeof value.activeBulkSyncLibrary === "string") {
+    nextSettings.activeBulkSyncLibrary = value.activeBulkSyncLibrary;
+  }
+  nextSettings.enabledLibraries = readEnabledLibraries(value.enabledLibraries);
 
   return nextSettings;
 }
@@ -290,6 +373,25 @@ function writeSecret(plugin: StratumPlugin, id: string, value: string | null): v
 export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   const rawData = (await plugin.loadData()) as StoredSettingsData | null;
   const data = readStoredSettings(rawData);
+  const libraryAutoSync = Object.fromEntries(
+    Object.entries(data.libraryAutoSync).map(([identity, state]) => [
+      identity,
+      {
+        ...buildDefaultZoteroAutoSyncState(),
+        ...state,
+      },
+    ]),
+  );
+  const libraryBulkSync = Object.fromEntries(
+    Object.entries(data.libraryBulkSync).map(([identity, state]) => [
+      identity,
+      {
+        ...buildDefaultBulkLibrarySyncState(),
+        ...state,
+        failedItemKeys: [...(state.failedItemKeys ?? [])],
+      },
+    ]),
+  );
   plugin.settings = {
     ...DEFAULT_SETTINGS,
     ...data,
@@ -297,24 +399,67 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
       ...DEFAULT_SETTINGS.itemFileMap,
       ...(data?.itemFileMap ?? {}),
     },
-    zoteroAutoSync: {
-      ...DEFAULT_SETTINGS.zoteroAutoSync,
-      ...(data?.zoteroAutoSync ?? {}),
-    },
-    bulkLibrarySync: {
-      ...DEFAULT_SETTINGS.bulkLibrarySync,
-      ...(data?.bulkLibrarySync ?? {}),
-    },
+    enabledLibraries: [...(data.enabledLibraries ?? [])],
+    libraryAutoSync,
+    libraryBulkSync,
+    activeBulkSyncLibrary: data.activeBulkSyncLibrary ?? null,
   };
 
   let shouldPersist = false;
-  if (plugin.settings.bulkLibrarySync.phase === "running") {
-    plugin.settings.bulkLibrarySync.phase = "paused-error";
-    plugin.settings.bulkLibrarySync.lastError =
-      "Bulk Zotero sync was interrupted. Resume when ready.";
-    plugin.settings.bulkLibrarySync.retryAfterSeconds = null;
+  if (
+    plugin.settings.enabledLibraries.length === 0 &&
+    plugin.settings.lastKnownZoteroUserId
+  ) {
+    plugin.settings.enabledLibraries = [
+      buildPersonalLibrary(plugin.settings.lastKnownZoteroUserId),
+    ];
     shouldPersist = true;
   }
+
+  const personalLibraryIdentity = plugin.settings.lastKnownZoteroUserId
+    ? buildPersonalLibrary(plugin.settings.lastKnownZoteroUserId).identity
+    : null;
+  if (
+    personalLibraryIdentity &&
+    Object.keys(plugin.settings.libraryAutoSync).length === 0 &&
+    Object.keys(data.legacyZoteroAutoSync).length > 0
+  ) {
+    plugin.settings.libraryAutoSync[personalLibraryIdentity] = {
+      ...buildDefaultZoteroAutoSyncState(),
+      ...data.legacyZoteroAutoSync,
+    };
+    shouldPersist = true;
+  }
+  if (
+    personalLibraryIdentity &&
+    Object.keys(plugin.settings.libraryBulkSync).length === 0 &&
+    Object.keys(data.legacyBulkLibrarySync).length > 0
+  ) {
+    plugin.settings.libraryBulkSync[personalLibraryIdentity] = {
+      ...buildDefaultBulkLibrarySyncState(),
+      ...data.legacyBulkLibrarySync,
+      failedItemKeys: [...(data.legacyBulkLibrarySync.failedItemKeys ?? [])],
+    };
+    shouldPersist = true;
+  }
+
+  for (const state of Object.values(plugin.settings.libraryBulkSync)) {
+    if (state.phase !== "running") {
+      continue;
+    }
+
+    state.phase = "paused-error";
+    state.lastError = "Bulk Zotero sync was interrupted. Resume when ready.";
+    state.retryAfterSeconds = null;
+    shouldPersist = true;
+  }
+
+  if (plugin.settings.activeBulkSyncLibrary !== null) {
+    plugin.settings.activeBulkSyncLibrary = null;
+    shouldPersist = true;
+  }
+
+  syncLibraryStateMaps(plugin);
 
   const legacySession = readLegacyPersistedAuthSession(rawData);
   if (legacySession && !getStoredAuthSession(plugin)) {

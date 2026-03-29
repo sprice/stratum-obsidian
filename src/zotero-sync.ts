@@ -46,6 +46,13 @@ export interface DeletedChildLookupCandidate {
   frontmatter?: Record<string, unknown> | null;
 }
 
+export const DEFAULT_ZOTERO_AUTO_SYNC_STATE: ZoteroAutoSyncState = {
+  libraryVersion: null,
+  lastSuccessfulSyncAt: null,
+  lastError: null,
+  initialRefreshCompleted: false,
+};
+
 export const DEFAULT_BULK_LIBRARY_SYNC_STATE: BulkLibrarySyncState = {
   phase: "idle",
   startedAt: null,
@@ -63,6 +70,19 @@ export const DEFAULT_BULK_LIBRARY_SYNC_STATE: BulkLibrarySyncState = {
   retryAfterSeconds: null,
   failedItemKeys: [],
 };
+
+export function buildDefaultZoteroAutoSyncState(): ZoteroAutoSyncState {
+  return {
+    ...DEFAULT_ZOTERO_AUTO_SYNC_STATE,
+  };
+}
+
+export function buildDefaultBulkLibrarySyncState(): BulkLibrarySyncState {
+  return {
+    ...DEFAULT_BULK_LIBRARY_SYNC_STATE,
+    failedItemKeys: [...DEFAULT_BULK_LIBRARY_SYNC_STATE.failedItemKeys],
+  };
+}
 
 function toStringList(value: unknown): string[] {
   if (typeof value === "string") {

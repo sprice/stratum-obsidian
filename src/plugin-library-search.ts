@@ -4,6 +4,7 @@ import {
   isLibrarySearchQueryReady,
 } from "./library-search-query";
 import type StratumPlugin from "./plugin";
+import { getSelectedSearchLibrary } from "./plugin-libraries";
 import {
   cancelLibraryPickerClose,
   syncSelectedLibraryResult,
@@ -116,7 +117,8 @@ export function getLibrarySuggestions(
     };
   }
 
-  const cacheKey = getLibrarySearchCacheKey(query);
+  const library = getSelectedSearchLibrary(plugin);
+  const cacheKey = getScopedLibrarySearchCacheKey(query, library?.identity ?? "none");
   const cachedResponse = plugin.librarySearchCache.get(cacheKey);
   if (cachedResponse) {
     clearPendingLibrarySearch(plugin);
@@ -162,7 +164,8 @@ function queueLibrarySearch(
   clearPendingLibrarySearch(plugin);
 
   const requestId = ++plugin.librarySearchRequestId;
-  const cacheKey = getLibrarySearchCacheKey(query);
+  const library = getSelectedSearchLibrary(plugin);
+  const cacheKey = getScopedLibrarySearchCacheKey(query, library?.identity ?? "none");
   plugin.librarySearchQuery = query;
   plugin.librarySearchResults = [];
   plugin.librarySearchMeta = null;
@@ -201,6 +204,14 @@ async function runLibrarySearchRequest(
   options?: { refresh?: boolean; requestId?: number }
 ): Promise<ZoteroSearchResult[]> {
   const requestId = options?.requestId ?? ++plugin.librarySearchRequestId;
+  const library = getSelectedSearchLibrary(plugin);
+  if (!library) {
+    plugin.librarySearchResults = [];
+    plugin.librarySearchMeta = null;
+    plugin.librarySearchError = "Connect Zotero before searching your library.";
+    plugin.highlightedLibrarySearchIndex = -1;
+    return [];
+  }
   plugin.librarySearchQuery = query;
   plugin.librarySearchError = null;
   plugin.isSearchingLibrary = true;
@@ -208,6 +219,7 @@ async function runLibrarySearchRequest(
   try {
     const response = await plugin.backend.searchZoteroLibrary(query, {
       refresh: options?.refresh,
+      library,
     });
     if (requestId !== plugin.librarySearchRequestId) {
       return plugin.librarySearchResults;
@@ -266,7 +278,12 @@ function cacheLibrarySearchResponse(
   results: ZoteroSearchResult[],
   meta: ZoteroSearchMeta
 ): void {
-  plugin.librarySearchCache.set(getLibrarySearchCacheKey(query), {
+  const library = getSelectedSearchLibrary(plugin);
+  if (!library) {
+    return;
+  }
+
+  plugin.librarySearchCache.set(getScopedLibrarySearchCacheKey(query, library.identity), {
     query,
     results,
     meta,
@@ -280,4 +297,8 @@ function syncLibrarySearchQuery(plugin: StratumPlugin, query: string): void {
     plugin.selectedLibraryResult = null;
     plugin.isSelectedLibraryAbstractExpanded = false;
   }
+}
+
+function getScopedLibrarySearchCacheKey(query: string, libraryIdentity: string): string {
+  return `${libraryIdentity}::${getLibrarySearchCacheKey(query)}`;
 }

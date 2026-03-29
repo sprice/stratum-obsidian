@@ -5,6 +5,12 @@ import {
 } from "./library-search-query";
 import type StratumPlugin from "./plugin";
 import {
+  getActiveBulkSyncLibrary,
+  getLibraryBulkSyncState,
+  getSelectedSearchLibrary,
+  setSelectedSearchLibrary,
+} from "./plugin-libraries";
+import {
   ABSTRACT_TEASER_LENGTH,
   getAbstractTeaser,
   getSettingsManager,
@@ -12,7 +18,6 @@ import {
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 import {
   type BulkLibrarySyncState,
-  getBulkLibrarySyncButtonLabel as getBulkSyncButtonLabel,
   getBulkLibrarySyncStatusMessage as getBulkSyncStatusMessage,
 } from "./zotero-sync";
 
@@ -49,6 +54,21 @@ function getBulkSyncCompletionFadeState(
     removeInMs: Math.max(0, removeAfterMs - elapsedMs),
     startFaded: elapsedMs >= BULK_SYNC_COMPLETION_STATUS_DELAY_MS,
   };
+}
+
+function getScopedBulkSyncButtonLabel(
+  libraryName: string,
+  state: BulkLibrarySyncState
+): string {
+  if (state.phase === "running") {
+    return `Syncing ${libraryName}...`;
+  }
+
+  if (state.phase === "paused-rate-limit" || state.phase === "paused-error") {
+    return `Resume sync in ${libraryName}`;
+  }
+
+  return `Sync all papers in ${libraryName}`;
 }
 
 export class StratumView extends ItemView {
@@ -109,6 +129,13 @@ export class StratumView extends ItemView {
     const lastKnownZoteroUsername =
       zoteroConnection?.zoteroUsername ?? this.plugin.settings.lastKnownZoteroUsername;
     const isReadyForSearch = isAppConnected && isZoteroConnected;
+    const selectedSearchLibrary = getSelectedSearchLibrary(this.plugin);
+    const activeBulkSyncLibrary = getActiveBulkSyncLibrary(this.plugin);
+    const visibleBulkSyncLibrary =
+      activeBulkSyncLibrary ?? selectedSearchLibrary;
+    const visibleBulkSyncState = visibleBulkSyncLibrary
+      ? getLibraryBulkSyncState(this.plugin, visibleBulkSyncLibrary)
+      : null;
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
     const openSettings = () => {
       const settingsManager = getSettingsManager(this.app);
@@ -158,6 +185,38 @@ export class StratumView extends ItemView {
     });
 
     {
+      if (this.plugin.settings.enabledLibraries.length > 1 && selectedSearchLibrary) {
+        const libraryPicker = searchSection.createDiv({
+          cls: "stratum-search-control",
+        });
+        const pickerLabel = libraryPicker.createEl("label", {
+          cls: "stratum-search-label",
+          text: "Library",
+        });
+        const pickerId = "stratum-library-picker";
+        const picker = libraryPicker.createEl("select");
+        picker.id = pickerId;
+        pickerLabel.setAttr("for", pickerId);
+        picker.disabled = this.plugin.activeNoteActionKey !== null || this.plugin.isBulkLibrarySyncRunning();
+
+        for (const library of this.plugin.settings.enabledLibraries) {
+          const option = picker.createEl("option", {
+            text: library.name,
+            value: library.identity,
+          });
+          option.selected = library.identity === selectedSearchLibrary.identity;
+        }
+
+        picker.addEventListener("change", () => {
+          const library =
+            this.plugin.settings.enabledLibraries.find(
+              (entry) => entry.identity === picker.value
+            ) ?? null;
+          setSelectedSearchLibrary(this.plugin, library);
+          this.render();
+        });
+      }
+
       const searchBox = searchSection.createDiv({
         cls: "stratum-search-control",
       });
@@ -227,7 +286,9 @@ export class StratumView extends ItemView {
         ) {
           feedbackContainer.createEl("p", {
             cls: "stratum-meta stratum-combobox-status",
-            text: "No matching papers in your Zotero library.",
+            text: selectedSearchLibrary
+              ? `No matching papers in ${selectedSearchLibrary.name}.`
+              : "No matching papers in your Zotero library.",
           });
           return;
         }
@@ -302,63 +363,6 @@ export class StratumView extends ItemView {
         cls: "stratum-search-cache",
       });
       renderSearchFeedback();
-
-      const bulkSyncSection = searchSection.createDiv({
-        cls: "stratum-bulk-sync",
-      });
-      const bulkSyncButton = bulkSyncSection.createEl("button", {
-        cls: "mod-cta",
-        text: getBulkSyncButtonLabel(this.plugin.settings.bulkLibrarySync),
-      });
-      if (
-        this.plugin.activeNoteActionKey ||
-        this.plugin.isBulkLibrarySyncRunning() ||
-        this.plugin.isZoteroAutoSyncRunning()
-      ) {
-        bulkSyncButton.disabled = true;
-      }
-      bulkSyncButton.addEventListener("click", () => {
-        void this.plugin.runBulkLibrarySync();
-      });
-
-      const bulkSyncStatus = getBulkSyncStatusMessage({
-        state: this.plugin.settings.bulkLibrarySync,
-        processedCount: this.plugin.getBulkLibrarySyncProcessedCount(),
-      });
-      const bulkSyncCompletionFade = getBulkSyncCompletionFadeState(
-        this.plugin.settings.bulkLibrarySync
-      );
-      const shouldRenderBulkSyncStatus =
-        Boolean(bulkSyncStatus) &&
-        (this.plugin.settings.bulkLibrarySync.phase !== "completed" ||
-          bulkSyncCompletionFade !== null);
-      const bulkSyncStatusText = bulkSyncStatus ?? "";
-      if (shouldRenderBulkSyncStatus && bulkSyncCompletionFade !== null) {
-        const bulkSyncStatusEl = bulkSyncSection.createEl("p", {
-          cls: "stratum-meta stratum-bulk-sync-status",
-          text: bulkSyncStatusText,
-        });
-        bulkSyncStatusEl.addClass("is-auto-fade");
-        if (bulkSyncCompletionFade.startFaded) {
-          bulkSyncStatusEl.addClass("is-faded");
-        } else {
-          this.bulkSyncStatusFadeTimer = window.setTimeout(() => {
-            if (bulkSyncStatusEl.isConnected) {
-              bulkSyncStatusEl.addClass("is-faded");
-            }
-          }, bulkSyncCompletionFade.fadeInMs);
-        }
-        this.bulkSyncStatusRemoveTimer = window.setTimeout(() => {
-          if (bulkSyncStatusEl.isConnected) {
-            bulkSyncStatusEl.remove();
-          }
-        }, bulkSyncCompletionFade.removeInMs);
-      } else if (shouldRenderBulkSyncStatus) {
-        bulkSyncSection.createEl("p", {
-          cls: "stratum-meta stratum-bulk-sync-status",
-          text: bulkSyncStatusText,
-        });
-      }
 
       if (this.plugin.selectedLibraryResult) {
         const selected = this.plugin.selectedLibraryResult;
@@ -439,6 +443,74 @@ export class StratumView extends ItemView {
           text:
             "Safe updates rewrite only managed sections and leave your own notes alone.",
         });
+      }
+
+      const bulkSyncSection = searchSection.createDiv({
+        cls: "stratum-bulk-sync",
+      });
+      if (visibleBulkSyncLibrary && visibleBulkSyncState) {
+        const bulkSyncButton = bulkSyncSection.createEl("button", {
+          cls: "mod-cta",
+          text: getScopedBulkSyncButtonLabel(
+            visibleBulkSyncLibrary.name,
+            visibleBulkSyncState
+          ),
+        });
+        if (
+          this.plugin.activeNoteActionKey ||
+          this.plugin.isBulkLibrarySyncRunning() ||
+          this.plugin.isZoteroAutoSyncRunning() ||
+          !selectedSearchLibrary
+        ) {
+          bulkSyncButton.disabled = true;
+        }
+        bulkSyncButton.addEventListener("click", () => {
+          void this.plugin.runBulkLibrarySync();
+        });
+
+        const bulkSyncStatus =
+          visibleBulkSyncState.phase === "idle"
+            ? null
+            : getBulkSyncStatusMessage({
+                state: visibleBulkSyncState,
+                processedCount: this.plugin.isBulkLibrarySyncRunning()
+                  ? this.plugin.getBulkLibrarySyncProcessedCount()
+                  : visibleBulkSyncState.processedCount,
+              });
+        const bulkSyncCompletionFade = getBulkSyncCompletionFadeState(
+          visibleBulkSyncState
+        );
+        const shouldRenderBulkSyncStatus =
+          Boolean(bulkSyncStatus) &&
+          (visibleBulkSyncState.phase !== "completed" ||
+            bulkSyncCompletionFade !== null);
+        const bulkSyncStatusText = bulkSyncStatus ?? "";
+        if (shouldRenderBulkSyncStatus && bulkSyncCompletionFade !== null) {
+          const bulkSyncStatusEl = bulkSyncSection.createEl("p", {
+            cls: "stratum-meta stratum-bulk-sync-status",
+            text: bulkSyncStatusText,
+          });
+          bulkSyncStatusEl.addClass("is-auto-fade");
+          if (bulkSyncCompletionFade.startFaded) {
+            bulkSyncStatusEl.addClass("is-faded");
+          } else {
+            this.bulkSyncStatusFadeTimer = window.setTimeout(() => {
+              if (bulkSyncStatusEl.isConnected) {
+                bulkSyncStatusEl.addClass("is-faded");
+              }
+            }, bulkSyncCompletionFade.fadeInMs);
+          }
+          this.bulkSyncStatusRemoveTimer = window.setTimeout(() => {
+            if (bulkSyncStatusEl.isConnected) {
+              bulkSyncStatusEl.remove();
+            }
+          }, bulkSyncCompletionFade.removeInMs);
+        } else if (shouldRenderBulkSyncStatus) {
+          bulkSyncSection.createEl("p", {
+            cls: "stratum-meta stratum-bulk-sync-status",
+            text: bulkSyncStatusText,
+          });
+        }
       }
     }
 

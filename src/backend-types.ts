@@ -14,12 +14,21 @@ export interface ZoteroConnectionState {
   zoteroUserId: string | null;
   lastSyncedAt: string | null;
   tokenValid: boolean | null;
+  groupsLoaded: boolean;
+  groups: ZoteroGroupSummary[];
 }
 
 export interface ZoteroLibraryIdentity {
   type: "user" | "group";
   id: string;
   identity: string;
+}
+
+export interface ZoteroGroupSummary {
+  id: string;
+  name: string;
+  type: string;
+  numItems: number;
 }
 
 export interface ZoteroSearchResult {
@@ -53,6 +62,7 @@ export interface ZoteroItemDetail {
     id: string;
     zoteroUriSegment: "library" | "groups";
     identity: string;
+    groupName?: string | null;
   };
   item: {
     key: string;

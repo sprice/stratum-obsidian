@@ -1,5 +1,7 @@
 import { TFile, normalizePath, type CachedMetadata, type TAbstractFile } from "obsidian";
 import {
+  LIBRARY_ID_FRONTMATTER_KEY,
+  LIBRARY_TYPE_FRONTMATTER_KEY,
   IDENTITY_FRONTMATTER_KEY,
   ITEM_KEY_FRONTMATTER_KEY,
 } from "./literature-note-content";
@@ -59,6 +61,24 @@ function getVersionFromFrontmatter(
   }
 
   return 0;
+}
+
+function getLibraryTypeFromFrontmatter(
+  frontmatter?: Record<string, unknown> | null
+): string | null {
+  const libraryType = frontmatter?.[LIBRARY_TYPE_FRONTMATTER_KEY];
+  return typeof libraryType === "string" && libraryType.trim()
+    ? libraryType.trim()
+    : null;
+}
+
+function getLibraryIdFromFrontmatter(
+  frontmatter?: Record<string, unknown> | null
+): string | null {
+  const libraryId = frontmatter?.[LIBRARY_ID_FRONTMATTER_KEY];
+  return typeof libraryId === "string" && libraryId.trim()
+    ? libraryId.trim()
+    : null;
 }
 
 function queuePersistItemFileMap(plugin: StratumPlugin): void {
@@ -217,7 +237,11 @@ export function findExistingLiteratureNoteFile(
         (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
           | Record<string, unknown>
           | undefined) ?? null;
-      return getItemKeyFromFrontmatter(frontmatter) === identity.itemKey;
+      return (
+        getItemKeyFromFrontmatter(frontmatter) === identity.itemKey &&
+        getLibraryTypeFromFrontmatter(frontmatter) === identity.libraryType &&
+        getLibraryIdFromFrontmatter(frontmatter) === identity.libraryId
+      );
     });
 
   if (!repaired) {
