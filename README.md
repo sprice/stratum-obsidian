@@ -4,17 +4,20 @@ Stratum creates structured literature notes in Obsidian from your Zotero cloud l
 
 > **Requires a Stratum account**
 >
-> Stratum is an open-source plugin paired with a [Stratum](https://stratumnotes.com) account. You need an account and internet access, but the core workflow is free to start. Sign-in, Zotero auth, and sync all run through Stratum's service. The same architecture will support server-side enrichment features in the future.
+> Stratum is an open-source plugin paired with a [Stratum](https://stratumnotes.com) account. You need an account and internet access, but the core workflow is free to start. Sign-in, Zotero auth, sync, and enrichment all run through Stratum's service.
 
 ## Features
 
 - Search your Zotero library inside Obsidian.
 - Create literature notes with readable filenames, aliases, and useful frontmatter.
+- Sync personal and group Zotero libraries.
 - Pull in all your Zotero notes and annotations.
 - Group highlights by color, with deep links back to Zotero.
-- Auto-sync your literature notes with updates from Zotero without overwriting your own changes.
+- Auto-sync your literature notes on startup, on focus, and on a configurable interval.
 - Rewrite only Stratum's managed section and preserve everything below `## My Notes`.
 - Mark notes as deleted if the source item disappears from Zotero instead of deleting the file from your vault.
+- Insert `[@citekey]` pandoc citations and auto-manage a `stratum.bib` file.
+- Enrich notes with citation counts, impact metrics, open access links, topics, keywords, funder data, and more via OpenAlex.
 
 ## Install
 
@@ -49,45 +52,56 @@ Each generated note has a managed section and a user section.
 
 ## Commands
 
-Use the side panel to discover papers and create notes. Use keyboard commands to reference them while writing.
+Use the side panel to discover papers, create notes, and bulk-sync entire libraries. Use keyboard commands to reference literature notes while writing.
 
-| Command                      | Description                                                    |
-| ---------------------------- | -------------------------------------------------------------- |
-| Open library view            | Opens the Stratum side panel                                   |
-| Open literature note         | Search your literature notes and open one                      |
-| Insert literature note link  | Insert a `[[wikilink]]` to a literature note at the cursor     |
-| Insert pandoc citation       | Insert `[@citekey]` and auto-manage a `stratum.bib` file       |
-| Sync Zotero changes now      | Manually trigger a Zotero sync                                 |
-| Sync all Zotero papers       | Sync your entire Zotero library                                |
+| Command                      | Description                                                |
+| ---------------------------- | ---------------------------------------------------------- |
+| Open library view            | Open the Stratum side panel                                |
+| Open literature note         | Search your literature notes and open one                  |
+| Insert literature note link  | Insert a `[[wikilink]]` to a literature note at the cursor |
+| Insert pandoc citation       | Insert `[@citekey]` and auto-manage a `stratum.bib` file   |
+| Sync Zotero changes now      | Manually trigger a Zotero sync                             |
 
 Assign hotkeys in **Settings -> Hotkeys** by searching for "Stratum".
+
+## Enrichment
+
+When a paper has a DOI, Stratum automatically enriches the note with data from [OpenAlex](https://openalex.org/):
+
+- **Impact**: citation count, citation percentile, field-weighted citation impact (FWCI), 5-year citation trend.
+- **Open access**: OA status and direct PDF link when available.
+- **Topics and keywords**: top research topics with field/subfield hierarchy and relevance-scored keywords, wiki-linked for backlinks.
+- **Authorship**: author names with ORCID links and institutional affiliations.
+- **Funding**: funder names and award IDs.
+- **Integrity**: retraction status flagged with a warning banner.
+
+Enrichment data appears in both the note frontmatter (for Dataview queries) and the managed body content.
 
 ## Current scope
 
 Stratum is deliberately opinionated. It isn't trying to be every Zotero plugin at once.
 
 - One-way sync from Zotero into Obsidian.
-- Personal Zotero libraries today.
-- Tracked-note sync, not full-library mirroring.
+- Personal and group Zotero libraries.
 - No Better BibTeX, local bridge, or templating language.
 - Not a zero-network or offline-only plugin.
 
 ## Why it requires an account
 
-The account-backed design lets Stratum skip the usual Zotero plugin setup burden.
+The account-backed design lets Stratum skip the usual Zotero plugin setup burden and add features that pure client-side plugins cannot offer.
 
 - Sign-in happens in the browser instead of inside Obsidian.
 - Zotero authentication uses OAuth instead of asking you for a manually managed API key.
 - The backend handles Zotero API access, rate limiting, and cache-backed search.
-- The backend enriches your literature notes with citation data from OpenAlex, a free and open academic database. Only the paper's DOI is sent to look up this data. The server never stores your notes or note content.
+- The backend enriches literature notes with data from [OpenAlex](https://openalex.org/). When a paper has a DOI, Stratum adds citation counts, field-weighted citation impact, citation percentile, open access links, topics, keywords, funder data, and more. Only the DOI is sent. The server never stores your notes or note content.
 
 ## Privacy
 
 - No telemetry, no analytics, no ad tech, no third-party tracking SDKs in the plugin.
 - The Stratum web app uses cookie-free analytics to track anonymous usage metrics.
 - Your notes never leave your device. Stratum writes markdown files into your vault locally. The server never sees, stores, or transmits your note content. Everything you write below `## My Notes` stays on your machine.
-- The server doesn't store note data. When you sync, the server fetches metadata from Zotero and enrichment data from OpenAlex, passes it to the plugin, and discards it. Nothing about your notes is saved on the server.
-- Enrichment uses only DOIs. To look up citation counts, topics, and other academic metadata, the server sends the paper's DOI to OpenAlex. No vault content, filenames, annotations, or personal information is shared.
+- The server doesn't store note data. When you sync, the server fetches metadata from Zotero and enrichment data from [OpenAlex](https://openalex.org/), passes it to the plugin, and discards it. Nothing about your notes is saved on the server.
+- Enrichment uses only DOIs. To look up citation counts, topics, and other academic metadata, the server sends the paper's DOI to [OpenAlex](https://openalex.org/). No vault content, filenames, annotations, or personal information is shared.
 - The plugin stores session tokens in Obsidian's platform-native `secretStorage` to stay signed in across restarts. It doesn't store your Zotero OAuth secret locally.
 - Zotero OAuth secrets live server-side, encrypted at rest with AES-256 encryption.
 - Server-side database access is scoped per authenticated user.
