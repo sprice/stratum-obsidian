@@ -1,6 +1,12 @@
 export const MANAGED_START = "<!-- stratum:managed:start -->";
 export const MANAGED_END = "<!-- stratum:managed:end -->";
-export const USER_NOTES_HEADING = "## My Notes";
+export const USER_BOUNDARY_CALLOUT_TYPE = "stratum";
+export const USER_BOUNDARY_CALLOUT_TITLE = "My Notes";
+export const USER_BOUNDARY_PATTERN = /^> \[!stratum\]/m;
+export const USER_BOUNDARY_CALLOUT = [
+  `> [!${USER_BOUNDARY_CALLOUT_TYPE}]- ${USER_BOUNDARY_CALLOUT_TITLE}`,
+  "> This block and everything above it is managed by Stratum. Write your notes below.",
+].join("\n");
 export const LIBRARY_ID_FRONTMATTER_KEY = "zotero_library_id";
 export const LIBRARY_TYPE_FRONTMATTER_KEY = "zotero_library_type";
 export const IDENTITY_FRONTMATTER_KEY = "zotero_item_identity";

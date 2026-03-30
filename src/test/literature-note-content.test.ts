@@ -179,7 +179,8 @@ test("buildLiteratureNoteContent preserves invalid frontmatter during updates", 
     "---",
     "This is existing user content.",
     "",
-    "## My Notes",
+    "> [!stratum]- My Notes",
+    "> Everything above this line is managed by Stratum.",
     "",
     "Personal analysis lives here.",
   ].join("\n");
@@ -236,7 +237,7 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
   assert.match(output, /> \[!abstract\]\+ Abstract/);
   assert.doesNotMatch(output, /## Zotero Notes/);
   assert.doesNotMatch(output, /## Highlights/);
-  assert.match(output, /## My Notes/);
+  assert.match(output, /\[!stratum\]/);
 });
 
 test("buildLiteratureNoteContent renders Zotero notes as foldable callouts", () => {
@@ -452,7 +453,8 @@ test("buildLiteratureNoteContent removes stale managed frontmatter keys on updat
     "zotero_version: 11",
     "---",
     "",
-    "## Notes",
+    "> [!stratum]- My Notes",
+    "> Managed by Stratum.",
     "",
     "User notes stay here.",
   ].join("\n");
@@ -479,8 +481,7 @@ test("buildLiteratureNoteContent removes stale managed frontmatter keys on updat
   assert.match(output, /tags: \[literature-note, source\/zotero, reference\/journal-article, zotero\/personality, zotero\/ml, custom\/topic\]/);
   assert.match(output, /custom_property: Keep me/);
   assert.match(output, /User notes stay here\./);
-  assert.match(output, /## My Notes/);
-  assert.doesNotMatch(output, /## Notes/);
+  assert.match(output, /\[!stratum\]/);
 });
 
 test("findExistingLiteratureNoteMatch prefers exact library-aware matches in the preferred folder", () => {

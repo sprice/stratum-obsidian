@@ -14,7 +14,7 @@ Stratum creates structured literature notes in Obsidian from your Zotero cloud l
 - Pull in all your Zotero notes and annotations.
 - Group highlights by color, with deep links back to Zotero.
 - Auto-sync your literature notes on startup, on focus, and on a configurable interval.
-- Rewrite only Stratum's managed section and preserve everything below `## My Notes`.
+- Rewrite only Stratum's managed section and preserve everything below the `[!stratum]` boundary callout.
 - Mark notes as deleted if the source item disappears from Zotero instead of deleting the file from your vault.
 - Insert `[@citekey]` pandoc citations and auto-manage a `stratum.bib` file.
 - Enrich notes with citation counts, impact metrics, open access links, topics, keywords, funder data, and more via OpenAlex.
@@ -43,12 +43,12 @@ After that, Stratum keeps tracked notes fresh automatically.
 
 ## Note format
 
-Each generated note has a managed section and a user section.
+Each generated note has a managed section and a user section separated by a `[!stratum]` boundary callout.
 
 - The managed section includes a reference block, abstract, imported Zotero notes, grouped highlights, and Zotero deep links.
-- The user section starts at `## My Notes`.
+- The user section starts below the `[!stratum]` boundary callout.
 - Sync rewrites the managed section only.
-- Your writing below `## My Notes` is preserved across updates.
+- Your writing below the boundary callout is preserved across updates.
 
 ## Commands
 
@@ -100,7 +100,7 @@ The account-backed design lets Stratum skip the usual Zotero plugin setup burden
 - No telemetry, no analytics, no ad tech, no third-party tracking SDKs in the plugin.
 - The Stratum web app uses cookie-free analytics (Umami) to track anonymous usage metrics. No personally identifiable information is collected.
 - The managed service uses Sentry for error tracking. When something goes wrong, Sentry captures technical details about the error and your account ID to help us diagnose issues. Sentry does not receive your email, Zotero credentials, or note contents.
-- Your notes never leave your device. Stratum writes markdown files into your vault locally. The server never sees, stores, or transmits your note content. Everything you write below `## My Notes` stays on your machine.
+- Your notes never leave your device. Stratum writes markdown files into your vault locally. The server never sees, stores, or transmits your note content. Everything you write below the boundary callout stays on your machine.
 - The server doesn't store note data. When you sync, the server fetches metadata from Zotero and enrichment data from [OpenAlex](https://openalex.org/), passes it to the plugin, and discards it. Nothing about your notes is saved on the server.
 - Enrichment uses only DOIs. To look up citation counts, topics, and other academic metadata, the server sends the paper's DOI to [OpenAlex](https://openalex.org/). No vault content, filenames, annotations, or personal information is shared.
 - The plugin stores session tokens in Obsidian's platform-native `secretStorage` to stay signed in across restarts. It doesn't store your Zotero OAuth secret locally.

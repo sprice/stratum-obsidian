@@ -1,7 +1,8 @@
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import {
   MANAGED_START,
-  USER_NOTES_HEADING,
+  USER_BOUNDARY_CALLOUT,
+  USER_BOUNDARY_PATTERN,
   ZOTERO_STATUS_FRONTMATTER_KEY,
   type HtmlToMarkdownTransformer,
   type YamlParser,
@@ -13,8 +14,6 @@ import {
   splitFrontmatterContent,
 } from "./literature-note-frontmatter";
 import { renderManagedBlock } from "./literature-note-sections";
-
-const LEGACY_USER_NOTES_HEADING = "## Notes";
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -32,30 +31,18 @@ function upsertManagedBlock(body: string, managedBlock: string): string {
 
   const trimmedBody = body.trim();
   if (!trimmedBody) {
-    return `${managedBlock}\n\n${USER_NOTES_HEADING}\n\n`;
+    return `${managedBlock}\n\n${USER_BOUNDARY_CALLOUT}\n\n`;
   }
 
   return `${managedBlock}\n\n${trimmedBody}\n`;
 }
 
-function hasSectionHeading(body: string, heading: string): boolean {
-  const pattern = new RegExp(`^${escapeRegExp(heading)}$`, "m");
-  return pattern.test(body);
-}
-
-function ensureUserNotesSection(body: string): string {
-  if (hasSectionHeading(body, USER_NOTES_HEADING)) {
+function ensureUserBoundary(body: string): string {
+  if (USER_BOUNDARY_PATTERN.test(body)) {
     return body;
   }
 
-  if (hasSectionHeading(body, LEGACY_USER_NOTES_HEADING)) {
-    return body.replace(
-      new RegExp(`^${escapeRegExp(LEGACY_USER_NOTES_HEADING)}$`, "m"),
-      USER_NOTES_HEADING
-    );
-  }
-
-  return `${body.trimEnd()}\n\n${USER_NOTES_HEADING}\n\n`;
+  return `${body.trimEnd()}\n\n${USER_BOUNDARY_CALLOUT}\n\n`;
 }
 
 export function buildLiteratureNoteContent(params: {
@@ -89,7 +76,7 @@ export function buildLiteratureNoteContent(params: {
       params.stringifyYaml,
       params.enrichment
     );
-    const nextBody = ensureUserNotesSection(upsertManagedBlock(body, managedBlock));
+    const nextBody = ensureUserBoundary(upsertManagedBlock(body, managedBlock));
     return `${nextFrontmatter}\n${nextBody.trimStart()}`.trimEnd() + "\n";
   }
 
@@ -111,7 +98,7 @@ export function buildLiteratureNoteContent(params: {
     ),
     managedBlock,
     "",
-    USER_NOTES_HEADING,
+    USER_BOUNDARY_CALLOUT,
     "",
   ].join("\n");
 }
@@ -158,7 +145,10 @@ export {
   MANAGED_END,
   MANAGED_START,
   NOTE_KEYS_FRONTMATTER_KEY,
-  USER_NOTES_HEADING,
+  USER_BOUNDARY_CALLOUT,
+  USER_BOUNDARY_CALLOUT_TITLE,
+  USER_BOUNDARY_CALLOUT_TYPE,
+  USER_BOUNDARY_PATTERN,
   ZOTERO_STATUS_FRONTMATTER_KEY,
   type ExistingLiteratureNoteMatch,
   type HtmlToMarkdownTransformer,

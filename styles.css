@@ -506,6 +506,12 @@
 	font-size: 0.9rem;
 }
 
+/* Stratum boundary callout — marks the end of managed content */
+.callout[data-callout="stratum"] {
+	--callout-color: var(--color-accent);
+	--callout-icon: lucide-pen-line;
+}
+
 /* Highlight callout colors — match Zotero's annotation palette */
 .callout[data-callout="stratum-yellow"] {
 	--callout-color: 255, 212, 0;

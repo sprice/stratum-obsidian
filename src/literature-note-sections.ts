@@ -509,10 +509,6 @@ export function renderManagedBlock(
   return [
     MANAGED_START,
     ...deletedWarning,
-    "> [!info] Stratum managed content",
-    "> Stratum refreshes this reference block, Zotero notes, and PDF highlights.",
-    "> Write your own thoughts anywhere else in the note. The `## My Notes` section is never rewritten.",
-    "",
     ...sections.flatMap((section, index) =>
       index === sections.length - 1 ? [section] : [section, ""]
     ),
