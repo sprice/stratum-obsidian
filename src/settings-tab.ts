@@ -63,7 +63,7 @@ export class StratumSettingTab extends PluginSettingTab {
       )
       .addButton((button) =>
         button
-          .setButtonText(accountEmail ? "Sign out of Stratum" : "Sign in")
+          .setButtonText(accountEmail ? "Sign out of Stratum" : "Sign in to Stratum")
           .setCta()
           .onClick(async () => {
             if (accountEmail) {
