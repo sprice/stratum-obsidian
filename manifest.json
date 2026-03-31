@@ -3,7 +3,7 @@
   "name": "Stratum",
   "version": "0.0.9",
   "minAppVersion": "1.11.4",
-  "description": "Easily sync your Zotero library to Obsidian with zero configuration.",
+  "description": "Sync your Zotero library into structured literature notes with zero configuration.",
   "author": "Shawn Price",
   "authorUrl": "https://stratumnotes.com",
   "isDesktopOnly": false
