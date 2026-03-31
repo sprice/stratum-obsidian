@@ -1,7 +1,7 @@
 {
   "id": "stratum-obsidian",
   "name": "Stratum",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "minAppVersion": "1.11.4",
   "description": "Easily sync your Zotero library to Obsidian with zero configuration.",
   "author": "Shawn Price",
