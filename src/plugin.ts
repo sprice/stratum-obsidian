@@ -163,7 +163,7 @@ export default class StratumPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "open-stratum-view",
+      id: "open-library-view",
       name: "Open library view",
       callback: () => {
         void this.activateView();

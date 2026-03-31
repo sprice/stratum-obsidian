@@ -1,4 +1,4 @@
-export const PLUGIN_ID = "stratum-obsidian";
+export const PLUGIN_ID = "stratum";
 export const PLUGIN_NAME = "Stratum";
 export const VIEW_TYPE_STRATUM = "stratum-view";
 export const AUTH_PROTOCOL_ACTION = "stratum-auth";
