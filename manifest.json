@@ -1,7 +1,7 @@
 {
   "id": "stratum",
   "name": "Stratum",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "minAppVersion": "1.11.4",
   "description": "Sync your Zotero library into structured literature notes with zero configuration.",
   "author": "Shawn Price",
