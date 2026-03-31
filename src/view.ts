@@ -96,10 +96,12 @@ export class StratumView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    await Promise.resolve();
     this.render();
   }
 
   async onClose(): Promise<void> {
+    await Promise.resolve();
     this.clearBulkSyncStatusTimers();
   }
 

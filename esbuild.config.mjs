@@ -22,6 +22,7 @@ const supabasePublishableKey =
 	process.env.STRATUM_SUPABASE_PUBLISHABLE_KEY ??
 	pluginConfig.supabasePublishableKey;
 const apiBaseUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1`;
+const debugLogging = process.env.STRATUM_DEBUG === "true";
 
 const context = await esbuild.context({
 	banner: {
@@ -57,6 +58,7 @@ const context = await esbuild.context({
 		__STRATUM_SUPABASE_URL__: JSON.stringify(supabaseUrl),
 		__STRATUM_SUPABASE_PUBLISHABLE_KEY__: JSON.stringify(supabasePublishableKey),
 		__STRATUM_API_BASE_URL__: JSON.stringify(apiBaseUrl),
+		__STRATUM_DEBUG__: JSON.stringify(debugLogging),
 	},
 });
 

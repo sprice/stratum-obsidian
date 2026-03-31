@@ -146,8 +146,7 @@ export default class StratumPlugin extends Plugin {
   };
 
   async onload(): Promise<void> {
-    // eslint-disable-next-line no-console
-    console.log("stratum: loading Stratum plugin");
+    console.debug("stratum: Loading Stratum plugin");
     await loadPluginSettings(this);
     this.backend = createBackendClient(this);
     hydrateZoteroConnectionFromCache(this);

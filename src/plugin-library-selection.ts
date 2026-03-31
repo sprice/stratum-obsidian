@@ -66,13 +66,13 @@ export async function selectHighlightedLibraryResult(
     return;
   }
 
-  await selectLibrarySearchResult(plugin, result);
+  selectLibrarySearchResult(plugin, result);
 }
 
-export async function selectLibrarySearchResult(
+export function selectLibrarySearchResult(
   plugin: StratumPlugin,
   result: ZoteroSearchResult,
-): Promise<void> {
+): void {
   cancelLibraryPickerClose(plugin);
   plugin.librarySearchQuery = result.title;
   plugin.isLibraryPickerOpen = false;
