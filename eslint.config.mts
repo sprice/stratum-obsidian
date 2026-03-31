@@ -1,9 +1,11 @@
-import json from "@eslint/json";
+import * as jsonModule from "@eslint/json";
 import tseslint from "typescript-eslint";
 import obsidianmd from "eslint-plugin-obsidianmd";
 import { PlainTextParser } from "eslint-plugin-obsidianmd/dist/lib/plainTextParser.js";
 import globals from "globals";
 import { globalIgnores } from "eslint/config";
+
+const json = "default" in jsonModule ? jsonModule.default : jsonModule;
 
 export default tseslint.config(
 	{
