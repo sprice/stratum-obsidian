@@ -10,15 +10,15 @@ import {
 
 function createDetail(overrides?: Partial<ZoteroItemDetail>): ZoteroItemDetail {
   return {
-    zoteroUserId: "19946899",
+    zoteroUserId: "123456",
     library: {
       type: "user",
-      id: "19946899",
+      id: "123456",
       zoteroUriSegment: "library",
-      identity: "user:19946899",
+      identity: "user:123456",
     },
     item: {
-      key: "YC2RW7WT",
+      key: "ITEM0001",
       version: 34,
       title:
         "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment",
@@ -32,7 +32,7 @@ function createDetail(overrides?: Partial<ZoteroItemDetail>): ZoteroItemDetail {
       publicationTitle: null,
       collections: [],
       tags: [],
-      zoteroSelectUri: "zotero://select/library/items/YC2RW7WT",
+      zoteroSelectUri: "zotero://select/library/items/ITEM0001",
       isbn: null,
       issn: null,
       volume: null,
@@ -147,7 +147,7 @@ test("resolveExistingFilenameStemState respects manual renames and legacy notes"
   assert.deepEqual(
     resolveExistingFilenameStemState({
       currentStem:
-        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-19946899-YC2RW7WT",
+        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-123456-ITEM0001",
       storedStem: null,
       desiredStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
       previousVersion: 34,
@@ -156,14 +156,14 @@ test("resolveExistingFilenameStemState respects manual renames and legacy notes"
     {
       shouldRename: false,
       nextStoredStem:
-        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-19946899-YC2RW7WT",
+        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-123456-ITEM0001",
     },
   );
 
   assert.deepEqual(
     resolveExistingFilenameStemState({
       currentStem:
-        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-19946899-YC2RW7WT",
+        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-123456-ITEM0001",
       storedStem: null,
       desiredStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
       previousVersion: 34,

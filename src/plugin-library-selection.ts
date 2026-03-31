@@ -52,9 +52,7 @@ export function moveLibrarySearchHighlight(
   plugin.refreshViews();
 }
 
-export async function selectHighlightedLibraryResult(
-  plugin: StratumPlugin,
-): Promise<void> {
+export function selectHighlightedLibraryResult(plugin: StratumPlugin): void {
   const result =
     plugin.librarySearchResults[
       plugin.highlightedLibrarySearchIndex >= 0

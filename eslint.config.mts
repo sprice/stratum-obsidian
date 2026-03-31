@@ -1,5 +1,7 @@
+import json from "@eslint/json";
 import tseslint from "typescript-eslint";
 import obsidianmd from "eslint-plugin-obsidianmd";
+import { PlainTextParser } from "eslint-plugin-obsidianmd/dist/lib/plainTextParser.js";
 import globals from "globals";
 import { globalIgnores } from "eslint/config";
 
@@ -18,7 +20,42 @@ export default tseslint.config(
 			},
 		},
 	},
-	...obsidianmd.configs.recommended,
+	...obsidianmd.configs.recommendedWithLocalesEn,
+	{
+		files: ["manifest.json"],
+		plugins: {
+			json,
+			obsidianmd,
+		},
+		language: "json/json",
+		rules: {
+			"no-irregular-whitespace": "off",
+			"obsidianmd/validate-manifest": "error",
+		},
+	},
+	{
+		files: ["LICENSE"],
+		plugins: {
+			obsidianmd,
+		},
+		languageOptions: {
+			parser: PlainTextParser,
+		},
+		rules: {
+			"no-irregular-whitespace": "off",
+			"obsidianmd/validate-license": "error",
+		},
+	},
+	...(process.env.OBSIDIAN_REVIEW === "1"
+		? [
+				{
+					files: ["src/**/*.ts", "src/**/*.tsx"],
+					rules: {
+						"@typescript-eslint/require-await": "error",
+					},
+				},
+			]
+		: []),
 	{
 		files: ["src/test/**/*.ts"],
 		languageOptions: {

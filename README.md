@@ -52,15 +52,16 @@ Each generated note has a managed section and a user section separated by a `[!s
 
 ## Commands
 
-Use the side panel to discover papers, create notes, and bulk-sync entire libraries. Use keyboard commands to reference literature notes while writing.
+Use the side panel to discover papers, read existing literature notes, and bulk-sync entire libraries. Use keyboard commands to reference literature notes while writing.
 
-| Command                      | Description                                                |
-| ---------------------------- | ---------------------------------------------------------- |
-| Open library view            | Open the Stratum side panel                                |
-| Open literature note         | Search your literature notes and open one                  |
-| Insert literature note link  | Insert a `[[wikilink]]` to a literature note at the cursor |
-| Insert pandoc citation       | Insert `[@citekey]` and auto-manage a `stratum.bib` file   |
-| Sync Zotero changes now      | Manually trigger a Zotero sync                             |
+| Command                       | Description                                                 |
+| ----------------------------- | ----------------------------------------------------------- |
+| Open library view             | Open the Stratum side panel on the Search tab               |
+| Open literature note          | Search your literature notes and open one in the editor     |
+| Open literature note in panel | Search your literature notes and open one on the Reader tab |
+| Insert literature note link   | Insert a `[[wikilink]]` to a literature note at the cursor  |
+| Insert pandoc citation        | Insert `[@citekey]` and auto-manage a `stratum.bib` file    |
+| Sync Zotero changes now       | Manually trigger a Zotero sync                              |
 
 Assign hotkeys in **Settings -> Hotkeys** by searching for "Stratum".
 

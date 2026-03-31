@@ -5,7 +5,6 @@ import {
   type TFile,
 } from "obsidian";
 import type StratumPlugin from "./plugin";
-import { isPathInsideNotesFolder } from "./plugin-note-index";
 
 export interface LiteratureNoteEntry {
   file: TFile;
@@ -58,8 +57,6 @@ export function buildLiteratureNoteEntries(
   const entries: LiteratureNoteEntry[] = [];
 
   for (const file of plugin.app.vault.getMarkdownFiles()) {
-    if (!isPathInsideNotesFolder(plugin, file.path)) continue;
-
     const cache = plugin.app.metadataCache.getFileCache(file);
     const fm = cache?.frontmatter as Record<string, unknown> | undefined;
     if (!fm || fm.stratum_note_type !== "literature-note") continue;

@@ -1,4 +1,4 @@
-import { Plugin, type TFile } from "obsidian";
+import { Plugin, TFile } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
   PLUGIN_NAME,
@@ -50,6 +50,7 @@ import {
   createLiteratureNote,
   insertLiteratureNoteLink,
   insertPandocCitation,
+  openLiteratureNoteInPanel,
   openLiteratureNoteFromModal,
 } from "./plugin-note-actions";
 import {
@@ -101,6 +102,8 @@ export default class StratumPlugin extends Plugin {
   selectedLibraryResult: ZoteroSearchResult | null = null;
   isSelectedLibraryAbstractExpanded = false;
   activeNoteActionKey: string | null = null;
+  activeViewTab: "search" | "reader" = "search";
+  readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
   librarySearchDebounceTimer: number | null = null;
   librarySearchPendingPromise: Promise<ZoteroSearchResult[]> | null = null;
@@ -158,14 +161,20 @@ export default class StratumPlugin extends Plugin {
     this.registerView(VIEW_TYPE_STRATUM, (leaf) => new StratumView(leaf, this));
 
     this.addRibbonIcon("book-open-text", openStratumRibbonLabel, () => {
-      void this.activateView();
+      this.activeViewTab = "search";
+      void this.activateView().then(() => {
+        this.refreshViews();
+      });
     });
 
     this.addCommand({
       id: "open-library-view",
       name: "Open library view",
       callback: () => {
-        void this.activateView();
+        this.activeViewTab = "search";
+        void this.activateView().then(() => {
+          this.refreshViews();
+        });
       },
     });
 
@@ -181,6 +190,12 @@ export default class StratumPlugin extends Plugin {
       id: "open-literature-note",
       name: "Open literature note",
       callback: () => openLiteratureNoteFromModal(this),
+    });
+
+    this.addCommand({
+      id: "open-literature-note-in-panel",
+      name: "Open literature note in panel",
+      callback: () => openLiteratureNoteInPanel(this),
     });
 
     this.addCommand({
@@ -207,11 +222,23 @@ export default class StratumPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         handleItemFileRename(this, file, oldPath);
+        if (file instanceof TFile && this.readerNoteFile?.path === oldPath) {
+          this.readerNoteFile = file;
+          if (this.activeViewTab === "reader") {
+            this.refreshViews();
+          }
+        }
       }),
     );
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         handleItemFileDelete(this, file);
+        if (file instanceof TFile && this.readerNoteFile?.path === file.path) {
+          this.readerNoteFile = null;
+          if (this.activeViewTab === "reader") {
+            this.refreshViews();
+          }
+        }
       }),
     );
     this.registerDomEvent(window, "focus", () => {

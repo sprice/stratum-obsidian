@@ -1,13 +1,13 @@
 {
-  "zoteroUserId": "19946899",
+  "zoteroUserId": "123456",
   "library": {
     "type": "user",
-    "id": "19946899",
+    "id": "123456",
     "zoteroUriSegment": "library",
-    "identity": "user:19946899"
+    "identity": "user:123456"
   },
   "item": {
-    "key": "YC2RW7WT",
+    "key": "ITEM0001",
     "version": 34,
     "title": "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment",
     "creators": ["Andreas Glöckner", "Moritz Michels", "Daniel Giersch"],
@@ -23,7 +23,7 @@
       { "key": "COLL2", "name": "Psychology" }
     ],
     "tags": ["personality", "machine-learning", "assessment"],
-    "zoteroSelectUri": "zotero://select/library/items/YC2RW7WT"
+    "zoteroSelectUri": "zotero://select/library/items/ITEM0001"
   },
   "attachments": [
     {
@@ -41,7 +41,7 @@
   "zoteroNotes": [
     {
       "key": "NOTE1",
-      "parentItemKey": "YC2RW7WT",
+      "parentItemKey": "ITEM0001",
       "html": "<p>Key finding: Random forests outperformed linear models for predicting openness and conscientiousness.</p>\n<p>Limitation: Sample was drawn entirely from university students, limiting generalizability.</p>",
       "dateAdded": "2024-06-10T14:30:00Z",
       "dateModified": "2024-06-12T09:15:00Z",

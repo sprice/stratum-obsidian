@@ -1,4 +1,4 @@
-import type { App } from "obsidian";
+import { TFile, type App } from "obsidian";
 import type { LiteratureNoteEntry } from "./library-search-modal";
 
 const BIB_FILENAME = "stratum.bib";
@@ -86,10 +86,8 @@ export async function ensureBibEntry(
   const existingFile = app.vault.getAbstractFileByPath(bibPath);
   const bibtexEntry = buildBibtexEntry(entry);
 
-  if (existingFile) {
-    const content = await app.vault.cachedRead(
-      existingFile as import("obsidian").TFile,
-    );
+  if (existingFile instanceof TFile) {
+    const content = await app.vault.cachedRead(existingFile);
     const keyPattern = new RegExp(
       `@\\w+\\{${citekey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")},`,
     );
@@ -97,8 +95,12 @@ export async function ensureBibEntry(
       return citekey;
     }
     await app.vault.modify(
-      existingFile as import("obsidian").TFile,
+      existingFile,
       `${content.trimEnd()}\n\n${bibtexEntry}\n`,
+    );
+  } else if (existingFile) {
+    throw new Error(
+      `${BIB_FILENAME} already exists and is not a markdown file.`,
     );
   } else {
     await app.vault.create(bibPath, `${bibtexEntry}\n`);

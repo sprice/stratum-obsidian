@@ -800,7 +800,7 @@ test("group-backed notes emit group library metadata in frontmatter", () => {
         id: "2001",
         zoteroUriSegment: "groups",
         identity: "group:2001",
-        groupName: "sprice",
+        groupName: "example-group",
       },
     }),
     filenameStem: "Managed Name",
@@ -813,7 +813,7 @@ test("group-backed notes emit group library metadata in frontmatter", () => {
   assert.match(output, /zotero_library_type: group/);
   assert.match(output, /zotero_library_id: 2001/);
   assert.match(output, /zotero_user_id: 123456/);
-  assert.match(output, /zotero_group_name: sprice/);
+  assert.match(output, /zotero_group_name: example-group/);
 });
 
 test("expanded aliases include @citationKey and shortTitle", () => {

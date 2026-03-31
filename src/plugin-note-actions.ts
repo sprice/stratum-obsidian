@@ -150,6 +150,33 @@ export function openLiteratureNoteFromModal(plugin: StratumPlugin): void {
   }).open();
 }
 
+export function openLiteratureNoteInPanel(plugin: StratumPlugin): void {
+  const entries = buildLiteratureNoteEntries(plugin);
+  if (entries.length === 0) {
+    new Notice(
+      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`,
+    );
+    return;
+  }
+
+  new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
+    plugin.activeViewTab = "reader";
+    plugin.readerNoteFile = entry.file;
+    void plugin
+      .activateView()
+      .then(() => {
+        plugin.refreshViews();
+      })
+      .catch((error) => {
+        console.error(
+          "stratum: failed to open literature note in panel",
+          error,
+        );
+        new Notice(`${PLUGIN_NAME}: Failed to open the reader panel.`);
+      });
+  }).open();
+}
+
 export function insertLiteratureNoteLink(
   plugin: StratumPlugin,
   editor: Editor,

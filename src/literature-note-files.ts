@@ -28,7 +28,7 @@ export async function ensureFolder(
   let currentPath = "";
   for (const segment of segments) {
     currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-    if (await app.vault.adapter.exists(currentPath)) {
+    if (app.vault.getAbstractFileByPath(currentPath)) {
       continue;
     }
 

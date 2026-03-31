@@ -38,7 +38,7 @@ function createMockPlugin(params?: {
     accountLinkedAt: null,
     authSessionExpiresAt: null,
     lastKnownZoteroUserId: userId,
-    lastKnownZoteroUsername: "spriceless",
+    lastKnownZoteroUsername: "example-user",
     lastKnownZoteroConfirmedAt: null,
     itemFileMap: {},
     enabledLibraries: [...enabledLibraries],
@@ -58,7 +58,7 @@ function createMockPlugin(params?: {
     zoteroConnection: {
       connected: true,
       zoteroUserId: userId,
-      zoteroUsername: "spriceless",
+      zoteroUsername: "example-user",
       lastSyncedAt: null,
       tokenValid: true,
       groupsLoaded: true,
@@ -214,7 +214,7 @@ test("reconcileLibrariesFromConnection renames surviving groups and drops inacce
   const changed = reconcileLibrariesFromConnection(plugin as never, {
     connected: true,
     zoteroUserId: "123456",
-    zoteroUsername: "spriceless",
+    zoteroUsername: "example-user",
     lastSyncedAt: "2026-03-28T00:00:00.000Z",
     tokenValid: true,
     groupsLoaded: true,

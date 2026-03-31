@@ -1,14 +1,74 @@
 .stratum-view {
 	padding: 1rem;
+	height: 100%;
+	box-sizing: border-box;
 	min-width: 0;
-	overflow-x: hidden;
+	overflow: hidden;
 }
 
 .stratum-shell {
 	display: grid;
+	grid-template-rows: auto 1fr;
 	gap: 1rem;
+	height: 100%;
+	min-height: 0;
 	min-width: 0;
 	overflow-x: hidden;
+}
+
+.stratum-tab-bar {
+	display: flex;
+	min-width: 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.stratum-tab-bar > button {
+	flex: 1 1 0;
+	padding: 0.8rem 0.75rem;
+	border: 0;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	background: transparent;
+	color: var(--text-muted);
+	font-weight: 600;
+}
+
+.stratum-tab-bar > button:hover {
+	color: var(--text-normal);
+	background: color-mix(
+		in srgb,
+		var(--background-secondary) 78%,
+		var(--background-primary) 22%
+	);
+}
+
+.stratum-tab-bar > button.is-active {
+	color: var(--color-accent);
+	border-bottom-color: var(--color-accent);
+}
+
+.stratum-tab-content {
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.stratum-search-tab,
+.stratum-reader-tab {
+	min-height: 0;
+}
+
+.stratum-search-tab {
+	height: 100%;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.stratum-reader-tab {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	gap: 0.9rem;
+	height: 100%;
 }
 
 .stratum-eyebrow {
@@ -488,6 +548,39 @@
 	padding-top: 0.85rem;
 	border-top: 1px solid
 		color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+}
+
+.stratum-reader-header {
+	display: grid;
+	gap: 0.65rem;
+	min-width: 0;
+}
+
+.stratum-reader-title {
+	min-width: 0;
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.stratum-reader-actions {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 0.5rem;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+.stratum-reader-content {
+	min-height: 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: 0.1rem;
+}
+
+.stratum-reader-content > :first-child {
+	margin-top: 0;
 }
 
 .stratum-error {
