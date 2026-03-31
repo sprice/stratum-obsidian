@@ -31,7 +31,7 @@ export function isPathInsideFolder(path: string, folder: string): boolean {
 
 export function getLiteratureNoteCandidates(
   app: App,
-  preferredFolder?: string
+  preferredFolder?: string,
 ): LiteratureNoteCandidate[] {
   const normalizedFolder = getNormalizedNotesFolder(preferredFolder);
   return app.vault
@@ -48,14 +48,14 @@ export function getLiteratureNoteCandidates(
 }
 
 export function getStoredFilenameStem(
-  frontmatter: Record<string, unknown>
+  frontmatter: Record<string, unknown>,
 ): string | null {
   const value = frontmatter[FILENAME_STEM_FRONTMATTER_KEY];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 export function getStoredZoteroVersion(
-  frontmatter: Record<string, unknown>
+  frontmatter: Record<string, unknown>,
 ): number | null {
   const values = [frontmatter.zotero_item_version, frontmatter.zotero_version];
 
@@ -78,12 +78,12 @@ export function getStoredZoteroVersion(
 export function findExistingLiteratureNote(
   app: App,
   identity: LiteratureNoteIdentity,
-  preferredFolder?: string
+  preferredFolder?: string,
 ): TFile | null {
   const match = findExistingLiteratureNoteMatch(
     getLiteratureNoteCandidates(app, preferredFolder),
     identity,
-    preferredFolder
+    preferredFolder,
   );
   if (!match) {
     return null;

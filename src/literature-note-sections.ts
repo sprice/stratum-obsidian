@@ -11,7 +11,7 @@ import {
 
 function extractNoteAnnotationColor(
   html: string,
-  annotations: ZoteroItemDetail["annotations"]
+  annotations: ZoteroItemDetail["annotations"],
 ): string | null {
   // Try background-color in the HTML first
   const bgMatch = html.match(/background-color:\s*(#[0-9a-fA-F]{6})/);
@@ -110,7 +110,9 @@ function renderCiteCallout(detail: ZoteroItemDetail): string {
     `**Type**: ${humanizeItemType(detail.item.itemType) ?? "_Unknown_"}`,
     renderVenueLine(detail),
     renderPrimaryIdentifier(detail),
-    detail.item.citationKey ? `**Cite key**: \`${detail.item.citationKey}\`` : null,
+    detail.item.citationKey
+      ? `**Cite key**: \`${detail.item.citationKey}\``
+      : null,
   ].filter((line): line is string => Boolean(line));
 
   const openLinks = [
@@ -134,7 +136,7 @@ function renderCitationBlockquote(detail: ZoteroItemDetail): string | null {
   if (!detail.item.citation) return null;
   const citation = detail.item.citation.replace(
     /(https?:\/\/doi\.org\/[^\s)]+)/g,
-    (url) => `[${url}](${url})`
+    (url) => `[${url}](${url})`,
   );
   return toFoldableCalloutBlock("quote", "Citation", [citation], false);
 }
@@ -145,18 +147,21 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
   const locationParts: string[] = [];
   if (detail.item.volume) locationParts.push(`Vol. ${detail.item.volume}`);
   if (detail.item.issue) locationParts.push(`No. ${detail.item.issue}`);
-  if (detail.item.pages) locationParts.push(`pp. ${formatPageRange(detail.item.pages)}`);
+  if (detail.item.pages)
+    locationParts.push(`pp. ${formatPageRange(detail.item.pages)}`);
   if (locationParts.length > 0) {
     lines.push(`**Location**: ${locationParts.join(" · ")}`);
   }
 
-  if (detail.item.edition && (detail.item.itemType === "book" || detail.item.itemType === "bookSection")) {
+  if (
+    detail.item.edition &&
+    (detail.item.itemType === "book" || detail.item.itemType === "bookSection")
+  ) {
     lines.push(`**Edition**: ${detail.item.edition}`);
   }
 
   const publisherNotInCite =
-    detail.item.itemType !== "book" &&
-    detail.item.itemType !== "report";
+    detail.item.itemType !== "book" && detail.item.itemType !== "report";
   if (publisherNotInCite && detail.item.publisher) {
     const publisherDisplay = detail.item.place
       ? `${detail.item.publisher}, ${detail.item.place}`
@@ -166,8 +171,11 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
 
   if (detail.item.series || detail.item.seriesTitle) {
     const seriesParts: string[] = [];
-    seriesParts.push(renderWikiList([detail.item.series || detail.item.seriesTitle!]));
-    if (detail.item.seriesNumber) seriesParts.push(`No. ${detail.item.seriesNumber}`);
+    seriesParts.push(
+      renderWikiList([detail.item.series || detail.item.seriesTitle!]),
+    );
+    if (detail.item.seriesNumber)
+      seriesParts.push(`No. ${detail.item.seriesNumber}`);
     lines.push(`**Series**: ${seriesParts.join(" · ")}`);
   }
 
@@ -180,21 +188,29 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
     if (detail.item.isbn) lines.push(`**ISBN**: ${detail.item.isbn}`);
   } else {
     if (detail.item.doi && !identifierNotInCite.includes("DOI")) {
-      lines.push(`**DOI**: [${detail.item.doi}](https://doi.org/${detail.item.doi})`);
+      lines.push(
+        `**DOI**: [${detail.item.doi}](https://doi.org/${detail.item.doi})`,
+      );
     }
     if (detail.item.isbn && !identifierNotInCite.includes("ISBN")) {
       lines.push(`**ISBN**: ${detail.item.isbn}`);
     }
     if (detail.item.arxivId && !identifierNotInCite.includes("arXiv")) {
-      lines.push(`**arXiv**: [${detail.item.arxivId}](https://arxiv.org/abs/${detail.item.arxivId})`);
+      lines.push(
+        `**arXiv**: [${detail.item.arxivId}](https://arxiv.org/abs/${detail.item.arxivId})`,
+      );
     }
   }
 
   if (detail.item.pmid) {
-    lines.push(`**PMID**: [${detail.item.pmid}](https://pubmed.ncbi.nlm.nih.gov/${detail.item.pmid}/)`);
+    lines.push(
+      `**PMID**: [${detail.item.pmid}](https://pubmed.ncbi.nlm.nih.gov/${detail.item.pmid}/)`,
+    );
   }
   if (detail.item.pmcid) {
-    lines.push(`**PMCID**: [${detail.item.pmcid}](https://www.ncbi.nlm.nih.gov/pmc/articles/${detail.item.pmcid}/)`);
+    lines.push(
+      `**PMCID**: [${detail.item.pmcid}](https://www.ncbi.nlm.nih.gov/pmc/articles/${detail.item.pmcid}/)`,
+    );
   }
 
   if (detail.item.language) {
@@ -203,17 +219,21 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
 
   if (detail.item.collections.length > 0) {
     lines.push(
-      `**Collections**: ${renderWikiList(detail.item.collections.map((c) => c.name))}`
+      `**Collections**: ${renderWikiList(detail.item.collections.map((c) => c.name))}`,
     );
   }
 
   if (detail.item.tags.length > 0) {
-    lines.push(`**Topics**: ${buildInlineTopicTags(detail.item.tags).join(" ")}`);
+    lines.push(
+      `**Topics**: ${buildInlineTopicTags(detail.item.tags).join(" ")}`,
+    );
   }
 
   const dateParts: string[] = [];
-  if (detail.item.dateAdded) dateParts.push(`Added: ${detail.item.dateAdded.slice(0, 10)}`);
-  if (detail.item.dateModified) dateParts.push(`Modified: ${detail.item.dateModified.slice(0, 10)}`);
+  if (detail.item.dateAdded)
+    dateParts.push(`Added: ${detail.item.dateAdded.slice(0, 10)}`);
+  if (detail.item.dateModified)
+    dateParts.push(`Modified: ${detail.item.dateModified.slice(0, 10)}`);
   if (dateParts.length > 0) {
     lines.push(`**Zotero**: ${dateParts.join(" · ")}`);
   }
@@ -225,7 +245,7 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
 
 function renderAbstractSection(
   detail: ZoteroItemDetail,
-  enrichment?: OpenAlexEnrichment | null
+  enrichment?: OpenAlexEnrichment | null,
 ): string | null {
   const abstract =
     detail.item.abstract?.trim() ||
@@ -235,12 +255,17 @@ function renderAbstractSection(
     return null;
   }
 
-  return toFoldableCalloutBlock("abstract", "Abstract", abstract.split("\n"), false);
+  return toFoldableCalloutBlock(
+    "abstract",
+    "Abstract",
+    abstract.split("\n"),
+    false,
+  );
 }
 
 function renderZoteroNotesSection(
   detail: ZoteroItemDetail,
-  htmlToMarkdown: HtmlToMarkdownTransformer
+  htmlToMarkdown: HtmlToMarkdownTransformer,
 ): string | null {
   if (detail.zoteroNotes.length === 0) {
     return null;
@@ -249,8 +274,7 @@ function renderZoteroNotesSection(
   const notes = detail.zoteroNotes.map((note, index) => {
     const processedHtml = preprocessZoteroNoteHtml(note.html);
     const markdown =
-      htmlToMarkdown(processedHtml).trim() ||
-      "_Empty Zotero note._";
+      htmlToMarkdown(processedHtml).trim() || "_Empty Zotero note._";
     const metadataLine = [
       `[Open in Zotero](${note.zoteroSelectUri})`,
       note.dateModified ? `Last modified: ${note.dateModified}` : null,
@@ -258,7 +282,10 @@ function renderZoteroNotesSection(
       .filter((line): line is string => Boolean(line))
       .join(" · ");
 
-    const noteColor = extractNoteAnnotationColor(processedHtml, detail.annotations);
+    const noteColor = extractNoteAnnotationColor(
+      processedHtml,
+      detail.annotations,
+    );
     const calloutType = noteColor
       ? getHighlightCalloutType(getColorCategory(noteColor))
       : "note";
@@ -267,7 +294,7 @@ function renderZoteroNotesSection(
       calloutType,
       getZoteroNoteCalloutTitle(markdown, index),
       [metadataLine, "", ...markdown.split("\n")],
-      false
+      false,
     );
   });
 
@@ -300,14 +327,16 @@ function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
             : null,
         ].filter((line): line is string => Boolean(line));
 
-        return index === annotations.length - 1 ? itemLines : [...itemLines, ""];
+        return index === annotations.length - 1
+          ? itemLines
+          : [...itemLines, ""];
       });
 
       return toFoldableCalloutBlock(
         getHighlightCalloutType(label),
         getHighlightGroupCalloutTitle(label, annotations),
         bodyLines,
-        false
+        false,
       );
     });
 
@@ -323,13 +352,15 @@ function formatNumber(n: number): string {
 }
 
 function renderOpenAlexMetricsCallout(
-  enrichment: OpenAlexEnrichment | null
+  enrichment: OpenAlexEnrichment | null,
 ): string | null {
   if (!enrichment) return null;
 
   const lines: string[] = [];
 
-  const citedParts: string[] = [`**Cited by**: ${formatNumber(enrichment.citedByCount)}`];
+  const citedParts: string[] = [
+    `**Cited by**: ${formatNumber(enrichment.citedByCount)}`,
+  ];
   if (enrichment.citationPercentile) {
     if (enrichment.citationPercentile.isInTop1Percent) {
       citedParts.push("Top 1%");
@@ -355,7 +386,8 @@ function renderOpenAlexMetricsCallout(
   const oaParts: string[] = [];
   if (enrichment.oaStatus) {
     oaParts.push(
-      enrichment.oaStatus.charAt(0).toUpperCase() + enrichment.oaStatus.slice(1)
+      enrichment.oaStatus.charAt(0).toUpperCase() +
+        enrichment.oaStatus.slice(1),
     );
   } else {
     oaParts.push(enrichment.isOpenAccess ? "Yes" : "No");
@@ -375,7 +407,9 @@ function renderOpenAlexMetricsCallout(
       });
       lines.push(`**APC**: ${formatted}`);
     } catch {
-      lines.push(`**APC**: ${formatNumber(enrichment.apc.value)} ${enrichment.apc.currency}`);
+      lines.push(
+        `**APC**: ${formatNumber(enrichment.apc.value)} ${enrichment.apc.currency}`,
+      );
     }
   }
 
@@ -397,19 +431,20 @@ function renderOpenAlexMetricsCallout(
 }
 
 function renderOpenAlexDetailsCallout(
-  enrichment: OpenAlexEnrichment | null
+  enrichment: OpenAlexEnrichment | null,
 ): string | null {
   if (!enrichment) return null;
 
   const sections: string[][] = [];
 
-  const affiliations = enrichment.authorships
-    .map((a) => {
-      const orcidLink = a.orcid ? ` [ORCID](${a.orcid})` : "";
-      const inst =
-        a.institutions.length > 0 ? ` (${a.institutions.map((i) => safeWikiLink(i)).join(", ")})` : "";
-      return `${safeWikiLink(a.authorName)}${orcidLink}${inst}`;
-    });
+  const affiliations = enrichment.authorships.map((a) => {
+    const orcidLink = a.orcid ? ` [ORCID](${a.orcid})` : "";
+    const inst =
+      a.institutions.length > 0
+        ? ` (${a.institutions.map((i) => safeWikiLink(i)).join(", ")})`
+        : "";
+    return `${safeWikiLink(a.authorName)}${orcidLink}${inst}`;
+  });
   if (affiliations.length > 0) {
     sections.push([`**Affiliations**: ${affiliations.join(", ")}`]);
   }
@@ -421,7 +456,9 @@ function renderOpenAlexDetailsCallout(
         .filter(Boolean)
         .map((h) => safeWikiLink(h as string))
         .join(" > ");
-      return hierarchy ? `${safeWikiLink(t.name)} (${hierarchy})` : safeWikiLink(t.name);
+      return hierarchy
+        ? `${safeWikiLink(t.name)} (${hierarchy})`
+        : safeWikiLink(t.name);
     });
     sections.push([`**Topics**: ${formatted.join(", ")}`]);
   }
@@ -435,18 +472,16 @@ function renderOpenAlexDetailsCallout(
 
   if (enrichment.funders.length > 0) {
     const formatted = enrichment.funders.map((f) =>
-      f.awardId ? `${f.name} (${f.awardId})` : f.name
+      f.awardId ? `${f.name} (${f.awardId})` : f.name,
     );
     sections.push([`**Funders**: ${formatted.join(", ")}`]);
   }
 
   const sdgs = enrichment.sustainableDevelopmentGoals.filter(
-    (g) => g.score >= 0.5
+    (g) => g.score >= 0.5,
   );
   if (sdgs.length > 0) {
-    const formatted = sdgs.map(
-      (g) => `${g.name} (${g.score.toFixed(2)})`
-    );
+    const formatted = sdgs.map((g) => `${g.name} (${g.score.toFixed(2)})`);
     sections.push([`**SDGs**: ${formatted.join(", ")}`]);
   }
 
@@ -473,7 +508,7 @@ function renderOpenAlexDetailsCallout(
   }
 
   const lines = sections.flatMap((section, i) =>
-    i < sections.length - 1 ? [...section, ""] : section
+    i < sections.length - 1 ? [...section, ""] : section,
   );
 
   if (lines.length === 0) return null;
@@ -485,7 +520,7 @@ export function renderManagedBlock(
   detail: ZoteroItemDetail,
   htmlToMarkdown: HtmlToMarkdownTransformer,
   zoteroStatus: ZoteroSyncStatus,
-  enrichment?: OpenAlexEnrichment | null
+  enrichment?: OpenAlexEnrichment | null,
 ): string {
   const sections = [
     renderCiteCallout(detail),
@@ -510,14 +545,14 @@ export function renderManagedBlock(
     MANAGED_START,
     ...deletedWarning,
     ...sections.flatMap((section, index) =>
-      index === sections.length - 1 ? [section] : [section, ""]
+      index === sections.length - 1 ? [section] : [section, ""],
     ),
     MANAGED_END,
   ].join("\n");
 }
 
 export function getLiteratureNoteSummary(
-  detail: ZoteroItemDetail
+  detail: ZoteroItemDetail,
 ): LiteratureNoteSummary {
   return {
     zoteroNoteCount: detail.zoteroNotes.length,

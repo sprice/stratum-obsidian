@@ -1,4 +1,7 @@
-import type { ZoteroConnectionState, ZoteroGroupSummary } from "./backend-types";
+import type {
+  ZoteroConnectionState,
+  ZoteroGroupSummary,
+} from "./backend-types";
 import type StratumPlugin from "./plugin";
 import type { EnabledLibrary } from "./settings";
 import {
@@ -24,7 +27,9 @@ export function buildPersonalLibrary(userId: string): EnabledLibrary {
   };
 }
 
-export function buildGroupLibrary(group: Pick<ZoteroGroupSummary, "id" | "name">): EnabledLibrary {
+export function buildGroupLibrary(
+  group: Pick<ZoteroGroupSummary, "id" | "name">,
+): EnabledLibrary {
   return {
     type: "group",
     id: group.id,
@@ -33,7 +38,9 @@ export function buildGroupLibrary(group: Pick<ZoteroGroupSummary, "id" | "name">
   };
 }
 
-export function sortEnabledLibraries(libraries: EnabledLibrary[]): EnabledLibrary[] {
+export function sortEnabledLibraries(
+  libraries: EnabledLibrary[],
+): EnabledLibrary[] {
   return [...libraries].sort((left, right) => {
     if (left.type !== right.type) {
       return left.type === "user" ? -1 : 1;
@@ -51,12 +58,19 @@ export function getEnabledLibraryByIdentity(
     return null;
   }
 
-  return plugin.settings.enabledLibraries.find((library) => library.identity === identity) ?? null;
+  return (
+    plugin.settings.enabledLibraries.find(
+      (library) => library.identity === identity,
+    ) ?? null
+  );
 }
 
-export function getPersonalLibrary(plugin: StratumPlugin): EnabledLibrary | null {
+export function getPersonalLibrary(
+  plugin: StratumPlugin,
+): EnabledLibrary | null {
   const userId =
-    plugin.zoteroConnection?.zoteroUserId ?? plugin.settings.lastKnownZoteroUserId;
+    plugin.zoteroConnection?.zoteroUserId ??
+    plugin.settings.lastKnownZoteroUserId;
   if (!userId) {
     return null;
   }
@@ -64,10 +78,15 @@ export function getPersonalLibrary(plugin: StratumPlugin): EnabledLibrary | null
   return buildPersonalLibrary(userId);
 }
 
-export function getPrimaryEnabledLibrary(plugin: StratumPlugin): EnabledLibrary | null {
+export function getPrimaryEnabledLibrary(
+  plugin: StratumPlugin,
+): EnabledLibrary | null {
   const personal = getPersonalLibrary(plugin);
   if (personal) {
-    const enabledPersonal = getEnabledLibraryByIdentity(plugin, personal.identity);
+    const enabledPersonal = getEnabledLibraryByIdentity(
+      plugin,
+      personal.identity,
+    );
     if (enabledPersonal) {
       return enabledPersonal;
     }
@@ -76,15 +95,24 @@ export function getPrimaryEnabledLibrary(plugin: StratumPlugin): EnabledLibrary 
   return sortEnabledLibraries(plugin.settings.enabledLibraries)[0] ?? null;
 }
 
-export function getSelectedSearchLibrary(plugin: StratumPlugin): EnabledLibrary | null {
+export function getSelectedSearchLibrary(
+  plugin: StratumPlugin,
+): EnabledLibrary | null {
   return (
-    getEnabledLibraryByIdentity(plugin, plugin.selectedSearchLibrary?.identity) ??
-    getPrimaryEnabledLibrary(plugin)
+    getEnabledLibraryByIdentity(
+      plugin,
+      plugin.selectedSearchLibrary?.identity,
+    ) ?? getPrimaryEnabledLibrary(plugin)
   );
 }
 
-export function getActiveBulkSyncLibrary(plugin: StratumPlugin): EnabledLibrary | null {
-  return getEnabledLibraryByIdentity(plugin, plugin.settings.activeBulkSyncLibrary);
+export function getActiveBulkSyncLibrary(
+  plugin: StratumPlugin,
+): EnabledLibrary | null {
+  return getEnabledLibraryByIdentity(
+    plugin,
+    plugin.settings.activeBulkSyncLibrary,
+  );
 }
 
 export function clearLibrarySearchState(plugin: StratumPlugin): void {
@@ -130,11 +158,13 @@ export function ensureLibraryStateInitialized(
   library: EnabledLibrary,
 ): void {
   if (!plugin.settings.libraryAutoSync[library.identity]) {
-    plugin.settings.libraryAutoSync[library.identity] = buildDefaultZoteroAutoSyncState();
+    plugin.settings.libraryAutoSync[library.identity] =
+      buildDefaultZoteroAutoSyncState();
   }
 
   if (!plugin.settings.libraryBulkSync[library.identity]) {
-    plugin.settings.libraryBulkSync[library.identity] = buildDefaultBulkLibrarySyncState();
+    plugin.settings.libraryBulkSync[library.identity] =
+      buildDefaultBulkLibrarySyncState();
   }
 }
 
@@ -205,16 +235,15 @@ export function enableGroupLibrary(
   group: Pick<ZoteroGroupSummary, "id" | "name">,
 ): void {
   const nextLibraries = [
-    ...plugin.settings.enabledLibraries.filter((library) => library.identity !== buildLibraryIdentity("group", group.id)),
+    ...plugin.settings.enabledLibraries.filter(
+      (library) => library.identity !== buildLibraryIdentity("group", group.id),
+    ),
     buildGroupLibrary(group),
   ];
   setEnabledLibraries(plugin, nextLibraries);
 }
 
-export function disableLibrary(
-  plugin: StratumPlugin,
-  identity: string,
-): void {
+export function disableLibrary(plugin: StratumPlugin, identity: string): void {
   const nextLibraries = plugin.settings.enabledLibraries.filter(
     (library) => library.identity !== identity,
   );
@@ -253,7 +282,9 @@ export function reconcileLibrariesFromConnection(
     nextLibraries.push(buildGroupLibrary(group));
   }
 
-  const previousLibraries = JSON.stringify(sortEnabledLibraries(plugin.settings.enabledLibraries));
+  const previousLibraries = JSON.stringify(
+    sortEnabledLibraries(plugin.settings.enabledLibraries),
+  );
   const previousGroups = JSON.stringify(plugin.availableGroups);
   plugin.availableGroups = [...nextAvailableGroups].sort((left, right) =>
     left.name.localeCompare(right.name),

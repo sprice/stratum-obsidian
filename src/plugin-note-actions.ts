@@ -5,7 +5,10 @@ import {
 } from "./literature-note";
 import { promptExistingLiteratureNote } from "./literature-note-update-modal";
 import { PLUGIN_NAME } from "./constants";
-import { type ZoteroSearchResult, ZoteroTokenInvalidError } from "./backend-client";
+import {
+  type ZoteroSearchResult,
+  ZoteroTokenInvalidError,
+} from "./backend-client";
 import { getSelectedSearchLibrary } from "./plugin-libraries";
 import type StratumPlugin from "./plugin";
 import {
@@ -22,10 +25,12 @@ import { buildCitekey, ensureBibEntry } from "./bibtex";
 
 export async function createLiteratureNote(
   plugin: StratumPlugin,
-  result: ZoteroSearchResult
+  result: ZoteroSearchResult,
 ): Promise<void> {
   if (plugin.isBulkLibrarySyncRunning()) {
-    new Notice(`${PLUGIN_NAME}: Wait for the Zotero bulk sync to finish first.`);
+    new Notice(
+      `${PLUGIN_NAME}: Wait for the Zotero bulk sync to finish first.`,
+    );
     return;
   }
 
@@ -39,7 +44,9 @@ export async function createLiteratureNote(
   }
 
   if (!(await ensureZoteroConnection(plugin, { refresh: true }))) {
-    new Notice(`${PLUGIN_NAME}: Connect Zotero before creating a literature note.`);
+    new Notice(
+      `${PLUGIN_NAME}: Connect Zotero before creating a literature note.`,
+    );
     return;
   }
 
@@ -96,25 +103,27 @@ export async function createLiteratureNote(
     new Notice(
       writeResult.created
         ? `${PLUGIN_NAME}: created literature note for ${detail.item.title}.`
-        : `${PLUGIN_NAME}: updated literature note for ${detail.item.title}.`
+        : `${PLUGIN_NAME}: updated literature note for ${detail.item.title}.`,
     );
   } catch (error) {
     console.error("stratum: failed to create literature note", error);
     if (error instanceof ZoteroTokenInvalidError) {
       markZoteroTokenInvalid(plugin);
       new Notice(
-        `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
+        `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`,
       );
     } else if (error instanceof ZoteroNotConnectedError) {
       markZoteroDisconnected(plugin);
-      new Notice(`${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`);
+      new Notice(
+        `${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`,
+      );
     } else {
       new Notice(
         `${PLUGIN_NAME}: ${
           error instanceof Error
             ? error.message
             : "Literature note creation failed."
-        }`
+        }`,
       );
     }
   } finally {
@@ -131,7 +140,7 @@ export function openLiteratureNoteFromModal(plugin: StratumPlugin): void {
   const entries = buildLiteratureNoteEntries(plugin);
   if (entries.length === 0) {
     new Notice(
-      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`
+      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`,
     );
     return;
   }
@@ -143,12 +152,12 @@ export function openLiteratureNoteFromModal(plugin: StratumPlugin): void {
 
 export function insertLiteratureNoteLink(
   plugin: StratumPlugin,
-  editor: Editor
+  editor: Editor,
 ): void {
   const entries = buildLiteratureNoteEntries(plugin);
   if (entries.length === 0) {
     new Notice(
-      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`
+      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`,
     );
     return;
   }
@@ -162,12 +171,12 @@ export function insertLiteratureNoteLink(
 
 export function insertPandocCitation(
   plugin: StratumPlugin,
-  editor: Editor
+  editor: Editor,
 ): void {
   const entries = buildLiteratureNoteEntries(plugin);
   if (entries.length === 0) {
     new Notice(
-      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`
+      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`,
     );
     return;
   }

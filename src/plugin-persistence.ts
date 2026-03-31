@@ -50,7 +50,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isLiteratureNoteFilenameFormat(
-  value: unknown
+  value: unknown,
 ): value is StratumSettings["filenameFormat"] {
   return value === "readable" || value === "citekey";
 }
@@ -117,9 +117,7 @@ function readItemFileMap(value: unknown): Record<string, ItemFileMapEntry> {
   return nextMap;
 }
 
-function readZoteroAutoSyncState(
-  value: unknown
-): Partial<ZoteroAutoSyncState> {
+function readZoteroAutoSyncState(value: unknown): Partial<ZoteroAutoSyncState> {
   if (!isRecord(value)) {
     return {};
   }
@@ -134,7 +132,10 @@ function readZoteroAutoSyncState(
     nextState.libraryVersion = value.libraryVersion;
   }
 
-  if (typeof value.lastSuccessfulSyncAt === "string" || value.lastSuccessfulSyncAt === null) {
+  if (
+    typeof value.lastSuccessfulSyncAt === "string" ||
+    value.lastSuccessfulSyncAt === null
+  ) {
     nextState.lastSuccessfulSyncAt = value.lastSuccessfulSyncAt;
   }
 
@@ -150,7 +151,7 @@ function readZoteroAutoSyncState(
 }
 
 function readZoteroAutoSyncStateMap(
-  value: unknown
+  value: unknown,
 ): Record<string, Partial<ZoteroAutoSyncState>> {
   if (!isRecord(value)) {
     return {};
@@ -165,7 +166,7 @@ function readZoteroAutoSyncStateMap(
 }
 
 function readBulkLibrarySyncState(
-  value: unknown
+  value: unknown,
 ): Partial<BulkLibrarySyncState> {
   if (!isRecord(value)) {
     return {};
@@ -176,7 +177,7 @@ function readBulkLibrarySyncState(
   if (
     typeof value.phase === "string" &&
     BULK_LIBRARY_SYNC_PHASES.includes(
-      value.phase as (typeof BULK_LIBRARY_SYNC_PHASES)[number]
+      value.phase as (typeof BULK_LIBRARY_SYNC_PHASES)[number],
     )
   ) {
     nextState.phase = value.phase as BulkLibrarySyncState["phase"];
@@ -197,7 +198,8 @@ function readBulkLibrarySyncState(
   }
   if (
     value.totalResults === null ||
-    (typeof value.totalResults === "number" && Number.isFinite(value.totalResults))
+    (typeof value.totalResults === "number" &&
+      Number.isFinite(value.totalResults))
   ) {
     nextState.totalResults = value.totalResults;
   }
@@ -240,7 +242,7 @@ function readBulkLibrarySyncState(
 }
 
 function readBulkLibrarySyncStateMap(
-  value: unknown
+  value: unknown,
 ): Record<string, Partial<BulkLibrarySyncState>> {
   if (!isRecord(value)) {
     return {};
@@ -254,9 +256,7 @@ function readBulkLibrarySyncStateMap(
   );
 }
 
-function readStoredSettings(
-  value: unknown
-): Omit<
+function readStoredSettings(value: unknown): Omit<
   Partial<StratumSettings>,
   "itemFileMap" | "libraryAutoSync" | "libraryBulkSync"
 > & {
@@ -308,13 +308,19 @@ function readStoredSettings(
   ) {
     nextSettings.autoSyncIntervalMinutes = value.autoSyncIntervalMinutes;
   }
-  if (typeof value.lastDeviceCode === "string" || value.lastDeviceCode === null) {
+  if (
+    typeof value.lastDeviceCode === "string" ||
+    value.lastDeviceCode === null
+  ) {
     nextSettings.lastDeviceCode = value.lastDeviceCode;
   }
   if (typeof value.accountEmail === "string" || value.accountEmail === null) {
     nextSettings.accountEmail = value.accountEmail;
   }
-  if (typeof value.accountLinkedAt === "string" || value.accountLinkedAt === null) {
+  if (
+    typeof value.accountLinkedAt === "string" ||
+    value.accountLinkedAt === null
+  ) {
     nextSettings.accountLinkedAt = value.accountLinkedAt;
   }
   if (
@@ -343,7 +349,10 @@ function readStoredSettings(
   ) {
     nextSettings.lastKnownZoteroConfirmedAt = value.lastKnownZoteroConfirmedAt;
   }
-  if (value.activeBulkSyncLibrary === null || typeof value.activeBulkSyncLibrary === "string") {
+  if (
+    value.activeBulkSyncLibrary === null ||
+    typeof value.activeBulkSyncLibrary === "string"
+  ) {
     nextSettings.activeBulkSyncLibrary = value.activeBulkSyncLibrary;
   }
   nextSettings.enabledLibraries = readEnabledLibraries(value.enabledLibraries);
@@ -352,7 +361,7 @@ function readStoredSettings(
 }
 
 function readLegacyPersistedAuthSession(
-  value: unknown
+  value: unknown,
 ): PersistedAuthSession | null {
   if (!isRecord(value)) {
     return null;
@@ -366,7 +375,11 @@ function readSecret(plugin: StratumPlugin, id: string): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
-function writeSecret(plugin: StratumPlugin, id: string, value: string | null): void {
+function writeSecret(
+  plugin: StratumPlugin,
+  id: string,
+  value: string | null,
+): void {
   plugin.app.secretStorage.setSecret(id, value ?? "");
 }
 
@@ -497,14 +510,22 @@ export async function savePluginSettings(plugin: StratumPlugin): Promise<void> {
 
 export function persistAuthSessionSecrets(
   plugin: StratumPlugin,
-  session: PersistedAuthSession | null
+  session: PersistedAuthSession | null,
 ): void {
-  writeSecret(plugin, AUTH_ACCESS_TOKEN_SECRET_ID, session?.accessToken ?? null);
-  writeSecret(plugin, AUTH_REFRESH_TOKEN_SECRET_ID, session?.refreshToken ?? null);
+  writeSecret(
+    plugin,
+    AUTH_ACCESS_TOKEN_SECRET_ID,
+    session?.accessToken ?? null,
+  );
+  writeSecret(
+    plugin,
+    AUTH_REFRESH_TOKEN_SECRET_ID,
+    session?.refreshToken ?? null,
+  );
 }
 
 export function getStoredAuthSession(
-  plugin: StratumPlugin
+  plugin: StratumPlugin,
 ): PersistedAuthSession | null {
   const accessToken = readSecret(plugin, AUTH_ACCESS_TOKEN_SECRET_ID);
   const refreshToken = readSecret(plugin, AUTH_REFRESH_TOKEN_SECRET_ID);

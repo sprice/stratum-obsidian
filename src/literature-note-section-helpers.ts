@@ -3,23 +3,25 @@ import type { ZoteroItemDetail } from "./backend-client";
 export function toCalloutBlock(
   type: string,
   title: string,
-  bodyLines: string[]
+  bodyLines: string[],
 ): string {
-  return [`> [!${type}] ${title}`, ...bodyLines.map((line) => `> ${line}`)].join(
-    "\n"
-  );
+  return [
+    `> [!${type}] ${title}`,
+    ...bodyLines.map((line) => `> ${line}`),
+  ].join("\n");
 }
 
 export function toFoldableCalloutBlock(
   type: string,
   title: string,
   bodyLines: string[],
-  collapsed = true
+  collapsed = true,
 ): string {
   const marker = collapsed ? "-" : "+";
-  return [`> [!${type}]${marker} ${title}`, ...bodyLines.map((line) => `> ${line}`)].join(
-    "\n"
-  );
+  return [
+    `> [!${type}]${marker} ${title}`,
+    ...bodyLines.map((line) => `> ${line}`),
+  ].join("\n");
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -53,7 +55,7 @@ function getNoteSnippet(markdown: string): string | null {
 
 export function getZoteroNoteCalloutTitle(
   markdown: string,
-  index: number
+  index: number,
 ): string {
   const snippet = getNoteSnippet(markdown);
   if (!snippet) {
@@ -65,7 +67,7 @@ export function getZoteroNoteCalloutTitle(
 
 export function getHighlightGroupCalloutTitle(
   label: string,
-  annotations: ZoteroItemDetail["annotations"]
+  annotations: ZoteroItemDetail["annotations"],
 ): string {
   const suffix = annotations.length === 1 ? "highlight" : "highlights";
   return `${label} · ${annotations.length} ${suffix}`;

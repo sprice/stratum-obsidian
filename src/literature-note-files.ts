@@ -15,7 +15,10 @@ import {
   type LiteratureNoteFilenameFormat,
 } from "./literature-note-filenames";
 
-export async function ensureFolder(app: App, folderPath: string): Promise<void> {
+export async function ensureFolder(
+  app: App,
+  folderPath: string,
+): Promise<void> {
   const normalizedFolder = normalizePath(folderPath).replace(/\/$/, "");
   if (!normalizedFolder) {
     return;
@@ -45,7 +48,7 @@ function toError(value: unknown, fallbackMessage: string): Error {
 function getStemVariants(
   detail: ZoteroItemDetail,
   format: LiteratureNoteFilenameFormat,
-  collisionIndex: number
+  collisionIndex: number,
 ): string[] {
   const suffix = getCollisionSuffix(collisionIndex);
   const primary = getGeneratedFileStem(detail, format, suffix);
@@ -67,7 +70,7 @@ export async function createLiteratureNoteFile(params: {
     for (const filenameStem of getStemVariants(
       params.detail,
       params.filenameFormat,
-      collisionIndex
+      collisionIndex,
     )) {
       const path = buildPathFromStem(params.notesFolder, filenameStem);
       if (params.app.vault.getAbstractFileByPath(path)) {
@@ -92,7 +95,10 @@ export async function createLiteratureNoteFile(params: {
     }
   }
 
-  throw toError(lastError, "Failed to create a unique literature note filename.");
+  throw toError(
+    lastError,
+    "Failed to create a unique literature note filename.",
+  );
 }
 
 export async function renameLiteratureNoteFile(params: {
@@ -109,7 +115,7 @@ export async function renameLiteratureNoteFile(params: {
     for (const filenameStem of getStemVariants(
       params.detail,
       params.filenameFormat,
-      collisionIndex
+      collisionIndex,
     )) {
       const path = buildPathFromStem(params.notesFolder, filenameStem);
       const existing = params.app.vault.getAbstractFileByPath(path);

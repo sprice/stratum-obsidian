@@ -20,7 +20,8 @@ function toBibtexAuthors(authors: string[]): string {
 
 function referenceTypeToBibtex(referenceType: string | null): string {
   const normalized = (referenceType ?? "").toLowerCase();
-  if (normalized.includes("book section") || normalized.includes("chapter")) return "incollection";
+  if (normalized.includes("book section") || normalized.includes("chapter"))
+    return "incollection";
   if (normalized.includes("book")) return "book";
   if (normalized.includes("conference")) return "inproceedings";
   if (normalized.includes("thesis")) return "phdthesis";
@@ -31,11 +32,12 @@ function referenceTypeToBibtex(referenceType: string | null): string {
 
 export function buildCitekey(entry: LiteratureNoteEntry): string {
   if (entry.citationKey) return entry.citationKey;
-  const author = entry.authors[0]
-    ?.split(/\s+/)
-    .pop()
-    ?.toLowerCase()
-    .replace(/[^a-z]/g, "") ?? "unknown";
+  const author =
+    entry.authors[0]
+      ?.split(/\s+/)
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z]/g, "") ?? "unknown";
   const year = entry.year ?? "";
   return `${author}${year}`;
 }
@@ -77,7 +79,7 @@ export function buildBibtexEntry(entry: LiteratureNoteEntry): string {
 
 export async function ensureBibEntry(
   app: App,
-  entry: LiteratureNoteEntry
+  entry: LiteratureNoteEntry,
 ): Promise<string> {
   const citekey = buildCitekey(entry);
   const bibPath = BIB_FILENAME;
@@ -85,12 +87,19 @@ export async function ensureBibEntry(
   const bibtexEntry = buildBibtexEntry(entry);
 
   if (existingFile) {
-    const content = await app.vault.cachedRead(existingFile as import("obsidian").TFile);
-    const keyPattern = new RegExp(`@\\w+\\{${citekey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")},`);
+    const content = await app.vault.cachedRead(
+      existingFile as import("obsidian").TFile,
+    );
+    const keyPattern = new RegExp(
+      `@\\w+\\{${citekey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")},`,
+    );
     if (keyPattern.test(content)) {
       return citekey;
     }
-    await app.vault.modify(existingFile as import("obsidian").TFile, `${content.trimEnd()}\n\n${bibtexEntry}\n`);
+    await app.vault.modify(
+      existingFile as import("obsidian").TFile,
+      `${content.trimEnd()}\n\n${bibtexEntry}\n`,
+    );
   } else {
     await app.vault.create(bibPath, `${bibtexEntry}\n`);
   }

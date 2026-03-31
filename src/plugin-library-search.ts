@@ -27,7 +27,7 @@ export type LibrarySearchSuggestionSnapshot = {
 
 export async function searchLibrary(
   plugin: StratumPlugin,
-  query: string
+  query: string,
 ): Promise<void> {
   const snapshot = getLibrarySuggestions(plugin, query);
   if (snapshot.pending) {
@@ -37,7 +37,7 @@ export async function searchLibrary(
 
 export function setLibrarySearchQuery(
   plugin: StratumPlugin,
-  query: string
+  query: string,
 ): void {
   syncLibrarySearchQuery(plugin, query);
 
@@ -65,7 +65,9 @@ export function openLibraryPicker(plugin: StratumPlugin): void {
   plugin.refreshViews();
 }
 
-export async function refreshLibrarySearch(plugin: StratumPlugin): Promise<void> {
+export async function refreshLibrarySearch(
+  plugin: StratumPlugin,
+): Promise<void> {
   const query = plugin.librarySearchQuery;
   if (!isLibrarySearchQueryReady(query)) {
     setLibrarySearchQuery(plugin, query);
@@ -85,7 +87,7 @@ export async function refreshLibrarySearch(plugin: StratumPlugin): Promise<void>
 
 export function getLibrarySuggestions(
   plugin: StratumPlugin,
-  query: string
+  query: string,
 ): LibrarySearchSuggestionSnapshot {
   syncLibrarySearchQuery(plugin, query);
   plugin.isLibraryPickerOpen = true;
@@ -118,11 +120,19 @@ export function getLibrarySuggestions(
   }
 
   const library = getSelectedSearchLibrary(plugin);
-  const cacheKey = getScopedLibrarySearchCacheKey(query, library?.identity ?? "none");
+  const cacheKey = getScopedLibrarySearchCacheKey(
+    query,
+    library?.identity ?? "none",
+  );
   const cachedResponse = plugin.librarySearchCache.get(cacheKey);
   if (cachedResponse) {
     clearPendingLibrarySearch(plugin);
-    applyLibrarySearchResponse(plugin, query, cachedResponse.results, cachedResponse.meta);
+    applyLibrarySearchResponse(
+      plugin,
+      query,
+      cachedResponse.results,
+      cachedResponse.meta,
+    );
     plugin.isSearchingLibrary = false;
     return {
       results: cachedResponse.results,
@@ -159,13 +169,16 @@ export function clearLibrarySearchDebounce(plugin: StratumPlugin): void {
 
 function queueLibrarySearch(
   plugin: StratumPlugin,
-  query: string
+  query: string,
 ): Promise<ZoteroSearchResult[]> {
   clearPendingLibrarySearch(plugin);
 
   const requestId = ++plugin.librarySearchRequestId;
   const library = getSelectedSearchLibrary(plugin);
-  const cacheKey = getScopedLibrarySearchCacheKey(query, library?.identity ?? "none");
+  const cacheKey = getScopedLibrarySearchCacheKey(
+    query,
+    library?.identity ?? "none",
+  );
   plugin.librarySearchQuery = query;
   plugin.librarySearchResults = [];
   plugin.librarySearchMeta = null;
@@ -201,7 +214,7 @@ function clearPendingLibrarySearch(plugin: StratumPlugin): void {
 async function runLibrarySearchRequest(
   plugin: StratumPlugin,
   query: string,
-  options?: { refresh?: boolean; requestId?: number }
+  options?: { refresh?: boolean; requestId?: number },
 ): Promise<ZoteroSearchResult[]> {
   const requestId = options?.requestId ?? ++plugin.librarySearchRequestId;
   const library = getSelectedSearchLibrary(plugin);
@@ -262,7 +275,7 @@ function applyLibrarySearchResponse(
   plugin: StratumPlugin,
   query: string,
   results: ZoteroSearchResult[],
-  meta: ZoteroSearchMeta
+  meta: ZoteroSearchMeta,
 ): void {
   plugin.librarySearchQuery = query;
   plugin.librarySearchResults = results;
@@ -276,29 +289,38 @@ function cacheLibrarySearchResponse(
   plugin: StratumPlugin,
   query: string,
   results: ZoteroSearchResult[],
-  meta: ZoteroSearchMeta
+  meta: ZoteroSearchMeta,
 ): void {
   const library = getSelectedSearchLibrary(plugin);
   if (!library) {
     return;
   }
 
-  plugin.librarySearchCache.set(getScopedLibrarySearchCacheKey(query, library.identity), {
-    query,
-    results,
-    meta,
-  });
+  plugin.librarySearchCache.set(
+    getScopedLibrarySearchCacheKey(query, library.identity),
+    {
+      query,
+      results,
+      meta,
+    },
+  );
 }
 
 function syncLibrarySearchQuery(plugin: StratumPlugin, query: string): void {
   plugin.librarySearchQuery = query;
 
-  if (plugin.selectedLibraryResult && query !== plugin.selectedLibraryResult.title) {
+  if (
+    plugin.selectedLibraryResult &&
+    query !== plugin.selectedLibraryResult.title
+  ) {
     plugin.selectedLibraryResult = null;
     plugin.isSelectedLibraryAbstractExpanded = false;
   }
 }
 
-function getScopedLibrarySearchCacheKey(query: string, libraryIdentity: string): string {
+function getScopedLibrarySearchCacheKey(
+  query: string,
+  libraryIdentity: string,
+): string {
   return `${libraryIdentity}::${getLibrarySearchCacheKey(query)}`;
 }

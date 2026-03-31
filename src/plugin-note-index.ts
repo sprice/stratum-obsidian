@@ -1,4 +1,9 @@
-import { TFile, normalizePath, type CachedMetadata, type TAbstractFile } from "obsidian";
+import {
+  TFile,
+  normalizePath,
+  type CachedMetadata,
+  type TAbstractFile,
+} from "obsidian";
 import {
   LIBRARY_ID_FRONTMATTER_KEY,
   LIBRARY_TYPE_FRONTMATTER_KEY,
@@ -14,7 +19,7 @@ export function getNormalizedNotesFolder(plugin: StratumPlugin): string {
 
 export function isPathInsideNotesFolder(
   plugin: StratumPlugin,
-  path: string
+  path: string,
 ): boolean {
   const normalizedFolder = getNormalizedNotesFolder(plugin);
   const normalizedPath = normalizePath(path);
@@ -29,23 +34,28 @@ export function isPathInsideNotesFolder(
 }
 
 export function getIdentityFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null
+  frontmatter?: Record<string, unknown> | null,
 ): string | null {
   const identity = frontmatter?.[IDENTITY_FRONTMATTER_KEY];
-  return typeof identity === "string" && identity.trim() ? identity.trim() : null;
+  return typeof identity === "string" && identity.trim()
+    ? identity.trim()
+    : null;
 }
 
 export function getItemKeyFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null
+  frontmatter?: Record<string, unknown> | null,
 ): string | null {
   const itemKey = frontmatter?.[ITEM_KEY_FRONTMATTER_KEY];
   return typeof itemKey === "string" && itemKey.trim() ? itemKey.trim() : null;
 }
 
 function getVersionFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null
+  frontmatter?: Record<string, unknown> | null,
 ): number {
-  const values = [frontmatter?.zotero_item_version, frontmatter?.zotero_version];
+  const values = [
+    frontmatter?.zotero_item_version,
+    frontmatter?.zotero_version,
+  ];
 
   for (const value of values) {
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -64,7 +74,7 @@ function getVersionFromFrontmatter(
 }
 
 function getLibraryTypeFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null
+  frontmatter?: Record<string, unknown> | null,
 ): string | null {
   const libraryType = frontmatter?.[LIBRARY_TYPE_FRONTMATTER_KEY];
   return typeof libraryType === "string" && libraryType.trim()
@@ -73,7 +83,7 @@ function getLibraryTypeFromFrontmatter(
 }
 
 function getLibraryIdFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null
+  frontmatter?: Record<string, unknown> | null,
 ): string | null {
   const libraryId = frontmatter?.[LIBRARY_ID_FRONTMATTER_KEY];
   return typeof libraryId === "string" && libraryId.trim()
@@ -95,13 +105,16 @@ function queuePersistItemFileMap(plugin: StratumPlugin): void {
 function setItemFileMapEntry(
   plugin: StratumPlugin,
   identity: string,
-  entry: ItemFileMapEntry
+  entry: ItemFileMapEntry,
 ): void {
   plugin.settings.itemFileMap[identity] = entry;
   queuePersistItemFileMap(plugin);
 }
 
-function removeItemFileMapEntriesForPath(plugin: StratumPlugin, path: string): void {
+function removeItemFileMapEntriesForPath(
+  plugin: StratumPlugin,
+  path: string,
+): void {
   let changed = false;
   for (const [identity, entry] of Object.entries(plugin.settings.itemFileMap)) {
     if (entry.filePath === path) {
@@ -118,7 +131,7 @@ function removeItemFileMapEntriesForPath(plugin: StratumPlugin, path: string): v
 export function syncItemFileMapForFile(
   plugin: StratumPlugin,
   file: TFile,
-  cache?: CachedMetadata | null
+  cache?: CachedMetadata | null,
 ): void {
   removeItemFileMapEntriesForPath(plugin, file.path);
 
@@ -128,10 +141,10 @@ export function syncItemFileMapForFile(
 
   const frontmatter =
     (cache?.frontmatter as Record<string, unknown> | undefined) ??
-    ((plugin.app.metadataCache.getFileCache(file)?.frontmatter as
+    (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
       | Record<string, unknown>
       | undefined) ??
-      null);
+    null;
   const identity = getIdentityFromFrontmatter(frontmatter);
   const itemKey = getItemKeyFromFrontmatter(frontmatter);
   if (!identity || !itemKey) {
@@ -148,7 +161,7 @@ export function syncItemFileMapForFile(
 export function handleItemFileRename(
   plugin: StratumPlugin,
   file: TAbstractFile,
-  oldPath: string
+  oldPath: string,
 ): void {
   removeItemFileMapEntriesForPath(plugin, oldPath);
   if (file instanceof TFile) {
@@ -158,7 +171,7 @@ export function handleItemFileRename(
 
 export function handleItemFileDelete(
   plugin: StratumPlugin,
-  file: TAbstractFile
+  file: TAbstractFile,
 ): void {
   removeItemFileMapEntriesForPath(plugin, file.path);
 }
@@ -206,12 +219,14 @@ export function findExistingLiteratureNoteFile(
     libraryType: string;
     libraryId: string;
     itemKey: string;
-  }
+  },
 ): TFile | null {
   const cacheKey = getIdentityCacheKey(identity);
   const cachedEntry = plugin.settings.itemFileMap[cacheKey];
   if (cachedEntry && isPathInsideNotesFolder(plugin, cachedEntry.filePath)) {
-    const cachedFile = plugin.app.vault.getAbstractFileByPath(cachedEntry.filePath);
+    const cachedFile = plugin.app.vault.getAbstractFileByPath(
+      cachedEntry.filePath,
+    );
     if (cachedFile instanceof TFile) {
       return cachedFile;
     }
@@ -258,7 +273,7 @@ export function rememberLiteratureNoteFile(
     library: { type: string; id: string };
     item: { key: string; version: number };
   },
-  file: TFile
+  file: TFile,
 ): void {
   setItemFileMapEntry(
     plugin,
@@ -271,6 +286,6 @@ export function rememberLiteratureNoteFile(
       filePath: file.path,
       zoteroItemKey: detail.item.key,
       zoteroVersion: detail.item.version,
-    }
+    },
   );
 }

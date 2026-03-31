@@ -27,9 +27,15 @@ import {
   toIdentity,
 } from "./literature-note-helpers";
 
-export type { LiteratureNoteIdentity, LiteratureNoteSummary } from "./literature-note-content";
+export type {
+  LiteratureNoteIdentity,
+  LiteratureNoteSummary,
+} from "./literature-note-content";
 export { getLiteratureNoteSummary };
-export { findExistingLiteratureNote, isPathInsideFolder } from "./literature-note-helpers";
+export {
+  findExistingLiteratureNote,
+  isPathInsideFolder,
+} from "./literature-note-helpers";
 
 export interface LiteratureNoteWriteResult {
   created: boolean;
@@ -62,7 +68,10 @@ export async function createOrUpdateLiteratureNote(params: {
   if (existingFile) {
     const existingContent = await params.app.vault.cachedRead(existingFile);
     const { frontmatter } = splitFrontmatterContent(existingContent, parseYaml);
-    const desiredStem = getGeneratedFileStem(params.detail, params.filenameFormat);
+    const desiredStem = getGeneratedFileStem(
+      params.detail,
+      params.filenameFormat,
+    );
     const currentStem = existingFile.basename;
     const storedStem = getStoredFilenameStem(frontmatter);
     const previousVersion = getStoredZoteroVersion(frontmatter);

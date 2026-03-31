@@ -11,7 +11,7 @@ export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchR
   constructor(
     view: StratumView,
     component: SearchComponent,
-    onStateChange: () => void
+    onStateChange: () => void,
   ) {
     super(view.app, component.inputEl);
     this.view = view;
@@ -22,10 +22,7 @@ export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchR
 
   protected getSuggestions(query: string): ZoteroSearchResult[] {
     const snapshot = this.view.plugin.library.fetchSuggestions(query);
-    if (
-      snapshot.pending &&
-      snapshot.pending !== this.watchedPendingSearch
-    ) {
+    if (snapshot.pending && snapshot.pending !== this.watchedPendingSearch) {
       this.watchedPendingSearch = snapshot.pending;
       void snapshot.pending.then(() => {
         if (this.watchedPendingSearch !== snapshot.pending) {

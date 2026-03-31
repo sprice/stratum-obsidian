@@ -107,11 +107,12 @@ function toAsciiWord(value: string): string {
 }
 
 function getFirstSignificantTitleWord(title: string): string {
-  const words =
-    collapseWhitespace(title).match(/[\p{L}\p{N}]+/gu) ?? [];
+  const words = collapseWhitespace(title).match(/[\p{L}\p{N}]+/gu) ?? [];
 
   const significant =
-    words.find((word) => !SIGNIFICANT_TITLE_STOP_WORDS.has(word.toLowerCase())) ??
+    words.find(
+      (word) => !SIGNIFICANT_TITLE_STOP_WORDS.has(word.toLowerCase()),
+    ) ??
     words[0] ??
     "untitled";
 
@@ -170,8 +171,10 @@ export function getReadableTitleVariants(rawTitle: string): {
 } {
   const normalizedFullTitle = collapseWhitespace(rawTitle) || "Untitled";
   const mainTitle =
-    removeIllegalFilenameCharacters(splitSubtitle(normalizedFullTitle)) || "Untitled";
-  const fileTitle = truncateAtWordBoundary(mainTitle, MAX_READABLE_TITLE_LENGTH) || "Untitled";
+    removeIllegalFilenameCharacters(splitSubtitle(normalizedFullTitle)) ||
+    "Untitled";
+  const fileTitle =
+    truncateAtWordBoundary(mainTitle, MAX_READABLE_TITLE_LENGTH) || "Untitled";
 
   return {
     mainTitle,
@@ -182,17 +185,20 @@ export function getReadableTitleVariants(rawTitle: string): {
 
 export function getReadableFileStem(
   detail: ZoteroItemDetail,
-  collisionSuffix = ""
+  collisionSuffix = "",
 ): string {
   const authorLabel = getReadableAuthorLabel(detail.item.creators);
   const yearLabel = `${getReadableYearLabel(detail.item.year)}${collisionSuffix}`;
   const title = getReadableTitleVariants(detail.item.title).fileTitle;
-  return removeIllegalFilenameCharacters(`${authorLabel} ${yearLabel} - ${title}`) || "Untitled";
+  return (
+    removeIllegalFilenameCharacters(`${authorLabel} ${yearLabel} - ${title}`) ||
+    "Untitled"
+  );
 }
 
 export function getGeneratedCitekeyStem(
   detail: ZoteroItemDetail,
-  collisionSuffix = ""
+  collisionSuffix = "",
 ): string {
   const firstCreatorLastName =
     toAsciiWord(getCreatorLastName(detail.item.creators[0] ?? "")) || "unknown";
@@ -206,7 +212,7 @@ export function getGeneratedCitekeyStem(
 export function getGeneratedFileStem(
   detail: ZoteroItemDetail,
   format: LiteratureNoteFilenameFormat,
-  collisionSuffix = ""
+  collisionSuffix = "",
 ): string {
   return format === "citekey"
     ? getGeneratedCitekeyStem(detail, collisionSuffix)
@@ -216,17 +222,21 @@ export function getGeneratedFileStem(
 export function getGeneratedFileName(
   detail: ZoteroItemDetail,
   format: LiteratureNoteFilenameFormat,
-  collisionSuffix = ""
+  collisionSuffix = "",
 ): string {
   return `${getGeneratedFileStem(detail, format, collisionSuffix)}.md`;
 }
 
 export function getAsciiFallbackFileStem(stem: string): string {
-  return removeIllegalFilenameCharacters(stripCombiningMarks(stem)) || "Untitled";
+  return (
+    removeIllegalFilenameCharacters(stripCombiningMarks(stem)) || "Untitled"
+  );
 }
 
 export function isLegacyManagedFileStem(stem: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*--(?:user|group)-[a-z0-9-]+-[a-z0-9]+$/i.test(stem);
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*--(?:user|group)-[a-z0-9-]+-[a-z0-9]+$/i.test(
+    stem,
+  );
 }
 
 export function resolveExistingFilenameStemState(params: {
@@ -239,7 +249,13 @@ export function resolveExistingFilenameStemState(params: {
   shouldRename: boolean;
   nextStoredStem: string | null;
 } {
-  const { currentStem, storedStem, desiredStem, previousVersion, currentVersion } = params;
+  const {
+    currentStem,
+    storedStem,
+    desiredStem,
+    previousVersion,
+    currentVersion,
+  } = params;
 
   if (storedStem) {
     if (currentStem !== storedStem) {
@@ -264,7 +280,8 @@ export function resolveExistingFilenameStemState(params: {
     };
   }
 
-  const versionChanged = previousVersion !== null && previousVersion !== currentVersion;
+  const versionChanged =
+    previousVersion !== null && previousVersion !== currentVersion;
   if (versionChanged && desiredStem !== currentStem) {
     return {
       shouldRename: true,

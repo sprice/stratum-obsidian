@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ZoteroConnectionState, ZoteroGroupSummary } from "../backend-types";
+import type {
+  ZoteroConnectionState,
+  ZoteroGroupSummary,
+} from "../backend-types";
 import {
   buildGroupLibrary,
   buildPersonalLibrary,
@@ -44,7 +47,9 @@ function createMockPlugin(params?: {
     activeBulkSyncLibrary: null,
     ...settingsOverrides,
   };
-  settings.enabledLibraries = [...(settingsOverrides.enabledLibraries ?? enabledLibraries)];
+  settings.enabledLibraries = [
+    ...(settingsOverrides.enabledLibraries ?? enabledLibraries),
+  ];
   settings.libraryAutoSync = { ...(settingsOverrides.libraryAutoSync ?? {}) };
   settings.libraryBulkSync = { ...(settingsOverrides.libraryBulkSync ?? {}) };
 
@@ -158,10 +163,19 @@ test("disableLibrary removes group sync state and falls back to the personal lib
     plugin.settings.enabledLibraries.map((library) => library.identity),
     [personalLibrary.identity],
   );
-  assert.equal(plugin.settings.libraryAutoSync[groupLibrary.identity], undefined);
-  assert.equal(plugin.settings.libraryBulkSync[groupLibrary.identity], undefined);
+  assert.equal(
+    plugin.settings.libraryAutoSync[groupLibrary.identity],
+    undefined,
+  );
+  assert.equal(
+    plugin.settings.libraryBulkSync[groupLibrary.identity],
+    undefined,
+  );
   assert.equal(plugin.settings.activeBulkSyncLibrary, null);
-  assert.equal(plugin.selectedSearchLibrary?.identity, personalLibrary.identity);
+  assert.equal(
+    plugin.selectedSearchLibrary?.identity,
+    personalLibrary.identity,
+  );
   assert.equal(plugin.librarySearchQuery, "");
 });
 
@@ -211,10 +225,10 @@ test("reconcileLibrariesFromConnection renames surviving groups and drops inacce
   });
 
   assert.equal(changed, true);
-  assert.deepEqual(plugin.availableGroups.map((group) => group.name), [
-    "Beta Group",
-    "Renamed Group",
-  ]);
+  assert.deepEqual(
+    plugin.availableGroups.map((group) => group.name),
+    ["Beta Group", "Renamed Group"],
+  );
   assert.deepEqual(
     plugin.settings.enabledLibraries.map((library) => ({
       identity: library.identity,
@@ -225,8 +239,17 @@ test("reconcileLibrariesFromConnection renames surviving groups and drops inacce
       { identity: "group:2001", name: "Renamed Group" },
     ],
   );
-  assert.equal(plugin.settings.libraryAutoSync[removedGroup.identity], undefined);
-  assert.equal(plugin.settings.libraryBulkSync[removedGroup.identity], undefined);
+  assert.equal(
+    plugin.settings.libraryAutoSync[removedGroup.identity],
+    undefined,
+  );
+  assert.equal(
+    plugin.settings.libraryBulkSync[removedGroup.identity],
+    undefined,
+  );
   assert.equal(plugin.settings.activeBulkSyncLibrary, null);
-  assert.equal(plugin.selectedSearchLibrary?.identity, personalLibrary.identity);
+  assert.equal(
+    plugin.selectedSearchLibrary?.identity,
+    personalLibrary.identity,
+  );
 });

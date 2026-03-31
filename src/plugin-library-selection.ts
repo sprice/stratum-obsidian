@@ -31,7 +31,7 @@ export function cancelLibraryPickerClose(plugin: StratumPlugin): void {
 
 export function moveLibrarySearchHighlight(
   plugin: StratumPlugin,
-  direction: 1 | -1
+  direction: 1 | -1,
 ): void {
   if (!plugin.librarySearchResults.length) {
     return;
@@ -53,7 +53,7 @@ export function moveLibrarySearchHighlight(
 }
 
 export async function selectHighlightedLibraryResult(
-  plugin: StratumPlugin
+  plugin: StratumPlugin,
 ): Promise<void> {
   const result =
     plugin.librarySearchResults[
@@ -71,7 +71,7 @@ export async function selectHighlightedLibraryResult(
 
 export async function selectLibrarySearchResult(
   plugin: StratumPlugin,
-  result: ZoteroSearchResult
+  result: ZoteroSearchResult,
 ): Promise<void> {
   cancelLibraryPickerClose(plugin);
   plugin.librarySearchQuery = result.title;
@@ -84,7 +84,7 @@ export async function selectLibrarySearchResult(
 
 export function clearSelectedLibraryResult(
   plugin: StratumPlugin,
-  options?: { resetQuery?: boolean }
+  options?: { resetQuery?: boolean },
 ): void {
   plugin.selectedLibraryResult = null;
   plugin.isSelectedLibraryAbstractExpanded = false;
@@ -109,14 +109,14 @@ export function toggleSelectedLibraryAbstract(plugin: StratumPlugin): void {
 
 export function syncSelectedLibraryResult(
   plugin: StratumPlugin,
-  results: ZoteroSearchResult[]
+  results: ZoteroSearchResult[],
 ): void {
   if (!plugin.selectedLibraryResult) {
     return;
   }
 
   const refreshedSelection = results.find(
-    (result) => result.key === plugin.selectedLibraryResult?.key
+    (result) => result.key === plugin.selectedLibraryResult?.key,
   );
   if (refreshedSelection) {
     plugin.selectedLibraryResult = refreshedSelection;

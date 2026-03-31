@@ -131,7 +131,7 @@ const DEFAULT_OPENALEX_ENRICHMENT: OpenAlexEnrichment = {
 function createDetail(
   overrides?: Omit<Partial<ZoteroItemDetail>, "item"> & {
     item?: Partial<ZoteroItemDetail["item"]>;
-  }
+  },
 ): ZoteroItemDetail {
   const { item: itemOverrides, ...rest } = overrides ?? {};
   return {
@@ -164,10 +164,11 @@ function createDetail(
 
 function stringifyForTest(value: Record<string, unknown>): string {
   return Object.entries(value)
-    .map(([key, entry]) =>
-      `${key}: ${
-        Array.isArray(entry) ? `[${entry.join(", ")}]` : String(entry)
-      }`
+    .map(
+      ([key, entry]) =>
+        `${key}: ${
+          Array.isArray(entry) ? `[${entry.join(", ")}]` : String(entry)
+        }`,
     )
     .join("\n");
 }
@@ -212,7 +213,7 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
 
   assert.match(
     output,
-    /aliases: \[Bleidorn & Hopwood 2019, Using Machine Learning to Advance Personality Assessment and Theory\]/
+    /aliases: \[Bleidorn & Hopwood 2019, Using Machine Learning to Advance Personality Assessment and Theory\]/,
   );
   assert.match(output, /stratum_filename_stem: Managed Name/);
   assert.match(output, /zotero_status: active/);
@@ -221,14 +222,20 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
   assert.match(output, /zotero_note_keys: \[\]/);
   assert.match(output, /zotero_annotation_keys: \[\]/);
   assert.doesNotMatch(output, /zotero_version:/);
-  assert.match(output, /tags: \[literature-note, source\/zotero, reference\/journal-article, zotero\/personality, zotero\/ml\]/);
   assert.match(
     output,
-    /authors: \[\[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]\]/
+    /tags: \[literature-note, source\/zotero, reference\/journal-article, zotero\/personality, zotero\/ml\]/,
+  );
+  assert.match(
+    output,
+    /authors: \[\[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]\]/,
   );
   assert.match(output, /publication: \[\[Journal of Examples\]\]/);
   assert.match(output, /collections: \[Machine Learning Review\]/);
-  assert.match(output, /\*\*Authors\*\*: \[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]/);
+  assert.match(
+    output,
+    /\*\*Authors\*\*: \[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]/,
+  );
   assert.match(output, /\*\*Publication\*\*: \[\[Journal of Examples\]\]/);
   // Collections and Topics are now in the Details callout
   assert.match(output, /\[!example\]\+ Details/);
@@ -263,11 +270,11 @@ test("buildLiteratureNoteContent renders Zotero notes as foldable callouts", () 
   assert.match(output, /## Zotero Notes/);
   assert.match(
     output,
-    /> \[!note\]\+ Zotero note 1 · First imported insight from Zotero\./
+    /> \[!note\]\+ Zotero note 1 · First imported insight from Zotero\./,
   );
   assert.match(
     output,
-    /> \[Open in Zotero\]\(zotero:\/\/select\/library\/items\/NOTE1\) · Last modified: 2026-03-14T17:56:02Z/
+    /> \[Open in Zotero\]\(zotero:\/\/select\/library\/items\/NOTE1\) · Last modified: 2026-03-14T17:56:02Z/,
   );
   assert.match(output, /> First imported insight from Zotero\./);
   assert.match(output, /> Supporting detail\./);
@@ -323,7 +330,7 @@ test("markLiteratureNoteAsDeletedContent updates frontmatter and adds a warning"
   assert.match(output, /> \[!warning\] This item was removed from Zotero/);
   assert.match(
     output,
-    /> The source item is no longer in your Zotero library\. This note is preserved but will no longer receive updates\./
+    /> The source item is no longer in your Zotero library\. This note is preserved but will no longer receive updates\./,
   );
 });
 
@@ -390,7 +397,7 @@ test("buildLiteratureNoteContent renders highlights as grouped callouts", () => 
   assert.match(output, /> Comment: This matters\./);
   assert.match(
     output,
-    /> \[Open annotation in Zotero\]\(zotero:\/\/open-pdf\/library\/items\/ATTACH1\?page=4&annotation=ANNOT1\)/
+    /> \[Open annotation in Zotero\]\(zotero:\/\/open-pdf\/library\/items\/ATTACH1\?page=4&annotation=ANNOT1\)/,
   );
 });
 
@@ -407,7 +414,8 @@ test("buildLiteratureNoteContent keeps grouped highlights expanded when there ar
           text: "First highlight.",
           comment: null,
           dateModified: null,
-          zoteroOpenPdfUri: "zotero://open-pdf/library/items/ATTACH1?page=4&annotation=ANNOT1",
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/ATTACH1?page=4&annotation=ANNOT1",
         },
         {
           key: "ANNOT2",
@@ -418,7 +426,8 @@ test("buildLiteratureNoteContent keeps grouped highlights expanded when there ar
           text: "Second highlight.",
           comment: null,
           dateModified: null,
-          zoteroOpenPdfUri: "zotero://open-pdf/library/items/ATTACH1?page=5&annotation=ANNOT2",
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/ATTACH1?page=5&annotation=ANNOT2",
         },
         {
           key: "ANNOT3",
@@ -429,7 +438,8 @@ test("buildLiteratureNoteContent keeps grouped highlights expanded when there ar
           text: "Third highlight.",
           comment: null,
           dateModified: null,
-          zoteroOpenPdfUri: "zotero://open-pdf/library/items/ATTACH1?page=6&annotation=ANNOT3",
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/ATTACH1?page=6&annotation=ANNOT3",
         },
       ],
     }),
@@ -478,7 +488,10 @@ test("buildLiteratureNoteContent removes stale managed frontmatter keys on updat
   assert.doesNotMatch(output, /zotero_publication_title: Old journal/);
   assert.doesNotMatch(output, /zotero_version: 11/);
   assert.match(output, /zotero_item_version: 12/);
-  assert.match(output, /tags: \[literature-note, source\/zotero, reference\/journal-article, zotero\/personality, zotero\/ml, custom\/topic\]/);
+  assert.match(
+    output,
+    /tags: \[literature-note, source\/zotero, reference\/journal-article, zotero\/personality, zotero\/ml, custom\/topic\]/,
+  );
   assert.match(output, /custom_property: Keep me/);
   assert.match(output, /User notes stay here\./);
   assert.match(output, /\[!stratum\]/);
@@ -516,7 +529,7 @@ test("findExistingLiteratureNoteMatch prefers exact library-aware matches in the
       libraryId: "123456",
       itemKey: "ABCD1234",
     },
-    "Literature Notes"
+    "Literature Notes",
   );
 
   assert.ok(match);
@@ -556,7 +569,7 @@ test("findExistingLiteratureNoteMatch keeps personal and group notes distinct fo
       libraryId: "2001",
       itemKey: "ABCD1234",
     },
-    "Literature Notes"
+    "Literature Notes",
   );
 
   assert.ok(match);
@@ -570,7 +583,7 @@ test("preprocessZoteroNoteHtml adds Zotero links for annotation and citation dat
       attachmentURI: "http://zotero.org/users/123456/items/ATTACH1",
       pageLabel: "7",
       annotationKey: "ANNOT1",
-    })
+    }),
   );
   const citationPayload = encodeURIComponent(
     JSON.stringify({
@@ -579,7 +592,7 @@ test("preprocessZoteroNoteHtml adds Zotero links for annotation and citation dat
           uris: ["http://zotero.org/users/123456/items/ABCD1234"],
         },
       ],
-    })
+    }),
   );
 
   const html = [
@@ -591,10 +604,13 @@ test("preprocessZoteroNoteHtml adds Zotero links for annotation and citation dat
 
   assert.match(
     output,
-    /zotero:\/\/open-pdf\/library\/items\/ATTACH1\?page=7&annotation=ANNOT1/
+    /zotero:\/\/open-pdf\/library\/items\/ATTACH1\?page=7&annotation=ANNOT1/,
   );
   assert.match(output, /Go to annotation/);
-  assert.match(output, /<a href="zotero:\/\/select\/library\/items\/ABCD1234">\(Bleidorn, 2019\)<\/a>/);
+  assert.match(
+    output,
+    /<a href="zotero:\/\/select\/library\/items\/ABCD1234">\(Bleidorn, 2019\)<\/a>/,
+  );
 });
 
 // --- New tests for expanded metadata and redesigned layout ---
@@ -657,7 +673,10 @@ test("preprint with arXiv shows arXiv as primary identifier in Cite callout", ()
     htmlToMarkdown: (html) => html,
   });
 
-  assert.match(output, /\*\*arXiv\*\*: \[2301\.12345\]\(https:\/\/arxiv\.org\/abs\/2301\.12345\)/);
+  assert.match(
+    output,
+    /\*\*arXiv\*\*: \[2301\.12345\]\(https:\/\/arxiv\.org\/abs\/2301\.12345\)/,
+  );
 });
 
 test("conference paper renders type-aware venue label", () => {
@@ -728,8 +747,14 @@ test("PMID and PMCID render as linked identifiers in Details callout", () => {
     htmlToMarkdown: (html) => html,
   });
 
-  assert.match(output, /\*\*PMID\*\*: \[12345678\]\(https:\/\/pubmed\.ncbi\.nlm\.nih\.gov\/12345678\/\)/);
-  assert.match(output, /\*\*PMCID\*\*: \[PMC9876543\]\(https:\/\/www\.ncbi\.nlm\.nih\.gov\/pmc\/articles\/PMC9876543\/\)/);
+  assert.match(
+    output,
+    /\*\*PMID\*\*: \[12345678\]\(https:\/\/pubmed\.ncbi\.nlm\.nih\.gov\/12345678\/\)/,
+  );
+  assert.match(
+    output,
+    /\*\*PMCID\*\*: \[PMC9876543\]\(https:\/\/www\.ncbi\.nlm\.nih\.gov\/pmc\/articles\/PMC9876543\/\)/,
+  );
 });
 
 test("new frontmatter fields are emitted when present", () => {

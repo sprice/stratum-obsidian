@@ -38,12 +38,14 @@ export class StratumSettingTab extends PluginSettingTab {
     const zoteroConnection = this.plugin.zoteroConnection;
     const zoteroConnected = Boolean(zoteroConnection?.connected);
     const lastKnownZoteroUsername =
-      zoteroConnection?.zoteroUsername ?? this.plugin.settings.lastKnownZoteroUsername;
+      zoteroConnection?.zoteroUsername ??
+      this.plugin.settings.lastKnownZoteroUsername;
     const linkedAt = this.plugin.settings.accountLinkedAt
       ? new Date(this.plugin.settings.accountLinkedAt).toLocaleString()
       : null;
     const lastKnownZoteroLinkedAt =
-      zoteroConnection?.lastSyncedAt ?? this.plugin.settings.lastKnownZoteroConfirmedAt;
+      zoteroConnection?.lastSyncedAt ??
+      this.plugin.settings.lastKnownZoteroConfirmedAt;
     const zoteroLinkedAt = lastKnownZoteroLinkedAt
       ? new Date(lastKnownZoteroLinkedAt).toLocaleString()
       : null;
@@ -59,11 +61,13 @@ export class StratumSettingTab extends PluginSettingTab {
             : `Signed in as ${accountEmail}.`
           : this.plugin.settings.lastDeviceCode
             ? "Browser sign-in has been opened for this device. Finish the flow and return to Obsidian."
-            : "Sign in to Stratum."
+            : "Sign in to Stratum.",
       )
       .addButton((button) =>
         button
-          .setButtonText(accountEmail ? "Sign out of Stratum" : "Sign in to Stratum")
+          .setButtonText(
+            accountEmail ? "Sign out of Stratum" : "Sign in to Stratum",
+          )
           .setCta()
           .onClick(async () => {
             if (accountEmail) {
@@ -72,7 +76,7 @@ export class StratumSettingTab extends PluginSettingTab {
               await this.plugin.startDeviceHandoff();
             }
             this.display();
-          })
+          }),
       );
 
     const tokenInvalid = zoteroConnection?.tokenValid === false;
@@ -98,14 +102,16 @@ export class StratumSettingTab extends PluginSettingTab {
                 : lastKnownZoteroSummary
                   ? `Signed out of Zotero. Connect Zotero again to search and sync papers. ${lastKnownZoteroSummary}`
                   : "Not connected yet."
-          : "Sign in to your Stratum account first."
+          : "Sign in to your Stratum account first.",
       )
       .addButton((button) => {
         const canConnectZotero = Boolean(accountEmail);
         const needsReconnect = tokenInvalid || !zoteroConnected;
         button
           .setButtonText(needsReconnect ? "Connect Zotero" : "Refresh status")
-          .setDisabled(!canConnectZotero || this.plugin.isLoadingZoteroConnection)
+          .setDisabled(
+            !canConnectZotero || this.plugin.isLoadingZoteroConnection,
+          )
           .onClick(async () => {
             if (!canConnectZotero) {
               return;
@@ -132,7 +138,7 @@ export class StratumSettingTab extends PluginSettingTab {
         .setDesc(
           zoteroConnected
             ? `Always enabled. Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}.`
-            : "Always enabled once Zotero is connected."
+            : "Always enabled once Zotero is connected.",
         );
     }
 
@@ -148,7 +154,7 @@ export class StratumSettingTab extends PluginSettingTab {
       for (const group of this.plugin.availableGroups) {
         const identity = `group:${group.id}`;
         const isEnabled = this.plugin.settings.enabledLibraries.some(
-          (library) => library.identity === identity
+          (library) => library.identity === identity,
         );
         new Setting(librariesSection)
           .setName(group.name)
@@ -157,7 +163,7 @@ export class StratumSettingTab extends PluginSettingTab {
             toggle
               .setDisabled(
                 this.plugin.isBulkLibrarySyncRunning() ||
-                  this.plugin.isZoteroAutoSyncRunning()
+                  this.plugin.isZoteroAutoSyncRunning(),
               )
               .setValue(isEnabled)
               .onChange(async (value) => {
@@ -170,7 +176,7 @@ export class StratumSettingTab extends PluginSettingTab {
                 await this.plugin.saveSettings();
                 this.plugin.refreshViews();
                 this.display();
-              })
+              }),
           );
       }
     }
@@ -180,7 +186,7 @@ export class StratumSettingTab extends PluginSettingTab {
     new Setting(syncSection)
       .setName("Sync libraries")
       .setDesc(
-        "Check enabled libraries for remote changes to notes that already exist in your vault."
+        "Check enabled libraries for remote changes to notes that already exist in your vault.",
       )
       .addButton((button) =>
         button
@@ -188,53 +194,51 @@ export class StratumSettingTab extends PluginSettingTab {
             this.plugin.isBulkLibrarySyncRunning()
               ? "Bulk sync running..."
               : this.plugin.isZoteroAutoSyncRunning()
-              ? "Syncing..."
-              : "Sync now"
+                ? "Syncing..."
+                : "Sync now",
           )
           .setDisabled(
             !accountEmail ||
               !zoteroConnected ||
-            this.plugin.isZoteroAutoSyncRunning() ||
-              this.plugin.isBulkLibrarySyncRunning()
+              this.plugin.isZoteroAutoSyncRunning() ||
+              this.plugin.isBulkLibrarySyncRunning(),
           )
           .setCta()
           .onClick(async () => {
             await this.plugin.runZoteroAutoSync("manual");
             this.display();
-          })
+          }),
       );
 
     for (const library of this.plugin.settings.enabledLibraries) {
       const state = getLibraryAutoSyncState(this.plugin, library);
-      new Setting(syncSection)
-        .setName(library.name)
-        .setDesc(
-          state.lastError
+      new Setting(syncSection).setName(library.name).setDesc(
+        state.lastError
+          ? `${getSyncStatusLabel({
+              isSyncing: this.plugin.isZoteroAutoSyncRunning(),
+              autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
+              state,
+            })}. Last error: ${state.lastError}`
+          : state.lastSuccessfulSyncAt
             ? `${getSyncStatusLabel({
                 isSyncing: this.plugin.isZoteroAutoSyncRunning(),
                 autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
                 state,
-              })}. Last error: ${state.lastError}`
-            : state.lastSuccessfulSyncAt
-              ? `${getSyncStatusLabel({
-                  isSyncing: this.plugin.isZoteroAutoSyncRunning(),
-                  autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
-                  state,
-                })}. Last successful sync: ${new Date(
-                  state.lastSuccessfulSyncAt
-                ).toLocaleString()}.`
-              : getSyncStatusLabel({
-                  isSyncing: this.plugin.isZoteroAutoSyncRunning(),
-                  autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
-                  state,
-                })
-        );
+              })}. Last successful sync: ${new Date(
+                state.lastSuccessfulSyncAt,
+              ).toLocaleString()}.`
+            : getSyncStatusLabel({
+                isSyncing: this.plugin.isZoteroAutoSyncRunning(),
+                autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
+                state,
+              }),
+      );
     }
 
     new Setting(syncSection)
       .setName("Auto-sync Zotero changes")
       .setDesc(
-        "Refresh existing literature notes on startup, when Obsidian regains focus, and on the interval below."
+        "Refresh existing literature notes on startup, when Obsidian regains focus, and on the interval below.",
       )
       .addToggle((toggle) =>
         toggle
@@ -247,13 +251,13 @@ export class StratumSettingTab extends PluginSettingTab {
               void this.plugin.runZoteroAutoSync("startup");
             }
             this.display();
-          })
+          }),
       );
 
     const intervalSetting = new Setting(syncSection)
       .setName("Auto-sync interval (minutes)")
       .setDesc(
-        "How often the plugin checks for remote library changes. Default: 15 minutes."
+        "How often the plugin checks for remote library changes. Default: 15 minutes.",
       );
     intervalSetting.addText((text) => {
       text
@@ -275,7 +279,10 @@ export class StratumSettingTab extends PluginSettingTab {
       text.inputEl.step = "1";
     });
 
-    const defaultsSection = this.createSection(containerEl, "Workspace defaults");
+    const defaultsSection = this.createSection(
+      containerEl,
+      "Workspace defaults",
+    );
 
     new Setting(defaultsSection)
       .setName("Literature notes folder")
@@ -285,16 +292,17 @@ export class StratumSettingTab extends PluginSettingTab {
           .setPlaceholder(DEFAULT_NOTE_FOLDER)
           .setValue(this.plugin.settings.notesFolder)
           .onChange(async (value) => {
-            this.plugin.settings.notesFolder = value.trim() || DEFAULT_NOTE_FOLDER;
+            this.plugin.settings.notesFolder =
+              value.trim() || DEFAULT_NOTE_FOLDER;
             await this.plugin.saveSettings();
             await this.plugin.rebuildItemFileMap();
-          })
+          }),
       );
 
     new Setting(defaultsSection)
       .setName("Literature note filename format")
       .setDesc(
-        "Controls how new literature notes are named. Existing notes are not bulk-renamed when this changes. The citation key format currently uses a generated fallback until richer citekey support is wired in."
+        "Controls how new literature notes are named. Existing notes are not bulk-renamed when this changes. The citation key format currently uses a generated fallback until richer citekey support is wired in.",
       )
       .addDropdown((dropdown) =>
         dropdown
@@ -302,9 +310,10 @@ export class StratumSettingTab extends PluginSettingTab {
           .addOption("citekey", "Citation key format (@author2020title)")
           .setValue(this.plugin.settings.filenameFormat)
           .onChange(async (value) => {
-            this.plugin.settings.filenameFormat = value as LiteratureNoteFilenameFormat;
+            this.plugin.settings.filenameFormat =
+              value as LiteratureNoteFilenameFormat;
             await this.plugin.saveSettings();
-          })
+          }),
       );
   }
 }

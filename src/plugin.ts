@@ -1,7 +1,4 @@
-import {
-  Plugin,
-  type TFile,
-} from "obsidian";
+import { Plugin, type TFile } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
   PLUGIN_NAME,
@@ -63,17 +60,12 @@ import {
   rebuildItemFileMap,
   syncItemFileMapForFile,
 } from "./plugin-note-index";
-import {
-  loadPluginSettings,
-  savePluginSettings,
-} from "./plugin-persistence";
+import { loadPluginSettings, savePluginSettings } from "./plugin-persistence";
 import {
   AUTO_SYNC_FOCUS_COOLDOWN_MS,
   shouldSkipFocusSync,
 } from "./zotero-sync";
-import {
-  runZoteroAutoSync,
-} from "./plugin-sync";
+import { runZoteroAutoSync } from "./plugin-sync";
 import {
   getBulkLibrarySyncProcessedCount,
   runBulkLibrarySync,
@@ -139,15 +131,18 @@ export default class StratumPlugin extends Plugin {
     closePicker: () => closeLibraryPicker(this),
     scheduleClose: () => scheduleLibraryPickerClose(this),
     cancelClose: () => cancelLibraryPickerClose(this),
-    moveHighlight: (direction: 1 | -1) => moveLibrarySearchHighlight(this, direction),
+    moveHighlight: (direction: 1 | -1) =>
+      moveLibrarySearchHighlight(this, direction),
     selectHighlighted: () => selectHighlightedLibraryResult(this),
-    selectResult: (result: ZoteroSearchResult) => selectLibrarySearchResult(this, result),
+    selectResult: (result: ZoteroSearchResult) =>
+      selectLibrarySearchResult(this, result),
     clearSelection: (options?: { resetQuery?: boolean }) =>
       clearSelectedLibraryResult(this, options),
     toggleAbstract: () => toggleSelectedLibraryAbstract(this),
     refreshSearch: () => refreshLibrarySearch(this),
     fetchSuggestions: (query: string) => getLibrarySuggestions(this, query),
-    createNote: (result: ZoteroSearchResult) => createLiteratureNote(this, result),
+    createNote: (result: ZoteroSearchResult) =>
+      createLiteratureNote(this, result),
   };
 
   async onload(): Promise<void> {
@@ -161,10 +156,7 @@ export default class StratumPlugin extends Plugin {
 
     this.settingTab = new StratumSettingTab(this);
     this.addSettingTab(this.settingTab);
-    this.registerView(
-      VIEW_TYPE_STRATUM,
-      (leaf) => new StratumView(leaf, this)
-    );
+    this.registerView(VIEW_TYPE_STRATUM, (leaf) => new StratumView(leaf, this));
 
     this.addRibbonIcon("book-open-text", openStratumRibbonLabel, () => {
       void this.activateView();
@@ -211,24 +203,24 @@ export default class StratumPlugin extends Plugin {
     this.registerEvent(
       this.app.metadataCache.on("changed", (file, _data, cache) => {
         syncItemFileMapForFile(this, file, cache);
-      })
+      }),
     );
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         handleItemFileRename(this, file, oldPath);
-      })
+      }),
     );
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         handleItemFileDelete(this, file);
-      })
+      }),
     );
     this.registerDomEvent(window, "focus", () => {
       if (
         shouldSkipFocusSync(
           this.lastFocusSyncAt,
           Date.now(),
-          AUTO_SYNC_FOCUS_COOLDOWN_MS
+          AUTO_SYNC_FOCUS_COOLDOWN_MS,
         )
       ) {
         return;
@@ -275,7 +267,9 @@ export default class StratumPlugin extends Plugin {
     await loadPluginSettings(this);
   }
 
-  async saveSettings(): Promise<void> { await savePluginSettings(this); }
+  async saveSettings(): Promise<void> {
+    await savePluginSettings(this);
+  }
 
   async activateView(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_STRATUM);
@@ -307,9 +301,13 @@ export default class StratumPlugin extends Plugin {
     }
   }
 
-  getAutoSyncStatusLabel(): string { return getAutoSyncStatusLabel(this); }
+  getAutoSyncStatusLabel(): string {
+    return getAutoSyncStatusLabel(this);
+  }
 
-  isZoteroAutoSyncRunning(): boolean { return this.isAutoSyncRunning; }
+  isZoteroAutoSyncRunning(): boolean {
+    return this.isAutoSyncRunning;
+  }
 
   isBulkLibrarySyncRunning(): boolean {
     return this.bulkLibrarySyncRunPromise !== null;
@@ -319,11 +317,17 @@ export default class StratumPlugin extends Plugin {
     return getBulkLibrarySyncProcessedCount(this);
   }
 
-  refreshAutoSyncUi(): void { refreshAutoSyncUi(this); }
+  refreshAutoSyncUi(): void {
+    refreshAutoSyncUi(this);
+  }
 
-  configureAutoSyncInterval(): void { configureAutoSyncInterval(this); }
+  configureAutoSyncInterval(): void {
+    configureAutoSyncInterval(this);
+  }
 
-  async rebuildItemFileMap(): Promise<void> { await rebuildItemFileMap(this); }
+  async rebuildItemFileMap(): Promise<void> {
+    await rebuildItemFileMap(this);
+  }
 
   findExistingLiteratureNoteFile(identity: {
     libraryType: string;
@@ -338,23 +342,29 @@ export default class StratumPlugin extends Plugin {
       library: { type: string; id: string };
       item: { key: string; version: number };
     },
-    file: TFile
+    file: TFile,
   ): void {
     rememberLiteratureNoteFile(this, detail, file);
   }
 
-  async startDeviceHandoff(): Promise<void> { await startDeviceHandoff(this); }
+  async startDeviceHandoff(): Promise<void> {
+    await startDeviceHandoff(this);
+  }
 
-  async signOutFromPlugin(): Promise<void> { await signOutFromPlugin(this); }
+  async signOutFromPlugin(): Promise<void> {
+    await signOutFromPlugin(this);
+  }
 
-  async startZoteroConnect(): Promise<void> { await startZoteroConnect(this); }
+  async startZoteroConnect(): Promise<void> {
+    await startZoteroConnect(this);
+  }
 
   async refreshZoteroConnection(): Promise<void> {
     await refreshZoteroConnection(this);
   }
 
   async runZoteroAutoSync(
-    reason: "startup" | "focus" | "interval" | "manual"
+    reason: "startup" | "focus" | "interval" | "manual",
   ): Promise<void> {
     await runZoteroAutoSync(this, reason);
   }

@@ -1,4 +1,9 @@
-import { FuzzySuggestModal, type App, type FuzzyMatch, type TFile } from "obsidian";
+import {
+  FuzzySuggestModal,
+  type App,
+  type FuzzyMatch,
+  type TFile,
+} from "obsidian";
 import type StratumPlugin from "./plugin";
 import { isPathInsideNotesFolder } from "./plugin-note-index";
 
@@ -18,7 +23,11 @@ export interface LiteratureNoteEntry {
 }
 
 function stripWikiLink(value: string): string {
-  return value.replace(/^\[\[/, "").replace(/]]$/, "").replace(/\|.*$/, "").trim();
+  return value
+    .replace(/^\[\[/, "")
+    .replace(/]]$/, "")
+    .replace(/\|.*$/, "")
+    .trim();
 }
 
 function extractAuthors(value: unknown): string[] {
@@ -44,7 +53,7 @@ function str(value: unknown): string | null {
 }
 
 export function buildLiteratureNoteEntries(
-  plugin: StratumPlugin
+  plugin: StratumPlugin,
 ): LiteratureNoteEntry[] {
   const entries: LiteratureNoteEntry[] = [];
 
@@ -59,12 +68,16 @@ export function buildLiteratureNoteEntries(
       file,
       title: extractTitle(fm, file.basename),
       authors: extractAuthors(fm.authors),
-      year: typeof fm.year === "string" || typeof fm.year === "number"
-        ? String(fm.year)
-        : null,
+      year:
+        typeof fm.year === "string" || typeof fm.year === "number"
+          ? String(fm.year)
+          : null,
       citationKey: str(fm.citation_key),
       doi: str(fm.doi),
-      publication: typeof fm.publication === "string" ? stripWikiLink(fm.publication) : null,
+      publication:
+        typeof fm.publication === "string"
+          ? stripWikiLink(fm.publication)
+          : null,
       volume: str(fm.volume),
       issue: str(fm.issue),
       pages: str(fm.pages),
@@ -83,12 +96,14 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
   constructor(
     app: App,
     entries: LiteratureNoteEntry[],
-    onSelect: (entry: LiteratureNoteEntry) => void
+    onSelect: (entry: LiteratureNoteEntry) => void,
   ) {
     super(app);
     this.entries = entries;
     this.onSelect = onSelect;
-    this.setPlaceholder("Search literature notes by title, author, year, or citation key");
+    this.setPlaceholder(
+      "Search literature notes by title, author, year, or citation key",
+    );
     this.limit = 30;
   }
 
@@ -106,16 +121,18 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
     return parts.join(" ");
   }
 
-  renderSuggestion(match: FuzzyMatch<LiteratureNoteEntry>, el: HTMLElement): void {
+  renderSuggestion(
+    match: FuzzyMatch<LiteratureNoteEntry>,
+    el: HTMLElement,
+  ): void {
     const entry = match.item;
     el.createDiv({
       cls: "stratum-suggestion-title",
       text: entry.title,
     });
-    const meta = [
-      entry.authors.join(", "),
-      entry.year,
-    ].filter(Boolean).join(" \u00B7 ");
+    const meta = [entry.authors.join(", "), entry.year]
+      .filter(Boolean)
+      .join(" \u00B7 ");
     if (meta) {
       el.createDiv({
         cls: "stratum-suggestion-meta",

@@ -9,5 +9,7 @@ export function getLibrarySearchCacheKey(query: string): string {
 }
 
 export function isLibrarySearchQueryReady(query: string): boolean {
-  return getLibrarySearchCacheKey(query).length >= MIN_LIBRARY_SEARCH_QUERY_LENGTH;
+  return (
+    getLibrarySearchCacheKey(query).length >= MIN_LIBRARY_SEARCH_QUERY_LENGTH
+  );
 }

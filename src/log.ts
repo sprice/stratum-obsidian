@@ -3,7 +3,7 @@ const PREFIX = "stratum";
 export function log(
   area: string,
   message: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ): void {
   const suffix = data
     ? " " +
@@ -17,7 +17,7 @@ export function log(
 export async function timed<T>(
   area: string,
   label: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   const start = performance.now();
   log(area, `${label} started`);

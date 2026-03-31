@@ -43,7 +43,7 @@ test("findAffectedPathsForDeletedChildKeys matches attachment, note, and annotat
         },
       },
     ],
-    ["NOTE1", "ANNOT9"]
+    ["NOTE1", "ANNOT9"],
   );
 
   assert.deepEqual(paths, [
@@ -63,7 +63,7 @@ test("getSyncStatusLabel reports relative sync times and errors", () => {
       },
       now: Date.parse("2026-03-14T12:02:00.000Z"),
     }),
-    /^Zotero: synced /
+    /^Zotero: synced /,
   );
 
   assert.equal(
@@ -75,7 +75,7 @@ test("getSyncStatusLabel reports relative sync times and errors", () => {
         lastError: "Boom",
       },
     }),
-    "Zotero: sync failed"
+    "Zotero: sync failed",
   );
 });
 
@@ -83,27 +83,27 @@ test("formatRelativeSyncTime and shouldSkipFocusSync handle cooldown windows", (
   assert.equal(
     formatRelativeSyncTime(
       "2026-03-14T12:00:00.000Z",
-      Date.parse("2026-03-14T12:00:30.000Z")
+      Date.parse("2026-03-14T12:00:30.000Z"),
     ),
-    "30 seconds ago"
+    "30 seconds ago",
   );
 
   assert.equal(
     shouldSkipFocusSync(
       Date.parse("2026-03-14T12:00:00.000Z"),
       Date.parse("2026-03-14T12:00:20.000Z"),
-      30_000
+      30_000,
     ),
-    true
+    true,
   );
 
   assert.equal(
     shouldSkipFocusSync(
       Date.parse("2026-03-14T12:00:00.000Z"),
       Date.parse("2026-03-14T12:00:31.000Z"),
-      30_000
+      30_000,
     ),
-    false
+    false,
   );
 });
 
@@ -113,7 +113,7 @@ test("bulk library sync labels reflect running, paused, and completed states", (
       ...DEFAULT_BULK_SYNC_STATE,
       phase: "running",
     }),
-    "Syncing Zotero papers..."
+    "Syncing Zotero papers...",
   );
 
   assert.equal(
@@ -121,7 +121,7 @@ test("bulk library sync labels reflect running, paused, and completed states", (
       ...DEFAULT_BULK_SYNC_STATE,
       phase: "paused-rate-limit",
     }),
-    "Resume Zotero sync"
+    "Resume Zotero sync",
   );
 
   assert.equal(
@@ -133,7 +133,7 @@ test("bulk library sync labels reflect running, paused, and completed states", (
       },
       processedCount: 45,
     }),
-    "Syncing 45 of 120 papers."
+    "Syncing 45 of 120 papers.",
   );
 
   assert.equal(
@@ -144,7 +144,7 @@ test("bulk library sync labels reflect running, paused, and completed states", (
         retryAfterSeconds: 30,
       },
     }),
-    "Paused while Zotero asks us to slow down. Resume in about 30 seconds."
+    "Paused while Zotero asks us to slow down. Resume in about 30 seconds.",
   );
 
   assert.equal(
@@ -155,6 +155,6 @@ test("bulk library sync labels reflect running, paused, and completed states", (
         totalResults: 12,
       },
     }),
-    "Finished syncing 12 papers."
+    "Finished syncing 12 papers.",
   );
 });

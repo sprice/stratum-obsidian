@@ -67,8 +67,12 @@ export {
 
 export class BackendClient {
   private state: BackendAuthState;
-  private onSessionChange: (session: PersistedAuthSession | null) => Promise<void>;
-  private onUserChange: (user: AuthenticatedUserSummary | null) => Promise<void>;
+  private onSessionChange: (
+    session: PersistedAuthSession | null,
+  ) => Promise<void>;
+  private onUserChange: (
+    user: AuthenticatedUserSummary | null,
+  ) => Promise<void>;
 
   constructor(options: {
     initialSession: PersistedAuthSession | null;
@@ -155,7 +159,7 @@ export class BackendClient {
 
   async searchZoteroLibrary(
     query: string,
-    options?: { refresh?: boolean; library?: LibraryParam }
+    options?: { refresh?: boolean; library?: LibraryParam },
   ): Promise<ZoteroSearchResponse> {
     const queryParams = new URLSearchParams({
       q: query.trim(),
@@ -165,7 +169,7 @@ export class BackendClient {
     }
     appendLibraryParams(queryParams, options?.library);
     const response = await this.authedFetch(
-      `/zotero-library-search?${queryParams.toString()}`
+      `/zotero-library-search?${queryParams.toString()}`,
     );
 
     this.throwIfBackendError(response, "Zotero library search failed");
@@ -184,10 +188,13 @@ export class BackendClient {
     });
     appendLibraryParams(query, params.library);
     const response = await this.authedFetch(
-      `/zotero-library-catalog-page?${query.toString()}`
+      `/zotero-library-catalog-page?${query.toString()}`,
     );
 
-    this.throwIfBackendError(response, "Failed to load Zotero library catalog page");
+    this.throwIfBackendError(
+      response,
+      "Failed to load Zotero library catalog page",
+    );
 
     return this.readJson<ZoteroLibraryCatalogPageResponse>(response);
   }
@@ -201,7 +208,7 @@ export class BackendClient {
     });
     appendLibraryParams(query, options?.library);
     const response = await this.authedFetch(
-      `/zotero-item-detail?${query.toString()}`
+      `/zotero-item-detail?${query.toString()}`,
     );
 
     this.throwIfBackendError(response, "Failed to load Zotero item detail");
@@ -209,13 +216,11 @@ export class BackendClient {
     return this.readJson<ZoteroItemDetail>(response);
   }
 
-  async getOpenAlexEnrichment(
-    doi: string
-  ): Promise<OpenAlexEnrichment | null> {
+  async getOpenAlexEnrichment(doi: string): Promise<OpenAlexEnrichment | null> {
     try {
       const response = await this.authedFetch(
         `/openalex-enrich?doi=${encodeURIComponent(doi)}`,
-        { skipSessionClearOnAuthError: true }
+        { skipSessionClearOnAuthError: true },
       );
       if (!this.isOk(response)) {
         return null;
@@ -240,7 +245,7 @@ export class BackendClient {
     appendLibraryParams(query, options?.library);
     const suffix = query.toString();
     const response = await this.authedFetch(
-      `/zotero-library-changes${suffix ? `?${suffix}` : ""}`
+      `/zotero-library-changes${suffix ? `?${suffix}` : ""}`,
     );
 
     this.throwIfBackendError(response, "Failed to load Zotero library changes");
@@ -250,7 +255,7 @@ export class BackendClient {
 
   async authedFetch(
     path: string,
-    init?: AuthedRequestOptions
+    init?: AuthedRequestOptions,
   ): Promise<RequestUrlResponse> {
     const accessToken = await this.getValidAccessToken();
     if (!accessToken) {
@@ -278,7 +283,10 @@ export class BackendClient {
       ms: Math.round(performance.now() - start),
     });
 
-    if (AUTH_ERROR_STATUSES.has(response.status) && !skipSessionClearOnAuthError) {
+    if (
+      AUTH_ERROR_STATUSES.has(response.status) &&
+      !skipSessionClearOnAuthError
+    ) {
       await this.clearSession();
     }
 
@@ -302,7 +310,7 @@ export class BackendClient {
   }
 
   private async refreshSession(
-    refreshToken: string
+    refreshToken: string,
   ): Promise<PersistedAuthSession | null> {
     const response = await requestUrl({
       url: `${PLUGIN_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
@@ -350,7 +358,7 @@ export class BackendClient {
 
   private throwIfBackendError(
     response: RequestUrlResponse,
-    fallbackMessage: string
+    fallbackMessage: string,
   ): void {
     if (this.isOk(response)) {
       return;
@@ -372,8 +380,8 @@ export class BackendClient {
       throw new ZoteroRateLimitedError(
         payload.retryAfterSeconds
           ? `${payload.error ?? fallbackMessage} Retry in about ${payload.retryAfterSeconds} seconds.`
-          : payload.error ?? fallbackMessage,
-        payload.retryAfterSeconds ?? 60
+          : (payload.error ?? fallbackMessage),
+        payload.retryAfterSeconds ?? 60,
       );
     }
 

@@ -79,7 +79,7 @@ function resetBulkLibrarySyncRuntime(plugin: StratumPlugin): void {
 function setBulkLibrarySyncPageProgress(
   plugin: StratumPlugin,
   processedCount: number,
-  totalCount: number
+  totalCount: number,
 ): void {
   plugin.bulkLibrarySyncCurrentPageProcessedCount = processedCount;
   plugin.bulkLibrarySyncCurrentPageTotalCount = totalCount;
@@ -109,7 +109,7 @@ function buildFreshBulkLibrarySyncState(): BulkLibrarySyncState {
 }
 
 function buildRunningBulkLibrarySyncState(
-  currentState: BulkLibrarySyncState
+  currentState: BulkLibrarySyncState,
 ): BulkLibrarySyncState {
   if (!isResumableBulkLibrarySyncState(currentState)) {
     return buildFreshBulkLibrarySyncState();
@@ -128,10 +128,11 @@ function commitBulkCatalogPage(
   plugin: StratumPlugin,
   library: EnabledLibrary,
   page: ZoteroLibraryCatalogPageResponse,
-  result: CatalogPageResult
+  result: CatalogPageResult,
 ): void {
   const state = getLibraryBulkSyncState(plugin, library);
-  state.snapshotLibraryVersion = page.snapshotLibraryVersion ?? state.snapshotLibraryVersion;
+  state.snapshotLibraryVersion =
+    page.snapshotLibraryVersion ?? state.snapshotLibraryVersion;
   state.totalResults = page.totalResults ?? state.totalResults;
   state.nextStart = page.nextStart ?? page.start + page.limit;
   state.processedCount += page.items.length;
@@ -146,7 +147,7 @@ function commitBulkCatalogPage(
 
 function getCatalogIdentity(
   library: ZoteroLibraryIdentity,
-  itemKey: string
+  itemKey: string,
 ): {
   libraryType: string;
   libraryId: string;
@@ -163,10 +164,10 @@ async function syncCatalogItem(
   plugin: StratumPlugin,
   library: EnabledLibrary,
   item: ZoteroLibraryCatalogItem,
-  reserveStartSlot: () => Promise<void>
+  reserveStartSlot: () => Promise<void>,
 ): Promise<"created" | "updated" | "skipped"> {
   const existingFile = plugin.findExistingLiteratureNoteFile(
-    getCatalogIdentity(library, item.key)
+    getCatalogIdentity(library, item.key),
   );
 
   await reserveStartSlot();
@@ -191,7 +192,7 @@ async function syncCatalogItem(
 async function processCatalogPage(
   plugin: StratumPlugin,
   library: EnabledLibrary,
-  page: ZoteroLibraryCatalogPageResponse
+  page: ZoteroLibraryCatalogPageResponse,
 ): Promise<CatalogPageResult> {
   const result: CatalogPageResult = {
     createdCount: 0,
@@ -214,13 +215,17 @@ async function processCatalogPage(
   const reserveStartSlot = async (): Promise<void> => {
     const now = Date.now();
     const waitMs = Math.max(0, nextStartAt - now);
-    nextStartAt = Math.max(nextStartAt, now) + BULK_LIBRARY_SYNC_ITEM_START_GAP_MS;
+    nextStartAt =
+      Math.max(nextStartAt, now) + BULK_LIBRARY_SYNC_ITEM_START_GAP_MS;
     if (waitMs > 0) {
       await delay(waitMs);
     }
   };
 
-  const workerCount = Math.min(BULK_LIBRARY_SYNC_CONCURRENCY, page.items.length);
+  const workerCount = Math.min(
+    BULK_LIBRARY_SYNC_CONCURRENCY,
+    page.items.length,
+  );
   const workers = Array.from({ length: workerCount }, async () => {
     while (true) {
       if (fatalError) {
@@ -239,7 +244,7 @@ async function processCatalogPage(
           plugin,
           library,
           item,
-          reserveStartSlot
+          reserveStartSlot,
         );
         if (outcome === "created") {
           result.createdCount += 1;
@@ -262,11 +267,18 @@ async function processCatalogPage(
         } else {
           result.failedCount += 1;
           pushFailedItemKey(result.failedItemKeys, item.key);
-          console.error(`stratum: bulk sync failed for item ${item.key}`, error);
+          console.error(
+            `stratum: bulk sync failed for item ${item.key}`,
+            error,
+          );
         }
       } finally {
         processedCount += 1;
-        setBulkLibrarySyncPageProgress(plugin, processedCount, page.items.length);
+        setBulkLibrarySyncPageProgress(
+          plugin,
+          processedCount,
+          page.items.length,
+        );
       }
     }
   });
@@ -291,7 +303,7 @@ async function runFinalBulkSyncCatchUp(plugin: StratumPlugin): Promise<void> {
     bulkState.snapshotLibraryVersion,
     {
       library,
-    }
+    },
   );
   await applyZoteroLibraryChanges(plugin, changes);
   autoSyncState.libraryVersion = changes.latestLibraryVersion;
@@ -302,7 +314,7 @@ async function runFinalBulkSyncCatchUp(plugin: StratumPlugin): Promise<void> {
 
 function formatBulkSyncCompletionNotice(
   library: EnabledLibrary,
-  state: BulkLibrarySyncState
+  state: BulkLibrarySyncState,
 ): string {
   const parts = [
     `${PLUGIN_NAME}: synced ${state.processedCount} paper${
@@ -317,9 +329,7 @@ function formatBulkSyncCompletionNotice(
     state.updatedCount > 0
       ? `updated ${state.updatedCount} note${state.updatedCount === 1 ? "" : "s"}`
       : null,
-    state.failedCount > 0
-      ? `${state.failedCount} failed`
-      : null,
+    state.failedCount > 0 ? `${state.failedCount} failed` : null,
   ].filter(Boolean);
 
   if (changeSummary.length > 0) {
@@ -331,7 +341,7 @@ function formatBulkSyncCompletionNotice(
 
 async function retryFailedCatalogItems(
   plugin: StratumPlugin,
-  library: EnabledLibrary
+  library: EnabledLibrary,
 ): Promise<{
   createdCount: number;
   updatedCount: number;
@@ -408,7 +418,9 @@ async function retryFailedCatalogItems(
   return result;
 }
 
-export function getBulkLibrarySyncProcessedCount(plugin: StratumPlugin): number {
+export function getBulkLibrarySyncProcessedCount(
+  plugin: StratumPlugin,
+): number {
   const activeLibrary = getActiveBulkSyncLibrary(plugin);
   if (!activeLibrary) {
     return 0;
@@ -422,7 +434,7 @@ export function getBulkLibrarySyncProcessedCount(plugin: StratumPlugin): number 
 
 export async function runBulkLibrarySync(
   plugin: StratumPlugin,
-  library: EnabledLibrary
+  library: EnabledLibrary,
 ): Promise<void> {
   if (plugin.bulkLibrarySyncRunPromise) {
     new Notice(`${PLUGIN_NAME}: Zotero bulk sync is already running.`);
@@ -432,12 +444,16 @@ export async function runBulkLibrarySync(
   const runPromise = (async () => {
     try {
       if (plugin.isAutoSyncRunning) {
-        new Notice(`${PLUGIN_NAME}: Wait for the current Zotero sync to finish first.`);
+        new Notice(
+          `${PLUGIN_NAME}: Wait for the current Zotero sync to finish first.`,
+        );
         return;
       }
 
       if (!(await ensureZoteroConnection(plugin, { refresh: true }))) {
-        new Notice(`${PLUGIN_NAME}: Connect Zotero before syncing your library.`);
+        new Notice(
+          `${PLUGIN_NAME}: Connect Zotero before syncing your library.`,
+        );
         return;
       }
 
@@ -445,9 +461,8 @@ export async function runBulkLibrarySync(
 
       const state = getLibraryBulkSyncState(plugin, library);
       const shouldResume = isResumableBulkLibrarySyncState(state);
-      plugin.settings.libraryBulkSync[library.identity] = buildRunningBulkLibrarySyncState(
-        state
-      );
+      plugin.settings.libraryBulkSync[library.identity] =
+        buildRunningBulkLibrarySyncState(state);
       plugin.settings.activeBulkSyncLibrary = library.identity;
       await plugin.saveSettings();
       resetBulkLibrarySyncRuntime(plugin);
@@ -477,7 +492,8 @@ export async function runBulkLibrarySync(
         });
         libraryState.snapshotLibraryVersion =
           libraryState.snapshotLibraryVersion ?? page.snapshotLibraryVersion;
-        libraryState.totalResults = page.totalResults ?? libraryState.totalResults;
+        libraryState.totalResults =
+          page.totalResults ?? libraryState.totalResults;
         queueBulkLibrarySyncUiRefresh(plugin);
 
         const pageResult = await processCatalogPage(plugin, library, page);
@@ -547,7 +563,7 @@ export async function runBulkLibrarySync(
         state.retryAfterSeconds = null;
         await plugin.saveSettings();
         new Notice(
-          `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
+          `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`,
         );
       } else if (error instanceof ZoteroNotConnectedError) {
         markZoteroDisconnected(plugin);
@@ -556,7 +572,9 @@ export async function runBulkLibrarySync(
           "Zotero is not connected. Please connect it again in settings.";
         state.retryAfterSeconds = null;
         await plugin.saveSettings();
-        new Notice(`${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`);
+        new Notice(
+          `${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`,
+        );
       } else if (error instanceof ZoteroRateLimitedError) {
         state.phase = "paused-rate-limit";
         state.lastError = error.message;
@@ -573,7 +591,7 @@ export async function runBulkLibrarySync(
         new Notice(
           `${PLUGIN_NAME}: ${
             error instanceof Error ? error.message : "Bulk Zotero sync failed."
-          }`
+          }`,
         );
       }
     } finally {

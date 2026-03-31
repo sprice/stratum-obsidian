@@ -99,9 +99,10 @@ function toStringList(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function getRelativeUnit(
-  deltaSeconds: number
-): { value: number; unit: Intl.RelativeTimeFormatUnit } {
+function getRelativeUnit(deltaSeconds: number): {
+  value: number;
+  unit: Intl.RelativeTimeFormatUnit;
+} {
   if (deltaSeconds < 60) {
     return {
       value: Math.max(-59, Math.min(59, Math.round(deltaSeconds))),
@@ -133,7 +134,7 @@ function getRelativeUnit(
 
 export function formatRelativeSyncTime(
   timestamp: string,
-  now = Date.now()
+  now = Date.now(),
 ): string | null {
   const target = Date.parse(timestamp);
   if (!Number.isFinite(target)) {
@@ -177,7 +178,7 @@ export function getSyncStatusLabel(params: {
 
   const relative = formatRelativeSyncTime(
     params.state.lastSuccessfulSyncAt,
-    params.now
+    params.now,
   );
   return relative ? `Zotero: synced ${relative}` : "Zotero: synced";
 }
@@ -185,13 +186,13 @@ export function getSyncStatusLabel(params: {
 export function shouldSkipFocusSync(
   lastFocusSyncAt: number,
   now = Date.now(),
-  cooldownMs = AUTO_SYNC_FOCUS_COOLDOWN_MS
+  cooldownMs = AUTO_SYNC_FOCUS_COOLDOWN_MS,
 ): boolean {
   return lastFocusSyncAt > 0 && now - lastFocusSyncAt < cooldownMs;
 }
 
 export function getBulkLibrarySyncButtonLabel(
-  state: BulkLibrarySyncState
+  state: BulkLibrarySyncState,
 ): string {
   if (state.phase === "running") {
     return "Syncing Zotero papers...";
@@ -243,7 +244,7 @@ export function getBulkLibrarySyncStatusMessage(params: {
 
 export function findAffectedPathsForDeletedChildKeys(
   candidates: DeletedChildLookupCandidate[],
-  deletedKeys: string[]
+  deletedKeys: string[],
 ): string[] {
   const deleted = new Set(deletedKeys);
   if (deleted.size === 0) {
@@ -263,5 +264,7 @@ export function findAffectedPathsForDeletedChildKeys(
     }
   }
 
-  return Array.from(affectedPaths).sort((left, right) => left.localeCompare(right));
+  return Array.from(affectedPaths).sort((left, right) =>
+    left.localeCompare(right),
+  );
 }

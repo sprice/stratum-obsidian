@@ -67,10 +67,12 @@ export function buildSourceUrl(detail: ZoteroItemDetail): string | null {
 
 function buildAliases(detail: ZoteroItemDetail): string[] {
   const aliases = new Set<string>();
-  const { mainTitle, fileTitle, fullTitle } = getReadableTitleVariants(detail.item.title);
+  const { mainTitle, fileTitle, fullTitle } = getReadableTitleVariants(
+    detail.item.title,
+  );
 
   aliases.add(
-    `${getReadableAuthorLabel(detail.item.creators)} ${getReadableYearLabel(detail.item.year)}`
+    `${getReadableAuthorLabel(detail.item.creators)} ${getReadableYearLabel(detail.item.year)}`,
   );
   aliases.add(mainTitle);
 
@@ -119,10 +121,12 @@ export function buildInlineTopicTags(tags: string[]): string[] {
 }
 
 function filterExistingFrontmatter(
-  frontmatter: Record<string, unknown>
+  frontmatter: Record<string, unknown>,
 ): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(frontmatter).filter(([key]) => !MANAGED_FRONTMATTER_KEYS.has(key))
+    Object.entries(frontmatter).filter(
+      ([key]) => !MANAGED_FRONTMATTER_KEYS.has(key),
+    ),
   );
 }
 
@@ -143,7 +147,7 @@ export function toStringList(value: unknown): string[] {
 
 export function splitFrontmatterContent(
   content: string,
-  parseYaml: YamlParser
+  parseYaml: YamlParser,
 ): {
   frontmatter: Record<string, unknown>;
   body: string;
@@ -179,14 +183,14 @@ export function renderFrontmatterContent(
   filenameStem: string | null,
   zoteroStatus: ZoteroSyncStatus,
   stringifyYaml: YamlStringifier,
-  enrichment?: OpenAlexEnrichment | null
+  enrichment?: OpenAlexEnrichment | null,
 ): string {
   const existingAliases = toStringList(existingFrontmatter.aliases);
   const previousManagedAliases = new Set(
-    toStringList(existingFrontmatter.stratum_managed_aliases)
+    toStringList(existingFrontmatter.stratum_managed_aliases),
   );
   const userAliases = existingAliases.filter(
-    (alias) => !previousManagedAliases.has(alias)
+    (alias) => !previousManagedAliases.has(alias),
   );
   const managedAliases = buildAliases(detail);
   const preservedTags = toStringList(existingFrontmatter.tags);
@@ -219,7 +223,7 @@ export function renderFrontmatterContent(
   }
   if (detail.item.collections.length > 0) {
     nativeFrontmatter.collections = detail.item.collections.map(
-      (collection) => collection.name
+      (collection) => collection.name,
     );
   }
   if (detail.item.volume) {
@@ -269,7 +273,8 @@ export function renderFrontmatterContent(
       nativeFrontmatter.fwci = Number(enrichment.fwci.toFixed(1));
     }
     if (enrichment.citationPercentile) {
-      nativeFrontmatter.citation_percentile = enrichment.citationPercentile.value;
+      nativeFrontmatter.citation_percentile =
+        enrichment.citationPercentile.value;
     }
     nativeFrontmatter.is_open_access = enrichment.isOpenAccess ? "yes" : "no";
     nativeFrontmatter.oa_status = enrichment.oaStatus;
@@ -307,9 +312,13 @@ export function renderFrontmatterContent(
     ...(detail.library.type === "group"
       ? { zotero_group_name: detail.library.groupName ?? null }
       : {}),
-    zotero_attachment_keys: detail.attachments.map((attachment) => attachment.key),
+    zotero_attachment_keys: detail.attachments.map(
+      (attachment) => attachment.key,
+    ),
     zotero_note_keys: detail.zoteroNotes.map((note) => note.key),
-    zotero_annotation_keys: detail.annotations.map((annotation) => annotation.key),
+    zotero_annotation_keys: detail.annotations.map(
+      (annotation) => annotation.key,
+    ),
     zotero_item_version: detail.item.version,
     zotero_synced_at: new Date().toISOString(),
   } satisfies Record<string, unknown>;
@@ -318,7 +327,7 @@ export function renderFrontmatterContent(
 }
 
 export function getTrackedChildItemKeysFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null
+  frontmatter?: Record<string, unknown> | null,
 ): string[] {
   const keyArrays = [
     frontmatter?.[ATTACHMENT_KEYS_FRONTMATTER_KEY],

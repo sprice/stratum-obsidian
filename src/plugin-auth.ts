@@ -25,15 +25,16 @@ import type StratumPlugin from "./plugin";
  * `bootstrapRemoteState` will reconcile with the server and correct the state
  * if the session or Zotero token has been revoked.
  */
-export function hydrateZoteroConnectionFromCache(
-  plugin: StratumPlugin
-): void {
+export function hydrateZoteroConnectionFromCache(plugin: StratumPlugin): void {
   if (!plugin.backend.hasSession()) {
     return;
   }
 
-  const { lastKnownZoteroUserId, lastKnownZoteroUsername, lastKnownZoteroConfirmedAt } =
-    plugin.settings;
+  const {
+    lastKnownZoteroUserId,
+    lastKnownZoteroUsername,
+    lastKnownZoteroConfirmedAt,
+  } = plugin.settings;
 
   if (!lastKnownZoteroUserId) {
     return;
@@ -185,7 +186,7 @@ export async function signOutFromPlugin(plugin: StratumPlugin): Promise<void> {
 }
 
 export async function refreshZoteroConnection(
-  plugin: StratumPlugin
+  plugin: StratumPlugin,
 ): Promise<void> {
   log("auth", "refreshing zotero connection");
   if (!plugin.backend.hasSession()) {
@@ -205,7 +206,10 @@ export async function refreshZoteroConnection(
   try {
     const nextConnection = await plugin.backend.getZoteroConnectionStatus();
     if (nextConnection) {
-      plugin.zoteroConnection = applyLastKnownZoteroSnapshot(plugin, nextConnection);
+      plugin.zoteroConnection = applyLastKnownZoteroSnapshot(
+        plugin,
+        nextConnection,
+      );
       const resolvedConnection = plugin.zoteroConnection;
       let connectionChanged = false;
       if (resolvedConnection?.connected && resolvedConnection.zoteroUserId) {
@@ -259,7 +263,7 @@ export async function refreshZoteroConnection(
 
 export async function handleAuthProtocol(
   plugin: StratumPlugin,
-  params: ObsidianProtocolData
+  params: ObsidianProtocolData,
 ): Promise<void> {
   const handoff = typeof params.handoff === "string" ? params.handoff : null;
   const email = typeof params.email === "string" ? params.email : null;
@@ -310,11 +314,13 @@ export async function handleAuthProtocol(
       ? `${PLUGIN_NAME}: Zotero connected${zoteroUsername ? ` as ${zoteroUsername}` : ""}.`
       : email
         ? `${PLUGIN_NAME}: signed in as ${email}.`
-        : `${PLUGIN_NAME}: auth callback received for handoff ${handoff}.`
+        : `${PLUGIN_NAME}: auth callback received for handoff ${handoff}.`,
   );
 }
 
-export async function bootstrapRemoteState(plugin: StratumPlugin): Promise<void> {
+export async function bootstrapRemoteState(
+  plugin: StratumPlugin,
+): Promise<void> {
   if (!plugin.backend.hasSession()) {
     log("auth", "bootstrap skipped, no session");
     return;

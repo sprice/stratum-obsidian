@@ -9,14 +9,14 @@ import {
 test("normalizeLibrarySearchQuery trims, collapses whitespace, and lowercases", () => {
   assert.equal(
     normalizeLibrarySearchQuery("  Machine   Learning  2024 "),
-    "machine learning 2024"
+    "machine learning 2024",
   );
 });
 
 test("getLibrarySearchCacheKey reuses equivalent queries", () => {
   assert.equal(
     getLibrarySearchCacheKey("Machine Learning"),
-    getLibrarySearchCacheKey("  machine   learning ")
+    getLibrarySearchCacheKey("  machine   learning "),
   );
 });
 

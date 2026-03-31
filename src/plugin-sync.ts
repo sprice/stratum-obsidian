@@ -20,9 +20,7 @@ import {
 } from "./plugin-sync-helpers";
 import { getLibraryAutoSyncState } from "./plugin-libraries";
 import { refreshAutoSyncUi } from "./plugin-sync-status";
-import {
-  findAffectedPathsForDeletedChildKeys,
-} from "./zotero-sync";
+import { findAffectedPathsForDeletedChildKeys } from "./zotero-sync";
 import {
   getIdentityFromFrontmatter,
   getItemKeyFromFrontmatter,
@@ -31,7 +29,7 @@ import { PLUGIN_NAME } from "./constants";
 
 function isTrackedNoteInLibrary(
   frontmatter: Record<string, unknown> | null,
-  library: Pick<EnabledLibrary, "type" | "id">
+  library: Pick<EnabledLibrary, "type" | "id">,
 ): boolean {
   const identity = getIdentityFromFrontmatter(frontmatter);
   return identity?.startsWith(`${library.type}/${library.id}/`) ?? false;
@@ -39,13 +37,13 @@ function isTrackedNoteInLibrary(
 
 async function runInitialLiteratureRefreshForLibrary(
   plugin: StratumPlugin,
-  library: EnabledLibrary
+  library: EnabledLibrary,
 ): Promise<{
   updatedCount: number;
   deletedCount: number;
 }> {
   const trackedNotes = getTrackedLiteratureNotes(plugin).filter((entry) =>
-    isTrackedNoteInLibrary(entry.frontmatter, library)
+    isTrackedNoteInLibrary(entry.frontmatter, library),
   );
   log("sync", "initial refresh starting", {
     library: library.identity,
@@ -55,7 +53,7 @@ async function runInitialLiteratureRefreshForLibrary(
     new Notice(
       `${PLUGIN_NAME}: First sync: refreshing ${trackedNotes.length} literature note${
         trackedNotes.length === 1 ? "" : "s"
-      } from ${library.name}…`
+      } from ${library.name}…`,
     );
   }
 
@@ -101,7 +99,7 @@ async function runInitialLiteratureRefreshForLibrary(
       failures.push(
         `${entry.file.basename}: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }
@@ -110,7 +108,7 @@ async function runInitialLiteratureRefreshForLibrary(
     throw new Error(
       `Failed to refresh ${failures.length} literature note${
         failures.length === 1 ? "" : "s"
-      }: ${failures.join("; ")}`
+      }: ${failures.join("; ")}`,
     );
   }
 
@@ -127,16 +125,16 @@ async function runInitialLiteratureRefreshForLibrary(
 
 export async function applyZoteroLibraryChanges(
   plugin: StratumPlugin,
-  changes: ZoteroLibraryChangesResponse
+  changes: ZoteroLibraryChangesResponse,
 ): Promise<{
   updatedCount: number;
   deletedCount: number;
 }> {
   const trackedNotes = getTrackedLiteratureNotes(plugin).filter((entry) =>
-    isTrackedNoteInLibrary(entry.frontmatter, changes.library)
+    isTrackedNoteInLibrary(entry.frontmatter, changes.library),
   );
   const notesByPath = new Map(
-    trackedNotes.map((entry) => [entry.file.path, entry] as const)
+    trackedNotes.map((entry) => [entry.file.path, entry] as const),
   );
   const deletedItemKeys = new Set(changes.deletedItemKeys);
   const deletedParentFiles = new Map<string, TFile>();
@@ -154,7 +152,7 @@ export async function applyZoteroLibraryChanges(
       path: entry.file.path,
       frontmatter: entry.frontmatter,
     })),
-    changes.deletedItemKeys
+    changes.deletedItemKeys,
   )) {
     const entry = notesByPath.get(path);
     if (!entry) {
@@ -174,7 +172,7 @@ export async function applyZoteroLibraryChanges(
   const failures: string[] = [];
 
   for (const parentKey of Array.from(refreshParentKeys).sort((left, right) =>
-    left.localeCompare(right)
+    left.localeCompare(right),
   )) {
     const file = plugin.findExistingLiteratureNoteFile({
       libraryType: changes.library.type,
@@ -212,13 +210,13 @@ export async function applyZoteroLibraryChanges(
       }
 
       failures.push(
-        `${parentKey}: ${error instanceof Error ? error.message : String(error)}`
+        `${parentKey}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
 
-  for (const file of Array.from(deletedParentFiles.values()).sort((left, right) =>
-    left.path.localeCompare(right.path)
+  for (const file of Array.from(deletedParentFiles.values()).sort(
+    (left, right) => left.path.localeCompare(right.path),
   )) {
     try {
       const result = await markLiteratureNoteDeleted({
@@ -230,7 +228,7 @@ export async function applyZoteroLibraryChanges(
       }
     } catch (error) {
       failures.push(
-        `${file.basename}: ${error instanceof Error ? error.message : String(error)}`
+        `${file.basename}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -239,7 +237,7 @@ export async function applyZoteroLibraryChanges(
     throw new Error(
       `Failed to sync ${failures.length} literature note${
         failures.length === 1 ? "" : "s"
-      }: ${failures.join("; ")}`
+      }: ${failures.join("; ")}`,
     );
   }
 
@@ -251,7 +249,7 @@ export async function applyZoteroLibraryChanges(
 
 export async function runZoteroAutoSync(
   plugin: StratumPlugin,
-  reason: "startup" | "focus" | "interval" | "manual"
+  reason: "startup" | "focus" | "interval" | "manual",
 ): Promise<void> {
   if (plugin.isBulkLibrarySyncRunning()) {
     if (reason === "manual") {
@@ -305,7 +303,10 @@ export async function runZoteroAutoSync(
           const baseline = await plugin.backend.getZoteroLibraryChanges(null, {
             library,
           });
-          const result = await runInitialLiteratureRefreshForLibrary(plugin, library);
+          const result = await runInitialLiteratureRefreshForLibrary(
+            plugin,
+            library,
+          );
           state.libraryVersion = baseline.latestLibraryVersion;
           state.initialRefreshCompleted = true;
           state.lastSuccessfulSyncAt = new Date().toISOString();
@@ -316,7 +317,9 @@ export async function runZoteroAutoSync(
           if (result.updatedCount > 0 || result.deletedCount > 0) {
             updatedLibraries.push(
               `${library.name}: ${result.updatedCount} updated${
-                result.deletedCount > 0 ? `, ${result.deletedCount} removed` : ""
+                result.deletedCount > 0
+                  ? `, ${result.deletedCount} removed`
+                  : ""
               }`,
             );
           }
@@ -324,9 +327,12 @@ export async function runZoteroAutoSync(
         }
 
         const sinceVersion = state.libraryVersion;
-        const changes = await plugin.backend.getZoteroLibraryChanges(sinceVersion, {
-          library,
-        });
+        const changes = await plugin.backend.getZoteroLibraryChanges(
+          sinceVersion,
+          {
+            library,
+          },
+        );
         log("sync", "library changes received", {
           library: library.identity,
           sinceVersion: sinceVersion ?? "null",
@@ -356,7 +362,8 @@ export async function runZoteroAutoSync(
           throw error;
         }
 
-        state.lastError = error instanceof Error ? error.message : String(error);
+        state.lastError =
+          error instanceof Error ? error.message : String(error);
         await plugin.saveSettings();
         plugin.refreshSettingTab();
         failedLibraries.push(library.name);
@@ -375,7 +382,7 @@ export async function runZoteroAutoSync(
       reason !== "interval"
     ) {
       new Notice(
-        `${PLUGIN_NAME}: Sync failed for ${failedLibraries.join(", ")}. See plugin settings for details.`
+        `${PLUGIN_NAME}: Sync failed for ${failedLibraries.join(", ")}. See plugin settings for details.`,
       );
     }
   } catch (error) {
@@ -383,12 +390,14 @@ export async function runZoteroAutoSync(
       markZoteroTokenInvalid(plugin);
       console.error("stratum: Zotero token invalid, connection cleared", error);
       new Notice(
-        `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`
+        `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`,
       );
     } else if (error instanceof ZoteroNotConnectedError) {
       markZoteroDisconnected(plugin);
       console.error("stratum: Zotero not connected, connection cleared", error);
-      new Notice(`${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`);
+      new Notice(
+        `${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`,
+      );
     } else {
       console.error("stratum: auto-sync failed", error);
 
@@ -396,7 +405,7 @@ export async function runZoteroAutoSync(
         new Notice(
           `${PLUGIN_NAME}: ${
             error instanceof Error ? error.message : "Zotero sync failed."
-          }`
+          }`,
         );
       }
     }

@@ -22,7 +22,7 @@ function escapeRegExp(value: string): string {
 function upsertManagedBlock(body: string, managedBlock: string): string {
   const managedPattern = new RegExp(
     `${escapeRegExp(MANAGED_START)}[\\s\\S]*?${escapeRegExp("<!-- stratum:managed:end -->")}\\n*`,
-    "m"
+    "m",
   );
 
   if (managedPattern.test(body)) {
@@ -60,13 +60,13 @@ export function buildLiteratureNoteContent(params: {
   if (params.existingContent) {
     const { frontmatter, body } = splitFrontmatterContent(
       params.existingContent,
-      params.parseYaml
+      params.parseYaml,
     );
     const managedBlock = renderManagedBlock(
       params.detail,
       params.htmlToMarkdown,
       zoteroStatus,
-      params.enrichment
+      params.enrichment,
     );
     const nextFrontmatter = renderFrontmatterContent(
       params.detail,
@@ -74,7 +74,7 @@ export function buildLiteratureNoteContent(params: {
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
-      params.enrichment
+      params.enrichment,
     );
     const nextBody = ensureUserBoundary(upsertManagedBlock(body, managedBlock));
     return `${nextFrontmatter}\n${nextBody.trimStart()}`.trimEnd() + "\n";
@@ -84,7 +84,7 @@ export function buildLiteratureNoteContent(params: {
     params.detail,
     params.htmlToMarkdown,
     zoteroStatus,
-    params.enrichment
+    params.enrichment,
   );
 
   return [
@@ -94,7 +94,7 @@ export function buildLiteratureNoteContent(params: {
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
-      params.enrichment
+      params.enrichment,
     ),
     managedBlock,
     "",
@@ -110,7 +110,7 @@ export function markLiteratureNoteAsDeletedContent(params: {
 }): string {
   const { frontmatter, body } = splitFrontmatterContent(
     params.existingContent,
-    params.parseYaml
+    params.parseYaml,
   );
   const nextFrontmatter = {
     ...frontmatter,
@@ -159,7 +159,10 @@ export {
   type YamlStringifier,
   type ZoteroSyncStatus,
 } from "./literature-note-content-types";
-export { preprocessZoteroNoteHtml, slugify } from "./literature-note-content-html";
+export {
+  preprocessZoteroNoteHtml,
+  slugify,
+} from "./literature-note-content-html";
 export {
   buildInlineTopicTags,
   buildSourceUrl,
@@ -172,4 +175,7 @@ export {
   toStringList,
 } from "./literature-note-frontmatter";
 export { findExistingLiteratureNoteMatch } from "./literature-note-matching";
-export { getLiteratureNoteSummary, renderManagedBlock } from "./literature-note-sections";
+export {
+  getLiteratureNoteSummary,
+  renderManagedBlock,
+} from "./literature-note-sections";

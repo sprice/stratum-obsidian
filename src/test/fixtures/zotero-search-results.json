@@ -1,41 +1,41 @@
 {
-	"results": [
-		{
-			"key": "YC2RW7WT",
-			"version": 34,
-			"title": "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment",
-			"creators": ["Andreas Glöckner", "Moritz Michels", "Daniel Giersch"],
-			"year": "2020",
-			"itemType": "preprint",
-			"abstract": "We investigate the feasibility and accuracy of predicting personality test scores using machine learning models.",
-			"doi": "10.31234/osf.io/ysd3f"
-		},
-		{
-			"key": "ABCD1234",
-			"version": 12,
-			"title": "Using Machine Learning to Advance Personality Assessment and Theory",
-			"creators": ["Wiebke Bleidorn", "Christopher James Hopwood"],
-			"year": "2019",
-			"itemType": "journalArticle",
-			"abstract": "An abstract from Zotero.",
-			"doi": "10.0000/example"
-		},
-		{
-			"key": "XY987654",
-			"version": 8,
-			"title": "Deep Learning for Natural Language Processing: A Review",
-			"creators": ["Li Deng", "Yang Liu"],
-			"year": "2018",
-			"itemType": "journalArticle",
-			"abstract": "This paper reviews the key advances in deep learning methods applied to NLP tasks.",
-			"doi": "10.1007/978-981-10-5209-5"
-		}
-	],
-	"meta": {
-		"source": "live",
-		"stale": false,
-		"rateLimited": false,
-		"retryAfterSeconds": null,
-		"libraryVersion": 42
-	}
+  "results": [
+    {
+      "key": "YC2RW7WT",
+      "version": 34,
+      "title": "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment",
+      "creators": ["Andreas Glöckner", "Moritz Michels", "Daniel Giersch"],
+      "year": "2020",
+      "itemType": "preprint",
+      "abstract": "We investigate the feasibility and accuracy of predicting personality test scores using machine learning models.",
+      "doi": "10.31234/osf.io/ysd3f"
+    },
+    {
+      "key": "ABCD1234",
+      "version": 12,
+      "title": "Using Machine Learning to Advance Personality Assessment and Theory",
+      "creators": ["Wiebke Bleidorn", "Christopher James Hopwood"],
+      "year": "2019",
+      "itemType": "journalArticle",
+      "abstract": "An abstract from Zotero.",
+      "doi": "10.0000/example"
+    },
+    {
+      "key": "XY987654",
+      "version": 8,
+      "title": "Deep Learning for Natural Language Processing: A Review",
+      "creators": ["Li Deng", "Yang Liu"],
+      "year": "2018",
+      "itemType": "journalArticle",
+      "abstract": "This paper reviews the key advances in deep learning methods applied to NLP tasks.",
+      "doi": "10.1007/978-981-10-5209-5"
+    }
+  ],
+  "meta": {
+    "source": "live",
+    "stale": false,
+    "rateLimited": false,
+    "retryAfterSeconds": null,
+    "libraryVersion": 42
+  }
 }

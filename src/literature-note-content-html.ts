@@ -16,7 +16,7 @@ function decodeDatasetJson<T>(encoded: string): T | null {
 function buildLocalUri(
   ext: "select" | "open-pdf",
   uri: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
 ): string {
   const itemId = uri.split("/").pop();
   if (!itemId) {
@@ -85,26 +85,21 @@ function replaceAnnotationBlocks(html: string): string {
       }
 
       return `${full} <a href="${href}">Go to annotation</a>`;
-    }
+    },
   );
 
   const blockPattern =
     /<(?!img\b)([a-z0-9]+)\b([^>]*\sdata-annotation="([^"]+)"[^>]*)>([\s\S]*?)<\/\1>/gi;
   return nextWithImages.replace(
     blockPattern,
-    (
-      full: string,
-      _tag: string,
-      _attrs: string,
-      encoded: string
-    ): string => {
+    (full: string, _tag: string, _attrs: string, encoded: string): string => {
       const href = buildAnnotationUriFromDataset(encoded);
       if (!href) {
         return full;
       }
 
       return `${full} <a href="${href}">Go to annotation</a>`;
-    }
+    },
   );
 }
 
@@ -118,7 +113,7 @@ function replaceCitationBlocks(html: string): string {
       _tag: string,
       _attrs: string,
       encoded: string,
-      inner: string
+      inner: string,
     ): string => {
       const href = buildCitationUriFromDataset(encoded);
       if (!href) {
@@ -127,7 +122,7 @@ function replaceCitationBlocks(html: string): string {
 
       const text = stripHtmlTags(inner) || "Open citation in Zotero";
       return `<a href="${href}">${text}</a>`;
-    }
+    },
   );
 }
 

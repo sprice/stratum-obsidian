@@ -62,7 +62,7 @@ const DEFAULT_ITEM: ZoteroItemDetail["item"] = {
 function createDetail(
   overrides?: Omit<Partial<ZoteroItemDetail>, "item"> & {
     item?: Partial<ZoteroItemDetail["item"]>;
-  }
+  },
 ): ZoteroItemDetail {
   const { item: itemOverrides, ...rest } = overrides ?? {};
   return {
@@ -83,10 +83,11 @@ function createDetail(
 
 function stringifyForTest(value: Record<string, unknown>): string {
   return Object.entries(value)
-    .map(([key, entry]) =>
-      `${key}: ${
-        Array.isArray(entry) ? `[${entry.join(", ")}]` : String(entry)
-      }`
+    .map(
+      ([key, entry]) =>
+        `${key}: ${
+          Array.isArray(entry) ? `[${entry.join(", ")}]` : String(entry)
+        }`,
     )
     .join("\n");
 }
@@ -318,7 +319,10 @@ test("boundary: user content between managed block and boundary callout is prese
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(output, /Some text the user put between managed block and the callout\./);
+  assert.match(
+    output,
+    /Some text the user put between managed block and the callout\./,
+  );
   assert.match(output, /More user content here\./);
 });
 
@@ -338,7 +342,10 @@ test("boundary: user content added directly after managed end marker is preserve
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(output, /User content right after managed end with no blank line\./);
+  assert.match(
+    output,
+    /User content right after managed end with no blank line\./,
+  );
   assert.match(output, /Notes section content\./);
 });
 
@@ -401,8 +408,14 @@ test("boundary: empty user section (just callout) is preserved without corruptio
 
   const output = syncUpdate(existing);
   assert.match(output, /\[!stratum\]/);
-  const managedStartCount = (output.match(/<!-- stratum:managed:start -->/g) || []).length;
-  assert.equal(managedStartCount, 1, "Should have exactly one managed start marker");
+  const managedStartCount = (
+    output.match(/<!-- stratum:managed:start -->/g) || []
+  ).length;
+  assert.equal(
+    managedStartCount,
+    1,
+    "Should have exactly one managed start marker",
+  );
 });
 
 test("boundary: user content with HTML-like comments is preserved", () => {
@@ -511,7 +524,9 @@ test("boundary: user content is stable across multiple consecutive syncs", () =>
   assert.match(content, /I added these notes after the first sync\./);
   assert.match(content, /Round 2 notes/);
   assert.match(content, /I added more notes after the second sync\./);
-  const managedStartCount = (content.match(/<!-- stratum:managed:start -->/g) || []).length;
+  const managedStartCount = (
+    content.match(/<!-- stratum:managed:start -->/g) || []
+  ).length;
   assert.equal(managedStartCount, 1);
 });
 
@@ -535,7 +550,10 @@ test("boundary: note without managed markers gets markers added without losing c
   const output = syncUpdate(existing);
   assert.match(output, /<!-- stratum:managed:start -->/);
   assert.match(output, /<!-- stratum:managed:end -->/);
-  assert.match(output, /This is a note someone created manually before Stratum existed\./);
+  assert.match(
+    output,
+    /This is a note someone created manually before Stratum existed\./,
+  );
   assert.match(output, /Their original thoughts\./);
 });
 
@@ -593,7 +611,9 @@ test("boundary: marking a note as deleted preserves all user content", () => {
 test("boundary: large user content section is fully preserved", () => {
   const userLines: string[] = [];
   for (let i = 1; i <= 100; i++) {
-    userLines.push(`Line ${i}: This is paragraph ${i} of my extensive notes on this paper.`);
+    userLines.push(
+      `Line ${i}: This is paragraph ${i} of my extensive notes on this paper.`,
+    );
     userLines.push("");
   }
 
@@ -680,7 +700,7 @@ test("boundary: new note always includes boundary callout", () => {
   assert.ok(boundaryMatch, "Boundary callout must exist");
   assert.ok(
     boundaryMatch.index > managedEndIdx,
-    "Boundary callout must appear after the managed block"
+    "Boundary callout must appear after the managed block",
   );
 });
 

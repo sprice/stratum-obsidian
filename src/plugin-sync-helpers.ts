@@ -24,14 +24,16 @@ export function getTrackedLiteratureNotes(plugin: StratumPlugin): Array<{
     .filter(
       (entry) =>
         Boolean(getIdentityFromFrontmatter(entry.frontmatter)) &&
-        Boolean(getItemKeyFromFrontmatter(entry.frontmatter))
+        Boolean(getItemKeyFromFrontmatter(entry.frontmatter)),
     );
 }
 
 export function isMissingZoteroItemError(error: unknown): boolean {
   return (
     error instanceof Error &&
-    /zotero item not found|failed to load zotero item detail/i.test(error.message)
+    /zotero item not found|failed to load zotero item detail/i.test(
+      error.message,
+    )
   );
 }
 
@@ -43,9 +45,11 @@ export function markZoteroTokenInvalid(plugin: StratumPlugin): void {
     connected: false,
     tokenValid: false,
     zoteroUserId:
-      plugin.zoteroConnection?.zoteroUserId ?? plugin.settings.lastKnownZoteroUserId,
+      plugin.zoteroConnection?.zoteroUserId ??
+      plugin.settings.lastKnownZoteroUserId,
     zoteroUsername:
-      plugin.zoteroConnection?.zoteroUsername ?? plugin.settings.lastKnownZoteroUsername,
+      plugin.zoteroConnection?.zoteroUsername ??
+      plugin.settings.lastKnownZoteroUsername,
     lastSyncedAt:
       plugin.zoteroConnection?.lastSyncedAt ??
       plugin.settings.lastKnownZoteroConfirmedAt,
@@ -64,9 +68,11 @@ export function markZoteroDisconnected(plugin: StratumPlugin): void {
     connected: false,
     tokenValid: null,
     zoteroUserId:
-      plugin.zoteroConnection?.zoteroUserId ?? plugin.settings.lastKnownZoteroUserId,
+      plugin.zoteroConnection?.zoteroUserId ??
+      plugin.settings.lastKnownZoteroUserId,
     zoteroUsername:
-      plugin.zoteroConnection?.zoteroUsername ?? plugin.settings.lastKnownZoteroUsername,
+      plugin.zoteroConnection?.zoteroUsername ??
+      plugin.settings.lastKnownZoteroUsername,
     lastSyncedAt:
       plugin.zoteroConnection?.lastSyncedAt ??
       plugin.settings.lastKnownZoteroConfirmedAt,
@@ -79,7 +85,7 @@ export function markZoteroDisconnected(plugin: StratumPlugin): void {
 
 export function applyLastKnownZoteroSnapshot(
   plugin: StratumPlugin,
-  state: ZoteroConnectionState | null
+  state: ZoteroConnectionState | null,
 ): ZoteroConnectionState | null {
   if (!state) {
     return null;
@@ -102,7 +108,7 @@ export function updateLastKnownZoteroSnapshot(
   state: Pick<
     ZoteroConnectionState,
     "zoteroUserId" | "zoteroUsername" | "lastSyncedAt"
-  > | null
+  > | null,
 ): boolean {
   if (!state) {
     return false;
@@ -139,7 +145,7 @@ export function updateLastKnownZoteroSnapshot(
 
 export async function ensureZoteroConnection(
   plugin: StratumPlugin,
-  options?: { refresh?: boolean }
+  options?: { refresh?: boolean },
 ): Promise<boolean> {
   if (!plugin.backend.hasSession()) {
     return false;

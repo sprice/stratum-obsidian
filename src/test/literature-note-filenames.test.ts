@@ -71,27 +71,27 @@ function createDetail(overrides?: Partial<ZoteroItemDetail>): ZoteroItemDetail {
 
 test("getReadableTitleVariants strips subtitles and truncates at word boundaries", () => {
   const variants = getReadableTitleVariants(
-    "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment"
+    "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment",
   );
 
   assert.equal(
     variants.mainTitle,
-    "Predicting Personality Test Scores with Machine Learning Methodology"
+    "Predicting Personality Test Scores with Machine Learning Methodology",
   );
   assert.equal(
     variants.fileTitle,
-    "Predicting Personality Test Scores with Machine Learning Methodology"
+    "Predicting Personality Test Scores with Machine Learning Methodology",
   );
   assert.equal(
     variants.fullTitle,
-    "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment"
+    "Predicting Personality Test Scores with Machine Learning Methodology: Investigation of a New Approach to Psychological Assessment",
   );
 });
 
 test("getReadableFileStem preserves Unicode and formats author labels", () => {
   assert.equal(
     getReadableFileStem(createDetail()),
-    "Glöckner et al 2020 - Predicting Personality Test Scores with Machine Learning Methodology"
+    "Glöckner et al 2020 - Predicting Personality Test Scores with Machine Learning Methodology",
   );
 
   assert.equal(
@@ -101,14 +101,17 @@ test("getReadableFileStem preserves Unicode and formats author labels", () => {
           ...createDetail().item,
           creators: ["Andreas Glöckner", "Moritz Michels"],
         },
-      })
+      }),
     ),
-    "Glöckner & Michels 2020 - Predicting Personality Test Scores with Machine Learning Methodology"
+    "Glöckner & Michels 2020 - Predicting Personality Test Scores with Machine Learning Methodology",
   );
 });
 
 test("getGeneratedCitekeyStem uses a generated fallback citekey", () => {
-  assert.equal(getGeneratedCitekeyStem(createDetail()), "@glockner2020predicting");
+  assert.equal(
+    getGeneratedCitekeyStem(createDetail()),
+    "@glockner2020predicting",
+  );
 });
 
 test("resolveExistingFilenameStemState respects manual renames and legacy notes", () => {
@@ -123,7 +126,7 @@ test("resolveExistingFilenameStemState respects manual renames and legacy notes"
     {
       shouldRename: true,
       nextStoredStem: "@glockner2020predicting",
-    }
+    },
   );
 
   assert.deepEqual(
@@ -136,8 +139,9 @@ test("resolveExistingFilenameStemState respects manual renames and legacy notes"
     }),
     {
       shouldRename: false,
-      nextStoredStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
-    }
+      nextStoredStem:
+        "Glöckner et al 2020 - Predicting Personality Test Scores",
+    },
   );
 
   assert.deepEqual(
@@ -153,7 +157,7 @@ test("resolveExistingFilenameStemState respects manual renames and legacy notes"
       shouldRename: false,
       nextStoredStem:
         "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-19946899-YC2RW7WT",
-    }
+    },
   );
 
   assert.deepEqual(
@@ -167,7 +171,8 @@ test("resolveExistingFilenameStemState respects manual renames and legacy notes"
     }),
     {
       shouldRename: true,
-      nextStoredStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
-    }
+      nextStoredStem:
+        "Glöckner et al 2020 - Predicting Personality Test Scores",
+    },
   );
 });

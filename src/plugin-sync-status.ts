@@ -8,13 +8,18 @@ import type StratumPlugin from "./plugin";
 const AUTO_SYNC_STATUS_REFRESH_MS = 60_000;
 
 export function getAutoSyncStatusLabel(plugin: StratumPlugin): string {
-  const latestSuccessfulSyncAt = plugin.settings.enabledLibraries
-    .map((library) => getLibraryAutoSyncState(plugin, library).lastSuccessfulSyncAt)
-    .filter((value): value is string => Boolean(value))
-    .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
-  const firstError = plugin.settings.enabledLibraries
-    .map((library) => getLibraryAutoSyncState(plugin, library).lastError)
-    .find((value): value is string => Boolean(value)) ?? null;
+  const latestSuccessfulSyncAt =
+    plugin.settings.enabledLibraries
+      .map(
+        (library) =>
+          getLibraryAutoSyncState(plugin, library).lastSuccessfulSyncAt,
+      )
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
+  const firstError =
+    plugin.settings.enabledLibraries
+      .map((library) => getLibraryAutoSyncState(plugin, library).lastError)
+      .find((value): value is string => Boolean(value)) ?? null;
 
   return getSyncStatusLabel({
     isSyncing: plugin.isAutoSyncRunning,
@@ -24,8 +29,9 @@ export function getAutoSyncStatusLabel(plugin: StratumPlugin): string {
       libraryVersion: null,
       lastSuccessfulSyncAt: latestSuccessfulSyncAt,
       lastError: firstError,
-      initialRefreshCompleted: plugin.settings.enabledLibraries.every((library) =>
-        getLibraryAutoSyncState(plugin, library).initialRefreshCompleted
+      initialRefreshCompleted: plugin.settings.enabledLibraries.every(
+        (library) =>
+          getLibraryAutoSyncState(plugin, library).initialRefreshCompleted,
       ),
     },
   });
@@ -34,9 +40,10 @@ export function getAutoSyncStatusLabel(plugin: StratumPlugin): string {
 export function refreshAutoSyncUi(plugin: StratumPlugin): void {
   if (plugin.statusBarItemEl) {
     const activeBulkSyncLibrary = getActiveBulkSyncLibrary(plugin);
-    const firstError = plugin.settings.enabledLibraries
-      .map((library) => getLibraryAutoSyncState(plugin, library).lastError)
-      .find((value): value is string => Boolean(value)) ?? null;
+    const firstError =
+      plugin.settings.enabledLibraries
+        .map((library) => getLibraryAutoSyncState(plugin, library).lastError)
+        .find((value): value is string => Boolean(value)) ?? null;
     plugin.statusBarItemEl.setText(getAutoSyncStatusLabel(plugin));
     plugin.statusBarItemEl.setAttribute(
       "aria-label",
@@ -45,16 +52,16 @@ export function refreshAutoSyncUi(plugin: StratumPlugin): void {
           ? `Zotero bulk sync is running in ${activeBulkSyncLibrary.name}`
           : "Zotero bulk sync is running"
         : firstError
-        ? `Zotero sync status: ${firstError}`
-        : getAutoSyncStatusLabel(plugin)
+          ? `Zotero sync status: ${firstError}`
+          : getAutoSyncStatusLabel(plugin),
     );
     plugin.statusBarItemEl.title = plugin.isBulkLibrarySyncRunning()
       ? activeBulkSyncLibrary
         ? `Bulk Zotero sync is running in ${activeBulkSyncLibrary.name}`
         : "Bulk Zotero sync is running"
       : firstError
-      ? firstError
-      : "Click to sync Zotero changes now";
+        ? firstError
+        : "Click to sync Zotero changes now";
   }
 }
 
@@ -74,7 +81,8 @@ export function configureAutoSyncInterval(plugin: StratumPlugin): void {
     return;
   }
 
-  const intervalMs = Math.max(1, plugin.settings.autoSyncIntervalMinutes) * 60_000;
+  const intervalMs =
+    Math.max(1, plugin.settings.autoSyncIntervalMinutes) * 60_000;
   const timer = window.setInterval(() => {
     void plugin.runZoteroAutoSync("interval");
   }, intervalMs);

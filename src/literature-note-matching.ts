@@ -14,17 +14,19 @@ function getLegacyItemIdentity(itemKey: string): string {
 
 function prioritizeCandidates(
   entries: LiteratureNoteCandidate[],
-  preferredFolder?: string
+  preferredFolder?: string,
 ): LiteratureNoteCandidate[] {
   const normalizedPreferredFolder = preferredFolder?.replace(/\/+$/, "");
 
   return [...entries].sort((left, right) => {
     const leftPreferred =
-      normalizedPreferredFolder && left.path.startsWith(`${normalizedPreferredFolder}/`)
+      normalizedPreferredFolder &&
+      left.path.startsWith(`${normalizedPreferredFolder}/`)
         ? 1
         : 0;
     const rightPreferred =
-      normalizedPreferredFolder && right.path.startsWith(`${normalizedPreferredFolder}/`)
+      normalizedPreferredFolder &&
+      right.path.startsWith(`${normalizedPreferredFolder}/`)
         ? 1
         : 0;
 
@@ -39,7 +41,7 @@ function prioritizeCandidates(
 export function findExistingLiteratureNoteMatch(
   entries: LiteratureNoteCandidate[],
   identity: LiteratureNoteIdentity,
-  preferredFolder?: string
+  preferredFolder?: string,
 ): ExistingLiteratureNoteMatch | null {
   const itemIdentity = `${identity.libraryType}/${identity.libraryId}/${identity.itemKey}`;
   const legacyIdentity = getLegacyItemIdentity(identity.itemKey);
