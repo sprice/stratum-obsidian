@@ -6,6 +6,7 @@ import {
 } from "./constants";
 import {
   type ZoteroConnectionState,
+  type ZoteroCollectionSummary,
   type ZoteroGroupSummary,
   type ZoteroSearchMeta,
   type ZoteroSearchResult,
@@ -83,6 +84,12 @@ import {
   getSelectedSearchLibrary,
   setSelectedSearchLibrary,
 } from "./plugin-libraries";
+import {
+  ensureLibraryCollectionsLoaded,
+  refreshLibraryCollections,
+  getSelectedSearchCollection,
+  setSelectedSearchCollection,
+} from "./plugin-collections";
 
 export default class StratumPlugin extends Plugin {
   settings: StratumSettings = DEFAULT_SETTINGS;
@@ -92,6 +99,14 @@ export default class StratumPlugin extends Plugin {
   availableGroups: ZoteroGroupSummary[] = [];
   isLoadingZoteroConnection = false;
   selectedSearchLibrary: EnabledLibrary | null = null;
+  selectedSearchCollection: ZoteroCollectionSummary | null = null;
+  libraryCollectionsLibraryIdentity: string | null = null;
+  libraryCollections: ZoteroCollectionSummary[] = [];
+  libraryCollectionsError: string | null = null;
+  isLoadingLibraryCollections = false;
+  libraryCollectionsRequestId = 0;
+  libraryCollectionsPendingPromise: Promise<ZoteroCollectionSummary[]> | null =
+    null;
   librarySearchQuery = "";
   librarySearchResults: ZoteroSearchResult[] = [];
   librarySearchMeta: ZoteroSearchMeta | null = null;
@@ -146,6 +161,15 @@ export default class StratumPlugin extends Plugin {
     fetchSuggestions: (query: string) => getLibrarySuggestions(this, query),
     createNote: (result: ZoteroSearchResult) =>
       createLiteratureNote(this, result),
+  };
+  readonly collections = {
+    ensureLoaded: (library: EnabledLibrary | null) =>
+      ensureLibraryCollectionsLoaded(this, library),
+    refresh: (library: EnabledLibrary | null) =>
+      refreshLibraryCollections(this, library),
+    select: (collection: ZoteroCollectionSummary | null) =>
+      setSelectedSearchCollection(this, collection),
+    getSelected: () => getSelectedSearchCollection(this),
   };
 
   async onload(): Promise<void> {
@@ -401,6 +425,10 @@ export default class StratumPlugin extends Plugin {
       return;
     }
 
-    await runBulkLibrarySync(this, selectedLibrary);
+    await runBulkLibrarySync(
+      this,
+      selectedLibrary,
+      getSelectedSearchCollection(this),
+    );
   }
 }

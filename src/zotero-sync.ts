@@ -27,6 +27,8 @@ export interface BulkLibrarySyncState {
   phase: BulkLibrarySyncPhase;
   startedAt: string | null;
   completedAt: string | null;
+  collectionKey: string | null;
+  collectionName: string | null;
   snapshotLibraryVersion: number | null;
   totalResults: number | null;
   nextStart: number;
@@ -57,6 +59,8 @@ export const DEFAULT_BULK_LIBRARY_SYNC_STATE: BulkLibrarySyncState = {
   phase: "idle",
   startedAt: null,
   completedAt: null,
+  collectionKey: null,
+  collectionName: null,
   snapshotLibraryVersion: null,
   totalResults: null,
   nextStart: 0,
@@ -193,7 +197,40 @@ export function shouldSkipFocusSync(
 
 export function getBulkLibrarySyncButtonLabel(
   state: BulkLibrarySyncState,
+  options?: {
+    libraryName?: string;
+    collectionName?: string | null;
+  },
 ): string {
+  if (options?.collectionName) {
+    const actionTarget = ` from ${options.collectionName}`;
+    if (state.phase === "running") {
+      return `Syncing papers${actionTarget}...`;
+    }
+
+    if (
+      state.phase === "paused-rate-limit" || state.phase === "paused-error"
+    ) {
+      return `Resume sync${actionTarget}`;
+    }
+
+    return `Sync all papers${actionTarget}`;
+  }
+
+  if (options?.libraryName) {
+    if (state.phase === "running") {
+      return `Syncing ${options.libraryName}...`;
+    }
+
+    if (
+      state.phase === "paused-rate-limit" || state.phase === "paused-error"
+    ) {
+      return `Resume sync in ${options.libraryName}`;
+    }
+
+    return `Sync all papers in ${options.libraryName}`;
+  }
+
   if (state.phase === "running") {
     return "Syncing Zotero papers...";
   }
@@ -208,17 +245,28 @@ export function getBulkLibrarySyncButtonLabel(
 export function getBulkLibrarySyncStatusMessage(params: {
   state: BulkLibrarySyncState;
   processedCount?: number;
+  libraryName?: string;
+  collectionName?: string | null;
 }): string | null {
   const processedCount = params.processedCount ?? params.state.processedCount;
+  const scopedNounPhrase = params.collectionName
+    ? `papers from ${params.collectionName}`
+    : params.libraryName
+      ? `papers in ${params.libraryName}`
+      : "papers";
 
   if (params.state.phase === "running") {
     if (params.state.totalResults && params.state.totalResults > 0) {
-      return `Syncing ${Math.min(processedCount, params.state.totalResults)} of ${params.state.totalResults} papers.`;
+      return `Syncing ${Math.min(processedCount, params.state.totalResults)} of ${params.state.totalResults} ${scopedNounPhrase}.`;
     }
 
     return processedCount > 0
-      ? `Syncing papers. ${processedCount} processed so far.`
-      : "Preparing your Zotero library...";
+      ? `Syncing ${scopedNounPhrase}. ${processedCount} processed so far.`
+      : params.collectionName
+        ? `Preparing ${params.collectionName}...`
+        : params.libraryName
+          ? `Preparing ${params.libraryName}...`
+          : "Preparing your Zotero library...";
   }
 
   if (params.state.phase === "paused-rate-limit") {
@@ -233,13 +281,19 @@ export function getBulkLibrarySyncStatusMessage(params: {
 
   if (params.state.phase === "completed") {
     if (params.state.totalResults && params.state.totalResults > 0) {
-      return `Finished syncing ${params.state.totalResults} papers.`;
+      return `Finished syncing ${params.state.totalResults} ${scopedNounPhrase}.`;
     }
 
-    return "Finished syncing your Zotero papers.";
+    return params.collectionName || params.libraryName
+      ? `Finished syncing ${scopedNounPhrase}.`
+      : "Finished syncing your Zotero papers.";
   }
 
-  return "Create or update literature notes for every paper in your Zotero library.";
+  return params.collectionName
+    ? `Create or update literature notes for every paper in ${params.collectionName}.`
+    : params.libraryName
+      ? `Create or update literature notes for every paper in ${params.libraryName}.`
+      : "Create or update literature notes for every paper in your Zotero library.";
 }
 
 export function findAffectedPathsForDeletedChildKeys(

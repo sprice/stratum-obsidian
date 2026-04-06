@@ -21,6 +21,7 @@ import type {
   BackendAuthState,
   OpenAlexEnrichment,
   RefreshResponse,
+  ZoteroLibraryCollectionsResponse,
   ZoteroLibraryCatalogPageResponse,
   ZoteroConnectionState,
   ZoteroItemDetail,
@@ -48,6 +49,8 @@ export type {
   BackendAuthState,
   OpenAlexEnrichment,
   RefreshResponse,
+  ZoteroCollectionSummary,
+  ZoteroLibraryCollectionsResponse,
   ZoteroLibraryCatalogItem,
   ZoteroLibraryCatalogPageResponse,
   ZoteroGroupSummary,
@@ -159,7 +162,11 @@ export class BackendClient {
 
   async searchZoteroLibrary(
     query: string,
-    options?: { refresh?: boolean; library?: LibraryParam },
+    options?: {
+      refresh?: boolean;
+      library?: LibraryParam;
+      collectionKey?: string | null;
+    },
   ): Promise<ZoteroSearchResponse> {
     const queryParams = new URLSearchParams({
       q: query.trim(),
@@ -168,6 +175,7 @@ export class BackendClient {
       queryParams.set("refresh", "1");
     }
     appendLibraryParams(queryParams, options?.library);
+    appendCollectionParams(queryParams, options?.collectionKey);
     const response = await this.authedFetch(
       `/zotero-library-search?${queryParams.toString()}`,
     );
@@ -177,16 +185,33 @@ export class BackendClient {
     return this.readJson<ZoteroSearchResponse>(response);
   }
 
+  async getZoteroLibraryCollections(options?: {
+    library?: LibraryParam;
+  }): Promise<ZoteroLibraryCollectionsResponse> {
+    const query = new URLSearchParams();
+    appendLibraryParams(query, options?.library);
+    const suffix = query.toString();
+    const response = await this.authedFetch(
+      `/zotero-library-collections${suffix ? `?${suffix}` : ""}`,
+    );
+
+    this.throwIfBackendError(response, "Failed to load Zotero collections");
+
+    return this.readJson<ZoteroLibraryCollectionsResponse>(response);
+  }
+
   async getZoteroLibraryCatalogPage(params: {
     start: number;
     limit: number;
     library?: LibraryParam;
+    collectionKey?: string | null;
   }): Promise<ZoteroLibraryCatalogPageResponse> {
     const query = new URLSearchParams({
       start: String(params.start),
       limit: String(params.limit),
     });
     appendLibraryParams(query, params.library);
+    appendCollectionParams(query, params.collectionKey);
     const response = await this.authedFetch(
       `/zotero-library-catalog-page?${query.toString()}`,
     );
@@ -415,4 +440,15 @@ function appendLibraryParams(
 
   query.set("libraryType", library.type);
   query.set("libraryId", library.id);
+}
+
+function appendCollectionParams(
+  query: URLSearchParams,
+  collectionKey?: string | null,
+): void {
+  if (!collectionKey) {
+    return;
+  }
+
+  query.set("collectionKey", collectionKey);
 }

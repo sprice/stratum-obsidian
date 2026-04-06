@@ -32,6 +32,7 @@ import {
   getSelectedSearchLibrary,
   setSelectedSearchLibrary,
 } from "./plugin-libraries";
+import { getSelectedSearchCollection } from "./plugin-collections";
 import {
   ABSTRACT_TEASER_LENGTH,
   getAbstractTeaser,
@@ -40,6 +41,8 @@ import {
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 import {
   type BulkLibrarySyncState,
+  buildDefaultBulkLibrarySyncState,
+  getBulkLibrarySyncButtonLabel,
   getBulkLibrarySyncStatusMessage as getBulkSyncStatusMessage,
 } from "./zotero-sync";
 
@@ -80,21 +83,6 @@ function getBulkSyncCompletionFadeState(
     removeInMs: Math.max(0, removeAfterMs - elapsedMs),
     startFaded: elapsedMs >= BULK_SYNC_COMPLETION_STATUS_DELAY_MS,
   };
-}
-
-function getScopedBulkSyncButtonLabel(
-  libraryName: string,
-  state: BulkLibrarySyncState,
-): string {
-  if (state.phase === "running") {
-    return `Syncing ${libraryName}...`;
-  }
-
-  if (state.phase === "paused-rate-limit" || state.phase === "paused-error") {
-    return `Resume sync in ${libraryName}`;
-  }
-
-  return `Sync all papers in ${libraryName}`;
 }
 
 export class StratumView extends ItemView {
@@ -481,12 +469,27 @@ export class StratumView extends ItemView {
       this.plugin.settings.lastKnownZoteroUsername;
     const isReadyForSearch = isAppConnected && isZoteroConnected;
     const selectedSearchLibrary = getSelectedSearchLibrary(this.plugin);
+    const selectedSearchCollection = getSelectedSearchCollection(this.plugin);
     const activeBulkSyncLibrary = getActiveBulkSyncLibrary(this.plugin);
     const visibleBulkSyncLibrary =
       activeBulkSyncLibrary ?? selectedSearchLibrary;
     const visibleBulkSyncState = visibleBulkSyncLibrary
       ? getLibraryBulkSyncState(this.plugin, visibleBulkSyncLibrary)
       : null;
+    const collectionScopeKey = selectedSearchCollection?.key ?? null;
+    const hasBlockingBulkSyncScope =
+      visibleBulkSyncState !== null &&
+      (visibleBulkSyncState.phase === "paused-rate-limit" ||
+        visibleBulkSyncState.phase === "paused-error") &&
+      visibleBulkSyncState.collectionKey !== collectionScopeKey;
+    const scopedBulkSyncState =
+      visibleBulkSyncState &&
+      visibleBulkSyncState.collectionKey === collectionScopeKey
+        ? visibleBulkSyncState
+        : buildDefaultBulkLibrarySyncState();
+    const scopedBulkSyncCollectionName =
+      scopedBulkSyncState.collectionName ??
+      selectedSearchCollection?.displayName;
     const openSettings = () => {
       const settingsManager = getSettingsManager(this.app);
       if (!settingsManager) {
@@ -522,6 +525,8 @@ export class StratumView extends ItemView {
       settingsButton.addEventListener("click", openSettings);
       return;
     }
+
+    void this.plugin.collections.ensureLoaded(selectedSearchLibrary);
 
     const searchSection = searchTab.createDiv({
       cls: "stratum-search-section",
@@ -566,6 +571,68 @@ export class StratumView extends ItemView {
           }) ?? null;
         setSelectedSearchLibrary(this.plugin, library);
         this.render();
+      });
+    }
+
+    const collectionPicker = searchSection.createDiv({
+      cls: "stratum-search-control",
+    });
+    const collectionLabel = collectionPicker.createEl("label", {
+      cls: "stratum-search-label",
+      text: "Collection",
+    });
+    const collectionId = "stratum-collection-picker";
+    const collectionSelect = collectionPicker.createEl("select");
+    collectionSelect.id = collectionId;
+    collectionLabel.setAttr("for", collectionId);
+    collectionSelect.disabled =
+      this.plugin.activeNoteActionKey !== null ||
+      this.plugin.isBulkLibrarySyncRunning() ||
+      this.plugin.isLoadingLibraryCollections;
+
+    const allCollectionsOption = collectionSelect.createEl("option", {
+      text: "All collections",
+      value: "",
+    });
+    allCollectionsOption.selected = !selectedSearchCollection;
+
+    for (const collection of this.plugin.libraryCollections) {
+      const option = collectionSelect.createEl("option", {
+        text: collection.displayName,
+        value: collection.key,
+      });
+      option.selected = collection.key === selectedSearchCollection?.key;
+    }
+
+    collectionSelect.addEventListener("change", () => {
+      const collection =
+        this.plugin.libraryCollections.find((entry) => {
+          return entry.key === collectionSelect.value;
+        }) ?? null;
+      this.plugin.collections.select(collection);
+      this.render();
+    });
+
+    if (this.plugin.libraryCollectionsError) {
+      const collectionErrorRow = collectionPicker.createDiv({
+        cls: "stratum-cache-row",
+      });
+      collectionErrorRow.createEl("p", {
+        cls: "stratum-error",
+        text: this.plugin.libraryCollectionsError,
+      });
+      const retryCollectionsButton = collectionErrorRow.createEl("button", {
+        cls: "stratum-inline-action",
+        text: this.plugin.isLoadingLibraryCollections ? "Retrying..." : "Retry",
+      });
+      if (
+        this.plugin.isLoadingLibraryCollections ||
+        this.plugin.activeNoteActionKey !== null
+      ) {
+        retryCollectionsButton.disabled = true;
+      }
+      retryCollectionsButton.addEventListener("click", () => {
+        void this.plugin.collections.refresh(selectedSearchLibrary);
       });
     }
 
@@ -639,9 +706,11 @@ export class StratumView extends ItemView {
       ) {
         feedbackContainer.createEl("p", {
           cls: "stratum-meta stratum-combobox-status",
-          text: selectedSearchLibrary
-            ? `No matching papers in ${selectedSearchLibrary.name}.`
-            : "No matching papers in your Zotero library.",
+          text: selectedSearchCollection
+            ? `No matching papers in ${selectedSearchCollection.displayName}.`
+            : selectedSearchLibrary
+              ? `No matching papers in ${selectedSearchLibrary.name}.`
+              : "No matching papers in your Zotero library.",
         });
         return;
       }
@@ -806,15 +875,16 @@ export class StratumView extends ItemView {
     if (visibleBulkSyncLibrary && visibleBulkSyncState) {
       const bulkSyncButton = bulkSyncSection.createEl("button", {
         cls: "mod-cta",
-        text: getScopedBulkSyncButtonLabel(
-          visibleBulkSyncLibrary.name,
-          visibleBulkSyncState,
-        ),
+        text: getBulkLibrarySyncButtonLabel(scopedBulkSyncState, {
+          libraryName: visibleBulkSyncLibrary.name,
+          collectionName: scopedBulkSyncCollectionName,
+        }),
       });
       if (
         this.plugin.activeNoteActionKey ||
         this.plugin.isBulkLibrarySyncRunning() ||
         this.plugin.isZoteroAutoSyncRunning() ||
+        hasBlockingBulkSyncScope ||
         !selectedSearchLibrary
       ) {
         bulkSyncButton.disabled = true;
@@ -823,20 +893,25 @@ export class StratumView extends ItemView {
         void this.plugin.runBulkLibrarySync();
       });
 
-      const bulkSyncStatus =
-        visibleBulkSyncState.phase === "idle"
+      const bulkSyncStatus = hasBlockingBulkSyncScope
+        ? visibleBulkSyncState?.collectionName
+          ? `Resume the paused sync for ${visibleBulkSyncState.collectionName} before starting a different collection sync.`
+          : "Resume the paused library sync before starting a different collection sync."
+        : scopedBulkSyncState.phase === "idle"
           ? null
           : getBulkSyncStatusMessage({
-              state: visibleBulkSyncState,
+              state: scopedBulkSyncState,
               processedCount: this.plugin.isBulkLibrarySyncRunning()
                 ? this.plugin.getBulkLibrarySyncProcessedCount()
-                : visibleBulkSyncState.processedCount,
+                : scopedBulkSyncState.processedCount,
+              libraryName: visibleBulkSyncLibrary.name,
+              collectionName: scopedBulkSyncCollectionName,
             });
       const bulkSyncCompletionFade =
-        getBulkSyncCompletionFadeState(visibleBulkSyncState);
+        getBulkSyncCompletionFadeState(scopedBulkSyncState);
       const shouldRenderBulkSyncStatus =
         Boolean(bulkSyncStatus) &&
-        (visibleBulkSyncState.phase !== "completed" ||
+        (scopedBulkSyncState.phase !== "completed" ||
           bulkSyncCompletionFade !== null);
       const bulkSyncStatusText = bulkSyncStatus ?? "";
       if (shouldRenderBulkSyncStatus && bulkSyncCompletionFade !== null) {

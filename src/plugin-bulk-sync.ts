@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 import { createOrUpdateLiteratureNote } from "./literature-note";
 import { log } from "./log";
 import {
+  type ZoteroCollectionSummary,
   type ZoteroLibraryCatalogItem,
   type ZoteroLibraryCatalogPageResponse,
   type ZoteroLibraryIdentity,
@@ -34,6 +35,11 @@ const BULK_LIBRARY_SYNC_CONCURRENCY = 2;
 const BULK_LIBRARY_SYNC_ITEM_START_GAP_MS = 250;
 const BULK_LIBRARY_SYNC_UI_REFRESH_MS = 120;
 const MAX_FAILED_ITEM_KEYS = 25;
+
+type BulkSyncScope = {
+  collectionKey: string | null;
+  collectionName: string | null;
+};
 
 type CatalogPageResult = {
   createdCount: number;
@@ -98,27 +104,53 @@ function isResumableBulkLibrarySyncState(state: BulkLibrarySyncState): boolean {
   return state.phase === "paused-rate-limit" || state.phase === "paused-error";
 }
 
-function buildFreshBulkLibrarySyncState(): BulkLibrarySyncState {
+function buildBulkSyncScope(
+  collection: ZoteroCollectionSummary | null,
+): BulkSyncScope {
+  return {
+    collectionKey: collection?.key ?? null,
+    collectionName: collection?.displayName ?? null,
+  };
+}
+
+function doesBulkSyncStateMatchScope(
+  state: BulkLibrarySyncState,
+  scope: BulkSyncScope,
+): boolean {
+  return state.collectionKey === scope.collectionKey;
+}
+
+function buildFreshBulkLibrarySyncState(
+  scope: BulkSyncScope,
+): BulkLibrarySyncState {
   const now = new Date().toISOString();
   return {
     ...buildDefaultBulkLibrarySyncState(),
     phase: "running",
     startedAt: now,
+    collectionKey: scope.collectionKey,
+    collectionName: scope.collectionName,
     pageSize: BULK_LIBRARY_SYNC_PAGE_SIZE,
   };
 }
 
 function buildRunningBulkLibrarySyncState(
   currentState: BulkLibrarySyncState,
+  scope: BulkSyncScope,
 ): BulkLibrarySyncState {
-  if (!isResumableBulkLibrarySyncState(currentState)) {
-    return buildFreshBulkLibrarySyncState();
+  if (
+    !isResumableBulkLibrarySyncState(currentState) ||
+    !doesBulkSyncStateMatchScope(currentState, scope)
+  ) {
+    return buildFreshBulkLibrarySyncState(scope);
   }
 
   return {
     ...currentState,
     phase: "running",
     completedAt: null,
+    collectionKey: scope.collectionKey,
+    collectionName: scope.collectionName,
     lastError: null,
     retryAfterSeconds: null,
   };
@@ -291,7 +323,14 @@ async function processCatalogPage(
   return result;
 }
 
-async function runFinalBulkSyncCatchUp(plugin: StratumPlugin): Promise<void> {
+async function runFinalBulkSyncCatchUp(
+  plugin: StratumPlugin,
+  collectionKey: string | null,
+): Promise<void> {
+  if (collectionKey) {
+    return;
+  }
+
   const library = getActiveBulkSyncLibrary(plugin);
   if (!library) {
     return;
@@ -317,9 +356,13 @@ function formatBulkSyncCompletionNotice(
   state: BulkLibrarySyncState,
 ): string {
   const parts = [
-    `${PLUGIN_NAME}: synced ${state.processedCount} paper${
-      state.processedCount === 1 ? "" : "s"
-    } in ${library.name}`,
+    state.collectionName
+      ? `${PLUGIN_NAME}: synced ${state.processedCount} paper${
+          state.processedCount === 1 ? "" : "s"
+        } from ${state.collectionName}`
+      : `${PLUGIN_NAME}: synced ${state.processedCount} paper${
+          state.processedCount === 1 ? "" : "s"
+        } in ${library.name}`,
   ];
 
   const changeSummary = [
@@ -435,6 +478,7 @@ export function getBulkLibrarySyncProcessedCount(
 export async function runBulkLibrarySync(
   plugin: StratumPlugin,
   library: EnabledLibrary,
+  collection: ZoteroCollectionSummary | null,
 ): Promise<void> {
   if (plugin.bulkLibrarySyncRunPromise) {
     new Notice(`${PLUGIN_NAME}: Zotero bulk sync is already running.`);
@@ -460,9 +504,23 @@ export async function runBulkLibrarySync(
       await plugin.rebuildItemFileMap();
 
       const state = getLibraryBulkSyncState(plugin, library);
-      const shouldResume = isResumableBulkLibrarySyncState(state);
+      const scope = buildBulkSyncScope(collection);
+      if (
+        isResumableBulkLibrarySyncState(state) &&
+        !doesBulkSyncStateMatchScope(state, scope)
+      ) {
+        new Notice(
+          state.collectionName
+            ? `${PLUGIN_NAME}: Resume the paused sync for ${state.collectionName} before starting a different collection.`
+            : `${PLUGIN_NAME}: Resume the paused library sync before starting a different collection.`,
+        );
+        return;
+      }
+      const shouldResume =
+        isResumableBulkLibrarySyncState(state) &&
+        doesBulkSyncStateMatchScope(state, scope);
       plugin.settings.libraryBulkSync[library.identity] =
-        buildRunningBulkLibrarySyncState(state);
+        buildRunningBulkLibrarySyncState(state, scope);
       plugin.settings.activeBulkSyncLibrary = library.identity;
       await plugin.saveSettings();
       resetBulkLibrarySyncRuntime(plugin);
@@ -470,12 +528,21 @@ export async function runBulkLibrarySync(
 
       log("bulk-sync", "starting", {
         library: library.identity,
+        collection: scope.collectionKey,
         resuming: shouldResume,
       });
       if (shouldResume) {
-        new Notice(`${PLUGIN_NAME}: resuming paper sync in ${library.name}...`);
+        new Notice(
+          scope.collectionName
+            ? `${PLUGIN_NAME}: resuming paper sync from ${scope.collectionName}...`
+            : `${PLUGIN_NAME}: resuming paper sync in ${library.name}...`,
+        );
       } else {
-        new Notice(`${PLUGIN_NAME}: syncing all papers in ${library.name}...`);
+        new Notice(
+          scope.collectionName
+            ? `${PLUGIN_NAME}: syncing all papers from ${scope.collectionName}...`
+            : `${PLUGIN_NAME}: syncing all papers in ${library.name}...`,
+        );
       }
 
       while (true) {
@@ -489,6 +556,7 @@ export async function runBulkLibrarySync(
           start: libraryState.nextStart,
           limit: libraryState.pageSize,
           library,
+          collectionKey: libraryState.collectionKey,
         });
         libraryState.snapshotLibraryVersion =
           libraryState.snapshotLibraryVersion ?? page.snapshotLibraryVersion;
@@ -539,7 +607,7 @@ export async function runBulkLibrarySync(
 
       resetBulkLibrarySyncRuntime(plugin);
       log("bulk-sync", "running final catch-up", { library: library.identity });
-      await runFinalBulkSyncCatchUp(plugin);
+      await runFinalBulkSyncCatchUp(plugin, scope.collectionKey);
       const completedState = getLibraryBulkSyncState(plugin, library);
       completedState.phase = "completed";
       log("bulk-sync", "completed", {

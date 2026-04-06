@@ -4,6 +4,7 @@ import {
   isLibrarySearchQueryReady,
 } from "./library-search-query";
 import type StratumPlugin from "./plugin";
+import { getSelectedSearchCollection } from "./plugin-collections";
 import { getSelectedSearchLibrary } from "./plugin-libraries";
 import {
   cancelLibraryPickerClose,
@@ -120,9 +121,11 @@ export function getLibrarySuggestions(
   }
 
   const library = getSelectedSearchLibrary(plugin);
+  const collection = getSelectedSearchCollection(plugin);
   const cacheKey = getScopedLibrarySearchCacheKey(
     query,
     library?.identity ?? "none",
+    collection?.key ?? "all",
   );
   const cachedResponse = plugin.librarySearchCache.get(cacheKey);
   if (cachedResponse) {
@@ -175,9 +178,11 @@ function queueLibrarySearch(
 
   const requestId = ++plugin.librarySearchRequestId;
   const library = getSelectedSearchLibrary(plugin);
+  const collection = getSelectedSearchCollection(plugin);
   const cacheKey = getScopedLibrarySearchCacheKey(
     query,
     library?.identity ?? "none",
+    collection?.key ?? "all",
   );
   plugin.librarySearchQuery = query;
   plugin.librarySearchResults = [];
@@ -218,6 +223,7 @@ async function runLibrarySearchRequest(
 ): Promise<ZoteroSearchResult[]> {
   const requestId = options?.requestId ?? ++plugin.librarySearchRequestId;
   const library = getSelectedSearchLibrary(plugin);
+  const collection = getSelectedSearchCollection(plugin);
   if (!library) {
     plugin.librarySearchResults = [];
     plugin.librarySearchMeta = null;
@@ -233,6 +239,7 @@ async function runLibrarySearchRequest(
     const response = await plugin.backend.searchZoteroLibrary(query, {
       refresh: options?.refresh,
       library,
+      collectionKey: collection?.key ?? null,
     });
     if (requestId !== plugin.librarySearchRequestId) {
       return plugin.librarySearchResults;
@@ -292,12 +299,17 @@ function cacheLibrarySearchResponse(
   meta: ZoteroSearchMeta,
 ): void {
   const library = getSelectedSearchLibrary(plugin);
+  const collection = getSelectedSearchCollection(plugin);
   if (!library) {
     return;
   }
 
   plugin.librarySearchCache.set(
-    getScopedLibrarySearchCacheKey(query, library.identity),
+    getScopedLibrarySearchCacheKey(
+      query,
+      library.identity,
+      collection?.key ?? "all",
+    ),
     {
       query,
       results,
@@ -321,6 +333,7 @@ function syncLibrarySearchQuery(plugin: StratumPlugin, query: string): void {
 function getScopedLibrarySearchCacheKey(
   query: string,
   libraryIdentity: string,
+  collectionKey: string,
 ): string {
-  return `${libraryIdentity}::${getLibrarySearchCacheKey(query)}`;
+  return `${libraryIdentity}::${collectionKey}::${getLibrarySearchCacheKey(query)}`;
 }

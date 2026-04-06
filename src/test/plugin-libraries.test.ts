@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type {
+  ZoteroCollectionSummary,
   ZoteroConnectionState,
   ZoteroGroupSummary,
 } from "../backend-types";
@@ -21,6 +22,8 @@ import {
 function createMockPlugin(params?: {
   enabledLibraries?: EnabledLibrary[];
   selectedSearchLibrary?: EnabledLibrary | null;
+  selectedSearchCollection?: ZoteroCollectionSummary | null;
+  libraryCollections?: ZoteroCollectionSummary[];
   availableGroups?: ZoteroGroupSummary[];
   settings?: Partial<StratumSettings>;
 }) {
@@ -67,6 +70,16 @@ function createMockPlugin(params?: {
     availableGroups: [...(params?.availableGroups ?? [])],
     selectedSearchLibrary:
       params?.selectedSearchLibrary ?? settings.enabledLibraries[0] ?? null,
+    selectedSearchCollection: params?.selectedSearchCollection ?? null,
+    libraryCollectionsLibraryIdentity:
+      params?.selectedSearchLibrary?.identity ??
+      settings.enabledLibraries[0]?.identity ??
+      null,
+    libraryCollections: [...(params?.libraryCollections ?? [])],
+    libraryCollectionsError: "old collection error",
+    isLoadingLibraryCollections: true,
+    libraryCollectionsRequestId: 4,
+    libraryCollectionsPendingPromise: Promise.resolve([]),
     librarySearchDebounceTimer: null,
     librarySearchPendingPromise: null,
     librarySearchPendingQuery: "attention",
@@ -116,14 +129,27 @@ test("setSelectedSearchLibrary resets search state when switching libraries", ()
     id: "2001",
     name: "Lab Group",
   });
+  const collection = {
+    key: "COLL1",
+    name: "AI Reading List",
+    parentCollectionKey: null,
+    displayName: "AI Reading List",
+  } satisfies ZoteroCollectionSummary;
   const plugin = createMockPlugin({
     enabledLibraries: [personalLibrary, groupLibrary],
     selectedSearchLibrary: personalLibrary,
+    selectedSearchCollection: collection,
+    libraryCollections: [collection],
   });
 
   setSelectedSearchLibrary(plugin as never, groupLibrary);
 
   assert.equal(plugin.selectedSearchLibrary?.identity, "group:2001");
+  assert.equal(plugin.selectedSearchCollection, null);
+  assert.equal(plugin.libraryCollectionsLibraryIdentity, null);
+  assert.deepEqual(plugin.libraryCollections, []);
+  assert.equal(plugin.libraryCollectionsError, null);
+  assert.equal(plugin.isLoadingLibraryCollections, false);
   assert.equal(plugin.librarySearchQuery, "");
   assert.deepEqual(plugin.librarySearchResults, []);
   assert.equal(plugin.librarySearchMeta, null);
@@ -132,6 +158,7 @@ test("setSelectedSearchLibrary resets search state when switching libraries", ()
   assert.equal(plugin.highlightedLibrarySearchIndex, -1);
   assert.equal(plugin.selectedLibraryResult, null);
   assert.equal(plugin.isSelectedLibraryAbstractExpanded, false);
+  assert.equal(plugin.libraryCollectionsRequestId, 5);
   assert.equal(plugin.librarySearchRequestId, 8);
 });
 

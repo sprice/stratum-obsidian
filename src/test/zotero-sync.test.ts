@@ -117,6 +117,32 @@ test("bulk library sync labels reflect running, paused, and completed states", (
   );
 
   assert.equal(
+    getBulkLibrarySyncButtonLabel(
+      {
+        ...DEFAULT_BULK_SYNC_STATE,
+        phase: "running",
+      },
+      {
+        libraryName: "My Library",
+      },
+    ),
+    "Syncing My Library...",
+  );
+
+  assert.equal(
+    getBulkLibrarySyncButtonLabel(
+      {
+        ...DEFAULT_BULK_SYNC_STATE,
+        phase: "idle",
+      },
+      {
+        collectionName: "AI Reading List",
+      },
+    ),
+    "Sync all papers from AI Reading List",
+  );
+
+  assert.equal(
     getBulkLibrarySyncButtonLabel({
       ...DEFAULT_BULK_SYNC_STATE,
       phase: "paused-rate-limit",
@@ -134,6 +160,18 @@ test("bulk library sync labels reflect running, paused, and completed states", (
       processedCount: 45,
     }),
     "Syncing 45 of 120 papers.",
+  );
+
+  assert.equal(
+    getBulkLibrarySyncStatusMessage({
+      state: {
+        ...DEFAULT_BULK_SYNC_STATE,
+        phase: "completed",
+        totalResults: 8,
+      },
+      collectionName: "AI Reading List",
+    }),
+    "Finished syncing 8 papers from AI Reading List.",
   );
 
   assert.equal(

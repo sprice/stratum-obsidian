@@ -189,6 +189,15 @@ function readBulkLibrarySyncState(
   if (typeof value.completedAt === "string" || value.completedAt === null) {
     nextState.completedAt = value.completedAt;
   }
+  if (typeof value.collectionKey === "string" || value.collectionKey === null) {
+    nextState.collectionKey = value.collectionKey;
+  }
+  if (
+    typeof value.collectionName === "string" ||
+    value.collectionName === null
+  ) {
+    nextState.collectionName = value.collectionName;
+  }
   if (
     value.snapshotLibraryVersion === null ||
     (typeof value.snapshotLibraryVersion === "number" &&

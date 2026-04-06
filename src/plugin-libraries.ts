@@ -4,6 +4,7 @@ import type {
 } from "./backend-types";
 import type StratumPlugin from "./plugin";
 import type { EnabledLibrary } from "./settings";
+import { clearLibraryCollectionsState } from "./plugin-collections";
 import {
   buildDefaultBulkLibrarySyncState,
   buildDefaultZoteroAutoSyncState,
@@ -150,6 +151,7 @@ export function setSelectedSearchLibrary(
   }
 
   plugin.selectedSearchLibrary = nextLibrary;
+  clearLibraryCollectionsState(plugin);
   clearLibrarySearchState(plugin);
 }
 

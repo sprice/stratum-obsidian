@@ -31,6 +31,18 @@ export interface ZoteroGroupSummary {
   numItems: number;
 }
 
+export interface ZoteroCollectionSummary {
+  key: string;
+  name: string;
+  parentCollectionKey: string | null;
+  displayName: string;
+}
+
+export interface ZoteroLibraryCollectionsResponse {
+  library: ZoteroLibraryIdentity;
+  collections: ZoteroCollectionSummary[];
+}
+
 export interface ZoteroSearchResult {
   key: string;
   version: number;

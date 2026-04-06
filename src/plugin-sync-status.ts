@@ -2,6 +2,7 @@ import { getSyncStatusLabel } from "./zotero-sync";
 import {
   getActiveBulkSyncLibrary,
   getLibraryAutoSyncState,
+  getLibraryBulkSyncState,
 } from "./plugin-libraries";
 import type StratumPlugin from "./plugin";
 
@@ -40,6 +41,9 @@ export function getAutoSyncStatusLabel(plugin: StratumPlugin): string {
 export function refreshAutoSyncUi(plugin: StratumPlugin): void {
   if (plugin.statusBarItemEl) {
     const activeBulkSyncLibrary = getActiveBulkSyncLibrary(plugin);
+    const activeBulkSyncCollection = activeBulkSyncLibrary
+      ? getLibraryBulkSyncState(plugin, activeBulkSyncLibrary).collectionName
+      : null;
     const firstError =
       plugin.settings.enabledLibraries
         .map((library) => getLibraryAutoSyncState(plugin, library).lastError)
@@ -48,17 +52,21 @@ export function refreshAutoSyncUi(plugin: StratumPlugin): void {
     plugin.statusBarItemEl.setAttribute(
       "aria-label",
       plugin.isBulkLibrarySyncRunning()
-        ? activeBulkSyncLibrary
-          ? `Zotero bulk sync is running in ${activeBulkSyncLibrary.name}`
-          : "Zotero bulk sync is running"
+        ? activeBulkSyncCollection
+          ? `Zotero bulk sync is running in ${activeBulkSyncCollection}`
+          : activeBulkSyncLibrary
+            ? `Zotero bulk sync is running in ${activeBulkSyncLibrary.name}`
+            : "Zotero bulk sync is running"
         : firstError
           ? `Zotero sync status: ${firstError}`
           : getAutoSyncStatusLabel(plugin),
     );
     plugin.statusBarItemEl.title = plugin.isBulkLibrarySyncRunning()
-      ? activeBulkSyncLibrary
-        ? `Bulk Zotero sync is running in ${activeBulkSyncLibrary.name}`
-        : "Bulk Zotero sync is running"
+      ? activeBulkSyncCollection
+        ? `Bulk Zotero sync is running in ${activeBulkSyncCollection}`
+        : activeBulkSyncLibrary
+          ? `Bulk Zotero sync is running in ${activeBulkSyncLibrary.name}`
+          : "Bulk Zotero sync is running"
       : firstError
         ? firstError
         : "Click to sync Zotero changes now";
