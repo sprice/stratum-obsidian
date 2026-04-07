@@ -248,7 +248,7 @@ export function renderFrontmatterContent(
     nativeFrontmatter.citation_key = detail.item.citationKey;
   }
   if (detail.item.publisher) {
-    nativeFrontmatter.publisher = detail.item.publisher;
+    nativeFrontmatter.publisher = `[[${detail.item.publisher}]]`;
   }
   if (detail.item.dateAdded) {
     nativeFrontmatter.date_added = detail.item.dateAdded;

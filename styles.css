@@ -672,3 +672,15 @@
 		transform: rotate(360deg);
 	}
 }
+
+/* Hide internal sync-tracking properties from the Properties panel */
+.metadata-property[data-property-key^="zotero_"],
+.metadata-property[data-property-key^="stratum_"] {
+	display: none;
+}
+
+.metadata-property[data-property-key="zotero_status"],
+.metadata-property[data-property-key="zotero_library_type"],
+.metadata-property[data-property-key="zotero_synced_at"] {
+	display: flex;
+}
