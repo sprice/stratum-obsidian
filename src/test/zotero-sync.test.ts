@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_BULK_LIBRARY_SYNC_STATE,
   findAffectedPathsForDeletedChildKeys,
+  formatBulkLibrarySyncCompletionMessage,
   formatRelativeSyncTime,
   getBulkLibrarySyncButtonLabel,
   getBulkLibrarySyncStatusMessage,
   getSyncStatusLabel,
-  shouldSkipFocusSync,
   type BulkLibrarySyncState,
   type ZoteroAutoSyncState,
 } from "../zotero-sync";
@@ -53,10 +53,17 @@ test("findAffectedPathsForDeletedChildKeys matches attachment, note, and annotat
 });
 
 test("getSyncStatusLabel reports relative sync times and errors", () => {
+  assert.equal(
+    getSyncStatusLabel({
+      isSyncing: false,
+      state: DEFAULT_SYNC_STATE,
+    }),
+    "Zotero",
+  );
+
   assert.match(
     getSyncStatusLabel({
       isSyncing: false,
-      autoSyncEnabled: true,
       state: {
         ...DEFAULT_SYNC_STATE,
         lastSuccessfulSyncAt: "2026-03-14T12:00:00.000Z",
@@ -69,7 +76,6 @@ test("getSyncStatusLabel reports relative sync times and errors", () => {
   assert.equal(
     getSyncStatusLabel({
       isSyncing: false,
-      autoSyncEnabled: true,
       state: {
         ...DEFAULT_SYNC_STATE,
         lastError: "Boom",
@@ -79,31 +85,13 @@ test("getSyncStatusLabel reports relative sync times and errors", () => {
   );
 });
 
-test("formatRelativeSyncTime and shouldSkipFocusSync handle cooldown windows", () => {
+test("formatRelativeSyncTime handles cooldown windows", () => {
   assert.equal(
     formatRelativeSyncTime(
       "2026-03-14T12:00:00.000Z",
       Date.parse("2026-03-14T12:00:30.000Z"),
     ),
     "30 seconds ago",
-  );
-
-  assert.equal(
-    shouldSkipFocusSync(
-      Date.parse("2026-03-14T12:00:00.000Z"),
-      Date.parse("2026-03-14T12:00:20.000Z"),
-      30_000,
-    ),
-    true,
-  );
-
-  assert.equal(
-    shouldSkipFocusSync(
-      Date.parse("2026-03-14T12:00:00.000Z"),
-      Date.parse("2026-03-14T12:00:31.000Z"),
-      30_000,
-    ),
-    false,
   );
 });
 
@@ -147,7 +135,7 @@ test("bulk library sync labels reflect running, paused, and completed states", (
       ...DEFAULT_BULK_SYNC_STATE,
       phase: "paused-rate-limit",
     }),
-    "Resume Zotero sync",
+    "Sync all Zotero papers",
   );
 
   assert.equal(
@@ -167,11 +155,32 @@ test("bulk library sync labels reflect running, paused, and completed states", (
       state: {
         ...DEFAULT_BULK_SYNC_STATE,
         phase: "completed",
+        processedCount: 8,
+        startedAt: "2026-03-14T12:00:00.000Z",
+        completedAt: "2026-03-14T12:00:22.340Z",
         totalResults: 8,
       },
+      libraryName: "My Library",
       collectionName: "AI Reading List",
     }),
-    "Finished syncing 8 papers from AI Reading List.",
+    "Finished syncing 8 papers in My Library in 22.34 seconds.",
+  );
+
+  assert.equal(
+    getBulkLibrarySyncStatusMessage({
+      state: {
+        ...DEFAULT_BULK_SYNC_STATE,
+        phase: "completed",
+        processedCount: 8,
+        enrichmentFailureCount: 2,
+        startedAt: "2026-03-14T12:00:00.000Z",
+        completedAt: "2026-03-14T12:00:22.340Z",
+        totalResults: 8,
+      },
+      libraryName: "My Library",
+      collectionName: "AI Reading List",
+    }),
+    "Finished syncing 8 papers in My Library in 22.34 seconds. Enrichment failed for 2 papers. Run sync again later to try again.",
   );
 
   assert.equal(
@@ -189,10 +198,50 @@ test("bulk library sync labels reflect running, paused, and completed states", (
     getBulkLibrarySyncStatusMessage({
       state: {
         ...DEFAULT_BULK_SYNC_STATE,
+        phase: "paused-error",
+      },
+    }),
+    "Sync interrupted. Start sync again when ready.",
+  );
+
+  assert.equal(
+    getBulkLibrarySyncStatusMessage({
+      state: {
+        ...DEFAULT_BULK_SYNC_STATE,
+        processedCount: 12,
         phase: "completed",
         totalResults: 12,
       },
     }),
     "Finished syncing 12 papers.",
+  );
+
+  assert.equal(
+    getBulkLibrarySyncStatusMessage({
+      state: {
+        ...DEFAULT_BULK_SYNC_STATE,
+        phase: "completed",
+        processedCount: 12,
+        totalResults: 12,
+      },
+      libraryName: "My Library",
+    }),
+    "Finished syncing 12 papers in My Library.",
+  );
+});
+
+test("formatBulkLibrarySyncCompletionMessage is the shared completion formatter", () => {
+  assert.equal(
+    formatBulkLibrarySyncCompletionMessage({
+      state: {
+        ...DEFAULT_BULK_SYNC_STATE,
+        processedCount: 3,
+        enrichmentFailureCount: 1,
+        startedAt: "2026-03-14T12:00:00.000Z",
+        completedAt: "2026-03-14T12:00:02.000Z",
+      },
+      libraryName: "My Library",
+    }),
+    "Finished syncing 3 papers in My Library in 2.00 seconds. Enrichment failed for 1 paper. Run sync again later to try again.",
   );
 });

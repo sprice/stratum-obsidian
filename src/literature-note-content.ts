@@ -1,4 +1,5 @@
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
+import { normalizeDoi } from "./doi";
 import {
   MANAGED_START,
   USER_BOUNDARY_CALLOUT,
@@ -13,7 +14,10 @@ import {
   renderFrontmatterContent,
   splitFrontmatterContent,
 } from "./literature-note-frontmatter";
-import { renderManagedBlock } from "./literature-note-sections";
+import {
+  type PreservedManagedSections,
+  renderManagedBlock,
+} from "./literature-note-sections";
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -45,6 +49,43 @@ function ensureUserBoundary(body: string): string {
   return `${body.trimEnd()}\n\n${USER_BOUNDARY_CALLOUT}\n\n`;
 }
 
+function normalizeLegacyEnrichmentSection(section: string): string {
+  return section
+    .replace(/^> \[!globe]([+-]) OpenAlex$/m, "> [!globe]$1 Enrichment")
+    .replace(/\*\*OpenAlex\*\*:/g, "**Enrichment**:");
+}
+
+function extractPreservedManagedSections(
+  existingContent: string,
+): PreservedManagedSections {
+  const managedMatch = existingContent.match(
+    /<!-- stratum:managed:start -->\n([\s\S]*?)\n<!-- stratum:managed:end -->/,
+  );
+  if (!managedMatch) {
+    return {};
+  }
+
+  const preserved: PreservedManagedSections = {};
+  const sections = managedMatch[1]
+    .split(/\n\n+/)
+    .map((section) => section.trim())
+    .filter(Boolean)
+    .filter((section) => !section.startsWith("> [!warning]"));
+
+  for (const section of sections) {
+    const firstLine = section.split("\n", 1)[0] ?? "";
+    if (/^> \[!bar-chart][+-] Impact$/.test(firstLine)) {
+      preserved.impact = normalizeLegacyEnrichmentSection(section);
+    } else if (/^> \[!globe][+-] (?:OpenAlex|Enrichment)$/.test(firstLine)) {
+      preserved.openAlex = normalizeLegacyEnrichmentSection(section);
+    } else if (/^> \[!abstract][+-] Abstract$/.test(firstLine)) {
+      preserved.abstract = section;
+    }
+  }
+
+  return preserved;
+}
+
 export function buildLiteratureNoteContent(params: {
   detail: ZoteroItemDetail;
   filenameStem: string | null;
@@ -56,17 +97,30 @@ export function buildLiteratureNoteContent(params: {
   enrichment?: OpenAlexEnrichment | null;
 }): string {
   const zoteroStatus = params.zoteroStatus ?? "active";
+  const enrichmentWasProvided = Object.prototype.hasOwnProperty.call(
+    params,
+    "enrichment",
+  );
 
   if (params.existingContent) {
     const { frontmatter, body } = splitFrontmatterContent(
       params.existingContent,
       params.parseYaml,
     );
+    const preserveManagedEnrichment =
+      enrichmentWasProvided &&
+      params.enrichment === undefined &&
+      normalizeDoi(
+        typeof frontmatter.doi === "string" ? frontmatter.doi : null,
+      ) === normalizeDoi(params.detail.item.doi);
     const managedBlock = renderManagedBlock(
       params.detail,
       params.htmlToMarkdown,
       zoteroStatus,
       params.enrichment,
+      preserveManagedEnrichment
+        ? extractPreservedManagedSections(params.existingContent)
+        : undefined,
     );
     const nextFrontmatter = renderFrontmatterContent(
       params.detail,

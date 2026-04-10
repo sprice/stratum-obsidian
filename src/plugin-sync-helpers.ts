@@ -1,32 +1,5 @@
-import { TFile } from "obsidian";
 import type { ZoteroConnectionState } from "./backend-types";
 import type StratumPlugin from "./plugin";
-import {
-  getIdentityFromFrontmatter,
-  getItemKeyFromFrontmatter,
-  isPathInsideNotesFolder,
-} from "./plugin-note-index";
-
-export function getTrackedLiteratureNotes(plugin: StratumPlugin): Array<{
-  file: TFile;
-  frontmatter: Record<string, unknown> | null;
-}> {
-  return plugin.app.vault
-    .getMarkdownFiles()
-    .filter((file) => isPathInsideNotesFolder(plugin, file.path))
-    .map((file) => ({
-      file,
-      frontmatter:
-        (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
-          | Record<string, unknown>
-          | undefined) ?? null,
-    }))
-    .filter(
-      (entry) =>
-        Boolean(getIdentityFromFrontmatter(entry.frontmatter)) &&
-        Boolean(getItemKeyFromFrontmatter(entry.frontmatter)),
-    );
-}
 
 export function isMissingZoteroItemError(error: unknown): boolean {
   return (

@@ -54,11 +54,13 @@
 }
 
 .stratum-search-tab,
+.stratum-sync-tab,
 .stratum-reader-tab {
 	min-height: 0;
 }
 
-.stratum-search-tab {
+.stratum-search-tab,
+.stratum-sync-tab {
 	height: 100%;
 	overflow-y: auto;
 	overflow-x: hidden;
@@ -194,6 +196,21 @@
 .stratum-settings-panel .setting-item-description {
 	color: var(--text-muted);
 	line-height: 1.45;
+}
+
+.stratum-settings-inline-note,
+.stratum-settings-inline-error {
+	margin-top: 0.4rem;
+}
+
+.stratum-settings-inline-error {
+	color: var(--text-error);
+}
+
+.stratum-settings-panel .setting-item-control button.stratum-button-danger-subtle,
+.stratum-settings-panel .setting-item-control button.stratum-button-danger-subtle:hover,
+.stratum-settings-panel .setting-item-control button.stratum-button-danger-subtle:focus-visible {
+	color: var(--text-error) !important;
 }
 
 .stratum-interval-input {

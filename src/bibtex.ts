@@ -42,7 +42,7 @@ export function buildCitekey(entry: LiteratureNoteEntry): string {
   return `${author}${year}`;
 }
 
-export function buildBibtexEntry(entry: LiteratureNoteEntry): string {
+function buildBibtexEntry(entry: LiteratureNoteEntry): string {
   const citekey = buildCitekey(entry);
   const type = referenceTypeToBibtex(entry.referenceType);
   const fields: string[] = [];

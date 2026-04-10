@@ -1,4 +1,5 @@
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
+import { normalizeDoi } from "./doi";
 import {
   getReadableAuthorLabel,
   getReadableTitleVariants,
@@ -10,6 +11,7 @@ import {
   ATTACHMENT_KEYS_FRONTMATTER_KEY,
   MANAGED_FRONTMATTER_KEYS,
   NOTE_KEYS_FRONTMATTER_KEY,
+  OPENALEX_MANAGED_FRONTMATTER_KEYS,
   type YamlParser,
   type YamlStringifier,
   type ZoteroSyncStatus,
@@ -58,8 +60,9 @@ export function buildSourceUrl(detail: ZoteroItemDetail): string | null {
     return detail.item.url;
   }
 
-  if (detail.item.doi) {
-    return `https://doi.org/${detail.item.doi}`;
+  const doi = normalizeDoi(detail.item.doi);
+  if (doi) {
+    return `https://doi.org/${doi}`;
   }
 
   return null;
@@ -91,6 +94,14 @@ function buildAliases(detail: ZoteroItemDetail): string[] {
   }
 
   return Array.from(aliases);
+}
+
+function buildLibraryName(detail: ZoteroItemDetail): string {
+  if (detail.library.type === "group") {
+    return detail.library.groupName?.trim() || `Group ${detail.library.id}`;
+  }
+
+  return "My Library";
 }
 
 function buildNativeTags(detail: ZoteroItemDetail): string[] {
@@ -185,6 +196,13 @@ export function renderFrontmatterContent(
   stringifyYaml: YamlStringifier,
   enrichment?: OpenAlexEnrichment | null,
 ): string {
+  const preserveExistingOpenAlex =
+    enrichment === undefined &&
+    normalizeDoi(
+      typeof existingFrontmatter.doi === "string"
+        ? existingFrontmatter.doi
+        : null,
+    ) === normalizeDoi(detail.item.doi);
   const existingAliases = toStringList(existingFrontmatter.aliases);
   const previousManagedAliases = new Set(
     toStringList(existingFrontmatter.stratum_managed_aliases),
@@ -195,6 +213,15 @@ export function renderFrontmatterContent(
   const managedAliases = buildAliases(detail);
   const preservedTags = toStringList(existingFrontmatter.tags);
   const nextFrontmatter = filterExistingFrontmatter(existingFrontmatter);
+  const preservedOpenAlexFrontmatter = preserveExistingOpenAlex
+    ? Object.fromEntries(
+        OPENALEX_MANAGED_FRONTMATTER_KEYS.flatMap((key) =>
+          existingFrontmatter[key] === undefined
+            ? []
+            : [[key, existingFrontmatter[key]] as const],
+        ),
+      )
+    : {};
   const sourceUrl = buildSourceUrl(detail);
   const nativeFrontmatter: Record<string, unknown> = {
     aliases: Array.from(new Set([...managedAliases, ...userAliases])),
@@ -215,15 +242,16 @@ export function renderFrontmatterContent(
   if (detail.item.publicationTitle) {
     nativeFrontmatter.publication = toWikiLink(detail.item.publicationTitle);
   }
-  if (detail.item.doi) {
-    nativeFrontmatter.doi = detail.item.doi;
+  const doi = normalizeDoi(detail.item.doi);
+  if (doi) {
+    nativeFrontmatter.doi = doi;
   }
   if (sourceUrl) {
     nativeFrontmatter.source = sourceUrl;
   }
   if (detail.item.collections.length > 0) {
     nativeFrontmatter.collections = detail.item.collections.map(
-      (collection) => collection.name,
+      (collection) => toWikiLink(collection.name),
     );
   }
   if (detail.item.volume) {
@@ -294,12 +322,13 @@ export function renderFrontmatterContent(
         .slice(0, 3)
         .map((t) => toWikiLink(t.name));
     }
-  } else if (detail.item.doi) {
+  } else if (enrichment === null && detail.item.doi) {
     nativeFrontmatter.openalex_status = "not_found";
   }
 
   const merged = {
     ...nextFrontmatter,
+    ...preservedOpenAlexFrontmatter,
     ...nativeFrontmatter,
     ...(filenameStem ? { stratum_filename_stem: filenameStem } : {}),
     stratum_note_type: "literature-note",
@@ -308,6 +337,7 @@ export function renderFrontmatterContent(
     zotero_item_key: detail.item.key,
     zotero_library_type: detail.library.type,
     zotero_library_id: detail.library.id,
+    zotero_library_name: buildLibraryName(detail),
     zotero_user_id: detail.zoteroUserId,
     ...(detail.library.type === "group"
       ? { zotero_group_name: detail.library.groupName ?? null }

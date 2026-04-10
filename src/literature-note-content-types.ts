@@ -74,6 +74,7 @@ export const MANAGED_FRONTMATTER_KEYS = new Set([
   "zotero_item_version",
   "zotero_item_type",
   "zotero_library_id",
+  "zotero_library_name",
   "zotero_library_type",
   "zotero_note_keys",
   "zotero_publication_title",

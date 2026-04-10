@@ -1,6 +1,7 @@
 const LEADING_FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)*/;
 
 const READER_VISIBLE_ZOTERO_FRONTMATTER_KEYS = new Set([
+  "zotero_library_name",
   "zotero_group_name",
   "zotero_link",
   "zotero_status",
@@ -20,15 +21,16 @@ const READER_FRONTMATTER_LABELS = new Map<string, string>([
   ["issn", "ISSN"],
   ["oa_status", "OA status"],
   ["oa_url", "Open access PDF"],
-  ["openalex_id", "OpenAlex"],
-  ["openalex_language", "OpenAlex language"],
-  ["openalex_status", "OpenAlex status"],
-  ["openalex_topics", "OpenAlex topics"],
-  ["openalex_type", "OpenAlex type"],
+  ["openalex_id", "Enrichment"],
+  ["openalex_language", "Enrichment language"],
+  ["openalex_status", "Enrichment status"],
+  ["openalex_topics", "Enrichment topics"],
+  ["openalex_type", "Enrichment type"],
   ["pmcid", "PMCID"],
   ["pmid", "PMID"],
   ["reference_type", "Reference type"],
   ["short_title", "Short title"],
+  ["zotero_library_name", "Zotero library"],
   ["zotero_group_name", "Zotero group"],
   ["zotero_link", "Zotero"],
   ["zotero_status", "Zotero status"],
@@ -251,6 +253,13 @@ export function buildReaderFrontmatterMarkdown(
   }
 
   const lines = Object.entries(frontmatter)
+    .filter(([key]) =>
+      !(
+        key === "zotero_group_name" &&
+        typeof frontmatter.zotero_library_name === "string" &&
+        frontmatter.zotero_library_name.trim()
+      )
+    )
     .filter(([key]) => isVisibleFrontmatterKey(key))
     .map(([key, value]) => {
       const formattedValue = formatFrontmatterValue(key, value);

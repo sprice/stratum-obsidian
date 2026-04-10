@@ -13,7 +13,7 @@ import {
 import type { ItemFileMapEntry } from "./settings";
 import type StratumPlugin from "./plugin";
 
-export function getNormalizedNotesFolder(plugin: StratumPlugin): string {
+function getNormalizedNotesFolder(plugin: StratumPlugin): string {
   return normalizePath(plugin.settings.notesFolder.trim()).replace(/\/+$/, "");
 }
 
@@ -205,7 +205,7 @@ export async function rebuildItemFileMap(plugin: StratumPlugin): Promise<void> {
   await plugin.saveSettings();
 }
 
-export function getIdentityCacheKey(identity: {
+function getIdentityCacheKey(identity: {
   libraryType: string;
   libraryId: string;
   itemKey: string;

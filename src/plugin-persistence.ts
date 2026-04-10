@@ -8,7 +8,7 @@ import {
   type ItemFileMapEntry,
   type PersistedAuthSession,
   type StratumSettings,
-} from "./settings";
+} from "./settings-data";
 import type StratumPlugin from "./plugin";
 import { buildPersonalLibrary, syncLibraryStateMaps } from "./plugin-libraries";
 import {
@@ -24,8 +24,8 @@ type StoredSettingsData = Partial<
     StratumSettings,
     | "notesFolder"
     | "filenameFormat"
-    | "autoSyncEnabled"
-    | "autoSyncIntervalMinutes"
+    | "bulkSyncEnabled"
+    | "zoteroLocalApiPort"
     | "lastDeviceCode"
     | "accountEmail"
     | "accountLinkedAt"
@@ -33,6 +33,8 @@ type StoredSettingsData = Partial<
     | "lastKnownZoteroUserId"
     | "lastKnownZoteroUsername"
     | "lastKnownZoteroConfirmedAt"
+    | "selectedSyncLibraryIdentity"
+    | "selectedSyncCollectionKey"
     | "enabledLibraries"
     | "activeBulkSyncLibrary"
   >
@@ -221,6 +223,7 @@ function readBulkLibrarySyncState(
     "updatedCount",
     "skippedCount",
     "failedCount",
+    "enrichmentFailureCount",
     "retryAfterSeconds",
   ] as const;
 
@@ -308,14 +311,15 @@ function readStoredSettings(value: unknown): Omit<
   if (isLiteratureNoteFilenameFormat(value.filenameFormat)) {
     nextSettings.filenameFormat = value.filenameFormat;
   }
-  if (typeof value.autoSyncEnabled === "boolean") {
-    nextSettings.autoSyncEnabled = value.autoSyncEnabled;
+  if (typeof value.bulkSyncEnabled === "boolean") {
+    nextSettings.bulkSyncEnabled = value.bulkSyncEnabled;
   }
   if (
-    typeof value.autoSyncIntervalMinutes === "number" &&
-    Number.isFinite(value.autoSyncIntervalMinutes)
+    typeof value.zoteroLocalApiPort === "number" &&
+    Number.isFinite(value.zoteroLocalApiPort) &&
+    value.zoteroLocalApiPort > 0
   ) {
-    nextSettings.autoSyncIntervalMinutes = value.autoSyncIntervalMinutes;
+    nextSettings.zoteroLocalApiPort = Math.round(value.zoteroLocalApiPort);
   }
   if (
     typeof value.lastDeviceCode === "string" ||
@@ -359,6 +363,19 @@ function readStoredSettings(value: unknown): Omit<
     nextSettings.lastKnownZoteroConfirmedAt = value.lastKnownZoteroConfirmedAt;
   }
   if (
+    typeof value.selectedSyncLibraryIdentity === "string" ||
+    value.selectedSyncLibraryIdentity === null
+  ) {
+    nextSettings.selectedSyncLibraryIdentity =
+      value.selectedSyncLibraryIdentity;
+  }
+  if (
+    typeof value.selectedSyncCollectionKey === "string" ||
+    value.selectedSyncCollectionKey === null
+  ) {
+    nextSettings.selectedSyncCollectionKey = value.selectedSyncCollectionKey;
+  }
+  if (
     value.activeBulkSyncLibrary === null ||
     typeof value.activeBulkSyncLibrary === "string"
   ) {
@@ -392,9 +409,36 @@ function writeSecret(
   plugin.app.secretStorage.setSecret(id, value ?? "");
 }
 
+function hasLegacyPendingEnrichmentCount(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if ("pendingEnrichmentCount" in value) {
+    return true;
+  }
+
+  return Object.values(value).some(
+    (entry) => isRecord(entry) && "pendingEnrichmentCount" in entry,
+  );
+}
+
 export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   const rawData = (await plugin.loadData()) as StoredSettingsData | null;
   const data = readStoredSettings(rawData);
+  const { legacyZoteroAutoSync, legacyBulkLibrarySync, ...persistedSettings } =
+    data;
+  const hasLegacySettingKeys =
+    isRecord(rawData) &&
+    ("autoSyncEnabled" in rawData || "autoSyncIntervalMinutes" in rawData);
+  const hasLegacyOpenAlexKeys =
+    isRecord(rawData) &&
+    ("openAlexEnrichmentCache" in rawData ||
+      "pendingOpenAlexEnrichmentByLibrary" in rawData);
+  const hasLegacyPendingEnrichmentCounts =
+    isRecord(rawData) &&
+    (hasLegacyPendingEnrichmentCount(rawData.bulkLibrarySync) ||
+      hasLegacyPendingEnrichmentCount(rawData.libraryBulkSync));
   const libraryAutoSync = Object.fromEntries(
     Object.entries(data.libraryAutoSync).map(([identity, state]) => [
       identity,
@@ -416,18 +460,21 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   );
   plugin.settings = {
     ...DEFAULT_SETTINGS,
-    ...data,
+    ...persistedSettings,
     itemFileMap: {
       ...DEFAULT_SETTINGS.itemFileMap,
-      ...(data?.itemFileMap ?? {}),
+      ...(persistedSettings.itemFileMap ?? {}),
     },
-    enabledLibraries: [...(data.enabledLibraries ?? [])],
+    enabledLibraries: [...(persistedSettings.enabledLibraries ?? [])],
     libraryAutoSync,
     libraryBulkSync,
-    activeBulkSyncLibrary: data.activeBulkSyncLibrary ?? null,
+    activeBulkSyncLibrary: persistedSettings.activeBulkSyncLibrary ?? null,
   };
 
-  let shouldPersist = false;
+  let shouldPersist =
+    hasLegacySettingKeys ||
+    hasLegacyOpenAlexKeys ||
+    hasLegacyPendingEnrichmentCounts;
   if (
     plugin.settings.enabledLibraries.length === 0 &&
     plugin.settings.lastKnownZoteroUserId
@@ -444,23 +491,23 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   if (
     personalLibraryIdentity &&
     Object.keys(plugin.settings.libraryAutoSync).length === 0 &&
-    Object.keys(data.legacyZoteroAutoSync).length > 0
+    Object.keys(legacyZoteroAutoSync).length > 0
   ) {
     plugin.settings.libraryAutoSync[personalLibraryIdentity] = {
       ...buildDefaultZoteroAutoSyncState(),
-      ...data.legacyZoteroAutoSync,
+      ...legacyZoteroAutoSync,
     };
     shouldPersist = true;
   }
   if (
     personalLibraryIdentity &&
     Object.keys(plugin.settings.libraryBulkSync).length === 0 &&
-    Object.keys(data.legacyBulkLibrarySync).length > 0
+    Object.keys(legacyBulkLibrarySync).length > 0
   ) {
     plugin.settings.libraryBulkSync[personalLibraryIdentity] = {
       ...buildDefaultBulkLibrarySyncState(),
-      ...data.legacyBulkLibrarySync,
-      failedItemKeys: [...(data.legacyBulkLibrarySync.failedItemKeys ?? [])],
+      ...legacyBulkLibrarySync,
+      failedItemKeys: [...(legacyBulkLibrarySync.failedItemKeys ?? [])],
     };
     shouldPersist = true;
   }
@@ -471,7 +518,7 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
     }
 
     state.phase = "paused-error";
-    state.lastError = "Bulk Zotero sync was interrupted. Resume when ready.";
+    state.lastError = "Sync interrupted. Start sync again when ready.";
     state.retryAfterSeconds = null;
     shouldPersist = true;
   }

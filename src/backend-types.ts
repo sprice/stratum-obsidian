@@ -255,3 +255,18 @@ export interface OpenAlexEnrichment {
   };
   updatedDate: string | null;
 }
+
+export type OpenAlexEnrichmentStatus =
+  | "enriched"
+  | "not_found"
+  | "temporary_failure";
+
+export interface OpenAlexEnrichmentBatchResult {
+  doi: string;
+  enrichment: OpenAlexEnrichment | null;
+  status: OpenAlexEnrichmentStatus;
+}
+
+export interface OpenAlexEnrichmentBatchResponse {
+  results: OpenAlexEnrichmentBatchResult[];
+}

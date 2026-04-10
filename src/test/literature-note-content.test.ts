@@ -222,6 +222,7 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
   assert.match(output, /zotero_note_keys: \[\]/);
   assert.match(output, /zotero_annotation_keys: \[\]/);
   assert.doesNotMatch(output, /zotero_version:/);
+  assert.match(output, /zotero_library_name: My Library/);
   assert.match(
     output,
     /tags: \[literature-note, source\/zotero, reference\/journal-article, zotero\/personality, zotero\/ml\]/,
@@ -231,7 +232,7 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
     /authors: \[\[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]\]/,
   );
   assert.match(output, /publication: \[\[Journal of Examples\]\]/);
-  assert.match(output, /collections: \[Machine Learning Review\]/);
+  assert.match(output, /collections: \[\[\[Machine Learning Review\]\]\]/);
   assert.match(
     output,
     /\*\*Authors\*\*: \[\[Wiebke Bleidorn\]\], \[\[Christopher James Hopwood\]\]/,
@@ -306,7 +307,154 @@ test("buildLiteratureNoteContent strips OpenAlex blocks when enrichment is absen
   assert.doesNotMatch(output, /cited_by_count:/);
   assert.doesNotMatch(output, /openalex_id:/);
   assert.doesNotMatch(output, /> \[!bar-chart\]- Impact/);
-  assert.doesNotMatch(output, /> \[!globe\]- OpenAlex/);
+  assert.doesNotMatch(output, /> \[!globe\]- Enrichment/);
+});
+
+test("buildLiteratureNoteContent preserves existing OpenAlex blocks when enrichment is explicitly deferred and DOI is unchanged", () => {
+  const existingContent = buildLiteratureNoteContent({
+    detail: createDetail(),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: DEFAULT_OPENALEX_ENRICHMENT,
+  });
+
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        title: "Updated Zotero Title",
+      },
+    }),
+    filenameStem: "Managed Name",
+    existingContent,
+    parseYaml: () => ({
+      doi: "10.0000/example",
+      openalex_id: "https://openalex.org/W1234567890",
+      openalex_status: "enriched",
+      cited_by_count: 42,
+    }),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: undefined,
+  });
+
+  assert.match(output, /Updated Zotero Title/);
+  assert.match(output, /openalex_id: https:\/\/openalex\.org\/W1234567890/);
+  assert.match(output, /openalex_status: enriched/);
+  assert.match(output, /> \[!bar-chart\]\+ Impact/);
+  assert.match(output, /> \[!globe\]\+ Enrichment/);
+});
+
+test("buildLiteratureNoteContent normalizes legacy OpenAlex section labels when preserving deferred enrichment", () => {
+  const existingContent = [
+    "---",
+    "doi: 10.0000/example",
+    "openalex_id: https://openalex.org/W1234567890",
+    "openalex_status: enriched",
+    "---",
+    "",
+    "<!-- stratum:managed:start -->",
+    "> [!cite]- Cite",
+    "> Placeholder",
+    "",
+    "> [!bar-chart]+ Impact",
+    "> **Cited by**: 42",
+    "> **OpenAlex**: [W1234567890](https://openalex.org/W1234567890)",
+    "",
+    "> [!globe]+ OpenAlex",
+    "> **Topics**: [[Machine Learning]]",
+    "",
+    "<!-- stratum:managed:end -->",
+    "",
+    "> [!stratum]- My Notes",
+    "> Everything above this line is managed by Stratum.",
+    "",
+  ].join("\n");
+
+  const output = buildLiteratureNoteContent({
+    detail: createDetail(),
+    filenameStem: "Managed Name",
+    existingContent,
+    parseYaml: () => ({
+      doi: "10.0000/example",
+      openalex_id: "https://openalex.org/W1234567890",
+      openalex_status: "enriched",
+    }),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: undefined,
+  });
+
+  assert.match(output, /> \[!globe\]\+ Enrichment/);
+  assert.match(
+    output,
+    /> \*\*Enrichment\*\*: \[W1234567890\]\(https:\/\/openalex\.org\/W1234567890\)/,
+  );
+  assert.doesNotMatch(output, /> \[!globe\]\+ OpenAlex/);
+  assert.doesNotMatch(output, /\*\*OpenAlex\*\*:/);
+});
+
+test("buildLiteratureNoteContent clears existing OpenAlex blocks when enrichment is deferred and DOI changed", () => {
+  const existingContent = buildLiteratureNoteContent({
+    detail: createDetail(),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: DEFAULT_OPENALEX_ENRICHMENT,
+  });
+
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        doi: "10.0000/different",
+      },
+    }),
+    filenameStem: "Managed Name",
+    existingContent,
+    parseYaml: () => ({
+      doi: "10.0000/example",
+      openalex_id: "https://openalex.org/W1234567890",
+      openalex_status: "enriched",
+      cited_by_count: 42,
+    }),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: undefined,
+  });
+
+  assert.match(output, /doi: 10.0000\/different/);
+  assert.doesNotMatch(output, /openalex_id:/);
+  assert.doesNotMatch(output, /> \[!bar-chart\]- Impact/);
+  assert.doesNotMatch(output, /> \[!globe\]- Enrichment/);
+});
+
+test("buildLiteratureNoteContent never renders Highlights even when raw annotations exist", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      annotations: [
+        {
+          key: "ANN1",
+          attachmentKey: "ATTACH1",
+          type: "highlight",
+          color: "#ffd400",
+          pageLabel: "5",
+          text: "Important passage",
+          comment: "User comment",
+          dateModified: "2026-03-14T17:56:02Z",
+          zoteroOpenPdfUri: "zotero://open-pdf/library/items/ATTACH1",
+        },
+      ],
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.doesNotMatch(output, /## Highlights/);
+  assert.doesNotMatch(output, /Open annotation in Zotero/);
 });
 
 test("markLiteratureNoteAsDeletedContent updates frontmatter and adds a warning", () => {
@@ -364,93 +512,6 @@ test("buildLiteratureNoteContent keeps Zotero notes expanded when multiple are p
 
   assert.match(output, /> \[!note\]\+ Zotero note 1 · First note\./);
   assert.match(output, /> \[!note\]\+ Zotero note 2 · Second note\./);
-});
-
-test("buildLiteratureNoteContent renders highlights as grouped callouts", () => {
-  const output = buildLiteratureNoteContent({
-    detail: createDetail({
-      annotations: [
-        {
-          key: "ANNOT1",
-          attachmentKey: "ATTACH1",
-          type: "highlight",
-          color: "#ffd400",
-          pageLabel: "4",
-          text: "A useful highlighted sentence.",
-          comment: "This matters.",
-          dateModified: "2026-03-14T18:00:00Z",
-          zoteroOpenPdfUri:
-            "zotero://open-pdf/library/items/ATTACH1?page=4&annotation=ANNOT1",
-        },
-      ],
-    }),
-    filenameStem: "Managed Name",
-    parseYaml: () => ({}),
-    stringifyYaml: stringifyForTest,
-    htmlToMarkdown: (html) => html,
-  });
-
-  assert.match(output, /## Highlights/);
-  assert.match(output, /> \[!stratum-yellow\]\+ Yellow · 1 highlight/);
-  assert.match(output, /> \*\*Page 4\*\* · highlight/);
-  assert.match(output, /> A useful highlighted sentence\./);
-  assert.match(output, /> Comment: This matters\./);
-  assert.match(
-    output,
-    /> \[Open annotation in Zotero\]\(zotero:\/\/open-pdf\/library\/items\/ATTACH1\?page=4&annotation=ANNOT1\)/,
-  );
-});
-
-test("buildLiteratureNoteContent keeps grouped highlights expanded when there are many", () => {
-  const output = buildLiteratureNoteContent({
-    detail: createDetail({
-      annotations: [
-        {
-          key: "ANNOT1",
-          attachmentKey: "ATTACH1",
-          type: "highlight",
-          color: "#ffd400",
-          pageLabel: "4",
-          text: "First highlight.",
-          comment: null,
-          dateModified: null,
-          zoteroOpenPdfUri:
-            "zotero://open-pdf/library/items/ATTACH1?page=4&annotation=ANNOT1",
-        },
-        {
-          key: "ANNOT2",
-          attachmentKey: "ATTACH1",
-          type: "highlight",
-          color: "#ffd400",
-          pageLabel: "5",
-          text: "Second highlight.",
-          comment: null,
-          dateModified: null,
-          zoteroOpenPdfUri:
-            "zotero://open-pdf/library/items/ATTACH1?page=5&annotation=ANNOT2",
-        },
-        {
-          key: "ANNOT3",
-          attachmentKey: "ATTACH1",
-          type: "highlight",
-          color: "#00ff00",
-          pageLabel: "6",
-          text: "Third highlight.",
-          comment: null,
-          dateModified: null,
-          zoteroOpenPdfUri:
-            "zotero://open-pdf/library/items/ATTACH1?page=6&annotation=ANNOT3",
-        },
-      ],
-    }),
-    filenameStem: "Managed Name",
-    parseYaml: () => ({}),
-    stringifyYaml: stringifyForTest,
-    htmlToMarkdown: (html) => html,
-  });
-
-  assert.match(output, /> \[!stratum-yellow\]\+ Yellow · 2 highlights/);
-  assert.match(output, /> \[!stratum-green\]\+ Green · 1 highlight/);
 });
 
 test("buildLiteratureNoteContent removes stale managed frontmatter keys on update", () => {
@@ -784,7 +845,7 @@ test("new frontmatter fields are emitted when present", () => {
   assert.match(output, /volume: 10/);
   assert.match(output, /isbn: 978-0-123456-78-9/);
   assert.match(output, /language: English/);
-  assert.match(output, /publisher: Academic Press/);
+  assert.match(output, /publisher: \[\[Academic Press\]\]/);
   assert.match(output, /pmid: 12345678/);
   assert.match(output, /pmcid: PMC9876543/);
   assert.match(output, /arxiv: 2301\.12345/);
@@ -812,6 +873,7 @@ test("group-backed notes emit group library metadata in frontmatter", () => {
   assert.match(output, /zotero_item_identity: group\/2001\/ABCD1234/);
   assert.match(output, /zotero_library_type: group/);
   assert.match(output, /zotero_library_id: 2001/);
+  assert.match(output, /zotero_library_name: example-group/);
   assert.match(output, /zotero_user_id: 123456/);
   assert.match(output, /zotero_group_name: example-group/);
 });

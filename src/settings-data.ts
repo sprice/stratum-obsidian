@@ -27,8 +27,8 @@ export interface EnabledLibrary {
 export interface StratumSettings {
   notesFolder: string;
   filenameFormat: LiteratureNoteFilenameFormat;
-  autoSyncEnabled: boolean;
-  autoSyncIntervalMinutes: number;
+  bulkSyncEnabled: boolean;
+  zoteroLocalApiPort: number;
   lastDeviceCode: string | null;
   accountEmail: string | null;
   accountLinkedAt: string | null;
@@ -36,6 +36,8 @@ export interface StratumSettings {
   lastKnownZoteroUserId: string | null;
   lastKnownZoteroUsername: string | null;
   lastKnownZoteroConfirmedAt: string | null;
+  selectedSyncLibraryIdentity: string | null;
+  selectedSyncCollectionKey: string | null;
   itemFileMap: Record<string, ItemFileMapEntry>;
   enabledLibraries: EnabledLibrary[];
   libraryAutoSync: Record<string, ZoteroAutoSyncState>;
@@ -46,8 +48,8 @@ export interface StratumSettings {
 export const DEFAULT_SETTINGS: StratumSettings = {
   notesFolder: DEFAULT_NOTE_FOLDER,
   filenameFormat: "readable",
-  autoSyncEnabled: true,
-  autoSyncIntervalMinutes: 15,
+  bulkSyncEnabled: false,
+  zoteroLocalApiPort: 23119,
   lastDeviceCode: null,
   accountEmail: null,
   accountLinkedAt: null,
@@ -55,6 +57,8 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   lastKnownZoteroUserId: null,
   lastKnownZoteroUsername: null,
   lastKnownZoteroConfirmedAt: null,
+  selectedSyncLibraryIdentity: null,
+  selectedSyncCollectionKey: null,
   itemFileMap: {},
   enabledLibraries: [],
   libraryAutoSync: {},

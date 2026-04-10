@@ -16,6 +16,7 @@ import {
   markZoteroDisconnected,
   markZoteroTokenInvalid,
 } from "./plugin-sync-helpers";
+import { loadEnrichmentForNoteWrite } from "./plugin-enrichment";
 import { ZoteroNotConnectedError } from "./zotero-errors";
 import {
   buildLiteratureNoteEntries,
@@ -60,13 +61,13 @@ export async function createLiteratureNote(
     const detail = await plugin.backend.getZoteroItemDetail(result.key, {
       library: selectedLibrary ?? undefined,
     });
-    const enrichment = detail.item.doi
-      ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
-      : null;
     const existingFile = plugin.findExistingLiteratureNoteFile({
       libraryType: detail.library.type,
       libraryId: detail.library.id,
       itemKey: result.key,
+    });
+    const enrichment = await loadEnrichmentForNoteWrite(plugin, {
+      doi: detail.item.doi,
     });
     const summary = getLiteratureNoteSummary(detail);
 

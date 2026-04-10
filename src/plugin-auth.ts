@@ -16,6 +16,7 @@ import {
   reconcileLibrariesFromConnection,
   setSelectedSearchLibrary,
 } from "./plugin-libraries";
+import { clearLocalSyncState } from "./plugin-local-sync";
 import type StratumPlugin from "./plugin";
 
 /**
@@ -118,6 +119,10 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
         }
         if (plugin.librarySearchCache.size > 0) {
           plugin.librarySearchCache.clear();
+          changed = true;
+        }
+        if (plugin.localSyncLibraries.length > 0 || plugin.localZoteroUserId) {
+          clearLocalSyncState(plugin);
           changed = true;
         }
       }
@@ -224,6 +229,8 @@ export async function refreshZoteroConnection(
             reconcileLibrariesFromConnection(plugin, resolvedConnection) ||
             connectionChanged;
         }
+        connectionChanged =
+          plugin.localSync.reconcileEnabledLibraries() || connectionChanged;
       }
       if (
         updateLastKnownZoteroSnapshot(plugin, plugin.zoteroConnection) ||
@@ -238,6 +245,7 @@ export async function refreshZoteroConnection(
       if (!plugin.backend.hasSession()) {
         plugin.availableGroups = [];
         setSelectedSearchLibrary(plugin, null);
+        clearLocalSyncState(plugin);
       }
     }
   } catch (error) {
@@ -248,12 +256,17 @@ export async function refreshZoteroConnection(
     if (!plugin.backend.hasSession()) {
       plugin.availableGroups = [];
       setSelectedSearchLibrary(plugin, null);
+      clearLocalSyncState(plugin);
     }
   } finally {
     plugin.isLoadingZoteroConnection = false;
+    const tokenValid =
+      !plugin.backend.hasSession()
+        ? "signed_out"
+        : (plugin.zoteroConnection?.tokenValid ?? "unknown");
     log("auth", "zotero connection refreshed", {
       connected: Boolean(plugin.zoteroConnection?.connected),
-      tokenValid: plugin.zoteroConnection?.tokenValid ?? "unknown",
+      tokenValid,
     });
     plugin.refreshAutoSyncUi();
     plugin.refreshViews();
@@ -305,9 +318,6 @@ export async function handleAuthProtocol(
   plugin.refreshViews();
   plugin.refreshSettingTab();
   await refreshZoteroConnection(plugin);
-  if (plugin.settings.autoSyncEnabled) {
-    void plugin.runZoteroAutoSync("startup");
-  }
   await plugin.activateView();
   new Notice(
     zoteroConnected
@@ -328,11 +338,7 @@ export async function bootstrapRemoteState(
 
   log("auth", "bootstrapping remote state");
   await refreshZoteroConnection(plugin);
-  if (plugin.settings.autoSyncEnabled) {
-    void plugin.runZoteroAutoSync("startup");
-  }
   log("auth", "bootstrap dispatched", {
     connected: Boolean(plugin.zoteroConnection?.connected),
-    autoSyncFired: plugin.settings.autoSyncEnabled,
   });
 }
