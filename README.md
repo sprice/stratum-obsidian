@@ -1,10 +1,12 @@
 # Stratum
 
-Stratum creates structured literature notes in Obsidian from your Zotero cloud library without Better BibTeX, running Zotero, or custom templates. It generates readable markdown and keeps managed sections in sync while leaving your own writing alone.
+Stratum creates structured literature notes in Obsidian from your Zotero library. No custom templates, no manual API key setup, no setup project before you can take notes. It generates readable markdown and keeps managed sections in sync while leaving your own writing alone.
 
 > **Requires a Stratum account**
 >
 > Stratum is an open-source plugin paired with a [Stratum](https://stratumnotes.com) account. You need an account and internet access, but the core workflow is free to start. Sign-in, Zotero auth, sync, and enrichment all run through Stratum's service.
+
+Stratum works two ways. When the Zotero app is open on your desktop, Stratum can import your whole library at once and refresh your open notes the moment you highlight or annotate something in Zotero. When the Zotero app is closed, or when you're on mobile, Stratum keeps your notes fresh through its cloud service instead. You don't need to pick a mode. Stratum uses whichever one is available.
 
 ## Features
 
@@ -13,7 +15,8 @@ Stratum creates structured literature notes in Obsidian from your Zotero cloud l
 - Sync personal and group Zotero libraries.
 - Pull in all your Zotero notes and annotations.
 - Group highlights by color, with deep links back to Zotero.
-- Auto-sync your literature notes on startup, on focus, and on a configurable interval.
+- Import a whole Zotero library, or a single collection, in one pass straight from the Zotero app.
+- Refresh your open literature notes in the background the moment you highlight or annotate in Zotero.
 - Rewrite only Stratum's managed section and preserve everything below the `[!stratum]` boundary callout.
 - Mark notes as deleted if the source item disappears from Zotero instead of deleting the file from your vault.
 - Insert `[@citekey]` pandoc citations and auto-manage a `stratum.bib` file.
@@ -39,7 +42,18 @@ While we wait on Community Plugin approval, install Stratum with [BRAT](https://
 4. Open the Stratum library view.
 5. Search by title, author, or year and create a literature note.
 
-After that, Stratum keeps tracked notes fresh automatically.
+After that, Stratum keeps tracked notes fresh automatically. When you open a literature note, Stratum quietly refreshes it so metadata, highlights, and annotations stay current.
+
+### Import your whole library
+
+If you have the Zotero app installed on your desktop, you can skip searching and import everything at once.
+
+1. Make sure the Zotero app is open.
+2. In **Settings -> Stratum**, turn on **Bulk sync**.
+3. Pick the library, and optionally a single collection, you want to import.
+4. Open the **Sync** tab in the Stratum side panel and start a sync.
+
+With bulk sync on, Stratum also watches the Zotero app for changes. Highlight or annotate a paper in Zotero and the matching note in Obsidian refreshes on its own, even while you're reading it.
 
 ## Note format
 
@@ -52,16 +66,15 @@ Each generated note has a managed section and a user section separated by a `[!s
 
 ## Commands
 
-Use the side panel to discover papers, read existing literature notes, and bulk-sync entire libraries. Use keyboard commands to reference literature notes while writing.
+Use the side panel to discover papers, read existing literature notes, and import your whole library. Use keyboard commands to reference literature notes while writing.
 
-| Command                       | Description                                                 |
-| ----------------------------- | ----------------------------------------------------------- |
-| Open library view             | Open the Stratum side panel on the Search tab               |
-| Open literature note          | Search your literature notes and open one in the editor     |
-| Open literature note in panel | Search your literature notes and open one on the Reader tab |
-| Insert literature note link   | Insert a `[[wikilink]]` to a literature note at the cursor  |
-| Insert pandoc citation        | Insert `[@citekey]` and auto-manage a `stratum.bib` file    |
-| Sync Zotero changes now       | Manually trigger a Zotero sync                              |
+| Command                              | Description                                                 |
+| ------------------------------------ | ----------------------------------------------------------- |
+| Open library view                    | Open the Stratum side panel on the Search tab               |
+| Open literature note                 | Search your literature notes and open one in the editor     |
+| Open literature note in Reader panel | Search your literature notes and open one on the Reader tab |
+| Insert literature note link          | Insert a `[[wikilink]]` to a literature note at the cursor  |
+| Insert pandoc citation                | Insert `[@citekey]` and auto-manage a `stratum.bib` file    |
 
 Assign hotkeys in **Settings -> Hotkeys** by searching for "Stratum".
 
@@ -84,7 +97,7 @@ Stratum is deliberately opinionated. It isn't trying to be every Zotero plugin a
 
 - One-way sync from Zotero into Obsidian.
 - Personal and group Zotero libraries.
-- No Better BibTeX, local bridge, or templating language.
+- No template language to learn, no manual API key setup.
 - Not a zero-network or offline-only plugin.
 
 ## Why it requires an account
