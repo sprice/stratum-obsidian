@@ -1,102 +1,114 @@
 import { getSyncStatusLabel } from "./zotero-sync";
 import {
   getActiveBulkSyncLibrary,
-  getLibraryAutoSyncState,
   getLibraryBulkSyncState,
 } from "./plugin-libraries";
 import type StratumPlugin from "./plugin";
 
 const AUTO_SYNC_STATUS_REFRESH_MS = 60_000;
 
+function getRunningBulkSyncLabel(plugin: StratumPlugin): string | null {
+  const activeBulkSyncLibrary = getActiveBulkSyncLibrary(plugin);
+  if (!activeBulkSyncLibrary) {
+    return null;
+  }
+
+  const state = getLibraryBulkSyncState(plugin, activeBulkSyncLibrary);
+  const processedCount = plugin.getBulkLibrarySyncProcessedCount();
+  const totalResults = state.totalResults;
+  const stageVerb =
+    plugin.bulkLibrarySyncStage === "enrichment" ? "enriching" : "syncing";
+
+  if (totalResults && totalResults > 0) {
+    return `Zotero: ${stageVerb} ${Math.min(processedCount, totalResults)}/${totalResults}`;
+  }
+
+  return `Zotero: ${stageVerb}...`;
+}
+
 export function getAutoSyncStatusLabel(plugin: StratumPlugin): string {
+  const runningBulkSyncLabel = getRunningBulkSyncLabel(plugin);
+  if (runningBulkSyncLabel) {
+    return runningBulkSyncLabel;
+  }
+
+  const states = Object.values(plugin.settings.libraryAutoSync);
   const latestSuccessfulSyncAt =
-    plugin.settings.enabledLibraries
-      .map(
-        (library) =>
-          getLibraryAutoSyncState(plugin, library).lastSuccessfulSyncAt,
-      )
+    states
+      .map((state) => state.lastSuccessfulSyncAt)
       .filter((value): value is string => Boolean(value))
       .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
   const firstError =
-    plugin.settings.enabledLibraries
-      .map((library) => getLibraryAutoSyncState(plugin, library).lastError)
+    states
+      .map((state) => state.lastError)
       .find((value): value is string => Boolean(value)) ?? null;
 
   return getSyncStatusLabel({
-    isSyncing: plugin.isAutoSyncRunning,
+    isSyncing: plugin.isZoteroAutoSyncRunning(),
     isBulkSyncing: plugin.isBulkLibrarySyncRunning(),
-    autoSyncEnabled: plugin.settings.autoSyncEnabled,
     state: {
       libraryVersion: null,
       lastSuccessfulSyncAt: latestSuccessfulSyncAt,
       lastError: firstError,
-      initialRefreshCompleted: plugin.settings.enabledLibraries.every(
-        (library) =>
-          getLibraryAutoSyncState(plugin, library).initialRefreshCompleted,
+      initialRefreshCompleted: states.every(
+        (state) => state.initialRefreshCompleted,
       ),
     },
   });
 }
 
 export function refreshAutoSyncUi(plugin: StratumPlugin): void {
-  if (plugin.statusBarItemEl) {
-    const activeBulkSyncLibrary = getActiveBulkSyncLibrary(plugin);
-    const activeBulkSyncCollection = activeBulkSyncLibrary
-      ? getLibraryBulkSyncState(plugin, activeBulkSyncLibrary).collectionName
-      : null;
-    const firstError =
-      plugin.settings.enabledLibraries
-        .map((library) => getLibraryAutoSyncState(plugin, library).lastError)
-        .find((value): value is string => Boolean(value)) ?? null;
-    plugin.statusBarItemEl.setText(getAutoSyncStatusLabel(plugin));
-    plugin.statusBarItemEl.setAttribute(
-      "aria-label",
-      plugin.isBulkLibrarySyncRunning()
+  if (!plugin.statusBarItemEl) {
+    return;
+  }
+
+  const activeBulkSyncLibrary = getActiveBulkSyncLibrary(plugin);
+  const activeBulkSyncState = activeBulkSyncLibrary
+    ? getLibraryBulkSyncState(plugin, activeBulkSyncLibrary)
+    : null;
+  const activeBulkSyncCollection = activeBulkSyncState?.collectionName ?? null;
+  const firstError =
+    Object.values(plugin.settings.libraryAutoSync)
+      .map((state) => state.lastError)
+      .find((value): value is string => Boolean(value)) ?? null;
+  const runningBulkSyncLabel = getRunningBulkSyncLabel(plugin);
+  const bulkProcessedCount = plugin.getBulkLibrarySyncProcessedCount();
+  const bulkTotalResults = activeBulkSyncState?.totalResults ?? null;
+  const bulkStageVerb =
+    plugin.bulkLibrarySyncStage === "enrichment" ? "Enriching" : "Syncing";
+
+  plugin.statusBarItemEl.setText(getAutoSyncStatusLabel(plugin));
+  plugin.statusBarItemEl.setAttribute(
+    "aria-label",
+    plugin.isBulkLibrarySyncRunning()
+      ? bulkTotalResults && bulkTotalResults > 0
         ? activeBulkSyncCollection
-          ? `Zotero bulk sync is running in ${activeBulkSyncCollection}`
+          ? `${bulkStageVerb} ${Math.min(bulkProcessedCount, bulkTotalResults)} of ${bulkTotalResults} papers from ${activeBulkSyncCollection}`
           : activeBulkSyncLibrary
-            ? `Zotero bulk sync is running in ${activeBulkSyncLibrary.name}`
+            ? `${bulkStageVerb} ${Math.min(bulkProcessedCount, bulkTotalResults)} of ${bulkTotalResults} papers in ${activeBulkSyncLibrary.name}`
+            : `${bulkStageVerb} ${Math.min(bulkProcessedCount, bulkTotalResults)} of ${bulkTotalResults} Zotero papers`
+        : activeBulkSyncCollection
+          ? `${bulkStageVerb} papers from ${activeBulkSyncCollection}`
+          : activeBulkSyncLibrary
+            ? `${bulkStageVerb} papers in ${activeBulkSyncLibrary.name}`
             : "Zotero bulk sync is running"
-        : firstError
-          ? `Zotero sync status: ${firstError}`
-          : getAutoSyncStatusLabel(plugin),
-    );
-    plugin.statusBarItemEl.title = plugin.isBulkLibrarySyncRunning()
-      ? activeBulkSyncCollection
-        ? `Bulk Zotero sync is running in ${activeBulkSyncCollection}`
-        : activeBulkSyncLibrary
-          ? `Bulk Zotero sync is running in ${activeBulkSyncLibrary.name}`
-          : "Bulk Zotero sync is running"
       : firstError
-        ? firstError
-        : "Click to sync Zotero changes now";
-  }
-}
-
-export function clearAutoSyncInterval(plugin: StratumPlugin): void {
-  if (plugin.autoSyncIntervalTimer === null) {
-    return;
-  }
-
-  window.clearInterval(plugin.autoSyncIntervalTimer);
-  plugin.autoSyncIntervalTimer = null;
-}
-
-export function configureAutoSyncInterval(plugin: StratumPlugin): void {
-  clearAutoSyncInterval(plugin);
-  if (!plugin.settings.autoSyncEnabled) {
-    refreshAutoSyncUi(plugin);
-    return;
-  }
-
-  const intervalMs =
-    Math.max(1, plugin.settings.autoSyncIntervalMinutes) * 60_000;
-  const timer = window.setInterval(() => {
-    void plugin.runZoteroAutoSync("interval");
-  }, intervalMs);
-  plugin.autoSyncIntervalTimer = timer;
-  plugin.registerInterval(timer);
-  refreshAutoSyncUi(plugin);
+        ? `Zotero sync status: ${firstError}`
+        : getAutoSyncStatusLabel(plugin),
+  );
+  plugin.statusBarItemEl.title = plugin.isBulkLibrarySyncRunning()
+    ? activeBulkSyncCollection
+      ? bulkTotalResults && bulkTotalResults > 0
+        ? `${bulkStageVerb} ${Math.min(bulkProcessedCount, bulkTotalResults)} of ${bulkTotalResults} papers from ${activeBulkSyncCollection}`
+        : `${bulkStageVerb} papers from ${activeBulkSyncCollection}`
+      : activeBulkSyncLibrary
+        ? bulkTotalResults && bulkTotalResults > 0
+          ? `${bulkStageVerb} ${Math.min(bulkProcessedCount, bulkTotalResults)} of ${bulkTotalResults} papers in ${activeBulkSyncLibrary.name}`
+          : `${bulkStageVerb} papers in ${activeBulkSyncLibrary.name}`
+        : (runningBulkSyncLabel ?? "Bulk Zotero sync is running")
+    : firstError
+      ? firstError
+      : "Zotero sync status";
 }
 
 export function startAutoSyncStatusRefresh(plugin: StratumPlugin): void {

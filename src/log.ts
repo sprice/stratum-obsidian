@@ -17,25 +17,3 @@ export function log(
     : "";
   console.debug(`${PREFIX}: [${area}] ${message}${suffix}`);
 }
-
-export async function timed<T>(
-  area: string,
-  label: string,
-  fn: () => Promise<T>,
-): Promise<T> {
-  const start = performance.now();
-  log(area, `${label} started`);
-  try {
-    const result = await fn();
-    log(area, `${label} completed`, {
-      ms: Math.round(performance.now() - start),
-    });
-    return result;
-  } catch (error) {
-    log(area, `${label} failed`, {
-      ms: Math.round(performance.now() - start),
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw error;
-  }
-}

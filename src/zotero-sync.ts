@@ -4,8 +4,6 @@ import {
   NOTE_KEYS_FRONTMATTER_KEY,
 } from "./literature-note-content";
 
-export const AUTO_SYNC_FOCUS_COOLDOWN_MS = 30_000;
-
 export const BULK_LIBRARY_SYNC_PHASES = [
   "idle",
   "running",
@@ -38,6 +36,7 @@ export interface BulkLibrarySyncState {
   updatedCount: number;
   skippedCount: number;
   failedCount: number;
+  enrichmentFailureCount: number;
   lastError: string | null;
   retryAfterSeconds: number | null;
   failedItemKeys: string[];
@@ -70,6 +69,7 @@ export const DEFAULT_BULK_LIBRARY_SYNC_STATE: BulkLibrarySyncState = {
   updatedCount: 0,
   skippedCount: 0,
   failedCount: 0,
+  enrichmentFailureCount: 0,
   lastError: null,
   retryAfterSeconds: null,
   failedItemKeys: [],
@@ -156,7 +156,6 @@ export function formatRelativeSyncTime(
 export function getSyncStatusLabel(params: {
   isSyncing: boolean;
   isBulkSyncing?: boolean;
-  autoSyncEnabled: boolean;
   state: ZoteroAutoSyncState;
   now?: number;
 }): string {
@@ -168,16 +167,12 @@ export function getSyncStatusLabel(params: {
     return "Zotero: syncing...";
   }
 
-  if (!params.autoSyncEnabled) {
-    return "Zotero: auto-sync off";
-  }
-
   if (params.state.lastError) {
     return "Zotero: sync failed";
   }
 
   if (!params.state.lastSuccessfulSyncAt) {
-    return "Zotero: waiting to sync";
+    return "Zotero";
   }
 
   const relative = formatRelativeSyncTime(
@@ -186,13 +181,55 @@ export function getSyncStatusLabel(params: {
   );
   return relative ? `Zotero: synced ${relative}` : "Zotero: synced";
 }
+function formatBulkSyncElapsedSeconds(
+  state: Pick<BulkLibrarySyncState, "startedAt" | "completedAt">,
+): string | null {
+  const startedAt = state.startedAt ? Date.parse(state.startedAt) : Number.NaN;
+  const completedAt = state.completedAt
+    ? Date.parse(state.completedAt)
+    : Number.NaN;
+  if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt)) {
+    return null;
+  }
 
-export function shouldSkipFocusSync(
-  lastFocusSyncAt: number,
-  now = Date.now(),
-  cooldownMs = AUTO_SYNC_FOCUS_COOLDOWN_MS,
-): boolean {
-  return lastFocusSyncAt > 0 && now - lastFocusSyncAt < cooldownMs;
+  const elapsedSeconds = Math.max(0, completedAt - startedAt) / 1000;
+  return `${elapsedSeconds.toFixed(2)} seconds`;
+}
+
+export function formatBulkLibrarySyncCompletionMessage(params: {
+  state: Pick<
+    BulkLibrarySyncState,
+    | "startedAt"
+    | "completedAt"
+    | "processedCount"
+    | "totalResults"
+    | "enrichmentFailureCount"
+  >;
+  libraryName?: string;
+  collectionName?: string | null;
+}): string {
+  const elapsed = formatBulkSyncElapsedSeconds(params.state);
+  const completedSummary = params.libraryName
+    ? `Finished syncing ${params.state.processedCount} paper${
+        params.state.processedCount === 1 ? "" : "s"
+      } in ${params.libraryName}${elapsed ? ` in ${elapsed}` : ""}.`
+    : params.state.totalResults && params.state.totalResults > 0
+      ? `Finished syncing ${params.state.processedCount} paper${
+          params.state.processedCount === 1 ? "" : "s"
+        }${elapsed ? ` in ${elapsed}` : ""}.`
+      : params.collectionName
+        ? `Finished syncing papers from ${params.collectionName}${
+            elapsed ? ` in ${elapsed}` : ""
+          }.`
+        : "Finished syncing your Zotero papers.";
+
+  return params.state.enrichmentFailureCount > 0
+    ? `${completedSummary} Enrichment failed for ${
+        params.state.enrichmentFailureCount
+      } paper${
+        params.state.enrichmentFailureCount === 1 ? "" : "s"
+      }. Run sync again later to try again.`
+    : completedSummary;
 }
 
 export function getBulkLibrarySyncButtonLabel(
@@ -208,10 +245,8 @@ export function getBulkLibrarySyncButtonLabel(
       return `Syncing papers${actionTarget}...`;
     }
 
-    if (
-      state.phase === "paused-rate-limit" || state.phase === "paused-error"
-    ) {
-      return `Resume sync${actionTarget}`;
+    if (state.phase === "paused-rate-limit" || state.phase === "paused-error") {
+      return `Sync all papers${actionTarget}`;
     }
 
     return `Sync all papers${actionTarget}`;
@@ -222,10 +257,8 @@ export function getBulkLibrarySyncButtonLabel(
       return `Syncing ${options.libraryName}...`;
     }
 
-    if (
-      state.phase === "paused-rate-limit" || state.phase === "paused-error"
-    ) {
-      return `Resume sync in ${options.libraryName}`;
+    if (state.phase === "paused-rate-limit" || state.phase === "paused-error") {
+      return `Sync all papers in ${options.libraryName}`;
     }
 
     return `Sync all papers in ${options.libraryName}`;
@@ -236,7 +269,7 @@ export function getBulkLibrarySyncButtonLabel(
   }
 
   if (state.phase === "paused-rate-limit" || state.phase === "paused-error") {
-    return "Resume Zotero sync";
+    return "Sync all Zotero papers";
   }
 
   return "Sync all Zotero papers";
@@ -276,17 +309,13 @@ export function getBulkLibrarySyncStatusMessage(params: {
   }
 
   if (params.state.phase === "paused-error") {
-    return params.state.lastError ?? "Sync paused. Resume when ready.";
+    return (
+      params.state.lastError ?? "Sync interrupted. Start sync again when ready."
+    );
   }
 
   if (params.state.phase === "completed") {
-    if (params.state.totalResults && params.state.totalResults > 0) {
-      return `Finished syncing ${params.state.totalResults} ${scopedNounPhrase}.`;
-    }
-
-    return params.collectionName || params.libraryName
-      ? `Finished syncing ${scopedNounPhrase}.`
-      : "Finished syncing your Zotero papers.";
+    return formatBulkLibrarySyncCompletionMessage(params);
   }
 
   return params.collectionName

@@ -74,6 +74,7 @@ test("reader frontmatter markdown hides internal bookkeeping and formats useful 
       "[[Topic Modeling]]",
     ],
     zotero_link: "zotero://select/groups/4242424/items/ITEM0002",
+    zotero_library_name: "example-group",
     zotero_group_name: "example-group",
     stratum_note_type: "literature-note",
     zotero_item_key: "ITEM0002",
@@ -104,17 +105,18 @@ test("reader frontmatter markdown hides internal bookkeeping and formats useful 
   assert.match(markdown, /\*\*OA status\*\*: Gold/);
   assert.match(
     markdown,
-    /\*\*OpenAlex\*\*: \[W2626778328]\(https:\/\/openalex\.org\/W2626778328\)/,
+    /\*\*Enrichment\*\*: \[W2626778328]\(https:\/\/openalex\.org\/W2626778328\)/,
   );
   assert.match(
     markdown,
-    /\*\*OpenAlex topics\*\*: \[\[Natural Language Processing Techniques\]\], \[\[Topic Modeling\]\]/,
+    /\*\*Enrichment topics\*\*: \[\[Natural Language Processing Techniques\]\], \[\[Topic Modeling\]\]/,
   );
   assert.match(
     markdown,
     /\*\*Zotero\*\*: \[Open in Zotero]\(zotero:\/\/select\/groups\/4242424\/items\/ITEM0002\)/,
   );
-  assert.match(markdown, /\*\*Zotero group\*\*: example-group/);
+  assert.match(markdown, /\*\*Zotero library\*\*: example-group/);
+  assert.doesNotMatch(markdown, /\*\*Zotero group\*\*:/);
   assert.doesNotMatch(markdown, /stratum_note_type/);
   assert.doesNotMatch(markdown, /zotero_item_key/);
   assert.doesNotMatch(markdown, /zotero_attachment_keys/);

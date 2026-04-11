@@ -2,9 +2,9 @@ import { Modal } from "obsidian";
 import type { App, TFile } from "obsidian";
 import type { LiteratureNoteSummary } from "./literature-note";
 
-export type ExistingNoteAction = "update" | "open" | "cancel";
+type ExistingNoteAction = "update" | "open" | "cancel";
 
-export class LiteratureNoteUpdateModal extends Modal {
+class LiteratureNoteUpdateModal extends Modal {
   private readonly file: TFile;
   private readonly title: string;
   private readonly summary: LiteratureNoteSummary;

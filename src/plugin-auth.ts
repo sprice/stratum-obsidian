@@ -1,4 +1,4 @@
-import { Notice, type ObsidianProtocolData } from "obsidian";
+import { Notice, Platform, type ObsidianProtocolData } from "obsidian";
 import { PLUGIN_WEB_APP_URL } from "./build-config";
 import { BackendClient } from "./backend-client";
 import { PLUGIN_NAME } from "./constants";
@@ -16,6 +16,7 @@ import {
   reconcileLibrariesFromConnection,
   setSelectedSearchLibrary,
 } from "./plugin-libraries";
+import { clearLocalSyncState } from "./plugin-local-sync";
 import type StratumPlugin from "./plugin";
 
 /**
@@ -120,6 +121,10 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
           plugin.librarySearchCache.clear();
           changed = true;
         }
+        if (plugin.localSyncLibraries.length > 0 || plugin.localZoteroUserId) {
+          clearLocalSyncState(plugin);
+          changed = true;
+        }
       }
 
       if (nextEmail) {
@@ -141,6 +146,7 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
 
       if (changed) {
         await plugin.saveSettings();
+        await plugin.reconcileLocalLiveSync();
         plugin.refreshAutoSyncUi();
         plugin.refreshViews();
         plugin.refreshSettingTab();
@@ -224,12 +230,17 @@ export async function refreshZoteroConnection(
             reconcileLibrariesFromConnection(plugin, resolvedConnection) ||
             connectionChanged;
         }
+        connectionChanged =
+          plugin.localSync.reconcileEnabledLibraries() || connectionChanged;
       }
       if (
         updateLastKnownZoteroSnapshot(plugin, plugin.zoteroConnection) ||
         connectionChanged
       ) {
         await plugin.saveSettings();
+      }
+      if (Platform.isDesktopApp && plugin.settings.bulkSyncEnabled) {
+        await plugin.localSync.refreshLibraries();
       }
     } else {
       plugin.zoteroConnection = plugin.backend.hasSession()
@@ -238,6 +249,7 @@ export async function refreshZoteroConnection(
       if (!plugin.backend.hasSession()) {
         plugin.availableGroups = [];
         setSelectedSearchLibrary(plugin, null);
+        clearLocalSyncState(plugin);
       }
     }
   } catch (error) {
@@ -248,12 +260,17 @@ export async function refreshZoteroConnection(
     if (!plugin.backend.hasSession()) {
       plugin.availableGroups = [];
       setSelectedSearchLibrary(plugin, null);
+      clearLocalSyncState(plugin);
     }
   } finally {
     plugin.isLoadingZoteroConnection = false;
+    await plugin.reconcileLocalLiveSync();
+    const tokenValid = !plugin.backend.hasSession()
+      ? "signed_out"
+      : (plugin.zoteroConnection?.tokenValid ?? "unknown");
     log("auth", "zotero connection refreshed", {
       connected: Boolean(plugin.zoteroConnection?.connected),
-      tokenValid: plugin.zoteroConnection?.tokenValid ?? "unknown",
+      tokenValid,
     });
     plugin.refreshAutoSyncUi();
     plugin.refreshViews();
@@ -305,9 +322,6 @@ export async function handleAuthProtocol(
   plugin.refreshViews();
   plugin.refreshSettingTab();
   await refreshZoteroConnection(plugin);
-  if (plugin.settings.autoSyncEnabled) {
-    void plugin.runZoteroAutoSync("startup");
-  }
   await plugin.activateView();
   new Notice(
     zoteroConnected
@@ -328,11 +342,7 @@ export async function bootstrapRemoteState(
 
   log("auth", "bootstrapping remote state");
   await refreshZoteroConnection(plugin);
-  if (plugin.settings.autoSyncEnabled) {
-    void plugin.runZoteroAutoSync("startup");
-  }
   log("auth", "bootstrap dispatched", {
     connected: Boolean(plugin.zoteroConnection?.connected),
-    autoSyncFired: plugin.settings.autoSyncEnabled,
   });
 }

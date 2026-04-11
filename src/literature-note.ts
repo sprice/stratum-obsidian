@@ -39,6 +39,7 @@ export {
 
 export interface LiteratureNoteWriteResult {
   created: boolean;
+  changed: boolean;
   file: TFile;
   summary: LiteratureNoteSummary;
 }
@@ -113,12 +114,22 @@ export async function createOrUpdateLiteratureNote(params: {
       parseYaml,
       stringifyYaml,
       htmlToMarkdown,
-      enrichment: params.enrichment,
+      ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
     });
+
+    if (nextContent === existingContent) {
+      return {
+        created: false,
+        changed: false,
+        file,
+        summary,
+      };
+    }
 
     await params.app.vault.modify(file, nextContent);
     return {
       created: false,
+      changed: true,
       file,
       summary,
     };
@@ -133,11 +144,12 @@ export async function createOrUpdateLiteratureNote(params: {
     notesFolder: folder,
     detail: params.detail,
     filenameFormat: params.filenameFormat,
-    enrichment: params.enrichment,
+    ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
   });
 
   return {
     created: true,
+    changed: true,
     file: created.file,
     summary,
   };

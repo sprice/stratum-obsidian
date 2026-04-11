@@ -83,7 +83,7 @@ export async function createLiteratureNoteFile(params: {
         parseYaml,
         stringifyYaml,
         htmlToMarkdown,
-        enrichment: params.enrichment,
+        ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
       });
 
       try {

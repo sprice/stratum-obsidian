@@ -1,6 +1,5 @@
 import { Notice, type Editor } from "obsidian";
 import {
-  createOrUpdateLiteratureNote,
   getLiteratureNoteSummary,
 } from "./literature-note";
 import { promptExistingLiteratureNote } from "./literature-note-update-modal";
@@ -22,6 +21,10 @@ import {
   LiteratureNoteSearchModal,
 } from "./library-search-modal";
 import { buildCitekey, ensureBibEntry } from "./bibtex";
+import {
+  requireZoteroItemDetailForNoteSync,
+  writeLiteratureNoteFromDetail,
+} from "./plugin-note-sync";
 
 export async function createLiteratureNote(
   plugin: StratumPlugin,
@@ -53,16 +56,18 @@ export async function createLiteratureNote(
   plugin.activeNoteActionKey = result.key;
   plugin.isLibraryPickerOpen = false;
   plugin.highlightedLibrarySearchIndex = -1;
-  plugin.refreshViews();
+    plugin.refreshViews();
 
   try {
     const selectedLibrary = getSelectedSearchLibrary(plugin);
-    const detail = await plugin.backend.getZoteroItemDetail(result.key, {
-      library: selectedLibrary ?? undefined,
+    if (!selectedLibrary) {
+      throw new Error("Select a Zotero library before creating a note.");
+    }
+    const detail = await requireZoteroItemDetailForNoteSync(plugin, {
+      library: selectedLibrary,
+      itemKey: result.key,
+      sourcePreference: "cloud",
     });
-    const enrichment = detail.item.doi
-      ? await plugin.backend.getOpenAlexEnrichment(detail.item.doi)
-      : null;
     const existingFile = plugin.findExistingLiteratureNoteFile({
       libraryType: detail.library.type,
       libraryId: detail.library.id,
@@ -88,18 +93,14 @@ export async function createLiteratureNote(
       }
     }
 
-    const writeResult = await createOrUpdateLiteratureNote({
-      app: plugin.app,
-      notesFolder: plugin.settings.notesFolder,
-      filenameFormat: plugin.settings.filenameFormat,
+    const writeResult = await writeLiteratureNoteFromDetail(plugin, {
       detail,
       existingFile,
-      enrichment,
+      enrichmentMode: "load",
     });
 
-    plugin.rememberLiteratureNoteFile(detail, writeResult.file);
-
     await plugin.app.workspace.getLeaf(true).openFile(writeResult.file);
+    plugin.library.clearSelection({ resetQuery: true });
     new Notice(
       writeResult.created
         ? `${PLUGIN_NAME}: created literature note for ${detail.item.title}.`

@@ -1,4 +1,5 @@
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
+import { normalizeDoi } from "./doi";
 import { preprocessZoteroNoteHtml } from "./literature-note-content-html";
 import {
   getColorCategory,
@@ -27,6 +28,7 @@ function extractNoteAnnotationColor(
 
   return null;
 }
+
 import {
   MANAGED_END,
   MANAGED_START,
@@ -74,24 +76,22 @@ function renderVenueLine(detail: ZoteroItemDetail): string | null {
 
 function renderPrimaryIdentifier(detail: ZoteroItemDetail): string | null {
   const itemType = detail.item.itemType;
+  const doi = normalizeDoi(detail.item.doi);
 
   if (itemType === "book" || itemType === "bookSection") {
     if (detail.item.isbn) return `**ISBN**: ${detail.item.isbn}`;
-    if (detail.item.doi)
-      return `**DOI**: [${detail.item.doi}](https://doi.org/${detail.item.doi})`;
+    if (doi) return `**DOI**: [${doi}](https://doi.org/${doi})`;
     return null;
   }
 
   if (itemType === "preprint") {
     if (detail.item.arxivId)
       return `**arXiv**: [${detail.item.arxivId}](https://arxiv.org/abs/${detail.item.arxivId})`;
-    if (detail.item.doi)
-      return `**DOI**: [${detail.item.doi}](https://doi.org/${detail.item.doi})`;
+    if (doi) return `**DOI**: [${doi}](https://doi.org/${doi})`;
     return null;
   }
 
-  if (detail.item.doi)
-    return `**DOI**: [${detail.item.doi}](https://doi.org/${detail.item.doi})`;
+  if (doi) return `**DOI**: [${doi}](https://doi.org/${doi})`;
   if (detail.item.isbn) return `**ISBN**: ${detail.item.isbn}`;
   if (detail.item.arxivId)
     return `**arXiv**: [${detail.item.arxivId}](https://arxiv.org/abs/${detail.item.arxivId})`;
@@ -143,6 +143,7 @@ function renderCitationBlockquote(detail: ZoteroItemDetail): string | null {
 
 function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
   const lines: string[] = [];
+  const doi = normalizeDoi(detail.item.doi);
 
   const locationParts: string[] = [];
   if (detail.item.volume) locationParts.push(`Vol. ${detail.item.volume}`);
@@ -187,10 +188,8 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
   if (!identifierNotInCite) {
     if (detail.item.isbn) lines.push(`**ISBN**: ${detail.item.isbn}`);
   } else {
-    if (detail.item.doi && !identifierNotInCite.includes("DOI")) {
-      lines.push(
-        `**DOI**: [${detail.item.doi}](https://doi.org/${detail.item.doi})`,
-      );
+    if (doi && !identifierNotInCite.includes("DOI")) {
+      lines.push(`**DOI**: [${doi}](https://doi.org/${doi})`);
     }
     if (detail.item.isbn && !identifierNotInCite.includes("ISBN")) {
       lines.push(`**ISBN**: ${detail.item.isbn}`);
@@ -321,7 +320,6 @@ function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
         const itemLines = [
           `**${annotation.pageLabel ? `Page ${annotation.pageLabel}` : "Page unknown"}**${annotation.type ? ` · ${annotation.type}` : ""}`,
           annotation.text ? annotation.text.replace(/\n+/g, " ").trim() : null,
-          annotation.comment ? `Comment: ${annotation.comment}` : null,
           annotation.zoteroOpenPdfUri
             ? `[Open annotation in Zotero](${annotation.zoteroOpenPdfUri})`
             : null,
@@ -425,7 +423,7 @@ function renderOpenAlexMetricsCallout(
     ? enrichment.openAlexId
     : `https://openalex.org/${enrichment.openAlexId}`;
   const shortId = enrichment.openAlexId.replace("https://openalex.org/", "");
-  lines.push(`**OpenAlex**: [${shortId}](${openAlexUrl})`);
+  lines.push(`**Enrichment**: [${shortId}](${openAlexUrl})`);
 
   return toFoldableCalloutBlock("bar-chart", "Impact", lines, false);
 }
@@ -513,22 +511,38 @@ function renderOpenAlexDetailsCallout(
 
   if (lines.length === 0) return null;
 
-  return toFoldableCalloutBlock("globe", "OpenAlex", lines, false);
+  return toFoldableCalloutBlock("globe", "Enrichment", lines, false);
 }
+
+export type PreservedManagedSections = {
+  impact?: string | null;
+  openAlex?: string | null;
+  abstract?: string | null;
+};
 
 export function renderManagedBlock(
   detail: ZoteroItemDetail,
   htmlToMarkdown: HtmlToMarkdownTransformer,
   zoteroStatus: ZoteroSyncStatus,
   enrichment?: OpenAlexEnrichment | null,
+  preservedSections?: PreservedManagedSections,
 ): string {
+  const abstractSection = detail.item.abstract
+    ? renderAbstractSection(detail, enrichment)
+    : enrichment === undefined
+      ? (preservedSections?.abstract ?? null)
+      : renderAbstractSection(detail, enrichment);
   const sections = [
     renderCiteCallout(detail),
     renderCitationBlockquote(detail),
-    renderOpenAlexMetricsCallout(enrichment ?? null),
+    enrichment === undefined
+      ? (preservedSections?.impact ?? null)
+      : renderOpenAlexMetricsCallout(enrichment ?? null),
     renderDetailsCallout(detail),
-    renderOpenAlexDetailsCallout(enrichment ?? null),
-    renderAbstractSection(detail, enrichment),
+    enrichment === undefined
+      ? (preservedSections?.openAlex ?? null)
+      : renderOpenAlexDetailsCallout(enrichment ?? null),
+    abstractSection,
     renderZoteroNotesSection(detail, htmlToMarkdown),
     renderAnnotationsSection(detail),
   ].filter((section): section is string => Boolean(section));

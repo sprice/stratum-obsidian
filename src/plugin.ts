@@ -1,4 +1,4 @@
-import { Plugin, TFile } from "obsidian";
+import { MarkdownView, Platform, Plugin, TFile } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
   PLUGIN_NAME,
@@ -64,24 +64,17 @@ import {
 } from "./plugin-note-index";
 import { loadPluginSettings, savePluginSettings } from "./plugin-persistence";
 import {
-  AUTO_SYNC_FOCUS_COOLDOWN_MS,
-  shouldSkipFocusSync,
-} from "./zotero-sync";
-import { runZoteroAutoSync } from "./plugin-sync";
-import {
   getBulkLibrarySyncProcessedCount,
   runBulkLibrarySync,
 } from "./plugin-bulk-sync";
 import {
-  clearAutoSyncInterval,
-  configureAutoSyncInterval,
   getAutoSyncStatusLabel,
   refreshAutoSyncUi,
   startAutoSyncStatusRefresh,
   stopAutoSyncStatusRefresh,
 } from "./plugin-sync-status";
 import {
-  getSelectedSearchLibrary,
+  reconcileEnabledLocalSyncLibraries,
   setSelectedSearchLibrary,
 } from "./plugin-libraries";
 import {
@@ -90,6 +83,21 @@ import {
   getSelectedSearchCollection,
   setSelectedSearchCollection,
 } from "./plugin-collections";
+import {
+  ensureLocalSyncLibrariesLoaded,
+  ensureSyncCollectionsLoaded,
+  getSelectedSyncCollection,
+  getSelectedSyncLibrary,
+  refreshLocalSyncLibraries,
+  refreshSyncCollections,
+  setSelectedSyncCollection,
+  setSelectedSyncLibrary,
+} from "./plugin-local-sync";
+import { refreshOpenedLiteratureNote } from "./plugin-note-refresh";
+type LocalLiveSyncWatcher = {
+  close(): void;
+  on(event: "error", listener: (error: unknown) => void): unknown;
+};
 
 export default class StratumPlugin extends Plugin {
   settings: StratumSettings = DEFAULT_SETTINGS;
@@ -107,6 +115,26 @@ export default class StratumPlugin extends Plugin {
   libraryCollectionsRequestId = 0;
   libraryCollectionsPendingPromise: Promise<ZoteroCollectionSummary[]> | null =
     null;
+  localZoteroUserId: string | null = null;
+  discoveredLocalSyncLibraries: EnabledLibrary[] = [];
+  localSyncLibraries: EnabledLibrary[] = [];
+  localSyncLibrariesError: string | null = null;
+  bulkSyncSettingsError: string | null = null;
+  isLoadingLocalSyncLibraries = false;
+  isCheckingBulkSyncReadiness = false;
+  hasLoadedLocalSyncLibraries = false;
+  localSyncLibrariesRequestId = 0;
+  localSyncLibrariesPendingPromise: Promise<EnabledLibrary[]> | null = null;
+  selectedSyncLibrary: EnabledLibrary | null = null;
+  selectedSyncCollection: ZoteroCollectionSummary | null = null;
+  syncCollectionsLibraryIdentity: string | null = null;
+  syncCollections: ZoteroCollectionSummary[] = [];
+  syncCollectionsError: string | null = null;
+  isLoadingSyncCollections = false;
+  hasLoadedSyncCollections = false;
+  syncCollectionsRequestId = 0;
+  syncCollectionsPendingPromise: Promise<ZoteroCollectionSummary[]> | null =
+    null;
   librarySearchQuery = "";
   librarySearchResults: ZoteroSearchResult[] = [];
   librarySearchMeta: ZoteroSearchMeta | null = null;
@@ -117,7 +145,7 @@ export default class StratumPlugin extends Plugin {
   selectedLibraryResult: ZoteroSearchResult | null = null;
   isSelectedLibraryAbstractExpanded = false;
   activeNoteActionKey: string | null = null;
-  activeViewTab: "search" | "reader" = "search";
+  activeViewTab: "search" | "sync" | "reader" = "search";
   readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
   librarySearchDebounceTimer: number | null = null;
@@ -133,14 +161,23 @@ export default class StratumPlugin extends Plugin {
   >();
   libraryPickerCloseTimer: number | null = null;
   itemFileMapPersistTimer: number | null = null;
-  autoSyncIntervalTimer: number | null = null;
   autoSyncStatusTimer: number | null = null;
-  lastFocusSyncAt = 0;
-  isAutoSyncRunning = false;
+  noteRefreshPromises = new Map<string, Promise<void>>();
   bulkLibrarySyncRunPromise: Promise<void> | null = null;
+  bulkLibrarySyncStage: "catalog" | "enrichment" | null = null;
   bulkLibrarySyncCurrentPageProcessedCount = 0;
   bulkLibrarySyncCurrentPageTotalCount = 0;
   bulkLibrarySyncUiRefreshTimer: number | null = null;
+  localLiveSyncWatcher: LocalLiveSyncWatcher | null = null;
+  localLiveSyncWatchDir: string | null = null;
+  localLiveSyncDebounceTimer: number | null = null;
+  localLiveSyncRunPromise: Promise<void> | null = null;
+  localLiveSyncDirty = false;
+  localLiveSyncQueuedAfterBulkSync = false;
+  localLiveSyncWatching = false;
+  localLiveSyncError: string | null = null;
+  localLiveSyncLibraryVersions = new Map<string, number | null>();
+  localLiveSyncLibraryItemVersions = new Map<string, Record<string, number>>();
   statusBarItemEl: HTMLElement | null = null;
   readonly library = {
     search: (query: string) => searchLibrary(this, query),
@@ -170,6 +207,21 @@ export default class StratumPlugin extends Plugin {
     select: (collection: ZoteroCollectionSummary | null) =>
       setSelectedSearchCollection(this, collection),
     getSelected: () => getSelectedSearchCollection(this),
+  };
+  readonly localSync = {
+    ensureLibrariesLoaded: () => ensureLocalSyncLibrariesLoaded(this),
+    refreshLibraries: () => refreshLocalSyncLibraries(this),
+    reconcileEnabledLibraries: () => reconcileEnabledLocalSyncLibraries(this),
+    ensureCollectionsLoaded: (library: EnabledLibrary | null) =>
+      ensureSyncCollectionsLoaded(this, library),
+    refreshCollections: (library: EnabledLibrary | null) =>
+      refreshSyncCollections(this, library),
+    selectLibrary: (library: EnabledLibrary | null) =>
+      setSelectedSyncLibrary(this, library),
+    selectCollection: (collection: ZoteroCollectionSummary | null) =>
+      setSelectedSyncCollection(this, collection),
+    getSelectedLibrary: () => getSelectedSyncLibrary(this),
+    getSelectedCollection: () => getSelectedSyncCollection(this),
   };
 
   async onload(): Promise<void> {
@@ -203,14 +255,6 @@ export default class StratumPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "sync-zotero-changes-now",
-      name: "Sync Zotero changes now",
-      callback: () => {
-        void this.runZoteroAutoSync("manual");
-      },
-    });
-
-    this.addCommand({
       id: "open-literature-note",
       name: "Open literature note",
       callback: () => openLiteratureNoteFromModal(this),
@@ -218,7 +262,8 @@ export default class StratumPlugin extends Plugin {
 
     this.addCommand({
       id: "open-literature-note-in-panel",
-      name: "Open literature note in panel",
+      // eslint-disable-next-line obsidianmd/ui/sentence-case
+      name: "Open literature note in Reader panel",
       callback: () => openLiteratureNoteInPanel(this),
     });
 
@@ -265,32 +310,23 @@ export default class StratumPlugin extends Plugin {
         }
       }),
     );
-    this.registerDomEvent(window, "focus", () => {
-      if (
-        shouldSkipFocusSync(
-          this.lastFocusSyncAt,
-          Date.now(),
-          AUTO_SYNC_FOCUS_COOLDOWN_MS,
-        )
-      ) {
-        return;
-      }
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (!(leaf?.view instanceof MarkdownView)) {
+          return;
+        }
 
-      if (!this.settings.autoSyncEnabled) {
-        return;
-      }
+        const file = leaf.view.file;
+        if (!(file instanceof TFile)) {
+          return;
+        }
 
-      this.lastFocusSyncAt = Date.now();
-      void this.runZoteroAutoSync("focus");
-    });
+        void refreshOpenedLiteratureNote(this, file);
+      }),
+    );
 
     this.statusBarItemEl = this.addStatusBarItem();
-    this.statusBarItemEl.addClass("mod-clickable");
-    this.registerDomEvent(this.statusBarItemEl, "click", () => {
-      void this.runZoteroAutoSync("manual");
-    });
     startAutoSyncStatusRefresh(this);
-    configureAutoSyncInterval(this);
     refreshAutoSyncUi(this);
 
     this.app.workspace.onLayoutReady(() => {
@@ -301,7 +337,6 @@ export default class StratumPlugin extends Plugin {
   onunload(): void {
     clearLibrarySearchDebounce(this);
     cancelLibraryPickerClose(this);
-    clearAutoSyncInterval(this);
     stopAutoSyncStatusRefresh(this);
     if (this.itemFileMapPersistTimer !== null) {
       window.clearTimeout(this.itemFileMapPersistTimer);
@@ -311,6 +346,18 @@ export default class StratumPlugin extends Plugin {
       window.clearTimeout(this.bulkLibrarySyncUiRefreshTimer);
       this.bulkLibrarySyncUiRefreshTimer = null;
     }
+    if (this.localLiveSyncDebounceTimer !== null) {
+      window.clearTimeout(this.localLiveSyncDebounceTimer);
+      this.localLiveSyncDebounceTimer = null;
+    }
+    this.localLiveSyncWatcher?.close();
+    this.localLiveSyncWatcher = null;
+    this.localLiveSyncWatchDir = null;
+    this.localLiveSyncWatching = false;
+    this.localLiveSyncDirty = false;
+    this.localLiveSyncQueuedAfterBulkSync = false;
+    this.localLiveSyncLibraryVersions.clear();
+    this.localLiveSyncLibraryItemVersions.clear();
   }
 
   async loadSettings(): Promise<void> {
@@ -356,7 +403,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   isZoteroAutoSyncRunning(): boolean {
-    return this.isAutoSyncRunning;
+    return this.noteRefreshPromises.size > 0;
   }
 
   isBulkLibrarySyncRunning(): boolean {
@@ -369,10 +416,6 @@ export default class StratumPlugin extends Plugin {
 
   refreshAutoSyncUi(): void {
     refreshAutoSyncUi(this);
-  }
-
-  configureAutoSyncInterval(): void {
-    configureAutoSyncInterval(this);
   }
 
   async rebuildItemFileMap(): Promise<void> {
@@ -413,22 +456,37 @@ export default class StratumPlugin extends Plugin {
     await refreshZoteroConnection(this);
   }
 
-  async runZoteroAutoSync(
-    reason: "startup" | "focus" | "interval" | "manual",
-  ): Promise<void> {
-    await runZoteroAutoSync(this, reason);
-  }
-
   async runBulkLibrarySync(): Promise<void> {
-    const selectedLibrary = getSelectedSearchLibrary(this);
+    await this.localSync.refreshLibraries();
+
+    const selectedLibrary = getSelectedSyncLibrary(this);
     if (!selectedLibrary) {
+      this.refreshViews();
       return;
     }
 
     await runBulkLibrarySync(
       this,
       selectedLibrary,
-      getSelectedSearchCollection(this),
+      getSelectedSyncCollection(this),
     );
+  }
+
+  async reconcileLocalLiveSync(): Promise<void> {
+    if (Platform.isDesktopApp) {
+      const { reconcileLocalLiveSync } =
+        await import("./plugin-local-live-sync");
+      await reconcileLocalLiveSync(this);
+    }
+  }
+
+  notifyLocalLiveSyncAfterBulkSync(): void {
+    if (Platform.isDesktopApp) {
+      void import("./plugin-local-live-sync").then(
+        ({ notifyLocalLiveSyncAfterBulkSync }) => {
+          notifyLocalLiveSyncAfterBulkSync(this);
+        },
+      );
+    }
   }
 }

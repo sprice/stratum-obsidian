@@ -1,14 +1,16 @@
-import { PluginSettingTab, Setting } from "obsidian";
+import { Platform, PluginSettingTab, Setting } from "obsidian";
+import { PLUGIN_WEB_APP_URL } from "./build-config";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import type StratumPlugin from "./plugin";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import {
   disableLibrary,
   enableGroupLibrary,
-  getLibraryAutoSyncState,
   getPersonalLibrary,
 } from "./plugin-libraries";
-import { getSyncStatusLabel } from "./zotero-sync";
+import { clearLocalSyncState } from "./plugin-local-sync";
+import { getDefaultZoteroDataDir } from "./zotero-data-dir";
+import { ensureLocalZoteroReady } from "./zotero-local";
 
 export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
@@ -16,6 +18,11 @@ export class StratumSettingTab extends PluginSettingTab {
   constructor(plugin: StratumPlugin) {
     super(plugin.app, plugin);
     this.plugin = plugin;
+  }
+
+  private openDashboard(): void {
+    const dashboardUrl = new URL("/dashboard", PLUGIN_WEB_APP_URL).toString();
+    window.open(dashboardUrl, "_blank", "noopener,noreferrer");
   }
 
   private createSection(containerEl: HTMLElement, title: string): HTMLElement {
@@ -52,7 +59,7 @@ export class StratumSettingTab extends PluginSettingTab {
 
     const workspaceSection = this.createSection(containerEl, "Workspace");
 
-    new Setting(workspaceSection)
+    const accountSetting = new Setting(workspaceSection)
       .setName("Stratum account")
       .setDesc(
         accountEmail
@@ -62,22 +69,33 @@ export class StratumSettingTab extends PluginSettingTab {
           : this.plugin.settings.lastDeviceCode
             ? "Browser sign-in has been opened for this device. Finish the flow and return to Obsidian."
             : "Sign in to Stratum.",
-      )
-      .addButton((button) =>
+      );
+
+    if (accountEmail) {
+      accountSetting
+        .addButton((button) =>
+          button.setButtonText("Manage").onClick(() => {
+            this.openDashboard();
+          }),
+        )
+        .addButton((button) => {
+          button.buttonEl.addClass("stratum-button-danger-subtle");
+          button.setButtonText("Log out").onClick(async () => {
+            await this.plugin.signOutFromPlugin();
+            this.display();
+          });
+        });
+    } else {
+      accountSetting.addButton((button) =>
         button
-          .setButtonText(
-            accountEmail ? "Sign out of Stratum" : "Sign in to Stratum",
-          )
+          .setButtonText("Sign in")
           .setCta()
           .onClick(async () => {
-            if (accountEmail) {
-              await this.plugin.signOutFromPlugin();
-            } else {
-              await this.plugin.startDeviceHandoff();
-            }
+            await this.plugin.startDeviceHandoff();
             this.display();
           }),
       );
+    }
 
     const tokenInvalid = zoteroConnection?.tokenValid === false;
     const lastKnownZoteroSummary = lastKnownZoteroUsername
@@ -173,7 +191,9 @@ export class StratumSettingTab extends PluginSettingTab {
                   disableLibrary(this.plugin, identity);
                 }
 
+                this.plugin.localSync.reconcileEnabledLibraries();
                 await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
                 this.plugin.refreshViews();
                 this.display();
               }),
@@ -183,101 +203,154 @@ export class StratumSettingTab extends PluginSettingTab {
 
     const syncSection = this.createSection(containerEl, "Sync");
 
-    new Setting(syncSection)
-      .setName("Sync libraries")
-      .setDesc(
-        "Check enabled libraries for remote changes to notes that already exist in your vault.",
-      )
-      .addButton((button) =>
-        button
-          .setButtonText(
-            this.plugin.isBulkLibrarySyncRunning()
-              ? "Bulk sync running..."
-              : this.plugin.isZoteroAutoSyncRunning()
-                ? "Syncing..."
-                : "Sync now",
-          )
-          .setDisabled(
-            !accountEmail ||
-              !zoteroConnected ||
-              this.plugin.isZoteroAutoSyncRunning() ||
-              this.plugin.isBulkLibrarySyncRunning(),
-          )
-          .setCta()
-          .onClick(async () => {
-            await this.plugin.runZoteroAutoSync("manual");
-            this.display();
-          }),
-      );
+    if (Platform.isDesktopApp) {
+      const bulkSyncSetting = new Setting(syncSection)
+        .setName("Bulk sync")
+        .setDesc(
+          "Show the sync tab and enable desktop bulk sync from your local Zotero app.",
+        )
+        .addToggle((toggle) =>
+          toggle
+            .setDisabled(
+              this.plugin.isCheckingBulkSyncReadiness ||
+                (!this.plugin.settings.bulkSyncEnabled &&
+                  (!accountEmail || !zoteroConnected)),
+            )
+            .setValue(this.plugin.settings.bulkSyncEnabled)
+            .onChange(async (value) => {
+              if (!value) {
+                this.plugin.settings.bulkSyncEnabled = false;
+                this.plugin.bulkSyncSettingsError = null;
+                clearLocalSyncState(this.plugin);
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+                this.plugin.refreshViews();
+                this.display();
+                return;
+              }
 
-    for (const library of this.plugin.settings.enabledLibraries) {
-      const state = getLibraryAutoSyncState(this.plugin, library);
-      new Setting(syncSection).setName(library.name).setDesc(
-        state.lastError
-          ? `${getSyncStatusLabel({
-              isSyncing: this.plugin.isZoteroAutoSyncRunning(),
-              autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
-              state,
-            })}. Last error: ${state.lastError}`
-          : state.lastSuccessfulSyncAt
-            ? `${getSyncStatusLabel({
-                isSyncing: this.plugin.isZoteroAutoSyncRunning(),
-                autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
-                state,
-              })}. Last successful sync: ${new Date(
-                state.lastSuccessfulSyncAt,
-              ).toLocaleString()}.`
-            : getSyncStatusLabel({
-                isSyncing: this.plugin.isZoteroAutoSyncRunning(),
-                autoSyncEnabled: this.plugin.settings.autoSyncEnabled,
-                state,
-              }),
-      );
-    }
+              this.plugin.isCheckingBulkSyncReadiness = true;
+              this.plugin.bulkSyncSettingsError = null;
+              this.display();
 
-    new Setting(syncSection)
-      .setName("Auto-sync Zotero changes")
-      .setDesc(
-        "Refresh existing literature notes on startup, when Obsidian regains focus, and on the interval below.",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.autoSyncEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.autoSyncEnabled = value;
+              try {
+                await ensureLocalZoteroReady({
+                  port: this.plugin.settings.zoteroLocalApiPort,
+                });
+                this.plugin.settings.bulkSyncEnabled = true;
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+                this.plugin.refreshViews();
+                void this.plugin.localSync.refreshLibraries();
+              } catch (error) {
+                this.plugin.settings.bulkSyncEnabled = false;
+                clearLocalSyncState(this.plugin);
+                this.plugin.bulkSyncSettingsError =
+                  error instanceof Error
+                    ? error.message
+                    : "Could not verify the local Zotero API.";
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+                this.plugin.refreshViews();
+              } finally {
+                this.plugin.isCheckingBulkSyncReadiness = false;
+                this.display();
+              }
+            }),
+        );
+
+      if (
+        !this.plugin.settings.bulkSyncEnabled &&
+        (!accountEmail || !zoteroConnected)
+      ) {
+        bulkSyncSetting.descEl.createDiv({
+          cls: "stratum-settings-inline-note",
+          text: "Sign in to Stratum and connect Zotero before enabling desktop bulk sync.",
+        });
+      } else if (this.plugin.isCheckingBulkSyncReadiness) {
+        bulkSyncSetting.descEl.createDiv({
+          cls: "stratum-settings-inline-note",
+          text: "Checking the local Zotero HTTP server and API...",
+        });
+      } else if (this.plugin.bulkSyncSettingsError) {
+        bulkSyncSetting.descEl.createDiv({
+          cls: "stratum-settings-inline-error",
+          text: this.plugin.bulkSyncSettingsError,
+        });
+      }
+
+      if (this.plugin.settings.bulkSyncEnabled) {
+        const defaultZoteroDataDir = getDefaultZoteroDataDir();
+        new Setting(syncSection)
+          .setName("Zotero local API port")
+          .setDesc("Use 23119 unless you changed Zotero's local HTTP port.")
+          .addText((text) => {
+            text
+              .setPlaceholder("23119")
+              .setValue(String(this.plugin.settings.zoteroLocalApiPort))
+              .onChange(async (value) => {
+                const parsed = Number(value);
+                this.plugin.settings.zoteroLocalApiPort =
+                  Number.isFinite(parsed) && parsed > 0
+                    ? Math.round(parsed)
+                    : 23119;
+                this.plugin.bulkSyncSettingsError = null;
+                clearLocalSyncState(this.plugin);
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+              });
+
+            text.inputEl.addClass("stratum-interval-input");
+            text.inputEl.setAttr("inputmode", "numeric");
+            text.inputEl.setAttr("aria-label", "Zotero local API port");
+            text.inputEl.type = "number";
+            text.inputEl.min = "1";
+            text.inputEl.step = "1";
+          });
+
+        new Setting(syncSection)
+          .setName("Zotero data directory")
+          .setDesc(
+            "Used for desktop live sync when Zotero changes while Obsidian is open.",
+          )
+          .addText((text) => {
+            text
+              .setPlaceholder(defaultZoteroDataDir)
+              .setValue(this.plugin.settings.zoteroDataDir);
+
+            text.inputEl.setAttr("aria-label", "Zotero data directory");
+            text.inputEl.addEventListener("change", () => {
+              void (async () => {
+                this.plugin.settings.zoteroDataDir =
+                  text.inputEl.value.trim() || defaultZoteroDataDir;
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+                this.display();
+              })();
+            });
+          });
+
+        const zoteroDataDirActions = syncSection.createDiv({
+          cls: "stratum-settings-subaction-row",
+        });
+        const resetZoteroDataDirButton = zoteroDataDirActions.createEl(
+          "button",
+          {
+            text: "Reset to default location",
+          },
+        );
+        resetZoteroDataDirButton.type = "button";
+        resetZoteroDataDirButton.addEventListener("click", () => {
+          void (async () => {
+            this.plugin.settings.zoteroDataDir = defaultZoteroDataDir;
             await this.plugin.saveSettings();
-            this.plugin.configureAutoSyncInterval();
-            if (value) {
-              void this.plugin.runZoteroAutoSync("startup");
-            }
+            await this.plugin.reconcileLocalLiveSync();
             this.display();
-          }),
-      );
-
-    const intervalSetting = new Setting(syncSection)
-      .setName("Auto-sync interval (minutes)")
-      .setDesc(
-        "How often the plugin checks for remote library changes. Default: 15 minutes.",
-      );
-    intervalSetting.addText((text) => {
-      text
-        .setPlaceholder("15")
-        .setValue(String(this.plugin.settings.autoSyncIntervalMinutes))
-        .onChange(async (value) => {
-          const parsed = Number(value);
-          this.plugin.settings.autoSyncIntervalMinutes =
-            Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 15;
-          await this.plugin.saveSettings();
-          this.plugin.configureAutoSyncInterval();
+          })();
         });
 
-      text.inputEl.addClass("stratum-interval-input");
-      text.inputEl.setAttr("inputmode", "numeric");
-      text.inputEl.setAttr("aria-label", "Auto-sync interval in minutes");
-      text.inputEl.type = "number";
-      text.inputEl.min = "1";
-      text.inputEl.step = "1";
-    });
+      }
+    }
 
     const defaultsSection = this.createSection(
       containerEl,

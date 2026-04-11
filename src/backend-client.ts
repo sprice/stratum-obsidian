@@ -3,6 +3,8 @@ import {
   type RequestUrlParam,
   type RequestUrlResponse,
 } from "obsidian";
+import { hasAuthenticatedUserRequiredError } from "./backend-auth";
+import { getNormalizedDoiLookupKey, normalizeDoi } from "./doi";
 import {
   PLUGIN_API_BASE_URL,
   PLUGIN_SUPABASE_PUBLISHABLE_KEY,
@@ -20,6 +22,9 @@ import type {
   BackendErrorPayload,
   BackendAuthState,
   OpenAlexEnrichment,
+  OpenAlexEnrichmentBatchResult,
+  OpenAlexEnrichmentBatchResponse,
+  OpenAlexEnrichmentStatus,
   RefreshResponse,
   ZoteroLibraryCollectionsResponse,
   ZoteroLibraryCatalogPageResponse,
@@ -48,6 +53,9 @@ export type {
   BackendErrorPayload,
   BackendAuthState,
   OpenAlexEnrichment,
+  OpenAlexEnrichmentBatchResult,
+  OpenAlexEnrichmentBatchResponse,
+  OpenAlexEnrichmentStatus,
   RefreshResponse,
   ZoteroCollectionSummary,
   ZoteroLibraryCollectionsResponse,
@@ -241,22 +249,90 @@ export class BackendClient {
     return this.readJson<ZoteroItemDetail>(response);
   }
 
-  async getOpenAlexEnrichment(doi: string): Promise<OpenAlexEnrichment | null> {
-    try {
-      const response = await this.authedFetch(
-        `/openalex-enrich?doi=${encodeURIComponent(doi)}`,
-        { skipSessionClearOnAuthError: true },
+  async getOpenAlexEnrichments(
+    dois: string[],
+    options?: { throwOnFailure?: boolean },
+  ): Promise<Record<string, OpenAlexEnrichmentBatchResult>> {
+    const normalizedDois = Array.from(
+      new Set(
+        dois
+          .map((doi) => normalizeDoi(doi))
+          .filter((doi): doi is string => Boolean(doi)),
+      ),
+    );
+    const lookupMap: Record<string, OpenAlexEnrichmentBatchResult> =
+      Object.fromEntries(
+        normalizedDois.map((doi) => [
+          getNormalizedDoiLookupKey(doi)!,
+          {
+            doi,
+            enrichment: null,
+            status: "temporary_failure" satisfies OpenAlexEnrichmentStatus,
+          },
+        ]),
       );
+
+    if (normalizedDois.length === 0) {
+      return lookupMap;
+    }
+
+    try {
+      const response = await this.authedFetch("/enrich", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          dois: normalizedDois,
+        }),
+      });
       if (!this.isOk(response)) {
-        return null;
+        if (options?.throwOnFailure) {
+          this.throwIfBackendError(response, "Failed to load enrichment");
+        }
+        return lookupMap;
       }
-      const payload = this.readJson<{
-        enrichment: OpenAlexEnrichment | null;
-      }>(response);
-      return payload.enrichment;
-    } catch {
+
+      const payload = this.readJson<OpenAlexEnrichmentBatchResponse>(response);
+      for (const result of payload.results) {
+        const lookupKey = getNormalizedDoiLookupKey(result.doi);
+        if (!lookupKey) {
+          continue;
+        }
+
+        lookupMap[lookupKey] = result;
+      }
+
+      return lookupMap;
+    } catch (error) {
+      if (options?.throwOnFailure) {
+        throw error;
+      }
+
+      return lookupMap;
+    }
+  }
+
+  async getOpenAlexEnrichment(
+    doi: string,
+    options?: { throwOnFailure?: boolean },
+  ): Promise<OpenAlexEnrichment | null | undefined> {
+    const lookupKey = getNormalizedDoiLookupKey(doi);
+    if (!lookupKey) {
       return null;
     }
+
+    const results = await this.getOpenAlexEnrichments([doi], options);
+    const result = results[lookupKey];
+    if (!result) {
+      return null;
+    }
+
+    if (result.status === "temporary_failure") {
+      return undefined;
+    }
+
+    return result.enrichment;
   }
 
   async getZoteroLibraryChanges(
@@ -308,9 +384,10 @@ export class BackendClient {
       ms: Math.round(performance.now() - start),
     });
 
+    const payload = this.tryReadJson<BackendErrorPayload>(response);
     if (
-      AUTH_ERROR_STATUSES.has(response.status) &&
-      !skipSessionClearOnAuthError
+      hasAuthenticatedUserRequiredError(payload) ||
+      (AUTH_ERROR_STATUSES.has(response.status) && !skipSessionClearOnAuthError)
     ) {
       await this.clearSession();
     }

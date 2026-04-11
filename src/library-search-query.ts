@@ -1,4 +1,4 @@
-export const MIN_LIBRARY_SEARCH_QUERY_LENGTH = 2;
+const MIN_LIBRARY_SEARCH_QUERY_LENGTH = 2;
 
 export function normalizeLibrarySearchQuery(query: string): string {
   return query.trim().replace(/\s+/g, " ").toLowerCase();
