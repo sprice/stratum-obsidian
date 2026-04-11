@@ -1084,18 +1084,6 @@ export class StratumView extends ItemView {
       void this.plugin.runBulkLibrarySync();
     });
 
-    const refreshLibrariesButton = actions.createEl("button", {
-      text: this.plugin.isLoadingLocalSyncLibraries
-        ? "Checking..."
-        : "Refresh local Zotero",
-    });
-    refreshLibrariesButton.disabled =
-      this.plugin.isLoadingLocalSyncLibraries ||
-      this.plugin.isBulkLibrarySyncRunning();
-    refreshLibrariesButton.addEventListener("click", () => {
-      void this.plugin.localSync.refreshLibraries();
-    });
-
     const scopedNounPhrase = scopedCollectionName
       ? `papers from ${scopedCollectionName}`
       : `papers in ${selectedSyncLibrary.name}`;

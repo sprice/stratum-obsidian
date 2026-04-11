@@ -4,7 +4,6 @@ import type {
   ZoteroItemDetail,
   ZoteroLibraryCatalogPageResponse,
 } from "./backend-types";
-import { normalizeDoi } from "./doi";
 import {
   buildGroupLibrary,
   buildLibraryIdentity,
@@ -12,6 +11,7 @@ import {
   sortEnabledLibraries,
 } from "./plugin-libraries";
 import type { EnabledLibrary } from "./settings";
+import { normalizeZoteroItemDetail } from "./zotero-item-detail-normalizer";
 
 const LOCAL_ZOTERO_API_VERSION = 3;
 
@@ -104,6 +104,11 @@ type LocalApiItem = {
     reportType?: string;
     thesisType?: string;
     archiveID?: string;
+    annotationType?: string;
+    annotationColor?: string;
+    annotationPageLabel?: string;
+    annotationText?: string;
+    annotationComment?: string;
   };
 };
 
@@ -128,14 +133,7 @@ type LocalApiCollection = {
   };
 };
 
-type ExtractedAnnotation = ZoteroItemDetail["annotations"][number];
 type LocalCatalogItem = Pick<LocalApiItem, "key" | "version" | "data">;
-type LocalAnnotationPayload = {
-  annotationKey?: string;
-  attachmentURI?: string;
-  color?: string;
-  pageLabel?: string;
-};
 
 type NodeResponseLike = {
   statusCode?: number;
@@ -403,123 +401,6 @@ function parseInteger(value: string | null): number | null {
   return Math.floor(parsed);
 }
 
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&#x([0-9a-fA-F]+);/g, (_match: string, hex: string) => {
-      const codePoint = Number.parseInt(hex, 16);
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : "";
-    })
-    .replace(/&#(\d+);/g, (_match: string, dec: string) => {
-      const codePoint = Number.parseInt(dec, 10);
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : "";
-    })
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ");
-}
-
-function stripHtml(html: string | undefined): string | null {
-  if (!html) {
-    return null;
-  }
-
-  return (
-    decodeHtmlEntities(html.replace(/<[^>]+>/g, " "))
-      .replace(/\s+/g, " ")
-      .trim() || null
-  );
-}
-
-function stripCitationHtml(html: string | undefined): string | null {
-  return stripHtml(html);
-}
-
-function formatCreators(creators: ZoteroCreator[] | undefined): string[] {
-  return (creators ?? [])
-    .map((creator) => {
-      if (creator.name) {
-        return creator.name;
-      }
-
-      return [creator.firstName, creator.lastName].filter(Boolean).join(" ");
-    })
-    .filter((creator) => creator.length > 0);
-}
-
-function extractYear(date: string | undefined): string | null {
-  if (!date) {
-    return null;
-  }
-
-  const match = date.match(/\b\d{4}\b/);
-  return match?.[0] ?? null;
-}
-
-function formatTags(tags: ZoteroTag[] | undefined): string[] {
-  return (tags ?? []).map((tag) => tag.tag?.trim() ?? "").filter(Boolean);
-}
-
-function parseExtraIdentifiers(extra: string | undefined): {
-  pmid: string | null;
-  pmcid: string | null;
-  arxivId: string | null;
-  citationKey: string | null;
-} {
-  if (!extra) {
-    return { pmid: null, pmcid: null, arxivId: null, citationKey: null };
-  }
-
-  return {
-    pmid: extra.match(/^PMID:\s*(\d+)/m)?.[1] ?? null,
-    pmcid: extra.match(/^PMCID:\s*(PMC\d+)/m)?.[1] ?? null,
-    arxivId: extra.match(/^arXiv:\s*(\S+)/m)?.[1] ?? null,
-    citationKey: extra.match(/^Citation Key:\s*(\S+)/m)?.[1] ?? null,
-  };
-}
-
-function extractArxivFromArchiveId(
-  archiveID: string | undefined,
-): string | null {
-  if (!archiveID) {
-    return null;
-  }
-
-  return archiveID.match(/^arXiv:\s*(\S+)/)?.[1] ?? null;
-}
-
-function buildSelectUri(
-  library: ZoteroItemDetail["library"],
-  itemKey: string,
-): string {
-  if (library.zoteroUriSegment === "library") {
-    return `zotero://select/library/items/${itemKey}`;
-  }
-
-  return `zotero://select/groups/${library.id}/items/${itemKey}`;
-}
-
-function buildOpenPdfUri(
-  library: ZoteroItemDetail["library"],
-  attachmentKey: string,
-  params?: Record<string, string>,
-): string {
-  const base =
-    library.zoteroUriSegment === "library"
-      ? `zotero://open-pdf/library/items/${attachmentKey}`
-      : `zotero://open-pdf/groups/${library.id}/items/${attachmentKey}`;
-  const url = new URL(base);
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value) {
-      url.searchParams.set(key, value);
-    }
-  }
-
-  return url.toString();
-}
-
 function buildLibraryBasePath(library: Pick<EnabledLibrary, "type" | "id">) {
   return `/${library.type === "user" ? "users" : "groups"}/${encodeURIComponent(library.id)}`;
 }
@@ -709,14 +590,6 @@ async function fetchCollectionNameMap(params: {
   }));
 }
 
-function extractAttachmentKeyFromUri(uri: string | undefined): string | null {
-  if (!uri) {
-    return null;
-  }
-
-  return uri.match(/\/items\/([A-Z0-9]+)(?:[/?]|$)/)?.[1] ?? null;
-}
-
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
@@ -725,96 +598,36 @@ function hasNodeRequestModule(value: unknown): value is NodeRequestModule {
   return isObjectRecord(value) && typeof value.request === "function";
 }
 
-function parseOptionalString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function parseAnnotationPayload(
-  encoded: string,
-): LocalAnnotationPayload | null {
-  try {
-    const parsed: unknown = JSON.parse(decodeURIComponent(encoded));
-    if (!isObjectRecord(parsed)) {
-      return null;
-    }
-
-    return {
-      annotationKey: parseOptionalString(parsed.annotationKey),
-      attachmentURI: parseOptionalString(parsed.attachmentURI),
-      color: parseOptionalString(parsed.color),
-      pageLabel: parseOptionalString(parsed.pageLabel),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function extractAnnotationsFromNotes(params: {
-  library: ZoteroItemDetail["library"];
+async function fetchLocalAnnotationsForAttachments(params: {
+  port: number;
+  library: EnabledLibrary;
   attachments: LocalApiItem[];
-  zoteroNotes: LocalApiItem[];
-}): ExtractedAnnotation[] {
+  request?: LocalRequest;
+}): Promise<LocalApiItem[]> {
+  if (params.attachments.length === 0) {
+    return [];
+  }
+
   const attachmentsByKey = new Map(
     params.attachments.map(
       (attachment) => [attachment.key, attachment] as const,
     ),
   );
-  const annotations = new Map<string, ExtractedAnnotation>();
-  const pattern =
-    /<span class="highlight"[^>]*data-annotation="([^"]+)"[^>]*>([\s\S]*?)<\/span>/g;
 
-  for (const note of params.zoteroNotes) {
-    const html = note.data.note ?? "";
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(html)) !== null) {
-      const encoded = match[1];
-      const highlightHtml = match[2];
-      const payload = parseAnnotationPayload(encoded);
+  const basePath = buildLibraryBasePath(params.library);
+  const annotationItems = await requestPagedLocalArray<LocalApiItem>({
+    port: params.port,
+    path: `${basePath}/items?format=json&itemType=annotation`,
+    request: params.request,
+  });
 
-      const annotationKey = payload?.annotationKey?.trim() ?? "";
-      if (!annotationKey || annotations.has(annotationKey)) {
-        continue;
-      }
-
-      const attachmentKey = extractAttachmentKeyFromUri(payload?.attachmentURI);
-      if (!attachmentKey) {
-        continue;
-      }
-
-      const attachment = attachmentsByKey.get(attachmentKey);
-      const pageLabel = payload?.pageLabel?.trim() || null;
-      annotations.set(annotationKey, {
-        key: annotationKey,
-        attachmentKey,
-        type: null,
-        color: payload?.color?.trim() || null,
-        pageLabel,
-        text: stripHtml(highlightHtml),
-        comment: null,
-        dateModified: note.data.dateModified ?? null,
-        zoteroOpenPdfUri:
-          attachment?.data.contentType === "application/pdf"
-            ? buildOpenPdfUri(params.library, attachmentKey, {
-                page: pageLabel ?? "",
-                annotation: annotationKey,
-              })
-            : null,
-      });
-    }
-  }
-
-  return Array.from(annotations.values()).sort((left, right) => {
-    const leftPage = Number(left.pageLabel ?? "");
-    const rightPage = Number(right.pageLabel ?? "");
-    if (
-      Number.isFinite(leftPage) &&
-      Number.isFinite(rightPage) &&
-      leftPage !== rightPage
-    ) {
-      return leftPage - rightPage;
+  return annotationItems.filter((item) => {
+    if (item.data.itemType !== "annotation") {
+      return false;
     }
 
-    return (left.dateModified ?? "").localeCompare(right.dateModified ?? "");
+    const parentItem = item.data.parentItem?.trim() || "";
+    return attachmentsByKey.has(parentItem);
   });
 }
 
@@ -1032,6 +845,99 @@ export async function loadLocalZoteroCatalogPage(params: {
   };
 }
 
+function buildTopLevelItemsPath(params: {
+  library: EnabledLibrary;
+  collectionKey?: string | null;
+}): string {
+  const basePath = buildLibraryBasePath(params.library);
+  return params.collectionKey
+    ? `${basePath}/collections/${encodeURIComponent(params.collectionKey)}/items/top`
+    : `${basePath}/items/top`;
+}
+
+function buildVersionItemsPath(params: {
+  library: EnabledLibrary;
+  collectionKey?: string | null;
+  topLevelOnly?: boolean;
+}): string {
+  if (params.topLevelOnly !== false) {
+    return buildTopLevelItemsPath(params);
+  }
+
+  const basePath = buildLibraryBasePath(params.library);
+  return params.collectionKey
+    ? `${basePath}/collections/${encodeURIComponent(params.collectionKey)}/items`
+    : `${basePath}/items`;
+}
+
+export async function loadLocalZoteroLibraryVersion(params: {
+  port: number;
+  library: EnabledLibrary;
+  collectionKey?: string | null;
+  topLevelOnly?: boolean;
+  request?: LocalRequest;
+}): Promise<number | null> {
+  const scopePath = buildVersionItemsPath(params);
+  const response = await requestLocalJson<Record<string, number>>({
+    port: params.port,
+    path: `${scopePath}?format=versions&limit=1&start=0`,
+    request: params.request,
+  });
+
+  return parseInteger(getHeader(response.headers, "Last-Modified-Version"));
+}
+
+export async function loadLocalZoteroItemVersions(params: {
+  port: number;
+  library: EnabledLibrary;
+  collectionKey?: string | null;
+  topLevelOnly?: boolean;
+  request?: LocalRequest;
+}): Promise<{
+  libraryVersion: number | null;
+  itemVersions: Record<string, number>;
+}> {
+  const limit = 500;
+  const scopePath = buildVersionItemsPath(params);
+  const itemVersions: Record<string, number> = {};
+  let start = 0;
+  let libraryVersion: number | null = null;
+
+  while (true) {
+    const response = await requestLocalJson<Record<string, number>>({
+      port: params.port,
+      path: `${scopePath}?format=versions&limit=${limit}&start=${start}`,
+      request: params.request,
+    });
+    const responseVersion = parseInteger(
+      getHeader(response.headers, "Last-Modified-Version"),
+    );
+    if (responseVersion !== null) {
+      libraryVersion = responseVersion;
+    }
+
+    const entries = Object.entries(response.data).filter(
+      ([itemKey, version]) =>
+        typeof itemKey === "string" &&
+        Boolean(itemKey.trim()) &&
+        typeof version === "number" &&
+        Number.isFinite(version),
+    );
+    for (const [itemKey, version] of entries) {
+      itemVersions[itemKey] = version;
+    }
+
+    if (entries.length < limit) {
+      return {
+        libraryVersion,
+        itemVersions,
+      };
+    }
+
+    start += entries.length;
+  }
+}
+
 export async function loadLocalZoteroItemDetail(params: {
   port: number;
   userId: string;
@@ -1066,93 +972,25 @@ export async function loadLocalZoteroItemDetail(params: {
   const attachments = children.filter(
     (child) => child.data.itemType === "attachment",
   );
-  const zoteroNotes = children.filter(
-    (child) => child.data.itemType === "note",
-  );
   const collections = await fetchCollectionNameMap({
     port: params.port,
     library: params.library,
     keys: parentItem.data.collections ?? [],
     request: params.request,
   });
-  const annotations = extractAnnotationsFromNotes({
-    library,
+  const annotations = await fetchLocalAnnotationsForAttachments({
+    port: params.port,
+    library: params.library,
     attachments,
-    zoteroNotes,
+    request: params.request,
   });
-  const extraIds = parseExtraIdentifiers(parentItem.data.extra);
 
-  return {
+  return normalizeZoteroItemDetail({
     zoteroUserId: params.userId,
     library,
-    item: {
-      key: parentItem.key,
-      version: parentItem.version,
-      title: parentItem.data.title ?? "Untitled",
-      creators: formatCreators(parentItem.data.creators),
-      year: extractYear(parentItem.data.date),
-      date: parentItem.data.date ?? null,
-      itemType: parentItem.data.itemType ?? null,
-      abstract: parentItem.data.abstractNote ?? null,
-      doi: normalizeDoi(parentItem.data.DOI),
-      url: parentItem.data.url ?? null,
-      publicationTitle: parentItem.data.publicationTitle ?? null,
-      collections,
-      tags: formatTags(parentItem.data.tags),
-      zoteroSelectUri: buildSelectUri(library, parentItem.key),
-      isbn: parentItem.data.ISBN ?? null,
-      issn: parentItem.data.ISSN ?? null,
-      volume: parentItem.data.volume ?? null,
-      issue: parentItem.data.issue ?? null,
-      pages: parentItem.data.pages ?? null,
-      publisher: parentItem.data.publisher ?? null,
-      place: parentItem.data.place ?? null,
-      language: parentItem.data.language ?? null,
-      shortTitle: parentItem.data.shortTitle ?? null,
-      citationKey: parentItem.data.citationKey ?? extraIds.citationKey ?? null,
-      edition: parentItem.data.edition ?? null,
-      numPages: parentItem.data.numPages ?? null,
-      series: parentItem.data.series ?? null,
-      seriesTitle: parentItem.data.seriesTitle ?? null,
-      seriesNumber: parentItem.data.seriesNumber ?? null,
-      journalAbbreviation: parentItem.data.journalAbbreviation ?? null,
-      conferenceName: parentItem.data.conferenceName ?? null,
-      university: parentItem.data.university ?? null,
-      bookTitle: parentItem.data.bookTitle ?? null,
-      reportNumber: parentItem.data.reportNumber ?? null,
-      reportType: parentItem.data.reportType ?? null,
-      thesisType: parentItem.data.thesisType ?? null,
-      pmid: extraIds.pmid,
-      pmcid: extraIds.pmcid,
-      arxivId:
-        extraIds.arxivId ??
-        extractArxivFromArchiveId(parentItem.data.archiveID),
-      dateAdded: parentItem.data.dateAdded ?? null,
-      dateModified: parentItem.data.dateModified ?? null,
-      citation: stripCitationHtml(parentItem.bib),
-    },
-    attachments: attachments.map((attachment) => ({
-      key: attachment.key,
-      title: attachment.data.title ?? attachment.data.filename ?? "Attachment",
-      itemType: attachment.data.itemType ?? "attachment",
-      contentType: attachment.data.contentType ?? null,
-      linkMode: attachment.data.linkMode ?? null,
-      filename: attachment.data.filename ?? null,
-      url: attachment.data.url ?? null,
-      zoteroSelectUri: buildSelectUri(library, attachment.key),
-      zoteroOpenPdfUri:
-        attachment.data.contentType === "application/pdf"
-          ? buildOpenPdfUri(library, attachment.key)
-          : null,
-    })),
-    zoteroNotes: zoteroNotes.map((note) => ({
-      key: note.key,
-      parentItemKey: note.data.parentItem ?? null,
-      html: note.data.note ?? "",
-      dateAdded: note.data.dateAdded ?? null,
-      dateModified: note.data.dateModified ?? null,
-      zoteroSelectUri: buildSelectUri(library, note.key),
-    })),
-    annotations,
-  };
+    parentItem,
+    childItems: children,
+    collections,
+    annotationItems: annotations,
+  });
 }

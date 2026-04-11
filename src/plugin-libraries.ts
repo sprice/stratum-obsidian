@@ -80,7 +80,9 @@ function clearSyncCollectionsState(plugin: StratumPlugin): void {
   plugin.selectedSyncCollection = null;
 }
 
-function resolveSelectedSyncLibraryIdentity(plugin: StratumPlugin): string | null {
+function resolveSelectedSyncLibraryIdentity(
+  plugin: StratumPlugin,
+): string | null {
   return (
     plugin.selectedSyncLibrary?.identity ??
     plugin.settings.selectedSyncLibraryIdentity
@@ -97,10 +99,7 @@ function haveSameLibraries(
 
   return left.every((library, index) => {
     const other = right[index];
-    return (
-      library.identity === other?.identity &&
-      library.name === other.name
-    );
+    return library.identity === other?.identity && library.name === other.name;
   });
 }
 

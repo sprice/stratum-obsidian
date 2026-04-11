@@ -1,4 +1,4 @@
-import { Notice, type ObsidianProtocolData } from "obsidian";
+import { Notice, Platform, type ObsidianProtocolData } from "obsidian";
 import { PLUGIN_WEB_APP_URL } from "./build-config";
 import { BackendClient } from "./backend-client";
 import { PLUGIN_NAME } from "./constants";
@@ -146,6 +146,7 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
 
       if (changed) {
         await plugin.saveSettings();
+        await plugin.reconcileLocalLiveSync();
         plugin.refreshAutoSyncUi();
         plugin.refreshViews();
         plugin.refreshSettingTab();
@@ -238,6 +239,9 @@ export async function refreshZoteroConnection(
       ) {
         await plugin.saveSettings();
       }
+      if (Platform.isDesktopApp && plugin.settings.bulkSyncEnabled) {
+        await plugin.localSync.refreshLibraries();
+      }
     } else {
       plugin.zoteroConnection = plugin.backend.hasSession()
         ? previousConnection
@@ -260,10 +264,10 @@ export async function refreshZoteroConnection(
     }
   } finally {
     plugin.isLoadingZoteroConnection = false;
-    const tokenValid =
-      !plugin.backend.hasSession()
-        ? "signed_out"
-        : (plugin.zoteroConnection?.tokenValid ?? "unknown");
+    await plugin.reconcileLocalLiveSync();
+    const tokenValid = !plugin.backend.hasSession()
+      ? "signed_out"
+      : (plugin.zoteroConnection?.tokenValid ?? "unknown");
     log("auth", "zotero connection refreshed", {
       connected: Boolean(plugin.zoteroConnection?.connected),
       tokenValid,

@@ -18,6 +18,7 @@ function createSettings(params: {
     filenameFormat: "readable",
     bulkSyncEnabled: true,
     zoteroLocalApiPort: 23119,
+    zoteroDataDir: "/Users/test/Zotero",
     lastDeviceCode: null,
     accountEmail: "test@example.com",
     accountLinkedAt: null,

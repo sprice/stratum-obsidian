@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin, TFile } from "obsidian";
+import { MarkdownView, Platform, Plugin, TFile } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
   PLUGIN_NAME,
@@ -94,6 +94,10 @@ import {
   setSelectedSyncLibrary,
 } from "./plugin-local-sync";
 import { refreshOpenedLiteratureNote } from "./plugin-note-refresh";
+type LocalLiveSyncWatcher = {
+  close(): void;
+  on(event: "error", listener: (error: unknown) => void): unknown;
+};
 
 export default class StratumPlugin extends Plugin {
   settings: StratumSettings = DEFAULT_SETTINGS;
@@ -164,6 +168,16 @@ export default class StratumPlugin extends Plugin {
   bulkLibrarySyncCurrentPageProcessedCount = 0;
   bulkLibrarySyncCurrentPageTotalCount = 0;
   bulkLibrarySyncUiRefreshTimer: number | null = null;
+  localLiveSyncWatcher: LocalLiveSyncWatcher | null = null;
+  localLiveSyncWatchDir: string | null = null;
+  localLiveSyncDebounceTimer: number | null = null;
+  localLiveSyncRunPromise: Promise<void> | null = null;
+  localLiveSyncDirty = false;
+  localLiveSyncQueuedAfterBulkSync = false;
+  localLiveSyncWatching = false;
+  localLiveSyncError: string | null = null;
+  localLiveSyncLibraryVersions = new Map<string, number | null>();
+  localLiveSyncLibraryItemVersions = new Map<string, Record<string, number>>();
   statusBarItemEl: HTMLElement | null = null;
   readonly library = {
     search: (query: string) => searchLibrary(this, query),
@@ -248,7 +262,8 @@ export default class StratumPlugin extends Plugin {
 
     this.addCommand({
       id: "open-literature-note-in-panel",
-      name: "Open literature note in panel",
+      // eslint-disable-next-line obsidianmd/ui/sentence-case
+      name: "Open literature note in Reader panel",
       callback: () => openLiteratureNoteInPanel(this),
     });
 
@@ -331,6 +346,18 @@ export default class StratumPlugin extends Plugin {
       window.clearTimeout(this.bulkLibrarySyncUiRefreshTimer);
       this.bulkLibrarySyncUiRefreshTimer = null;
     }
+    if (this.localLiveSyncDebounceTimer !== null) {
+      window.clearTimeout(this.localLiveSyncDebounceTimer);
+      this.localLiveSyncDebounceTimer = null;
+    }
+    this.localLiveSyncWatcher?.close();
+    this.localLiveSyncWatcher = null;
+    this.localLiveSyncWatchDir = null;
+    this.localLiveSyncWatching = false;
+    this.localLiveSyncDirty = false;
+    this.localLiveSyncQueuedAfterBulkSync = false;
+    this.localLiveSyncLibraryVersions.clear();
+    this.localLiveSyncLibraryItemVersions.clear();
   }
 
   async loadSettings(): Promise<void> {
@@ -430,8 +457,11 @@ export default class StratumPlugin extends Plugin {
   }
 
   async runBulkLibrarySync(): Promise<void> {
+    await this.localSync.refreshLibraries();
+
     const selectedLibrary = getSelectedSyncLibrary(this);
     if (!selectedLibrary) {
+      this.refreshViews();
       return;
     }
 
@@ -440,5 +470,23 @@ export default class StratumPlugin extends Plugin {
       selectedLibrary,
       getSelectedSyncCollection(this),
     );
+  }
+
+  async reconcileLocalLiveSync(): Promise<void> {
+    if (Platform.isDesktopApp) {
+      const { reconcileLocalLiveSync } =
+        await import("./plugin-local-live-sync");
+      await reconcileLocalLiveSync(this);
+    }
+  }
+
+  notifyLocalLiveSyncAfterBulkSync(): void {
+    if (Platform.isDesktopApp) {
+      void import("./plugin-local-live-sync").then(
+        ({ notifyLocalLiveSyncAfterBulkSync }) => {
+          notifyLocalLiveSyncAfterBulkSync(this);
+        },
+      );
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
+import { getDefaultZoteroDataDir } from "./zotero-data-dir";
 import {
   type BulkLibrarySyncState,
   type ZoteroAutoSyncState,
@@ -29,6 +30,7 @@ export interface StratumSettings {
   filenameFormat: LiteratureNoteFilenameFormat;
   bulkSyncEnabled: boolean;
   zoteroLocalApiPort: number;
+  zoteroDataDir: string;
   lastDeviceCode: string | null;
   accountEmail: string | null;
   accountLinkedAt: string | null;
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   filenameFormat: "readable",
   bulkSyncEnabled: false,
   zoteroLocalApiPort: 23119,
+  zoteroDataDir: getDefaultZoteroDataDir(),
   lastDeviceCode: null,
   accountEmail: null,
   accountLinkedAt: null,

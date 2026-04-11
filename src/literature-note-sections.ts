@@ -4,6 +4,7 @@ import { preprocessZoteroNoteHtml } from "./literature-note-content-html";
 import {
   getColorCategory,
   getHighlightCalloutType,
+  getHighlightGroupCalloutTitle,
   getZoteroNoteCalloutTitle,
   toCalloutBlock,
   toFoldableCalloutBlock,
@@ -299,6 +300,47 @@ function renderZoteroNotesSection(
   return ["## Zotero Notes", ...notes].join("\n\n");
 }
 
+function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
+  if (detail.annotations.length === 0) {
+    return null;
+  }
+
+  const groups = new Map<string, ZoteroItemDetail["annotations"]>();
+  detail.annotations.forEach((annotation) => {
+    const key = getColorCategory(annotation.color);
+    const existing = groups.get(key) ?? [];
+    existing.push(annotation);
+    groups.set(key, existing);
+  });
+
+  const sections = Array.from(groups.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, annotations]) => {
+      const bodyLines = annotations.flatMap((annotation, index) => {
+        const itemLines = [
+          `**${annotation.pageLabel ? `Page ${annotation.pageLabel}` : "Page unknown"}**${annotation.type ? ` · ${annotation.type}` : ""}`,
+          annotation.text ? annotation.text.replace(/\n+/g, " ").trim() : null,
+          annotation.zoteroOpenPdfUri
+            ? `[Open annotation in Zotero](${annotation.zoteroOpenPdfUri})`
+            : null,
+        ].filter((line): line is string => Boolean(line));
+
+        return index === annotations.length - 1
+          ? itemLines
+          : [...itemLines, ""];
+      });
+
+      return toFoldableCalloutBlock(
+        getHighlightCalloutType(label),
+        getHighlightGroupCalloutTitle(label, annotations),
+        bodyLines,
+        false,
+      );
+    });
+
+  return ["## Highlights", ...sections].join("\n\n");
+}
+
 function safeWikiLink(value: string): string {
   return `[[${value.replace(/[|\]]/g, "\\$&")}]]`;
 }
@@ -502,6 +544,7 @@ export function renderManagedBlock(
       : renderOpenAlexDetailsCallout(enrichment ?? null),
     abstractSection,
     renderZoteroNotesSection(detail, htmlToMarkdown),
+    renderAnnotationsSection(detail),
   ].filter((section): section is string => Boolean(section));
   const deletedWarning =
     zoteroStatus === "deleted"

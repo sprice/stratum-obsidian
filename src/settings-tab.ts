@@ -9,6 +9,7 @@ import {
   getPersonalLibrary,
 } from "./plugin-libraries";
 import { clearLocalSyncState } from "./plugin-local-sync";
+import { getDefaultZoteroDataDir } from "./zotero-data-dir";
 import { ensureLocalZoteroReady } from "./zotero-local";
 
 export class StratumSettingTab extends PluginSettingTab {
@@ -192,6 +193,7 @@ export class StratumSettingTab extends PluginSettingTab {
 
                 this.plugin.localSync.reconcileEnabledLibraries();
                 await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
                 this.plugin.refreshViews();
                 this.display();
               }),
@@ -221,6 +223,7 @@ export class StratumSettingTab extends PluginSettingTab {
                 this.plugin.bulkSyncSettingsError = null;
                 clearLocalSyncState(this.plugin);
                 await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
                 this.plugin.refreshViews();
                 this.display();
                 return;
@@ -236,6 +239,7 @@ export class StratumSettingTab extends PluginSettingTab {
                 });
                 this.plugin.settings.bulkSyncEnabled = true;
                 await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
                 this.plugin.refreshViews();
                 void this.plugin.localSync.refreshLibraries();
               } catch (error) {
@@ -246,6 +250,7 @@ export class StratumSettingTab extends PluginSettingTab {
                     ? error.message
                     : "Could not verify the local Zotero API.";
                 await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
                 this.plugin.refreshViews();
               } finally {
                 this.plugin.isCheckingBulkSyncReadiness = false;
@@ -275,6 +280,7 @@ export class StratumSettingTab extends PluginSettingTab {
       }
 
       if (this.plugin.settings.bulkSyncEnabled) {
+        const defaultZoteroDataDir = getDefaultZoteroDataDir();
         new Setting(syncSection)
           .setName("Zotero local API port")
           .setDesc("Use 23119 unless you changed Zotero's local HTTP port.")
@@ -291,6 +297,7 @@ export class StratumSettingTab extends PluginSettingTab {
                 this.plugin.bulkSyncSettingsError = null;
                 clearLocalSyncState(this.plugin);
                 await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
               });
 
             text.inputEl.addClass("stratum-interval-input");
@@ -300,6 +307,48 @@ export class StratumSettingTab extends PluginSettingTab {
             text.inputEl.min = "1";
             text.inputEl.step = "1";
           });
+
+        new Setting(syncSection)
+          .setName("Zotero data directory")
+          .setDesc(
+            "Used for desktop live sync when Zotero changes while Obsidian is open.",
+          )
+          .addText((text) => {
+            text
+              .setPlaceholder(defaultZoteroDataDir)
+              .setValue(this.plugin.settings.zoteroDataDir);
+
+            text.inputEl.setAttr("aria-label", "Zotero data directory");
+            text.inputEl.addEventListener("change", () => {
+              void (async () => {
+                this.plugin.settings.zoteroDataDir =
+                  text.inputEl.value.trim() || defaultZoteroDataDir;
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+                this.display();
+              })();
+            });
+          });
+
+        const zoteroDataDirActions = syncSection.createDiv({
+          cls: "stratum-settings-subaction-row",
+        });
+        const resetZoteroDataDirButton = zoteroDataDirActions.createEl(
+          "button",
+          {
+            text: "Reset to default location",
+          },
+        );
+        resetZoteroDataDirButton.type = "button";
+        resetZoteroDataDirButton.addEventListener("click", () => {
+          void (async () => {
+            this.plugin.settings.zoteroDataDir = defaultZoteroDataDir;
+            await this.plugin.saveSettings();
+            await this.plugin.reconcileLocalLiveSync();
+            this.display();
+          })();
+        });
+
       }
     }
 

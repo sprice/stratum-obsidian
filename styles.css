@@ -213,6 +213,12 @@
 	color: var(--text-error) !important;
 }
 
+.stratum-settings-subaction-row {
+	display: flex;
+	justify-content: flex-end;
+	padding: 0 1.1rem 1rem;
+}
+
 .stratum-interval-input {
 	width: 5.5rem;
 }

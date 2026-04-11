@@ -7,7 +7,9 @@ import {
   LocalZoteroApiVersionMismatchError,
   loadLocalZoteroCatalogPage,
   loadLocalZoteroCollections,
+  loadLocalZoteroItemVersions,
   loadLocalZoteroItemDetail,
+  loadLocalZoteroLibraryVersion,
   loadLocalZoteroLibraries,
 } from "../zotero-local";
 
@@ -254,7 +256,103 @@ test("loadLocalZoteroCatalogPage reads versions, totals, and library version hea
   ]);
 });
 
-test("loadLocalZoteroItemDetail normalizes DOI values and reconstructs annotation keys from Zotero note HTML", async () => {
+test("loadLocalZoteroLibraryVersion reads the lightweight versions header", async () => {
+  const request = createRequestMock({
+    "http://127.0.0.1:23119/api/users/19946899/items/top?format=versions&limit=1&start=0":
+      {
+        status: 200,
+        headers: {
+          "Last-Modified-Version": "123",
+        },
+        json: {
+          ITEMA: 10,
+        },
+      },
+  });
+
+  const version = await loadLocalZoteroLibraryVersion({
+    port: 23119,
+    library: buildPersonalLibrary("19946899"),
+    request,
+  });
+
+  assert.equal(version, 123);
+});
+
+test("loadLocalZoteroItemVersions pages through the local versions map", async () => {
+  const request = createRequestMock({
+    "http://127.0.0.1:23119/api/users/19946899/items/top?format=versions&limit=500&start=0":
+      {
+        status: 200,
+        headers: {
+          "Last-Modified-Version": "321",
+        },
+        json: Object.fromEntries(
+          Array.from({ length: 500 }, (_entry, index) => [
+            `ITEM${index.toString().padStart(3, "0")}`,
+            index + 1,
+          ]),
+        ),
+      },
+    "http://127.0.0.1:23119/api/users/19946899/items/top?format=versions&limit=500&start=500":
+      {
+        status: 200,
+        headers: {
+          "Last-Modified-Version": "321",
+        },
+        json: {
+          ITEM500: 501,
+          ITEM501: 502,
+        },
+      },
+  });
+
+  const response = await loadLocalZoteroItemVersions({
+    port: 23119,
+    library: buildPersonalLibrary("19946899"),
+    request,
+  });
+
+  assert.equal(response.libraryVersion, 321);
+  assert.equal(Object.keys(response.itemVersions).length, 502);
+  assert.equal(response.itemVersions.ITEM000, 1);
+  assert.equal(response.itemVersions.ITEM499, 500);
+  assert.equal(response.itemVersions.ITEM500, 501);
+  assert.equal(response.itemVersions.ITEM501, 502);
+});
+
+test("loadLocalZoteroItemVersions can read a full library versions map including child items", async () => {
+  const request = createRequestMock({
+    "http://127.0.0.1:23119/api/users/19946899/items?format=versions&limit=500&start=0":
+      {
+        status: 200,
+        headers: {
+          "Last-Modified-Version": "654",
+        },
+        json: {
+          PARENT: 12,
+          ATTACH1: 21,
+          ANNOT1: 34,
+        },
+      },
+  });
+
+  const response = await loadLocalZoteroItemVersions({
+    port: 23119,
+    library: buildPersonalLibrary("19946899"),
+    topLevelOnly: false,
+    request,
+  });
+
+  assert.equal(response.libraryVersion, 654);
+  assert.deepEqual(response.itemVersions, {
+    PARENT: 12,
+    ATTACH1: 21,
+    ANNOT1: 34,
+  });
+});
+
+test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations via the itemType=annotation endpoint", async () => {
   const request = createRequestMock({
     "http://127.0.0.1:23119/api/users/19946899/items/PARENT?format=json&include=data,bib&style=apa":
       {
@@ -300,16 +398,6 @@ test("loadLocalZoteroItemDetail normalizes DOI values and reconstructs annotatio
               url: "https://example.com/paper.pdf",
             },
           },
-          {
-            key: "NOTE1",
-            version: 2,
-            data: {
-              itemType: "note",
-              parentItem: "PARENT",
-              dateModified: "2025-01-03T00:00:00Z",
-              note: '<p><span class="highlight" data-annotation="%7B%22attachmentURI%22%3A%22http%3A%2F%2Fzotero.org%2Fusers%2F19946899%2Fitems%2FATTACH1%22%2C%22annotationKey%22%3A%22ANN1%22%2C%22color%22%3A%22%23ffd400%22%2C%22pageLabel%22%3A%225%22%7D">Important result</span></p>',
-            },
-          },
         ],
       },
     "http://127.0.0.1:23119/api/users/19946899/collections/COLL1?format=json": {
@@ -321,6 +409,54 @@ test("loadLocalZoteroItemDetail normalizes DOI values and reconstructs annotatio
         },
       },
     },
+    "http://127.0.0.1:23119/api/users/19946899/items?format=json&itemType=annotation&limit=100&start=0":
+      {
+        status: 200,
+        json: [
+          {
+            key: "ANN1",
+            version: 5,
+            data: {
+              itemType: "annotation",
+              parentItem: "ATTACH1",
+              annotationType: "highlight",
+              annotationColor: "#ffd400",
+              annotationPageLabel: "5",
+              annotationText: "Important result",
+              annotationComment: "",
+              dateModified: "2025-01-03T00:00:00Z",
+            },
+          },
+          {
+            key: "ANN_OTHER",
+            version: 6,
+            data: {
+              itemType: "annotation",
+              parentItem: "OTHER_ATTACHMENT",
+              annotationType: "highlight",
+              annotationColor: "#ff6666",
+              annotationPageLabel: "1",
+              annotationText: "Should be filtered out",
+              annotationComment: "",
+              dateModified: "2025-01-04T00:00:00Z",
+            },
+          },
+          {
+            key: "ANN_COMMENT",
+            version: 7,
+            data: {
+              itemType: "annotation",
+              parentItem: "ATTACH1",
+              annotationType: "highlight",
+              annotationColor: "#8a2be2",
+              annotationPageLabel: "7",
+              annotationText: "Standalone highlighted text",
+              annotationComment: "Separate annotation comment",
+              dateModified: "2025-01-05T00:00:00Z",
+            },
+          },
+        ],
+      },
   });
 
   const detail = await loadLocalZoteroItemDetail({
@@ -341,7 +477,7 @@ test("loadLocalZoteroItemDetail normalizes DOI values and reconstructs annotatio
     {
       key: "ANN1",
       attachmentKey: "ATTACH1",
-      type: null,
+      type: "highlight",
       color: "#ffd400",
       pageLabel: "5",
       text: "Important result",
@@ -349,6 +485,18 @@ test("loadLocalZoteroItemDetail normalizes DOI values and reconstructs annotatio
       dateModified: "2025-01-03T00:00:00Z",
       zoteroOpenPdfUri:
         "zotero://open-pdf/library/items/ATTACH1?page=5&annotation=ANN1",
+    },
+    {
+      key: "ANN_COMMENT",
+      attachmentKey: "ATTACH1",
+      type: "highlight",
+      color: "#8a2be2",
+      pageLabel: "7",
+      text: "Standalone highlighted text",
+      comment: "Separate annotation comment",
+      dateModified: "2025-01-05T00:00:00Z",
+      zoteroOpenPdfUri:
+        "zotero://open-pdf/library/items/ATTACH1?page=7&annotation=ANN_COMMENT",
     },
   ]);
 });

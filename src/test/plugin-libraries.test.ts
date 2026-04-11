@@ -36,6 +36,7 @@ function createMockPlugin(params?: {
     filenameFormat: "readable",
     bulkSyncEnabled: false,
     zoteroLocalApiPort: 23119,
+    zoteroDataDir: "/Users/test/Zotero",
     lastDeviceCode: null,
     accountEmail: "test@example.com",
     accountLinkedAt: null,

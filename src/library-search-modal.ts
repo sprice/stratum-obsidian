@@ -9,6 +9,7 @@ import type StratumPlugin from "./plugin";
 export interface LiteratureNoteEntry {
   file: TFile;
   title: string;
+  displayTitle: string;
   authors: string[];
   year: string | null;
   citationKey: string | null;
@@ -47,6 +48,24 @@ function extractTitle(fm: Record<string, unknown>, basename: string): string {
   return basename;
 }
 
+function extractDisplayTitle(
+  fm: Record<string, unknown>,
+  fallbackTitle: string,
+): string {
+  const managedAliases: unknown[] = Array.isArray(fm.stratum_managed_aliases)
+    ? fm.stratum_managed_aliases
+    : [];
+
+  for (let i = 2; i >= 1; i--) {
+    const alias = managedAliases[i];
+    if (typeof alias === "string" && alias.trim() && !alias.startsWith("@")) {
+      return alias;
+    }
+  }
+
+  return fallbackTitle;
+}
+
 function str(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -60,10 +79,12 @@ export function buildLiteratureNoteEntries(
     const cache = plugin.app.metadataCache.getFileCache(file);
     const fm = cache?.frontmatter as Record<string, unknown> | undefined;
     if (!fm || fm.stratum_note_type !== "literature-note") continue;
+    const title = extractTitle(fm, file.basename);
 
     entries.push({
       file,
-      title: extractTitle(fm, file.basename),
+      title,
+      displayTitle: extractDisplayTitle(fm, title),
       authors: extractAuthors(fm.authors),
       year:
         typeof fm.year === "string" || typeof fm.year === "number"

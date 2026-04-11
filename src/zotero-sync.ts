@@ -309,7 +309,9 @@ export function getBulkLibrarySyncStatusMessage(params: {
   }
 
   if (params.state.phase === "paused-error") {
-    return params.state.lastError ?? "Sync interrupted. Start sync again when ready.";
+    return (
+      params.state.lastError ?? "Sync interrupted. Start sync again when ready."
+    );
   }
 
   if (params.state.phase === "completed") {

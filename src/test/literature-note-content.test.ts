@@ -430,20 +430,21 @@ test("buildLiteratureNoteContent clears existing OpenAlex blocks when enrichment
   assert.doesNotMatch(output, /> \[!globe\]- Enrichment/);
 });
 
-test("buildLiteratureNoteContent never renders Highlights even when raw annotations exist", () => {
+test("buildLiteratureNoteContent renders highlights as grouped callouts", () => {
   const output = buildLiteratureNoteContent({
     detail: createDetail({
       annotations: [
         {
-          key: "ANN1",
+          key: "ANNOT1",
           attachmentKey: "ATTACH1",
           type: "highlight",
           color: "#ffd400",
-          pageLabel: "5",
-          text: "Important passage",
-          comment: "User comment",
-          dateModified: "2026-03-14T17:56:02Z",
-          zoteroOpenPdfUri: "zotero://open-pdf/library/items/ATTACH1",
+          pageLabel: "4",
+          text: "A useful highlighted sentence.",
+          comment: "This matters.",
+          dateModified: "2026-03-14T18:00:00Z",
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/ATTACH1?page=4&annotation=ANNOT1",
         },
       ],
     }),
@@ -453,8 +454,67 @@ test("buildLiteratureNoteContent never renders Highlights even when raw annotati
     htmlToMarkdown: (html) => html,
   });
 
-  assert.doesNotMatch(output, /## Highlights/);
-  assert.doesNotMatch(output, /Open annotation in Zotero/);
+  assert.match(output, /## Highlights/);
+  assert.match(output, /> \[!stratum-yellow\]\+ Yellow · 1 highlight/);
+  assert.match(output, /> \*\*Page 4\*\* · highlight/);
+  assert.match(output, /> A useful highlighted sentence\./);
+  assert.doesNotMatch(output, /> Comment: This matters\./);
+  assert.match(
+    output,
+    /> \[Open annotation in Zotero\]\(zotero:\/\/open-pdf\/library\/items\/ATTACH1\?page=4&annotation=ANNOT1\)/,
+  );
+});
+
+test("buildLiteratureNoteContent keeps grouped highlights expanded when there are many", () => {
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({
+      annotations: [
+        {
+          key: "ANNOT1",
+          attachmentKey: "ATTACH1",
+          type: "highlight",
+          color: "#ffd400",
+          pageLabel: "4",
+          text: "First highlight.",
+          comment: null,
+          dateModified: null,
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/ATTACH1?page=4&annotation=ANNOT1",
+        },
+        {
+          key: "ANNOT2",
+          attachmentKey: "ATTACH1",
+          type: "highlight",
+          color: "#ffd400",
+          pageLabel: "5",
+          text: "Second highlight.",
+          comment: null,
+          dateModified: null,
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/ATTACH1?page=5&annotation=ANNOT2",
+        },
+        {
+          key: "ANNOT3",
+          attachmentKey: "ATTACH1",
+          type: "highlight",
+          color: "#00ff00",
+          pageLabel: "6",
+          text: "Third highlight.",
+          comment: null,
+          dateModified: null,
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/ATTACH1?page=6&annotation=ANNOT3",
+        },
+      ],
+    }),
+    filenameStem: "Managed Name",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+
+  assert.match(output, /> \[!stratum-yellow\]\+ Yellow · 2 highlights/);
+  assert.match(output, /> \[!stratum-green\]\+ Green · 1 highlight/);
 });
 
 test("markLiteratureNoteAsDeletedContent updates frontmatter and adds a warning", () => {

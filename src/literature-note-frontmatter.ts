@@ -250,8 +250,8 @@ export function renderFrontmatterContent(
     nativeFrontmatter.source = sourceUrl;
   }
   if (detail.item.collections.length > 0) {
-    nativeFrontmatter.collections = detail.item.collections.map(
-      (collection) => toWikiLink(collection.name),
+    nativeFrontmatter.collections = detail.item.collections.map((collection) =>
+      toWikiLink(collection.name),
     );
   }
   if (detail.item.volume) {

@@ -205,6 +205,7 @@ async function runLocalSyncLibrariesRequest(
       plugin.localSyncLibrariesPendingPromise = null;
       plugin.hasLoadedLocalSyncLibraries = true;
       await plugin.saveSettings();
+      await plugin.reconcileLocalLiveSync();
       plugin.refreshViews();
       plugin.refreshSettingTab();
     }

@@ -1,18 +1,14 @@
-import { Notice, Platform, TFile } from "obsidian";
+import { Notice, TFile } from "obsidian";
 import {
-  createOrUpdateLiteratureNote,
   markLiteratureNoteDeleted,
 } from "./literature-note";
 import {
-  type ZoteroItemDetail,
   ZoteroNotConnectedError,
   ZoteroTokenInvalidError,
 } from "./backend-client";
 import { PLUGIN_NAME } from "./constants";
-import { loadEnrichmentForNoteWrite } from "./plugin-enrichment";
 import {
   shouldMarkLiteratureNoteDeletedAfterRefreshMiss,
-  shouldUseLocalOpenedNoteRefresh,
 } from "./plugin-note-refresh-policy";
 import { getLibraryAutoSyncState } from "./plugin-libraries";
 import { getLibraryFromFrontmatter } from "./plugin-local-sync";
@@ -22,47 +18,19 @@ import {
 } from "./plugin-note-index";
 import type StratumPlugin from "./plugin";
 import {
-  isMissingZoteroItemError,
   markZoteroDisconnected,
   markZoteroTokenInvalid,
 } from "./plugin-sync-helpers";
 import {
   LocalZoteroApiDisabledError,
-  LocalZoteroApiError,
   LocalZoteroApiVersionMismatchError,
   LocalZoteroHttpServerUnavailableError,
   LocalZoteroUnavailableError,
-  loadLocalZoteroItemDetail,
-  loadLocalZoteroLibraries,
 } from "./zotero-local";
-
-async function tryLoadLocalDetail(
-  plugin: StratumPlugin,
-  params: {
-    library: NonNullable<ReturnType<typeof getLibraryFromFrontmatter>>;
-    itemKey: string;
-  },
-): Promise<ZoteroItemDetail | null> {
-  if (!Platform.isDesktopApp) {
-    return null;
-  }
-
-  let userId = plugin.localZoteroUserId;
-  if (!userId) {
-    const response = await loadLocalZoteroLibraries({
-      port: plugin.settings.zoteroLocalApiPort,
-    });
-    plugin.localZoteroUserId = response.userId;
-    userId = response.userId;
-  }
-
-  return loadLocalZoteroItemDetail({
-    port: plugin.settings.zoteroLocalApiPort,
-    userId,
-    library: params.library,
-    itemKey: params.itemKey,
-  });
-}
+import {
+  loadZoteroItemDetailForNoteSync,
+  writeLiteratureNoteFromDetail,
+} from "./plugin-note-sync";
 
 function showRefreshNotice(plugin: StratumPlugin, error: unknown): void {
   if (error instanceof ZoteroTokenInvalidError) {
@@ -196,47 +164,23 @@ async function runOpenedLiteratureNoteRefresh(
     return;
   }
   const { itemKey, library } = target;
-
-  let detail: ZoteroItemDetail | null = null;
-  let localMissing = false;
-  let backendMissing = false;
-  let localError: unknown = null;
-  let backendError: unknown = null;
-  const useLocalRefresh = shouldUseLocalOpenedNoteRefresh({
-    isDesktopApp: Platform.isDesktopApp,
-    bulkSyncEnabled: plugin.settings.bulkSyncEnabled,
+  const {
+    detail,
+    usedLocal,
+    localMissing,
+    backendMissing,
+    localError,
+    backendError,
+  } = await loadZoteroItemDetailForNoteSync(plugin, {
+    library,
+    itemKey,
+    sourcePreference: "auto",
   });
-
-  if (useLocalRefresh) {
-    try {
-      detail = await tryLoadLocalDetail(plugin, {
-        library,
-        itemKey,
-      });
-    } catch (error) {
-      if (error instanceof LocalZoteroApiError && error.status === 404) {
-        localMissing = true;
-      } else {
-        localError = error;
-      }
-    }
-  }
-
-  if (!detail && plugin.backend.hasSession()) {
-    try {
-      detail = await plugin.backend.getZoteroItemDetail(itemKey, { library });
-    } catch (error) {
-      backendError = error;
-      if (isMissingZoteroItemError(error)) {
-        backendMissing = true;
-      }
-    }
-  }
 
   if (!detail) {
     if (
       shouldMarkLiteratureNoteDeletedAfterRefreshMiss({
-        usedLocal: useLocalRefresh,
+        usedLocal,
         localMissing,
         backendMissing,
       })
@@ -257,18 +201,11 @@ async function runOpenedLiteratureNoteRefresh(
     return;
   }
 
-  const enrichment = await loadEnrichmentForNoteWrite(plugin, {
-    doi: detail.item.doi,
-  });
-  const writeResult = await createOrUpdateLiteratureNote({
-    app: plugin.app,
-    notesFolder: plugin.settings.notesFolder,
-    filenameFormat: plugin.settings.filenameFormat,
+  await writeLiteratureNoteFromDetail(plugin, {
     detail,
     existingFile: file,
-    enrichment,
+    enrichmentMode: "load",
   });
-  plugin.rememberLiteratureNoteFile(detail, writeResult.file);
   recordRefreshSuccess(plugin, library);
 }
 

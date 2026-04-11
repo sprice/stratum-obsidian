@@ -1,6 +1,7 @@
 import { AbstractInputSuggest, SearchComponent } from "obsidian";
 import type { LiteratureNoteEntry } from "./library-search-modal";
 import type { StratumView } from "./view";
+import { renderSearchSuggestionTitle } from "./view-search-suggestion";
 
 const READER_SUGGESTION_LIMIT = 24;
 
@@ -18,6 +19,7 @@ export function filterReaderLiteratureNoteEntries(
     .filter((entry) => {
       return [
         entry.title,
+        entry.displayTitle,
         entry.authors.join(" "),
         entry.year ?? "",
         entry.citationKey ?? "",
@@ -51,15 +53,11 @@ export class ReaderLiteratureNoteInputSuggest extends AbstractInputSuggest<Liter
   }
 
   renderSuggestion(entry: LiteratureNoteEntry, el: HTMLElement): void {
-    el.addClass("stratum-native-suggestion");
-    el.createDiv({
-      cls: "stratum-native-suggestion-label",
-      text: entry.title,
-    });
+    renderSearchSuggestionTitle(entry.displayTitle, el);
   }
 
   selectSuggestion(entry: LiteratureNoteEntry): void {
-    this.setValue(entry.title);
+    this.setValue(entry.displayTitle);
     this.close();
     this.onChooseEntry(entry);
   }

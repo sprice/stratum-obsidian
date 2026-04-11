@@ -1,4 +1,5 @@
 import type { PersistedAuthSession } from "./settings";
+export type { ZoteroItemDetail } from "./zotero-item-detail-normalizer";
 
 export interface BackendAuthState {
   session: PersistedAuthSession | null;
@@ -65,94 +66,6 @@ export interface ZoteroSearchMeta {
 export interface ZoteroSearchResponse {
   results: ZoteroSearchResult[];
   meta: ZoteroSearchMeta;
-}
-
-export interface ZoteroItemDetail {
-  zoteroUserId: string;
-  library: {
-    type: ZoteroLibraryIdentity["type"];
-    id: string;
-    zoteroUriSegment: "library" | "groups";
-    identity: string;
-    groupName?: string | null;
-  };
-  item: {
-    key: string;
-    version: number;
-    title: string;
-    creators: string[];
-    year: string | null;
-    date: string | null;
-    itemType: string | null;
-    abstract: string | null;
-    doi: string | null;
-    url: string | null;
-    publicationTitle: string | null;
-    collections: Array<{
-      key: string;
-      name: string;
-    }>;
-    tags: string[];
-    zoteroSelectUri: string;
-    isbn: string | null;
-    issn: string | null;
-    volume: string | null;
-    issue: string | null;
-    pages: string | null;
-    publisher: string | null;
-    place: string | null;
-    language: string | null;
-    shortTitle: string | null;
-    citationKey: string | null;
-    edition: string | null;
-    numPages: string | null;
-    series: string | null;
-    seriesTitle: string | null;
-    seriesNumber: string | null;
-    journalAbbreviation: string | null;
-    conferenceName: string | null;
-    university: string | null;
-    bookTitle: string | null;
-    reportNumber: string | null;
-    reportType: string | null;
-    thesisType: string | null;
-    pmid: string | null;
-    pmcid: string | null;
-    arxivId: string | null;
-    dateAdded: string | null;
-    dateModified: string | null;
-    citation: string | null;
-  };
-  attachments: Array<{
-    key: string;
-    title: string;
-    itemType: string;
-    contentType: string | null;
-    linkMode: string | null;
-    filename: string | null;
-    url: string | null;
-    zoteroSelectUri: string;
-    zoteroOpenPdfUri: string | null;
-  }>;
-  zoteroNotes: Array<{
-    key: string;
-    parentItemKey: string | null;
-    html: string;
-    dateAdded: string | null;
-    dateModified: string | null;
-    zoteroSelectUri: string;
-  }>;
-  annotations: Array<{
-    key: string;
-    attachmentKey: string;
-    type: string | null;
-    color: string | null;
-    pageLabel: string | null;
-    text: string | null;
-    comment: string | null;
-    dateModified: string | null;
-    zoteroOpenPdfUri: string | null;
-  }>;
 }
 
 export interface ZoteroLibraryChangesResponse {

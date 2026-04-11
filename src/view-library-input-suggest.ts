@@ -1,6 +1,7 @@
 import { AbstractInputSuggest, SearchComponent } from "obsidian";
 import type { ZoteroSearchResult } from "./backend-client";
 import type { StratumView } from "./view";
+import { renderSearchSuggestionTitle } from "./view-search-suggestion";
 
 export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchResult> {
   private readonly view: StratumView;
@@ -44,11 +45,7 @@ export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchR
   }
 
   renderSuggestion(value: ZoteroSearchResult, el: HTMLElement): void {
-    el.addClass("stratum-native-suggestion");
-    el.createDiv({
-      cls: "stratum-native-suggestion-label",
-      text: value.title,
-    });
+    renderSearchSuggestionTitle(value.title, el);
   }
 
   selectSuggestion(value: ZoteroSearchResult): void {

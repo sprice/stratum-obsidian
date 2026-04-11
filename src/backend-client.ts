@@ -288,10 +288,7 @@ export class BackendClient {
       });
       if (!this.isOk(response)) {
         if (options?.throwOnFailure) {
-          this.throwIfBackendError(
-            response,
-            "Failed to load enrichment",
-          );
+          this.throwIfBackendError(response, "Failed to load enrichment");
         }
         return lookupMap;
       }
@@ -390,8 +387,7 @@ export class BackendClient {
     const payload = this.tryReadJson<BackendErrorPayload>(response);
     if (
       hasAuthenticatedUserRequiredError(payload) ||
-      (AUTH_ERROR_STATUSES.has(response.status) &&
-        !skipSessionClearOnAuthError)
+      (AUTH_ERROR_STATUSES.has(response.status) && !skipSessionClearOnAuthError)
     ) {
       await this.clearSession();
     }

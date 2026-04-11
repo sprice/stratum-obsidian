@@ -26,6 +26,7 @@ type StoredSettingsData = Partial<
     | "filenameFormat"
     | "bulkSyncEnabled"
     | "zoteroLocalApiPort"
+    | "zoteroDataDir"
     | "lastDeviceCode"
     | "accountEmail"
     | "accountLinkedAt"
@@ -320,6 +321,9 @@ function readStoredSettings(value: unknown): Omit<
     value.zoteroLocalApiPort > 0
   ) {
     nextSettings.zoteroLocalApiPort = Math.round(value.zoteroLocalApiPort);
+  }
+  if (typeof value.zoteroDataDir === "string") {
+    nextSettings.zoteroDataDir = value.zoteroDataDir;
   }
   if (
     typeof value.lastDeviceCode === "string" ||

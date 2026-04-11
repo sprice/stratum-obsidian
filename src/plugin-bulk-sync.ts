@@ -1,5 +1,4 @@
 import { Notice, TFile } from "obsidian";
-import { createOrUpdateLiteratureNote } from "./literature-note";
 import type {
   OpenAlexEnrichmentBatchResult,
   ZoteroCollectionSummary,
@@ -22,9 +21,12 @@ import {
   LocalZoteroApiError,
   LocalZoteroUnavailableError,
   loadLocalZoteroCatalogPage,
-  loadLocalZoteroItemDetail,
-  loadLocalZoteroLibraries,
 } from "./zotero-local";
+import {
+  loadLocalZoteroItemDetailForPlugin,
+  resolveLocalZoteroUserId,
+  writeLiteratureNoteFromDetail,
+} from "./plugin-note-sync";
 
 // Keep this at or below OpenAlex's documented batch-ID limit.
 const BULK_LIBRARY_SYNC_PAGE_SIZE = 50;
@@ -175,18 +177,6 @@ function mergeCatalogResults(
   };
 }
 
-async function ensureLocalUserId(plugin: StratumPlugin): Promise<string> {
-  if (plugin.localZoteroUserId) {
-    return plugin.localZoteroUserId;
-  }
-
-  const response = await loadLocalZoteroLibraries({
-    port: plugin.settings.zoteroLocalApiPort,
-  });
-  plugin.localZoteroUserId = response.userId;
-  return response.userId;
-}
-
 function getConnectedCloudZoteroUserId(plugin: StratumPlugin): string | null {
   return (
     plugin.zoteroConnection?.zoteroUserId ??
@@ -230,21 +220,15 @@ async function syncCatalogItem(
     libraryId: library.id,
     itemKey,
   });
-  const detail = await loadLocalZoteroItemDetail({
-    port: plugin.settings.zoteroLocalApiPort,
-    userId: await ensureLocalUserId(plugin),
+  const detail = await loadLocalZoteroItemDetailForPlugin(plugin, {
     library,
     itemKey,
   });
-  const writeResult = await createOrUpdateLiteratureNote({
-    app: plugin.app,
-    notesFolder: plugin.settings.notesFolder,
-    filenameFormat: plugin.settings.filenameFormat,
+  const writeResult = await writeLiteratureNoteFromDetail(plugin, {
     detail,
     existingFile,
-    enrichment: undefined,
+    enrichmentMode: "skip",
   });
-  plugin.rememberLiteratureNoteFile(detail, writeResult.file);
 
   return {
     outcome: writeResult.created ? "created" : "updated",
@@ -460,7 +444,7 @@ async function runEnrichmentPass(
 
   let userId: string;
   try {
-    userId = await ensureLocalUserId(plugin);
+    userId = await resolveLocalZoteroUserId(plugin);
   } catch (error) {
     console.error(
       "stratum: bulk enrichment could not resolve local user",
@@ -479,9 +463,8 @@ async function runEnrichmentPass(
   for (const note of touchedNotes) {
     let enrichmentKey = getNormalizedDoiLookupKey(note.doi);
     try {
-      const detail = await loadLocalZoteroItemDetail({
-        port: plugin.settings.zoteroLocalApiPort,
-        userId,
+      plugin.localZoteroUserId = userId;
+      const detail = await loadLocalZoteroItemDetailForPlugin(plugin, {
         library,
         itemKey: note.itemKey,
       });
@@ -518,15 +501,12 @@ async function runEnrichmentPass(
         continue;
       }
 
-      const writeResult = await createOrUpdateLiteratureNote({
-        app: plugin.app,
-        notesFolder: plugin.settings.notesFolder,
-        filenameFormat: plugin.settings.filenameFormat,
+      await writeLiteratureNoteFromDetail(plugin, {
         detail,
         existingFile,
+        enrichmentMode: "provided",
         enrichment: enrichmentResult.enrichment,
       });
-      plugin.rememberLiteratureNoteFile(detail, writeResult.file);
     } catch (error) {
       if (enrichmentKey) {
         enrichmentFailureCount += 1;
@@ -616,7 +596,7 @@ export async function runBulkLibrarySync(
         await plugin.localSync.refreshLibraries();
       }
 
-      const userId = await ensureLocalUserId(plugin);
+      const userId = await resolveLocalZoteroUserId(plugin);
       if (!userId) {
         new Notice(
           `${PLUGIN_NAME}: Could not resolve your local Zotero account.`,
@@ -729,6 +709,7 @@ export async function runBulkLibrarySync(
       plugin.settings.activeBulkSyncLibrary = null;
       await plugin.saveSettings();
       plugin.bulkLibrarySyncRunPromise = null;
+      plugin.notifyLocalLiveSyncAfterBulkSync();
       plugin.refreshViews();
       plugin.refreshSettingTab();
       plugin.refreshAutoSyncUi();

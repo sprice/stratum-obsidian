@@ -253,12 +253,13 @@ export function buildReaderFrontmatterMarkdown(
   }
 
   const lines = Object.entries(frontmatter)
-    .filter(([key]) =>
-      !(
-        key === "zotero_group_name" &&
-        typeof frontmatter.zotero_library_name === "string" &&
-        frontmatter.zotero_library_name.trim()
-      )
+    .filter(
+      ([key]) =>
+        !(
+          key === "zotero_group_name" &&
+          typeof frontmatter.zotero_library_name === "string" &&
+          frontmatter.zotero_library_name.trim()
+        ),
     )
     .filter(([key]) => isVisibleFrontmatterKey(key))
     .map(([key, value]) => {
