@@ -4,12 +4,14 @@ import {
   type FuzzyMatch,
   type TFile,
 } from "obsidian";
+import { extractPreferredLinkText } from "./literature-note-links";
 import type StratumPlugin from "./plugin";
 
 export interface LiteratureNoteEntry {
   file: TFile;
   title: string;
   displayTitle: string;
+  preferredLinkText: string | null;
   authors: string[];
   year: string | null;
   citationKey: string | null;
@@ -85,6 +87,7 @@ export function buildLiteratureNoteEntries(
       file,
       title,
       displayTitle: extractDisplayTitle(fm, title),
+      preferredLinkText: extractPreferredLinkText(fm, file.basename),
       authors: extractAuthors(fm.authors),
       year:
         typeof fm.year === "string" || typeof fm.year === "number"

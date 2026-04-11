@@ -19,6 +19,7 @@ import {
   LiteratureNoteSearchModal,
 } from "./library-search-modal";
 import { buildCitekey, ensureBibEntry } from "./bibtex";
+import { buildLiteratureNoteWikiLink } from "./literature-note-links";
 import {
   requireZoteroItemDetailForNoteSync,
   writeLiteratureNoteFromDetail,
@@ -190,7 +191,10 @@ export function insertLiteratureNoteLink(
 
   new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
     const target = getActiveEditor(plugin) ?? editor;
-    const wikilink = `[[${entry.file.basename}]]`;
+    const wikilink = buildLiteratureNoteWikiLink({
+      basename: entry.file.basename,
+      preferredLinkText: entry.preferredLinkText,
+    });
     target.replaceSelection(wikilink);
   }).open();
 }
