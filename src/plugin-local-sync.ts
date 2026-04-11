@@ -5,6 +5,7 @@ import {
   reconcileEnabledLocalSyncLibraries,
   sortEnabledLibraries,
 } from "./plugin-libraries";
+import { resolveBulkSyncDefaultAfterLocalReady } from "./local-sync-rules";
 import type StratumPlugin from "./plugin";
 import type { EnabledLibrary } from "./settings";
 import {
@@ -77,6 +78,7 @@ export function clearLocalSyncState(plugin: StratumPlugin): void {
   plugin.discoveredLocalSyncLibraries = [];
   plugin.localSyncLibraries = [];
   plugin.localSyncLibrariesError = null;
+  plugin.bulkSyncSettingsError = null;
   plugin.hasLoadedLocalSyncLibraries = false;
   plugin.selectedSyncLibrary = null;
   clearSyncCollectionsState(plugin);
@@ -183,6 +185,19 @@ async function runLocalSyncLibrariesRequest(
     reconcileEnabledLocalSyncLibraries(plugin);
     plugin.localSyncLibrariesError = null;
     plugin.bulkSyncSettingsError = null;
+    const nextBulkSync = resolveBulkSyncDefaultAfterLocalReady({
+      isDesktopApp: isLocalSyncSupported(),
+      hasSession: plugin.backend.hasSession(),
+      zoteroConnected: Boolean(plugin.zoteroConnection?.connected),
+      bulkSyncEnabled: plugin.settings.bulkSyncEnabled,
+      bulkSyncPreferenceInitialized:
+        plugin.settings.bulkSyncPreferenceInitialized,
+    });
+    if (nextBulkSync.changed) {
+      plugin.settings.bulkSyncEnabled = nextBulkSync.bulkSyncEnabled;
+      plugin.settings.bulkSyncPreferenceInitialized =
+        nextBulkSync.bulkSyncPreferenceInitialized;
+    }
 
     return plugin.localSyncLibraries;
   } catch (error) {
@@ -229,7 +244,7 @@ function queueLocalSyncLibrariesRequest(
 export function ensureLocalSyncLibrariesLoaded(
   plugin: StratumPlugin,
 ): Promise<EnabledLibrary[]> | null {
-  if (!isLocalSyncSupported() || !plugin.settings.bulkSyncEnabled) {
+  if (!isLocalSyncSupported()) {
     clearLocalSyncState(plugin);
     return null;
   }
@@ -253,7 +268,7 @@ export function ensureLocalSyncLibrariesLoaded(
 export function refreshLocalSyncLibraries(
   plugin: StratumPlugin,
 ): Promise<EnabledLibrary[]> | null {
-  if (!isLocalSyncSupported() || !plugin.settings.bulkSyncEnabled) {
+  if (!isLocalSyncSupported()) {
     clearLocalSyncState(plugin);
     return null;
   }

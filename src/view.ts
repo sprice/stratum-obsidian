@@ -37,6 +37,7 @@ import {
   getSelectedSyncLibrary,
   isLocalSyncSupported,
 } from "./plugin-local-sync";
+import { shouldShowSyncTab } from "./local-sync-rules";
 import {
   ABSTRACT_TEASER_LENGTH,
   getAbstractTeaser,
@@ -349,19 +350,16 @@ export class StratumView extends ItemView {
     contentEl.addClass("stratum-view");
 
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
-    const isReadyForSearch =
-      Boolean(this.plugin.settings.accountEmail) &&
-      Boolean(this.plugin.zoteroConnection?.connected);
+    const showSyncTab = shouldShowSyncTab({
+      isDesktopApp: isLocalSyncSupported(),
+      hasSession: this.plugin.backend.hasSession(),
+    });
     const visibleTabs: Array<{
       id: "search" | "sync" | "reader";
       label: string;
     }> = [
       { id: "search", label: "Search" },
-      ...(isLocalSyncSupported() &&
-      this.plugin.settings.bulkSyncEnabled &&
-      isReadyForSearch
-        ? [{ id: "sync" as const, label: "Sync" }]
-        : []),
+      ...(showSyncTab ? [{ id: "sync" as const, label: "Sync" }] : []),
       { id: "reader", label: "Reader" },
     ];
     if (!visibleTabs.some((tab) => tab.id === this.plugin.activeViewTab)) {
@@ -866,7 +864,7 @@ export class StratumView extends ItemView {
       });
       emptyState.createEl("p", {
         cls: "stratum-meta",
-        text: "Bulk sync uses your local Zotero app for paper data, but it still depends on your connected account.",
+        text: "Connect Zotero in plugin settings to use desktop bulk sync with your local Zotero app.",
       });
       const settingsButton = emptyState.createEl("button", {
         text: "Open plugin settings",
@@ -939,6 +937,28 @@ export class StratumView extends ItemView {
         cls: "stratum-meta",
         text: "Open Zotero on this desktop, then return here to bulk sync a library or collection.",
       });
+      return;
+    }
+
+    if (!this.plugin.settings.bulkSyncEnabled) {
+      const emptyState = syncTab.createDiv({
+        cls: "stratum-empty-state",
+      });
+      emptyState.createEl("p", {
+        cls: "stratum-eyebrow",
+        text: PLUGIN_NAME,
+      });
+      emptyState.createEl("h2", {
+        text: "Bulk sync is off.",
+      });
+      emptyState.createEl("p", {
+        cls: "stratum-meta",
+        text: "Local Zotero is ready on this desktop. Turn on bulk sync in plugin settings to sync a full library or collection.",
+      });
+      const settingsButton = emptyState.createEl("button", {
+        text: "Open plugin settings",
+      });
+      settingsButton.addEventListener("click", openSettings);
       return;
     }
 

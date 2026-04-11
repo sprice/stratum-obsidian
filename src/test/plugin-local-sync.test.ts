@@ -5,6 +5,11 @@ import {
   buildPersonalLibrary,
   reconcileEnabledLocalSyncLibraries,
 } from "../plugin-libraries";
+import {
+  resolveBulkSyncDefaultAfterLocalReady,
+  shouldRefreshLocalSyncAfterCloudConnection,
+  shouldShowSyncTab,
+} from "../local-sync-rules";
 import type { ZoteroCollectionSummary } from "../backend-types";
 import type { EnabledLibrary, StratumSettings } from "../settings-data";
 
@@ -17,9 +22,10 @@ function createSettings(params: {
     notesFolder: "Literature Notes",
     filenameFormat: "readable",
     bulkSyncEnabled: true,
+    bulkSyncPreferenceInitialized: true,
     zoteroLocalApiPort: 23119,
     zoteroDataDir: "/Users/test/Zotero",
-    lastDeviceCode: null,
+    pendingAuth: null,
     accountEmail: "test@example.com",
     accountLinkedAt: null,
     authSessionExpiresAt: null,
@@ -135,4 +141,105 @@ test("reconcileEnabledLocalSyncLibraries clears sync selection when the selected
     personalLibrary.identity,
   );
   assert.equal(plugin.settings.selectedSyncCollectionKey, null);
+});
+
+test("resolveBulkSyncDefaultAfterLocalReady enables bulk sync for first-time desktop setup", () => {
+  assert.deepEqual(
+    resolveBulkSyncDefaultAfterLocalReady({
+      isDesktopApp: true,
+      hasSession: true,
+      zoteroConnected: true,
+      bulkSyncEnabled: false,
+      bulkSyncPreferenceInitialized: false,
+    }),
+    {
+      bulkSyncEnabled: true,
+      bulkSyncPreferenceInitialized: true,
+      changed: true,
+    },
+  );
+});
+
+test("resolveBulkSyncDefaultAfterLocalReady does not override an initialized preference", () => {
+  assert.deepEqual(
+    resolveBulkSyncDefaultAfterLocalReady({
+      isDesktopApp: true,
+      hasSession: true,
+      zoteroConnected: true,
+      bulkSyncEnabled: false,
+      bulkSyncPreferenceInitialized: true,
+    }),
+    {
+      bulkSyncEnabled: false,
+      bulkSyncPreferenceInitialized: true,
+      changed: false,
+    },
+  );
+});
+
+test("shouldRefreshLocalSyncAfterCloudConnection only probes local Zotero when needed", () => {
+  assert.equal(
+    shouldRefreshLocalSyncAfterCloudConnection({
+      isDesktopApp: true,
+      hasSession: true,
+      zoteroConnected: true,
+      bulkSyncEnabled: true,
+      bulkSyncPreferenceInitialized: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRefreshLocalSyncAfterCloudConnection({
+      isDesktopApp: true,
+      hasSession: true,
+      zoteroConnected: true,
+      bulkSyncEnabled: false,
+      bulkSyncPreferenceInitialized: false,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRefreshLocalSyncAfterCloudConnection({
+      isDesktopApp: true,
+      hasSession: true,
+      zoteroConnected: true,
+      bulkSyncEnabled: false,
+      bulkSyncPreferenceInitialized: true,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRefreshLocalSyncAfterCloudConnection({
+      isDesktopApp: false,
+      hasSession: true,
+      zoteroConnected: true,
+      bulkSyncEnabled: true,
+      bulkSyncPreferenceInitialized: false,
+    }),
+    false,
+  );
+});
+
+test("shouldShowSyncTab is desktop-only and requires Stratum sign-in", () => {
+  assert.equal(
+    shouldShowSyncTab({
+      isDesktopApp: true,
+      hasSession: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowSyncTab({
+      isDesktopApp: true,
+      hasSession: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowSyncTab({
+      isDesktopApp: false,
+      hasSession: true,
+    }),
+    false,
+  );
 });

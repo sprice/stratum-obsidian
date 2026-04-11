@@ -25,13 +25,25 @@ export interface EnabledLibrary {
   identity: string;
 }
 
+export type PendingAuthFlow = "stratum-sign-in" | "zotero-connect";
+
+export type PendingAuthReturnTarget = "stay-settings" | "open-panel-search";
+
+export interface PendingAuthState {
+  code: string;
+  flow: PendingAuthFlow;
+  returnTarget: PendingAuthReturnTarget;
+  createdAt: string;
+}
+
 export interface StratumSettings {
   notesFolder: string;
   filenameFormat: LiteratureNoteFilenameFormat;
   bulkSyncEnabled: boolean;
+  bulkSyncPreferenceInitialized: boolean;
   zoteroLocalApiPort: number;
   zoteroDataDir: string;
-  lastDeviceCode: string | null;
+  pendingAuth: PendingAuthState | null;
   accountEmail: string | null;
   accountLinkedAt: string | null;
   authSessionExpiresAt: number | null;
@@ -51,9 +63,10 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   notesFolder: DEFAULT_NOTE_FOLDER,
   filenameFormat: "readable",
   bulkSyncEnabled: false,
+  bulkSyncPreferenceInitialized: false,
   zoteroLocalApiPort: 23119,
   zoteroDataDir: getDefaultZoteroDataDir(),
-  lastDeviceCode: null,
+  pendingAuth: null,
   accountEmail: null,
   accountLinkedAt: null,
   authSessionExpiresAt: null,

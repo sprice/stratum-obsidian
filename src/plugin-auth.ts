@@ -1,8 +1,14 @@
 import { Notice, Platform, type ObsidianProtocolData } from "obsidian";
+import {
+  createPendingAuth,
+  matchPendingAuth,
+  shouldActivateViewAfterAuth,
+} from "./auth-flow";
 import { PLUGIN_WEB_APP_URL } from "./build-config";
 import { BackendClient } from "./backend-client";
 import { PLUGIN_NAME } from "./constants";
 import { log } from "./log";
+import { shouldRefreshLocalSyncAfterCloudConnection } from "./local-sync-rules";
 import {
   getStoredAuthSession,
   persistAuthSessionSecrets,
@@ -18,6 +24,7 @@ import {
 } from "./plugin-libraries";
 import { clearLocalSyncState } from "./plugin-local-sync";
 import type StratumPlugin from "./plugin";
+import type { PendingAuthFlow, PendingAuthReturnTarget } from "./settings-data";
 
 /**
  * Hydrate `plugin.zoteroConnection` from locally cached settings so the view
@@ -75,6 +82,14 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
         (previousEmail !== null &&
           nextEmail !== null &&
           previousEmail !== nextEmail);
+
+      if (
+        plugin.settings.pendingAuth &&
+        (nextEmail === null || nextEmail !== previousEmail)
+      ) {
+        plugin.settings.pendingAuth = null;
+        changed = true;
+      }
 
       if (shouldClearZoteroSnapshot) {
         if (plugin.settings.lastKnownZoteroUserId !== null) {
@@ -155,37 +170,54 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
   });
 }
 
-export async function startDeviceHandoff(plugin: StratumPlugin): Promise<void> {
+async function beginAuthFlow(params: {
+  plugin: StratumPlugin;
+  flow: PendingAuthFlow;
+  returnTarget: PendingAuthReturnTarget;
+  searchParams?: Record<string, string>;
+}): Promise<void> {
   const deviceCode = crypto.randomUUID();
-  plugin.settings.lastDeviceCode = deviceCode;
-  await plugin.saveSettings();
-  plugin.refreshViews();
-  plugin.refreshSettingTab();
+  params.plugin.settings.pendingAuth = createPendingAuth({
+    code: deviceCode,
+    flow: params.flow,
+    returnTarget: params.returnTarget,
+  });
+  await params.plugin.saveSettings();
+  params.plugin.refreshViews();
+  params.plugin.refreshSettingTab();
 
   const url = new URL(`${PLUGIN_WEB_APP_URL}/link`);
   url.searchParams.set("code", deviceCode);
+  for (const [key, value] of Object.entries(params.searchParams ?? {})) {
+    url.searchParams.set(key, value);
+  }
 
   window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+export async function startDeviceHandoff(plugin: StratumPlugin): Promise<void> {
+  await beginAuthFlow({
+    plugin,
+    flow: "stratum-sign-in",
+    returnTarget: "stay-settings",
+  });
   new Notice(`${PLUGIN_NAME}: opened browser sign-in for device handoff.`);
 }
 
 export async function startZoteroConnect(plugin: StratumPlugin): Promise<void> {
-  const deviceCode = crypto.randomUUID();
-  plugin.settings.lastDeviceCode = deviceCode;
-  await plugin.saveSettings();
-  plugin.refreshViews();
-  plugin.refreshSettingTab();
-
-  const url = new URL(`${PLUGIN_WEB_APP_URL}/link`);
-  url.searchParams.set("code", deviceCode);
-  url.searchParams.set("flow", "zotero-connect");
-
-  window.open(url.toString(), "_blank", "noopener,noreferrer");
+  await beginAuthFlow({
+    plugin,
+    flow: "zotero-connect",
+    returnTarget: "stay-settings",
+    searchParams: {
+      flow: "zotero-connect",
+    },
+  });
   new Notice(`${PLUGIN_NAME}: opened Zotero connect flow in the browser.`);
 }
 
 export async function signOutFromPlugin(plugin: StratumPlugin): Promise<void> {
-  plugin.settings.lastDeviceCode = null;
+  plugin.settings.pendingAuth = null;
   await plugin.saveSettings();
   await plugin.backend.clearSession();
   new Notice(`${PLUGIN_NAME}: signed out of Stratum on this device.`);
@@ -198,6 +230,7 @@ export async function refreshZoteroConnection(
   if (!plugin.backend.hasSession()) {
     plugin.zoteroConnection = null;
     plugin.isLoadingZoteroConnection = false;
+    clearLocalSyncState(plugin);
     plugin.refreshAutoSyncUi();
     plugin.refreshViews();
     plugin.refreshSettingTab();
@@ -239,8 +272,19 @@ export async function refreshZoteroConnection(
       ) {
         await plugin.saveSettings();
       }
-      if (Platform.isDesktopApp && plugin.settings.bulkSyncEnabled) {
+      if (
+        shouldRefreshLocalSyncAfterCloudConnection({
+          isDesktopApp: Platform.isDesktopApp,
+          hasSession: plugin.backend.hasSession(),
+          zoteroConnected: Boolean(resolvedConnection?.connected),
+          bulkSyncEnabled: plugin.settings.bulkSyncEnabled,
+          bulkSyncPreferenceInitialized:
+            plugin.settings.bulkSyncPreferenceInitialized,
+        })
+      ) {
         await plugin.localSync.refreshLibraries();
+      } else if (!resolvedConnection?.connected) {
+        clearLocalSyncState(plugin);
       }
     } else {
       plugin.zoteroConnection = plugin.backend.hasSession()
@@ -293,19 +337,32 @@ export async function handleAuthProtocol(
     typeof params.refresh_token === "string" ? params.refresh_token : null;
   const expiresAtParam =
     typeof params.expires_at === "string" ? params.expires_at : null;
+  const pendingAuth = plugin.settings.pendingAuth;
+  const authMatch = matchPendingAuth({
+    handoff,
+    pendingAuth,
+  });
 
-  if (!handoff) {
+  if (authMatch === "missing_handoff") {
     new Notice(`${PLUGIN_NAME}: auth callback received without handoff code.`);
     return;
   }
 
-  const expectedHandoff = plugin.settings.lastDeviceCode;
-  if (!expectedHandoff || handoff !== expectedHandoff) {
+  if (authMatch === "missing_pending_auth" || authMatch === "mismatch") {
     new Notice(`${PLUGIN_NAME}: ignored an unexpected auth callback.`);
     return;
   }
 
-  plugin.settings.lastDeviceCode = null;
+  if (authMatch === "stale") {
+    plugin.settings.pendingAuth = null;
+    await plugin.saveSettings();
+    plugin.refreshViews();
+    plugin.refreshSettingTab();
+    new Notice(`${PLUGIN_NAME}: ignored a stale auth callback.`);
+    return;
+  }
+
+  plugin.settings.pendingAuth = null;
   if (accessToken && refreshToken) {
     const expiresAt = expiresAtParam ? Number(expiresAtParam) : null;
     await plugin.backend.setSession({
@@ -317,12 +374,14 @@ export async function handleAuthProtocol(
   } else if (email) {
     plugin.settings.accountEmail = email;
     plugin.settings.accountLinkedAt = new Date().toISOString();
-    await plugin.saveSettings();
   }
+  await plugin.saveSettings();
   plugin.refreshViews();
   plugin.refreshSettingTab();
   await refreshZoteroConnection(plugin);
-  await plugin.activateView();
+  if (shouldActivateViewAfterAuth(pendingAuth)) {
+    await plugin.activateView();
+  }
   new Notice(
     zoteroConnected
       ? `${PLUGIN_NAME}: Zotero connected${zoteroUsername ? ` as ${zoteroUsername}` : ""}.`

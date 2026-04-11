@@ -263,15 +263,11 @@ function safeFromCodePoint(codePoint: number, fallback: string): string {
 
 function decodeHtmlEntities(text: string): string {
   return text
-    .replace(
-      /&#x([0-9a-fA-F]+);/g,
-      (match: string, hex: string) =>
-        safeFromCodePoint(Number.parseInt(hex, 16), match),
+    .replace(/&#x([0-9a-fA-F]+);/g, (match: string, hex: string) =>
+      safeFromCodePoint(Number.parseInt(hex, 16), match),
     )
-    .replace(
-      /&#(\d+);/g,
-      (match: string, dec: string) =>
-        safeFromCodePoint(Number.parseInt(dec, 10), match),
+    .replace(/&#(\d+);/g, (match: string, dec: string) =>
+      safeFromCodePoint(Number.parseInt(dec, 10), match),
     )
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -286,9 +282,11 @@ function stripCitationHtml(html: string | undefined): string | null {
     return null;
   }
 
-  return decodeHtmlEntities(html.replace(/<[^>]+>/g, ""))
-    .replace(/\s+/g, " ")
-    .trim() || null;
+  return (
+    decodeHtmlEntities(html.replace(/<[^>]+>/g, ""))
+      .replace(/\s+/g, " ")
+      .trim() || null
+  );
 }
 
 function normalizeAnnotations(params: {
@@ -297,7 +295,9 @@ function normalizeAnnotations(params: {
   annotationItems: RawZoteroItem[];
 }): ZoteroItemDetail["annotations"] {
   const attachmentsByKey = new Map(
-    params.attachments.map((attachment) => [attachment.key, attachment] as const),
+    params.attachments.map(
+      (attachment) => [attachment.key, attachment] as const,
+    ),
   );
 
   return params.annotationItems

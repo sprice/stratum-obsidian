@@ -1,4 +1,5 @@
 import { Platform, PluginSettingTab, Setting } from "obsidian";
+import { isPendingAuthStale } from "./auth-flow";
 import { PLUGIN_WEB_APP_URL } from "./build-config";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import type StratumPlugin from "./plugin";
@@ -10,7 +11,6 @@ import {
 } from "./plugin-libraries";
 import { clearLocalSyncState } from "./plugin-local-sync";
 import { getDefaultZoteroDataDir } from "./zotero-data-dir";
-import { ensureLocalZoteroReady } from "./zotero-local";
 
 export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
@@ -42,8 +42,15 @@ export class StratumSettingTab extends PluginSettingTab {
     containerEl.addClass("stratum-settings-tab");
 
     const accountEmail = this.plugin.settings.accountEmail;
+    const pendingAuth = isPendingAuthStale({
+      pendingAuth: this.plugin.settings.pendingAuth,
+    })
+      ? null
+      : this.plugin.settings.pendingAuth;
     const zoteroConnection = this.plugin.zoteroConnection;
     const zoteroConnected = Boolean(zoteroConnection?.connected);
+    const isPendingStratumSignIn = pendingAuth?.flow === "stratum-sign-in";
+    const isPendingZoteroConnect = pendingAuth?.flow === "zotero-connect";
     const lastKnownZoteroUsername =
       zoteroConnection?.zoteroUsername ??
       this.plugin.settings.lastKnownZoteroUsername;
@@ -66,7 +73,7 @@ export class StratumSettingTab extends PluginSettingTab {
           ? linkedAt
             ? `Signed in as ${accountEmail}. Linked on ${linkedAt}.`
             : `Signed in as ${accountEmail}.`
-          : this.plugin.settings.lastDeviceCode
+          : isPendingStratumSignIn
             ? "Browser sign-in has been opened for this device. Finish the flow and return to Obsidian."
             : "Sign in to Stratum.",
       );
@@ -109,17 +116,19 @@ export class StratumSettingTab extends PluginSettingTab {
         accountEmail
           ? this.plugin.isLoadingZoteroConnection
             ? "Checking Zotero connection status..."
-            : tokenInvalid
-              ? lastKnownZoteroSummary
-                ? `Connect to Zotero. ${lastKnownZoteroSummary}`
-                : "Connect to Zotero."
-              : zoteroConnected
-                ? zoteroLinkedAt
-                  ? `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}. Last confirmed on ${zoteroLinkedAt}.`
-                  : `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}.`
-                : lastKnownZoteroSummary
-                  ? `Signed out of Zotero. Connect Zotero again to search and sync papers. ${lastKnownZoteroSummary}`
-                  : "Not connected yet."
+            : isPendingZoteroConnect && !zoteroConnected
+              ? "Browser Zotero connection has been opened for this device. Finish the flow and return to Obsidian."
+              : tokenInvalid
+                ? lastKnownZoteroSummary
+                  ? `Connect to Zotero. ${lastKnownZoteroSummary}`
+                  : "Connect to Zotero."
+                : zoteroConnected
+                  ? zoteroLinkedAt
+                    ? `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}. Last confirmed on ${zoteroLinkedAt}.`
+                    : `Connected as ${zoteroConnection?.zoteroUsername ?? "your Zotero account"}.`
+                  : lastKnownZoteroSummary
+                    ? `Signed out of Zotero. Connect Zotero again to search and sync papers. ${lastKnownZoteroSummary}`
+                    : "Not connected yet."
           : "Sign in to your Stratum account first.",
       )
       .addButton((button) => {
@@ -206,9 +215,7 @@ export class StratumSettingTab extends PluginSettingTab {
     if (Platform.isDesktopApp) {
       const bulkSyncSetting = new Setting(syncSection)
         .setName("Bulk sync")
-        .setDesc(
-          "Show the sync tab and enable desktop bulk sync from your local Zotero app.",
-        )
+        .setDesc("Enable desktop bulk sync from your local Zotero app.")
         .addToggle((toggle) =>
           toggle
             .setDisabled(
@@ -220,6 +227,7 @@ export class StratumSettingTab extends PluginSettingTab {
             .onChange(async (value) => {
               if (!value) {
                 this.plugin.settings.bulkSyncEnabled = false;
+                this.plugin.settings.bulkSyncPreferenceInitialized = true;
                 this.plugin.bulkSyncSettingsError = null;
                 clearLocalSyncState(this.plugin);
                 await this.plugin.saveSettings();
@@ -234,14 +242,22 @@ export class StratumSettingTab extends PluginSettingTab {
               this.display();
 
               try {
-                await ensureLocalZoteroReady({
-                  port: this.plugin.settings.zoteroLocalApiPort,
-                });
+                await this.plugin.localSync.refreshLibraries();
+                if (this.plugin.localSyncLibrariesError) {
+                  this.plugin.settings.bulkSyncEnabled = false;
+                  this.plugin.bulkSyncSettingsError =
+                    this.plugin.localSyncLibrariesError;
+                  await this.plugin.saveSettings();
+                  await this.plugin.reconcileLocalLiveSync();
+                  this.plugin.refreshViews();
+                  return;
+                }
+
                 this.plugin.settings.bulkSyncEnabled = true;
+                this.plugin.settings.bulkSyncPreferenceInitialized = true;
                 await this.plugin.saveSettings();
                 await this.plugin.reconcileLocalLiveSync();
                 this.plugin.refreshViews();
-                void this.plugin.localSync.refreshLibraries();
               } catch (error) {
                 this.plugin.settings.bulkSyncEnabled = false;
                 clearLocalSyncState(this.plugin);
@@ -279,35 +295,35 @@ export class StratumSettingTab extends PluginSettingTab {
         });
       }
 
+      const defaultZoteroDataDir = getDefaultZoteroDataDir();
+      new Setting(syncSection)
+        .setName("Zotero local API port")
+        .setDesc("Use 23119 unless you changed Zotero's local HTTP port.")
+        .addText((text) => {
+          text
+            .setPlaceholder("23119")
+            .setValue(String(this.plugin.settings.zoteroLocalApiPort))
+            .onChange(async (value) => {
+              const parsed = Number(value);
+              this.plugin.settings.zoteroLocalApiPort =
+                Number.isFinite(parsed) && parsed > 0
+                  ? Math.round(parsed)
+                  : 23119;
+              this.plugin.bulkSyncSettingsError = null;
+              clearLocalSyncState(this.plugin);
+              await this.plugin.saveSettings();
+              await this.plugin.reconcileLocalLiveSync();
+            });
+
+          text.inputEl.addClass("stratum-interval-input");
+          text.inputEl.setAttr("inputmode", "numeric");
+          text.inputEl.setAttr("aria-label", "Zotero local API port");
+          text.inputEl.type = "number";
+          text.inputEl.min = "1";
+          text.inputEl.step = "1";
+        });
+
       if (this.plugin.settings.bulkSyncEnabled) {
-        const defaultZoteroDataDir = getDefaultZoteroDataDir();
-        new Setting(syncSection)
-          .setName("Zotero local API port")
-          .setDesc("Use 23119 unless you changed Zotero's local HTTP port.")
-          .addText((text) => {
-            text
-              .setPlaceholder("23119")
-              .setValue(String(this.plugin.settings.zoteroLocalApiPort))
-              .onChange(async (value) => {
-                const parsed = Number(value);
-                this.plugin.settings.zoteroLocalApiPort =
-                  Number.isFinite(parsed) && parsed > 0
-                    ? Math.round(parsed)
-                    : 23119;
-                this.plugin.bulkSyncSettingsError = null;
-                clearLocalSyncState(this.plugin);
-                await this.plugin.saveSettings();
-                await this.plugin.reconcileLocalLiveSync();
-              });
-
-            text.inputEl.addClass("stratum-interval-input");
-            text.inputEl.setAttr("inputmode", "numeric");
-            text.inputEl.setAttr("aria-label", "Zotero local API port");
-            text.inputEl.type = "number";
-            text.inputEl.min = "1";
-            text.inputEl.step = "1";
-          });
-
         new Setting(syncSection)
           .setName("Zotero data directory")
           .setDesc(
@@ -348,7 +364,6 @@ export class StratumSettingTab extends PluginSettingTab {
             this.display();
           })();
         });
-
       }
     }
 

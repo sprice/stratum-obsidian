@@ -1,15 +1,11 @@
 import { Notice, TFile } from "obsidian";
-import {
-  markLiteratureNoteDeleted,
-} from "./literature-note";
+import { markLiteratureNoteDeleted } from "./literature-note";
 import {
   ZoteroNotConnectedError,
   ZoteroTokenInvalidError,
 } from "./backend-client";
 import { PLUGIN_NAME } from "./constants";
-import {
-  shouldMarkLiteratureNoteDeletedAfterRefreshMiss,
-} from "./plugin-note-refresh-policy";
+import { shouldMarkLiteratureNoteDeletedAfterRefreshMiss } from "./plugin-note-refresh-policy";
 import { getLibraryAutoSyncState } from "./plugin-libraries";
 import { getLibraryFromFrontmatter } from "./plugin-local-sync";
 import {

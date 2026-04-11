@@ -1,7 +1,5 @@
 import { Notice, type Editor } from "obsidian";
-import {
-  getLiteratureNoteSummary,
-} from "./literature-note";
+import { getLiteratureNoteSummary } from "./literature-note";
 import { promptExistingLiteratureNote } from "./literature-note-update-modal";
 import { PLUGIN_NAME } from "./constants";
 import {
@@ -56,7 +54,7 @@ export async function createLiteratureNote(
   plugin.activeNoteActionKey = result.key;
   plugin.isLibraryPickerOpen = false;
   plugin.highlightedLibrarySearchIndex = -1;
-    plugin.refreshViews();
+  plugin.refreshViews();
 
   try {
     const selectedLibrary = getSelectedSearchLibrary(plugin);

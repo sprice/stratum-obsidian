@@ -2,10 +2,14 @@ import {
   AUTH_ACCESS_TOKEN_SECRET_ID,
   AUTH_REFRESH_TOKEN_SECRET_ID,
 } from "./constants";
+import { isPendingAuthStale } from "./auth-flow";
 import {
   DEFAULT_SETTINGS,
   type EnabledLibrary,
   type ItemFileMapEntry,
+  type PendingAuthFlow,
+  type PendingAuthReturnTarget,
+  type PendingAuthState,
   type PersistedAuthSession,
   type StratumSettings,
 } from "./settings-data";
@@ -25,9 +29,10 @@ type StoredSettingsData = Partial<
     | "notesFolder"
     | "filenameFormat"
     | "bulkSyncEnabled"
+    | "bulkSyncPreferenceInitialized"
     | "zoteroLocalApiPort"
     | "zoteroDataDir"
-    | "lastDeviceCode"
+    | "pendingAuth"
     | "accountEmail"
     | "accountLinkedAt"
     | "authSessionExpiresAt"
@@ -40,6 +45,7 @@ type StoredSettingsData = Partial<
     | "activeBulkSyncLibrary"
   >
 > & {
+  lastDeviceCode?: string | null;
   authSession?: PersistedAuthSession | null;
   itemFileMap?: Record<string, ItemFileMapEntry>;
   libraryAutoSync?: Record<string, Partial<ZoteroAutoSyncState>>;
@@ -86,6 +92,52 @@ function isEnabledLibrary(value: unknown): value is EnabledLibrary {
     typeof value.name === "string" &&
     typeof value.identity === "string"
   );
+}
+
+function isPendingAuthFlow(value: unknown): value is PendingAuthFlow {
+  return value === "stratum-sign-in" || value === "zotero-connect";
+}
+
+function isPendingAuthReturnTarget(
+  value: unknown,
+): value is PendingAuthReturnTarget {
+  return value === "stay-settings" || value === "open-panel-search";
+}
+
+function readPendingAuth(
+  value: unknown,
+  legacyDeviceCode?: string | null,
+): PendingAuthState | null {
+  if (isRecord(value)) {
+    const code = typeof value.code === "string" ? value.code.trim() : "";
+    const createdAt =
+      typeof value.createdAt === "string" ? value.createdAt.trim() : "";
+    if (
+      code &&
+      createdAt &&
+      isPendingAuthFlow(value.flow) &&
+      isPendingAuthReturnTarget(value.returnTarget)
+    ) {
+      return {
+        code,
+        flow: value.flow,
+        returnTarget: value.returnTarget,
+        createdAt,
+      };
+    }
+  }
+
+  const legacyCode = legacyDeviceCode?.trim();
+  if (!legacyCode) {
+    return null;
+  }
+
+  return {
+    code: legacyCode,
+    flow: "stratum-sign-in",
+    returnTarget: "stay-settings",
+    createdAt: new Date().toISOString(),
+  };
 }
 
 function readEnabledLibraries(value: unknown): EnabledLibrary[] {
@@ -315,6 +367,10 @@ function readStoredSettings(value: unknown): Omit<
   if (typeof value.bulkSyncEnabled === "boolean") {
     nextSettings.bulkSyncEnabled = value.bulkSyncEnabled;
   }
+  if (typeof value.bulkSyncPreferenceInitialized === "boolean") {
+    nextSettings.bulkSyncPreferenceInitialized =
+      value.bulkSyncPreferenceInitialized;
+  }
   if (
     typeof value.zoteroLocalApiPort === "number" &&
     Number.isFinite(value.zoteroLocalApiPort) &&
@@ -325,11 +381,13 @@ function readStoredSettings(value: unknown): Omit<
   if (typeof value.zoteroDataDir === "string") {
     nextSettings.zoteroDataDir = value.zoteroDataDir;
   }
-  if (
-    typeof value.lastDeviceCode === "string" ||
-    value.lastDeviceCode === null
-  ) {
-    nextSettings.lastDeviceCode = value.lastDeviceCode;
+  if ("pendingAuth" in value || "lastDeviceCode" in value) {
+    nextSettings.pendingAuth = readPendingAuth(
+      value.pendingAuth,
+      typeof value.lastDeviceCode === "string" || value.lastDeviceCode === null
+        ? value.lastDeviceCode
+        : null,
+    );
   }
   if (typeof value.accountEmail === "string" || value.accountEmail === null) {
     nextSettings.accountEmail = value.accountEmail;
@@ -435,6 +493,7 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   const hasLegacySettingKeys =
     isRecord(rawData) &&
     ("autoSyncEnabled" in rawData || "autoSyncIntervalMinutes" in rawData);
+  const hasLegacyPendingAuth = isRecord(rawData) && "lastDeviceCode" in rawData;
   const hasLegacyOpenAlexKeys =
     isRecord(rawData) &&
     ("openAlexEnrichmentCache" in rawData ||
@@ -476,9 +535,14 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   };
 
   let shouldPersist =
+    hasLegacyPendingAuth ||
     hasLegacySettingKeys ||
     hasLegacyOpenAlexKeys ||
     hasLegacyPendingEnrichmentCounts;
+  if (isPendingAuthStale({ pendingAuth: plugin.settings.pendingAuth })) {
+    plugin.settings.pendingAuth = null;
+    shouldPersist = true;
+  }
   if (
     plugin.settings.enabledLibraries.length === 0 &&
     plugin.settings.lastKnownZoteroUserId

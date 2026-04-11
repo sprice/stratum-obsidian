@@ -262,8 +262,7 @@ export default class StratumPlugin extends Plugin {
 
     this.addCommand({
       id: "open-literature-note-in-panel",
-      // eslint-disable-next-line obsidianmd/ui/sentence-case
-      name: "Open literature note in Reader panel",
+      name: "Open literature note in reader panel",
       callback: () => openLiteratureNoteInPanel(this),
     });
 

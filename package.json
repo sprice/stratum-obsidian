@@ -8,12 +8,14 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "check": "pnpm format:check && pnpm lint:review && pnpm test && pnpm typecheck && pnpm build",
     "typecheck": "tsc --noEmit",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "test": "node --test --import tsx src/test/*.test.ts",
     "lint": "eslint src manifest.json LICENSE",
     "lint:fix": "eslint src manifest.json LICENSE --fix",
     "lint:review": "OBSIDIAN_REVIEW=1 eslint src manifest.json LICENSE",
+    "format:check": "prettier --check src/",
     "format": "prettier --write src/"
   },
   "keywords": [],

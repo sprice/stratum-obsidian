@@ -13,9 +13,7 @@ import {
   getRuntimePlatform,
   resolveHomeDir,
 } from "./zotero-data-dir";
-import {
-  loadLocalZoteroItemVersions,
-} from "./zotero-local";
+import { loadLocalZoteroItemVersions } from "./zotero-local";
 
 const LOCAL_ZOTERO_DB_FILE_NAME = "zotero.sqlite";
 const LOCAL_LIVE_SYNC_DEBOUNCE_MS = 1500;
