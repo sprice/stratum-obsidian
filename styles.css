@@ -7,6 +7,7 @@
 }
 
 .stratum-shell {
+	container: stratum-sidebar / inline-size;
 	display: grid;
 	grid-template-rows: auto auto minmax(0, 1fr);
 	gap: 1rem;
@@ -17,20 +18,40 @@
 }
 
 .stratum-tab-bar {
-	display: flex;
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	min-width: 0;
-	border-bottom: 1px solid var(--background-modifier-border);
+	gap: var(--size-2-1);
+	padding: var(--size-2-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
 }
 
 .stratum-tab-bar > button {
-	flex: 1 1 0;
-	padding: 0.8rem 0.75rem;
+	min-width: 0;
+	height: auto;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	padding: var(--size-4-2) var(--size-4-3);
 	border: 0;
-	border-bottom: 2px solid transparent;
-	border-radius: 0;
+	border-radius: var(--radius-s);
+	box-shadow: none;
 	background: transparent;
 	color: var(--text-muted);
 	font-weight: 600;
+}
+
+@container stratum-sidebar (max-width: 28rem) {
+	.stratum-tab-bar {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@container stratum-sidebar (max-width: 14rem) {
+	.stratum-tab-bar {
+		grid-template-columns: minmax(0, 1fr);
+	}
 }
 
 .stratum-tab-bar > button:hover {
@@ -43,8 +64,13 @@
 }
 
 .stratum-tab-bar > button.is-active {
-	color: var(--color-accent);
-	border-bottom-color: var(--color-accent);
+	color: var(--text-on-accent);
+	background: var(--interactive-accent);
+}
+
+.stratum-tab-bar > button:focus-visible {
+	outline: 2px solid var(--background-modifier-border-focus);
+	outline-offset: -2px;
 }
 
 .stratum-tab-content {
@@ -743,7 +769,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-sources-header h3 { margin: 0; }
 .stratum-sources-header [aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
 .stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
-.stratum-sources-document { width: 100%; }
+.stratum-sources-document { align-self: flex-start; max-width: 100%; min-height: 0; padding: var(--size-2-1) 0; border: 0; box-shadow: none; background: transparent; color: var(--link-color); font-size: var(--font-ui-small); text-decoration: underline; cursor: pointer; }
+.stratum-sources-document:hover { background: transparent; color: var(--link-color-hover); }
+.stratum-sources-document[hidden] { display: none; }
 .stratum-sources-summary, .stratum-sources-meta, .stratum-sources-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
 .stratum-sources-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
 .stratum-sources-tools .search-input-container { flex: 1 1 140px; min-width: 0; }
@@ -754,7 +782,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-sources-title { border: 0; box-shadow: none; background: transparent; padding: var(--size-4-1) 0; color: var(--text-normal); font-weight: var(--font-semibold); width: 100%; }
 .stratum-sources-title:hover { color: var(--text-accent); }
 .stratum-sources-keys { display: flex; flex-wrap: wrap; gap: var(--size-4-1); margin: var(--size-4-1) 0 var(--size-4-2); }
-.stratum-sources-key { height: auto; white-space: normal; overflow-wrap: anywhere; max-width: 100%; text-align: left; font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-accent); }
+.stratum-sources-key { white-space: normal; overflow-wrap: anywhere; max-width: 100%; text-align: left; font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-muted); background: var(--background-secondary); padding: var(--size-2-1) var(--size-4-1); border-radius: var(--radius-s); user-select: text; -webkit-user-select: text; cursor: text; }
 .stratum-sources-list summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-1) 0; }
 .stratum-sources-excerpt { width: 100%; margin-top: var(--size-4-2); font-size: var(--font-ui-small); }
 .stratum-sources-issue { color: var(--text-warning); font-size: var(--font-ui-small); }

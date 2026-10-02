@@ -7,7 +7,7 @@ it does not modify the manuscript.
 
 ## Reading and navigation
 
-Each source appears once with its authors, year, title, copyable `@citekey`,
+Each source appears once with its authors, year, title, selectable `@citekey`,
 and separate counts for formal citations and literature-note links. Search
 by title, author, year, or key, and sort by first appearance, author, or title.
 

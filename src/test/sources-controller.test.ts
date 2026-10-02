@@ -295,3 +295,21 @@ test("wikilinks retain literal percent sequences while Markdown links decode URL
     "Study#One.md",
   ]);
 });
+
+test("Document context follows navigation and remains visible when pinned", async () => {
+  const f = fixture();
+  assert.equal(f.controller.showDocumentLink, false);
+  const changes: boolean[] = [];
+  f.controller.subscribe(() => changes.push(f.controller.showDocumentLink));
+  await f.controller.openSource(f.literature as never);
+  assert.equal(f.controller.document, f.manuscript);
+  assert.equal(changes.at(-1), true);
+  await f.controller.returnToDocument();
+  assert.equal(changes.at(-1), false);
+  f.controller.togglePin();
+  assert.equal(changes.at(-1), true);
+  f.controller.togglePin();
+  assert.equal(changes.at(-1), false);
+  f.controller.document = null;
+  assert.equal(f.controller.showDocumentLink, false);
+});

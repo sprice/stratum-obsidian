@@ -131,13 +131,26 @@ export class SourcesController extends Component {
   private emit(): void {
     for (const listener of this.listeners) listener();
   }
+  get showDocumentLink(): boolean {
+    if (!this.document) return false;
+    const workspace = this.plugin.app.workspace;
+    const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
+    return (
+      this.pinned ||
+      !(view instanceof MarkdownView) ||
+      view.file !== this.document
+    );
+  }
   private follow(leaf: WorkspaceLeaf | null): void {
-    if (this.inspecting || !(leaf?.view instanceof MarkdownView)) return;
     let rootLeaf = false;
     this.plugin.app.workspace.iterateRootLeaves((candidate) => {
       if (candidate === leaf) rootLeaf = true;
     });
     if (!rootLeaf) return;
+    if (this.inspecting || !(leaf?.view instanceof MarkdownView)) {
+      this.emit();
+      return;
+    }
     const file = leaf.view.file;
     if (
       !file ||
@@ -148,8 +161,10 @@ export class SourcesController extends Component {
           this.plugin.app.metadataCache.getFileCache(file)?.frontmatter
             ?.stratum_note_type === "literature-note",
       })
-    )
+    ) {
+      this.emit();
       return;
+    }
     if (this.document !== file) {
       this.rows = [];
       this.error = null;
@@ -275,6 +290,7 @@ export class SourcesController extends Component {
       new Notice("Could not open the literature note.");
     } finally {
       this.inspecting = false;
+      this.emit();
     }
   }
   async returnToDocument(occurrence?: SourceOccurrence): Promise<void> {

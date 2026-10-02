@@ -1,4 +1,4 @@
-import { Component, Notice, SearchComponent, setIcon } from "obsidian";
+import { Component, SearchComponent, setIcon } from "obsidian";
 import type { SourcesController } from "./sources-controller";
 import type { SourceRow } from "./document-sources";
 
@@ -74,8 +74,10 @@ export class SourcesPanel extends Component {
         ? active.dataset.sourceAction
         : undefined;
     const file = this.sources.document;
-    this.documentButton.textContent =
-      file?.basename ?? "No writing note selected";
+    this.documentButton.textContent = file
+      ? `Sources for: ${file.basename}`
+      : "";
+    this.documentButton.hidden = !this.sources.showDocumentLink;
     this.documentButton.disabled = !file;
     this.documentButton.title = file
       ? "Return to this note"
@@ -93,7 +95,7 @@ export class SourcesPanel extends Component {
       : "Pin sources to this note";
     const rows = this.sources.rows;
     const problems = rows.filter((row) => row.issue).length;
-    this.summary.textContent = `${rows.length} ${rows.length === 1 ? "source" : "sources"}${problems ? ` · ${problems} need attention` : ""}${this.sources.pinned ? " · Pinned" : ""}`;
+    this.summary.textContent = `${rows.length} ${rows.length === 1 ? "source" : "sources"}${problems ? ` · ${problems} ${problems === 1 ? "needs" : "need"} attention` : ""}${this.sources.pinned ? " · Pinned" : ""}`;
     this.list.empty();
     if (!file || this.sources.error || !rows.length) {
       this.list.createEl("p", {
@@ -165,19 +167,9 @@ export class SourcesPanel extends Component {
     }
     const keys = item.createDiv({ cls: "stratum-sources-keys" });
     for (const key of row.keys) {
-      const copy = keys.createEl("button", {
+      keys.createEl("code", {
         cls: "stratum-sources-key",
         text: `@${key}`,
-      });
-      copy.type = "button";
-      copy.title = "Copy citation key";
-      copy.setAttr("aria-label", `Copy citation key @${key}`);
-      copy.dataset.sourceAction = `${row.id}:key:${key}`;
-      copy.addEventListener("click", () => {
-        void navigator.clipboard.writeText(`@${key}`).then(
-          () => new Notice("Citation key copied."),
-          () => new Notice("Could not copy the citation key."),
-        );
       });
     }
     if (row.issue)
