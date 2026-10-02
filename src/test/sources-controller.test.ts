@@ -109,6 +109,7 @@ function fixture() {
     async revealLeaf() {},
   };
   const metadata = new Emitter();
+  const resolvedPaths: string[] = [];
   let scans = 0;
   let reads = 0;
   const vaultEvents = new Emitter();
@@ -122,7 +123,10 @@ function fixture() {
         frontmatter:
           file === literature ? { stratum_note_type: "literature-note" } : {},
       }),
-      getFirstLinkpathDest: () => null,
+      getFirstLinkpathDest: (path: string) => {
+        resolvedPaths.push(path);
+        return null;
+      },
     },
     vault: {
       on: vaultEvents.on.bind(vaultEvents),
@@ -131,9 +135,9 @@ function fixture() {
         scans++;
         return [];
       },
-      cachedRead: async () => {
+      cachedRead: async (file: File) => {
         reads++;
-        return delayedRead ?? "";
+        return file === manuscript ? "[@saved2025]" : (delayedRead ?? "");
       },
     },
   };
@@ -148,6 +152,8 @@ function fixture() {
   }
   return {
     controller,
+    resolvedPaths,
+    leaves,
     draftLeaf,
     sourceLeaf,
     otherLeaf,
@@ -254,4 +260,38 @@ test("closing the panel cancels pending work and deleting a manuscript clears it
   f.unsubscribe();
   assert.equal(f.timers.size, 0);
   f.controller.onunload();
+});
+
+test("opening a different file in the same active tab updates Sources", async () => {
+  const f = fixture();
+  await f.flush();
+  f.draftLeaf.view.file = f.otherLeaf.view.file;
+  f.draftLeaf.view.text = "[@replacement2026]";
+  f.emitter.emit("file-open", f.draftLeaf.view.file);
+  await f.flush();
+  assert.equal(f.controller.document, f.draftLeaf.view.file);
+  assert.equal(f.controller.rows[0].keys[0], "replacement2026");
+});
+
+test("a closed editor cannot override subsequent changes to a pinned document", async () => {
+  const f = fixture();
+  await f.flush();
+  f.controller.togglePin();
+  f.leaves.splice(f.leaves.indexOf(f.draftLeaf), 1);
+  f.workspace.active = f.otherLeaf;
+  f.vaultEvents.emit("modify", f.manuscript);
+  await f.flush();
+  assert.equal(f.controller.rows[0].keys[0], "saved2025");
+});
+
+test("wikilinks retain literal percent sequences while Markdown links decode URL paths", async () => {
+  const f = fixture();
+  f.draftLeaf.view.text =
+    "[[Study%20One]] [Study](Study%20One.md) [Hash](Study%23One.md#Section)";
+  await f.flush();
+  assert.deepEqual(f.resolvedPaths, [
+    "Study%20One",
+    "Study One.md",
+    "Study#One.md",
+  ]);
 });

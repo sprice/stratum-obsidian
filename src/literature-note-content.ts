@@ -181,12 +181,17 @@ export function markLiteratureNoteAsDeletedContent(params: {
     "> [!warning] This item was removed from Zotero",
     "> The source item is no longer in your Zotero library. This note is preserved but will no longer receive updates.",
   ].join("\n");
+  const boundary = USER_BOUNDARY_PATTERN.exec(body);
+  const managed = boundary ? body.slice(0, boundary.index) : body;
+  const personal = boundary ? body.slice(boundary.index) : "";
   const warningPattern = new RegExp(`${escapeRegExp(deletedNotice)}\\n*`, "m");
-  const nextBody = body.includes(MANAGED_START)
-    ? body
+  const startPattern = new RegExp(`^${escapeRegExp(MANAGED_START)}\\r?$`, "m");
+  const nextManaged = startPattern.test(managed)
+    ? managed
         .replace(warningPattern, "")
-        .replace(`${MANAGED_START}\n`, `${MANAGED_START}\n${deletedNotice}\n\n`)
-    : `${deletedNotice}\n\n${body}`.trimEnd();
+        .replace(startPattern, () => `${MANAGED_START}\n${deletedNotice}\n`)
+    : `${deletedNotice}\n\n${managed}`;
+  const nextBody = nextManaged + personal;
 
   return `---\n${params.stringifyYaml(nextFrontmatter).trim()}\n---\n\n${nextBody.trimStart()}`
     .trimEnd()

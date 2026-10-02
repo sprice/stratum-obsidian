@@ -229,3 +229,17 @@ test("reader frontmatter parsing and stripping handle CRLF and no-frontmatter co
     "# Body only\nNo frontmatter here",
   );
 });
+
+test("empty frontmatter does not hide prose before a later divider", () => {
+  assert.equal(
+    stripLeadingFrontmatter("---\n---\nKeep this prose\n---\nMore prose"),
+    "Keep this prose\n---\nMore prose",
+  );
+});
+
+test("malformed percent escapes in DOI metadata cannot crash the reader", () => {
+  assert.match(
+    buildReaderFrontmatterMarkdown({ doi: "https://doi.org/10.1234/example%" }),
+    /example%/,
+  );
+});

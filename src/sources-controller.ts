@@ -45,6 +45,15 @@ export class SourcesController extends Component {
       ),
     );
     this.registerEvent(
+      this.plugin.app.workspace.on("file-open", () =>
+        this.follow(
+          this.plugin.app.workspace.getMostRecentLeaf(
+            this.plugin.app.workspace.rootSplit,
+          ),
+        ),
+      ),
+    );
+    this.registerEvent(
       this.plugin.app.workspace.on("editor-change", (_editor, info) => {
         if (info.file?.path === this.document?.path) this.schedule();
       }),
@@ -179,17 +188,18 @@ export class SourcesController extends Component {
     }, 200);
   }
   private editorText(): string | null {
+    const leaves = this.plugin.app.workspace.getLeavesOfType("markdown");
     if (
-      this.leaf?.view instanceof MarkdownView &&
+      this.leaf &&
+      leaves.includes(this.leaf) &&
+      this.leaf.view instanceof MarkdownView &&
       this.leaf.view.file === this.document
     )
       return this.leaf.view.editor.getValue();
-    const view = this.plugin.app.workspace
-      .getLeavesOfType("markdown")
-      .find(
-        (leaf) =>
-          leaf.view instanceof MarkdownView && leaf.view.file === this.document,
-      )?.view;
+    const view = leaves.find(
+      (leaf) =>
+        leaf.view instanceof MarkdownView && leaf.view.file === this.document,
+    )?.view;
     return view instanceof MarkdownView ? view.editor.getValue() : null;
   }
   private async refresh(): Promise<void> {
@@ -218,20 +228,26 @@ export class SourcesController extends Component {
       this.bindings = bindings;
       const entries = this.entries ?? buildLiteratureNoteEntries(this.plugin);
       this.entries = entries;
-      this.rows = collectDocumentSources(text, entries, bindings, (target) => {
-        let decoded = target;
-        try {
-          decoded = decodeURIComponent(target);
-        } catch {
-          /* Keep literal path. */
-        }
-        if (/^[a-z][a-z\d+.-]*:/i.test(decoded)) return null;
-        const path = parseLinktext(decoded).path;
-        return (
-          this.plugin.app.metadataCache.getFirstLinkpathDest(path, file.path)
-            ?.path ?? null
-        );
-      });
+      this.rows = collectDocumentSources(
+        text,
+        entries,
+        bindings,
+        (target, format) => {
+          if (/^[a-z][a-z\d+.-]*:/i.test(target)) return null;
+          let path = parseLinktext(target).path;
+          if (format === "markdown") {
+            try {
+              path = decodeURIComponent(path);
+            } catch {
+              /* Keep literal path. */
+            }
+          }
+          return (
+            this.plugin.app.metadataCache.getFirstLinkpathDest(path, file.path)
+              ?.path ?? null
+          );
+        },
+      );
       this.text = text;
       this.error = null;
       this.emit();

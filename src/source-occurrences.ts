@@ -1,6 +1,7 @@
 /** Offsets always refer to the original Markdown, including unsaved editor text. */
 export interface SourceOccurrence {
   kind: "citation" | "link";
+  linkFormat?: "wiki" | "markdown";
   target: string;
   from: number;
   to: number;
@@ -20,58 +21,13 @@ function prose(text: string): string {
     for (let i = start; i < end; i++) if (chars[i] !== "\n") chars[i] = " ";
   };
   const frontmatter =
-    /^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)(?:\r?\n|$)/.exec(text);
+    /^(?:\uFEFF)?---\r?\n(?:[^\n]*\n)*?(?:---|\.\.\.)(?:\r?\n|$)/.exec(text);
   if (frontmatter) mask(0, frontmatter[0].length);
-  // Comments and fenced code may contain otherwise valid-looking citations.
-  for (const match of text.matchAll(
-    /<!--[\s\S]*?(?:-->|$)|%%[\s\S]*?(?:%%|$)/g,
-  ))
-    mask(match.index, match.index + match[0].length);
-  let fence: { char: string; size: number; start: number } | null = null;
-  let offset = 0;
-  for (const line of chars.join("").split("\n")) {
-    const marker = /^\s*(?:>\s*)*(`{3,}|~{3,})(.*)$/.exec(line);
-    if (marker) {
-      if (!fence)
-        fence = { char: marker[1][0], size: marker[1].length, start: offset };
-      else if (
-        marker[1][0] === fence.char &&
-        marker[1].length >= fence.size &&
-        !marker[2].trim()
-      ) {
-        mask(fence.start, offset + line.length);
-        fence = null;
-      }
-    }
-    offset += line.length + 1;
-  }
-  if (fence) mask(fence.start, text.length);
-  for (const match of chars
-    .join("")
-    .matchAll(/<(pre|code|script|style)\b[^>]*>[\s\S]*?(?:<\/\1>|$)/gi))
-    mask(match.index, match.index + match[0].length);
-  const fenced = chars.join("");
-  for (let i = 0; i < fenced.length; i++) {
-    if (fenced[i] !== "`" || escaped(fenced, i)) continue;
-    let end = i;
-    while (fenced[end] === "`") end++;
-    const ticks = fenced.slice(i, end);
-    let close = fenced.indexOf(ticks, end);
-    while (
-      close >= 0 &&
-      (fenced[close - 1] === "`" || fenced[close + ticks.length] === "`")
-    )
-      close = fenced.indexOf(ticks, close + ticks.length);
-    if (close >= 0) {
-      mask(i, close + ticks.length);
-      i = close + ticks.length - 1;
-    }
-  }
   // Use original indentation: masking inline code must not create code blocks.
   // Indented code is ignored, except continuation paragraphs of footnotes.
   let inFootnote = false;
   const listColumns: number[] = [];
-  offset = 0;
+  let offset = 0;
   for (const raw of text.split("\n")) {
     const line = raw.replace(/^(?: {0,3}> ?)+/, "").replace(/\t/g, "    ");
     const indent = /^ */.exec(line)![0].length;
@@ -87,6 +43,69 @@ function prose(text: string): string {
     const base = inFootnote ? 4 : (listColumns[listColumns.length - 1] ?? 0);
     if (indent >= base + 4 && line.trim()) mask(offset, offset + raw.length);
     offset += raw.length + 1;
+  }
+  // Consume constructs in document order. Delimiters inside a comment or code
+  // span must never start another construct that hides the following prose.
+  const visible = chars.join("");
+  for (let i = 0; i < visible.length; i++) {
+    let end = -1;
+    if (i === 0 || visible[i - 1] === "\n") {
+      const lineEnd = visible.indexOf("\n", i);
+      const line = visible.slice(i, lineEnd < 0 ? undefined : lineEnd);
+      const fence = /^ {0,3}(?:> ?)*(`{3,}|~{3,})(.*)$/.exec(line);
+      if (fence && !(fence[1][0] === "`" && fence[2].includes("`"))) {
+        end = visible.length;
+        let next = lineEnd < 0 ? visible.length : lineEnd + 1;
+        while (next < visible.length) {
+          const newline = visible.indexOf("\n", next);
+          const closing = /^ {0,3}(?:> ?)*(`{3,}|~{3,})\s*$/.exec(
+            visible.slice(next, newline < 0 ? undefined : newline),
+          );
+          if (
+            closing &&
+            closing[1][0] === fence[1][0] &&
+            closing[1].length >= fence[1].length
+          ) {
+            end = newline < 0 ? visible.length : newline;
+            break;
+          }
+          next = newline < 0 ? visible.length : newline + 1;
+        }
+      }
+    }
+    if (end < 0 && !escaped(visible, i)) {
+      const comment = visible.startsWith("<!--", i)
+        ? "-->"
+        : visible.startsWith("%%", i)
+          ? "%%"
+          : null;
+      if (comment) {
+        const close = visible.indexOf(comment, i + (comment === "-->" ? 4 : 2));
+        end = close < 0 ? visible.length : close + comment.length;
+      } else if (visible[i] === "`") {
+        let after = i;
+        while (visible[after] === "`") after++;
+        const ticks = visible.slice(i, after);
+        let close = visible.indexOf(ticks, after);
+        while (
+          close >= 0 &&
+          (visible[close - 1] === "`" || visible[close + ticks.length] === "`")
+        )
+          close = visible.indexOf(ticks, close + ticks.length);
+        if (close >= 0) end = close + ticks.length;
+        else i = after - 1;
+      } else if (visible[i] === "<") {
+        const html =
+          /^<(pre|code|script|style)\b[^>]*>[\s\S]*?(?:<\/\1>|$)/i.exec(
+            visible.slice(i),
+          );
+        if (html) end = i + html[0].length;
+      }
+    }
+    if (end >= 0) {
+      mask(i, end);
+      i = end - 1;
+    }
   }
   return chars.join("");
 }
@@ -112,9 +131,11 @@ export function parseSourceOccurrences(text: string): SourceOccurrence[] {
     target: string,
     from: number,
     to: number,
+    linkFormat?: SourceOccurrence["linkFormat"],
   ) => {
     occurrences.push({
       kind,
+      ...(linkFormat ? { linkFormat } : {}),
       target,
       from,
       to,
@@ -138,14 +159,20 @@ export function parseSourceOccurrences(text: string): SourceOccurrence[] {
     const target = match[1]
       .split(/(?<!\\)\|/, 1)[0]
       .replace(/\\([|\]])/g, "$1");
-    add("link", target, match.index, match.index + match[0].length);
+    add("link", target, match.index, match.index + match[0].length, "wiki");
     mask(match.index, match.index + match[0].length);
   }
   // Balanced destinations allow ordinary Markdown links with parentheses.
   for (let i = 0; i < visible.length; i++) {
     if (visible[i] !== "[" || escaped(visible, i)) continue;
-    const close = visible.indexOf("]", i + 1);
-    if (close < 0) break;
+    let close = i + 1;
+    let labelDepth = 1;
+    for (; close < visible.length; close++) {
+      if (escaped(visible, close)) continue;
+      if (visible[close] === "[") labelDepth++;
+      if (visible[close] === "]" && --labelDepth === 0) break;
+    }
+    if (labelDepth) continue;
     const label = visible.slice(i + 1, close);
     let target: string | undefined;
     let end = close + 1;
@@ -172,7 +199,7 @@ export function parseSourceOccurrences(text: string): SourceOccurrence[] {
       end = refEnd + 1;
     } else target = definitions.get(normalizeLabel(label));
     if (target !== undefined) {
-      add("link", target.replace(/\\([()])/g, "$1"), i, end);
+      add("link", target.replace(/\\([()])/g, "$1"), i, end, "markdown");
       mask(i, end);
       i = end - 1;
     }

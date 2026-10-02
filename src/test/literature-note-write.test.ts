@@ -383,3 +383,26 @@ for (const itemType of [
     );
   });
 }
+
+test("concurrent folder creation tolerates another sync creating the folder", async () => {
+  class Folder {}
+  const { ensureFolder } = loadRuntime<typeof Note>("literature-note.ts", {
+    ...host,
+    TFolder: Folder,
+  });
+  let folder: Folder | null = null;
+  const app = {
+    vault: {
+      getAbstractFileByPath: () => folder,
+      createFolder: async () => {
+        await Promise.resolve();
+        if (folder) throw new Error("Folder already exists");
+        folder = new Folder();
+      },
+    },
+  } as unknown as App;
+  await Promise.all([
+    ensureFolder(app, "Sources"),
+    ensureFolder(app, "Sources"),
+  ]);
+});

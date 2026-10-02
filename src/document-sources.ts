@@ -55,7 +55,10 @@ export function collectDocumentSources(
   text: string,
   entries: LiteratureNoteEntry[],
   bindings: BibliographyBinding[],
-  resolveLink: (target: string) => string | null,
+  resolveLink: (
+    target: string,
+    format?: SourceOccurrence["linkFormat"],
+  ) => string | null,
 ): SourceRow[] {
   const byIdentity = new Map<string, LiteratureNoteEntry[]>();
   const byKey = new Map<string, Set<string>>();
@@ -78,7 +81,7 @@ export function collectDocumentSources(
     let issue: SourceRow["issue"];
     let entry: LiteratureNoteEntry | undefined;
     if (occurrence.kind === "link") {
-      const path = resolveLink(occurrence.target);
+      const path = resolveLink(occurrence.target, occurrence.linkFormat);
       entry = entries.find((candidate) => candidate.file.path === path);
       if (!entry) continue; // Ordinary links are not literature references.
       identity = sourceIdentity(entry);

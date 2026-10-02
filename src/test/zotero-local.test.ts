@@ -541,3 +541,43 @@ test("local item loading includes every child beyond the first page", async () =
   assert.equal(detail.zoteroNotes.length, 501);
   assert.deepEqual(starts, [0, 100, 200, 300, 400, 500]);
 });
+
+test("catalog pagination fails safely when an empty page cannot advance", async () => {
+  await assert.rejects(
+    loadLocalZoteroCatalogPage({
+      port: 23119,
+      library: buildPersonalLibrary("1"),
+      start: 0,
+      limit: 100,
+      request: () =>
+        Promise.resolve({
+          status: 200,
+          headers: { "Total-Results": "5" },
+          json: [],
+          text: "[]",
+        }),
+    }),
+    /empty page/i,
+  );
+});
+
+test("collection hierarchy cycles do not overflow the stack", async () => {
+  const collections = await loadLocalZoteroCollections({
+    port: 23119,
+    library: buildPersonalLibrary("1"),
+    request: () =>
+      Promise.resolve({
+        status: 200,
+        headers: {},
+        text: "",
+        json: [
+          { key: "A", data: { name: "Alpha", parentCollection: "B" } },
+          { key: "B", data: { name: "Beta", parentCollection: "A" } },
+        ],
+      }),
+  });
+  assert.equal(collections.length, 2);
+  assert.ok(
+    collections.every((collection) => collection.displayName.length < 100),
+  );
+});

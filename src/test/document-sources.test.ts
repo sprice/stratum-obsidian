@@ -271,3 +271,37 @@ test("citations in list continuations are prose but nested code is excluded", ()
   ]);
   assert.deepEqual(keys(">     @code\n> Prose [@shown]"), ["shown"]);
 });
+
+test("empty frontmatter ends before later thematic breaks", () => {
+  assert.deepEqual(keys("---\n---\n[@first]\n\n---\n[@second]"), [
+    "first",
+    "second",
+  ]);
+});
+
+test("comment markers in code cannot hide subsequent citations", () => {
+  for (const marker of ["%%", "<!--"]) {
+    assert.deepEqual(
+      keys(`\`${marker}\` [@inline]\n\n\`\`\`\n${marker}\n\`\`\`\n[@fenced]`),
+      ["inline", "fenced"],
+    );
+    assert.deepEqual(keys(`    ${marker}\n\n[@afterCode]`), ["afterCode"]);
+  }
+});
+
+test("code delimiters inside comments cannot hide subsequent citations", () => {
+  assert.deepEqual(keys("<!-- ``` -->\n[@one]\n%% ` %% [@two]"), [
+    "one",
+    "two",
+  ]);
+});
+
+test("Markdown links support nested brackets and escaped closing brackets in labels", () => {
+  const links = parseSourceOccurrences(
+    "[A [nested] title](Example.md) [A \\] title](Other.md)",
+  );
+  assert.deepEqual(
+    links.map((link) => link.target),
+    ["Example.md", "Other.md"],
+  );
+});

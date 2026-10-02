@@ -1,4 +1,5 @@
-const LEADING_FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)*/;
+const LEADING_FRONTMATTER_REGEX =
+  /^(?:\uFEFF)?---\r?\n((?:[^\n]*\n)*?)---(?:\r?\n|$)(?:\r?\n)*/;
 
 const READER_VISIBLE_ZOTERO_FRONTMATTER_KEYS = new Set([
   "zotero_library_name",
@@ -58,7 +59,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function extractDoi(value: string): string {
   const trimmed = value.trim().replace(/^doi:\s*/i, "");
   const doiUrlMatch = trimmed.match(/^https?:\/\/(?:dx\.)?doi\.org\/(.+)$/i);
-  return doiUrlMatch ? decodeURIComponent(doiUrlMatch[1]) : trimmed;
+  if (!doiUrlMatch) return trimmed;
+  try {
+    return decodeURIComponent(doiUrlMatch[1]);
+  } catch {
+    return doiUrlMatch[1];
+  }
 }
 
 function humanizeFrontmatterKey(key: string): string {

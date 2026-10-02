@@ -110,7 +110,7 @@ function getRelativeUnit(deltaSeconds: number): {
   value: number;
   unit: Intl.RelativeTimeFormatUnit;
 } {
-  if (deltaSeconds < 60) {
+  if (Math.abs(deltaSeconds) < 60) {
     return {
       value: Math.max(-59, Math.min(59, Math.round(deltaSeconds))),
       unit: "second",

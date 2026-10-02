@@ -69,6 +69,14 @@ export function assertValidCitationKey(citekey: string): void {
     );
 }
 
+/** Braces keep punctuation-heavy keys intact in Pandoc citation syntax. */
+export function formatPandocCitation(citekey: string): string {
+  assertValidCitationKey(citekey);
+  const bare =
+    /^[\p{L}\p{N}_](?:[\p{L}\p{N}_]|[.:$&+?~/-](?=[\p{L}\p{N}_]))*$/u;
+  return bare.test(citekey) ? `[@${citekey}]` : `[@{${citekey}}]`;
+}
+
 export function buildBibtexEntry(
   entry: LiteratureNoteEntry,
   citekey = buildCitekey(entry),
