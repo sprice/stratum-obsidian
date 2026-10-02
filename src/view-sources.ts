@@ -93,7 +93,7 @@ export class SourcesPanel extends Component {
       : "Pin sources to this note";
     const rows = this.sources.rows;
     const problems = rows.filter((row) => row.issue).length;
-    this.summary.textContent = `${rows.length} ${rows.length === 1 ? "source" : "sources"}${problems ? ` · ${problems} need attention` : ""}${this.sources.pinned ? " · Pinned" : ""}`;
+    this.summary.textContent = `${rows.length} ${rows.length === 1 ? "source" : "sources"}${problems ? ` · ${problems} ${problems === 1 ? "needs" : "need"} attention` : ""}${this.sources.pinned ? " · Pinned" : ""}`;
     this.list.empty();
     if (!file || this.sources.error || !rows.length) {
       this.list.createEl("p", {

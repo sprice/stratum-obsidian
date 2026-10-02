@@ -18,12 +18,17 @@
 
 .stratum-tab-bar {
 	display: flex;
+	flex-wrap: wrap;
 	min-width: 0;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .stratum-tab-bar > button {
-	flex: 1 1 0;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: auto;
+	white-space: normal;
+	overflow-wrap: anywhere;
 	padding: 0.8rem 0.75rem;
 	border: 0;
 	border-bottom: 2px solid transparent;
