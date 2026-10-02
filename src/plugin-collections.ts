@@ -1,3 +1,4 @@
+import { rememberCollectionCatalog } from "./collection-catalog-store";
 import { clearLibrarySearchDebounce } from "./plugin-library-search";
 import type { ZoteroCollectionSummary } from "./backend-client";
 import type StratumPlugin from "./plugin";
@@ -43,6 +44,7 @@ async function runLibraryCollectionsRequest(
     const response = await plugin.backend.getZoteroLibraryCollections({
       library,
     });
+    await rememberCollectionCatalog(plugin, library, response.collections);
     if (
       requestId !== plugin.libraryCollectionsRequestId ||
       plugin.libraryCollectionsLibraryIdentity !== library.identity

@@ -19,6 +19,7 @@ function createSettings(params: {
   selectedSyncCollectionKey?: string | null;
 }): StratumSettings {
   return {
+    collectionCatalogs: {},
     notesFolder: "Literature Notes",
     filenameFormat: "readable",
     bulkSyncEnabled: true,

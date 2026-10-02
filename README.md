@@ -126,3 +126,28 @@ The account-backed design lets Stratum skip the usual Zotero plugin setup burden
 ## License
 
 Released under the [MIT License](LICENSE).
+
+## Browse imported papers by collection
+
+Run **Stratum: Browse papers by collection** from the command palette, or select
+**Browse imported papers** in the Stratum panel. Search for a collection by name,
+library, or parent path. The browser opens existing literature notes; it does not
+import papers or create collection pages.
+
+Use the collection button to switch collections and the search field to filter
+by title, author, or year. Subcollections are included by default; collections
+with children show an **Include subcollections** toggle. **All imported papers**
+and **Unfiled papers** are also available. Normal Obsidian link modifiers open
+papers in new tabs, and the browser remembers its collection, query, and scroll
+position through workspace view state. Large results load in batches of 100.
+
+Browsing works offline and without signing in. Sync saves collection keys in
+note frontmatter and caches library hierarchy locally. Notes from earlier
+versions need a sync or refresh before they appear in collection-specific views;
+until then they remain visible in **All imported papers** and are not assumed
+to be unfiled. If hierarchy is unavailable, direct memberships remain browsable
+and the view explains that a sync is needed. Membership reflects the last sync.
+
+One Zotero item has one canonical note even when it belongs to multiple
+collections. Personal and group libraries are kept distinct. This feature does
+not move notes, change filenames, or alter the protection for **My Notes**.

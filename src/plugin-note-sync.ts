@@ -1,3 +1,4 @@
+import { ensureCollectionCatalog } from "./plugin-collection-catalog";
 import type { TFile } from "obsidian";
 import { Platform } from "obsidian";
 import {
@@ -180,6 +181,7 @@ export async function writeLiteratureNoteFromDetail(
   plugin: StratumPlugin,
   params: WriteLiteratureNoteFromDetailParams,
 ): Promise<LiteratureNoteWriteResult> {
+  await ensureCollectionCatalog(plugin, params.detail);
   let enrichment: OpenAlexEnrichment | null | undefined;
   if (params.enrichmentMode === "skip") {
     enrichment = undefined;

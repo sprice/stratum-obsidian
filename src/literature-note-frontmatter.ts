@@ -335,6 +335,9 @@ export function renderFrontmatterContent(
     zotero_status: zoteroStatus,
     zotero_item_identity: getItemIdentity(detail),
     zotero_item_key: detail.item.key,
+    zotero_collection_keys: detail.item.collections.map(
+      (collection) => collection.key,
+    ),
     zotero_library_type: detail.library.type,
     zotero_library_id: detail.library.id,
     zotero_library_name: buildLibraryName(detail),

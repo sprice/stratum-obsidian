@@ -1,3 +1,4 @@
+import { browseCollections } from "./collection-browser";
 import {
   Component,
   ItemView,
@@ -350,6 +351,11 @@ export class StratumView extends ItemView {
     contentEl.addClass("stratum-view");
 
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
+    const browse = shell.createEl("button", {
+      text: "Browse imported papers",
+      cls: "stratum-browse-collections",
+    });
+    browse.addEventListener("click", () => browseCollections(this.plugin));
     const showSyncTab = shouldShowSyncTab({
       isDesktopApp: isLocalSyncSupported(),
       hasSession: this.plugin.backend.hasSession(),

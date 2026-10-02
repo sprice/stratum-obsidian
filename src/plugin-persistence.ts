@@ -1,3 +1,4 @@
+import { readCollectionCatalogs } from "./collection-catalog";
 import {
   AUTH_ACCESS_TOKEN_SECRET_ID,
   AUTH_REFRESH_TOKEN_SECRET_ID,
@@ -351,6 +352,7 @@ function readStoredSettings(value: unknown): Omit<
     legacyZoteroAutoSync: Partial<ZoteroAutoSyncState>;
     legacyBulkLibrarySync: Partial<BulkLibrarySyncState>;
   } = {
+    collectionCatalogs: readCollectionCatalogs(value.collectionCatalogs),
     itemFileMap: readItemFileMap(value.itemFileMap),
     libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),
     libraryBulkSync: readBulkLibrarySyncStateMap(value.libraryBulkSync),
@@ -529,6 +531,7 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
       ...(persistedSettings.itemFileMap ?? {}),
     },
     enabledLibraries: [...(persistedSettings.enabledLibraries ?? [])],
+    collectionCatalogs: persistedSettings.collectionCatalogs ?? {},
     libraryAutoSync,
     libraryBulkSync,
     activeBulkSyncLibrary: persistedSettings.activeBulkSyncLibrary ?? null,
