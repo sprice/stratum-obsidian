@@ -1,3 +1,7 @@
+import {
+  UnsupportedZoteroItemError,
+  type UnsupportedZoteroItem,
+} from "./zotero-item-support";
 import { Notice, TFile } from "obsidian";
 import type {
   OpenAlexEnrichmentBatchResult,
@@ -46,6 +50,7 @@ type CatalogPageResult = {
   failedCount: number;
   failedItemKeys: string[];
   touchedNotes: TouchedNote[];
+  unsupportedItems: UnsupportedZoteroItem[];
 };
 
 type TouchedNote = {
@@ -146,6 +151,10 @@ function commitBulkCatalogPage(
   state.createdCount += result.createdCount;
   state.updatedCount += result.updatedCount;
   state.skippedCount += result.skippedCount;
+  state.unsupportedItems = [
+    ...(state.unsupportedItems ?? []),
+    ...result.unsupportedItems,
+  ];
   state.failedCount += result.failedCount;
   state.failedItemKeys = [...state.failedItemKeys];
   for (const itemKey of result.failedItemKeys) {
@@ -175,6 +184,7 @@ function mergeCatalogResults(
     failedCount: retry.failedCount,
     failedItemKeys: [...retry.failedItemKeys],
     touchedNotes: [...initial.touchedNotes, ...retry.touchedNotes],
+    unsupportedItems: [...initial.unsupportedItems, ...retry.unsupportedItems],
   };
 }
 
@@ -253,6 +263,7 @@ async function processCatalogPage(
     failedCount: 0,
     failedItemKeys: [],
     touchedNotes: [],
+    unsupportedItems: [],
   };
 
   setBulkLibrarySyncPageProgress(plugin, 0, page.items.length);
@@ -290,7 +301,10 @@ async function processCatalogPage(
         }
         result.touchedNotes.push(synced.touched);
       } catch (error) {
-        if (
+        if (error instanceof UnsupportedZoteroItemError) {
+          result.skippedCount += 1;
+          result.unsupportedItems.push(error.item);
+        } else if (
           error instanceof LocalZoteroUnavailableError ||
           (error instanceof LocalZoteroApiError && error.status !== 404)
         ) {
@@ -359,6 +373,7 @@ async function retryFailedCatalogItems(
     failedCount: 0,
     failedItemKeys: [],
     touchedNotes: [],
+    unsupportedItems: [],
   };
 
   if (failedItemKeys.length === 0) {
@@ -386,7 +401,10 @@ async function retryFailedCatalogItems(
         throw error;
       }
 
-      if (error instanceof LocalZoteroApiError && error.status === 404) {
+      if (error instanceof UnsupportedZoteroItemError) {
+        result.skippedCount += 1;
+        result.unsupportedItems.push(error.item);
+      } else if (error instanceof LocalZoteroApiError && error.status === 404) {
         result.skippedCount += 1;
       } else {
         result.failedCount += 1;

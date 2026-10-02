@@ -22,7 +22,11 @@ const detail = normalizeZoteroItemDetail({
     identity: "user:1",
     zoteroUriSegment: "library",
   },
-  parentItem: { key: "ABCD1234", version: 2, data: { title: "Paper" } },
+  parentItem: {
+    key: "ABCD1234",
+    version: 2,
+    data: { title: "Paper", itemType: "document" },
+  },
   childItems: [],
   collections: [],
 });
@@ -329,3 +333,44 @@ test("metadata corrections preserve existing managed paths, aliases and personal
     fixture.current.includes("My original notes\n[[Another note]] ^my-block"),
   );
 });
+
+for (const itemType of [
+  "futureType",
+  null,
+  "attachment",
+  "note",
+  "annotation",
+]) {
+  test(`unsupported ${itemType} cannot create or change an existing note`, async () => {
+    const unsupported = { ...detail, item: { ...detail.item, itemType } };
+    for (const existing of [true, false]) {
+      const fixture = vaultFixture();
+      const original = fixture.current;
+      await assert.rejects(
+        note.createOrUpdateLiteratureNote({
+          app: fixture.app,
+          existingFile: existing ? fixture.file : null,
+          detail: unsupported,
+          filenameFormat: "readable",
+          notesFolder: "Literature Notes",
+        }),
+        /not supported/,
+      );
+      assert.equal(fixture.writes, 0);
+      assert.equal(fixture.current, original);
+    }
+    const sync = loadRuntime<typeof import("../plugin-note-sync")>(
+      "plugin-note-sync.ts",
+      host,
+    );
+    // Empty plugin deliberately fails if anything is accessed before the guard.
+    await assert.rejects(
+      sync.writeLiteratureNoteFromDetail({} as never, {
+        detail: unsupported,
+        existingFile: null,
+        enrichmentMode: "load",
+      }),
+      /not supported/,
+    );
+  });
+}

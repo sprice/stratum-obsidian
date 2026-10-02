@@ -1,3 +1,4 @@
+import { assertSupportedZoteroItem } from "./zotero-item-support";
 import { TFile, htmlToMarkdown, parseYaml, stringifyYaml } from "obsidian";
 import type { App } from "obsidian";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
@@ -73,6 +74,7 @@ export async function createOrUpdateLiteratureNote(params: {
   };
   assertActive();
   const summary = getLiteratureNoteSummary(params.detail);
+  assertSupportedZoteroItem(params.detail);
   const identity = toIdentity(params.detail);
   const existingFile =
     params.existingFile ??

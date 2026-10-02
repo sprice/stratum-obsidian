@@ -245,3 +245,18 @@ test("formatBulkLibrarySyncCompletionMessage is the shared completion formatter"
     "Finished syncing 3 papers in My Library in 2.00 seconds. Enrichment failed for 1 paper. Run sync again later to try again.",
   );
 });
+
+test("completion explicitly reports unsupported items instead of calling them imports", () => {
+  const message = formatBulkLibrarySyncCompletionMessage({
+    state: {
+      ...DEFAULT_BULK_SYNC_STATE,
+      processedCount: 3,
+      unsupportedItems: [
+        { itemKey: "NEW", title: "Future item", itemType: "futureType" },
+      ],
+    },
+  });
+  assert.match(message, /processing 3 items/);
+  assert.match(message, /1 skipped/);
+  assert.match(message, /Sync panel/);
+});

@@ -167,3 +167,21 @@ test("the bundled schema exercises every declared base-field mapping", () => {
     "Future",
   );
 });
+
+test("all known bibliographic types remain importable, including sparse items", async () => {
+  const { supportsZoteroItemType } = await import("../zotero-item-support");
+  for (const type of Object.keys(ZOTERO_SCHEMA))
+    assert.equal(
+      supportsZoteroItemType(type),
+      !["annotation", "attachment", "note"].includes(type),
+      type,
+    );
+  for (const type of [null, "", "futureType", "toString", "__proto__"])
+    assert.equal(supportsZoteroItemType(type), false);
+  assert.equal(
+    supportsZoteroItemType(
+      normalizeZoteroMetadata({ itemType: "book" }).itemType,
+    ),
+    true,
+  );
+});

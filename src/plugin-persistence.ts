@@ -297,6 +297,22 @@ function readBulkLibrarySyncState(
     nextState.lastError = value.lastError;
   }
 
+  if (Array.isArray(value.unsupportedItems)) {
+    nextState.unsupportedItems = value.unsupportedItems.flatMap((item) => {
+      if (
+        !isRecord(item) ||
+        typeof item.itemKey !== "string" ||
+        !item.itemKey.trim() ||
+        typeof item.title !== "string" ||
+        !(typeof item.itemType === "string" || item.itemType === null)
+      )
+        return [];
+      return [
+        { itemKey: item.itemKey, title: item.title, itemType: item.itemType },
+      ];
+    });
+  }
+
   if (Array.isArray(value.failedItemKeys)) {
     nextState.failedItemKeys = value.failedItemKeys
       .filter((entry): entry is string => typeof entry === "string")

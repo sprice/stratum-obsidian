@@ -1,3 +1,4 @@
+import type { UnsupportedZoteroItem } from "./zotero-item-support";
 import {
   ANNOTATION_KEYS_FRONTMATTER_KEY,
   ATTACHMENT_KEYS_FRONTMATTER_KEY,
@@ -40,6 +41,7 @@ export interface BulkLibrarySyncState {
   lastError: string | null;
   retryAfterSeconds: number | null;
   failedItemKeys: string[];
+  unsupportedItems?: UnsupportedZoteroItem[];
 }
 
 export interface DeletedChildLookupCandidate {
@@ -85,6 +87,7 @@ export function buildDefaultBulkLibrarySyncState(): BulkLibrarySyncState {
   return {
     ...DEFAULT_BULK_LIBRARY_SYNC_STATE,
     failedItemKeys: [...DEFAULT_BULK_LIBRARY_SYNC_STATE.failedItemKeys],
+    unsupportedItems: [],
   };
 }
 
@@ -204,12 +207,13 @@ export function formatBulkLibrarySyncCompletionMessage(params: {
     | "processedCount"
     | "totalResults"
     | "enrichmentFailureCount"
+    | "unsupportedItems"
   >;
   libraryName?: string;
   collectionName?: string | null;
 }): string {
   const elapsed = formatBulkSyncElapsedSeconds(params.state);
-  const completedSummary = params.libraryName
+  let completedSummary = params.libraryName
     ? `Finished syncing ${params.state.processedCount} paper${
         params.state.processedCount === 1 ? "" : "s"
       } in ${params.libraryName}${elapsed ? ` in ${elapsed}` : ""}.`
@@ -223,6 +227,10 @@ export function formatBulkLibrarySyncCompletionMessage(params: {
           }.`
         : "Finished syncing your Zotero papers.";
 
+  const unsupportedCount = params.state.unsupportedItems?.length ?? 0;
+  if (unsupportedCount) {
+    completedSummary = `Finished processing ${params.state.processedCount} items. ${unsupportedCount} skipped because their Zotero item types are not supported. See the Sync panel for details.`;
+  }
   return params.state.enrichmentFailureCount > 0
     ? `${completedSummary} Enrichment failed for ${
         params.state.enrichmentFailureCount

@@ -21,7 +21,8 @@ pnpm check
 
 Review the generated diff and add examples for new fields or types. The tests
 exercise every declared base-field mapping as well as independent cases drawn
-from real import bugs. Generic fields remain usable for unrecognized item types.
+from real import bugs. Unknown or missing item types are not imported. Attachment, note and annotation
+items are handled as children of supported items, never as literature notes.
 
 ## Normalization and ownership
 
@@ -43,6 +44,16 @@ Keeping existing paths protects established links. This change does not solve
 historical target recovery after deleting notes, collision ownership during
 recreation, or moving the configured root. See the
 [literature note link contract](literature-note-link-contract.md).
+
+## Unsupported items
+
+Import checks the bundled schema before enrichment or any vault writes. A known
+item type with missing title, date or creators is still supported. Unknown types
+are skipped; existing notes remain unchanged. Bulk sync continues, counts skips
+separately from failures and retains a per-run list in the Sync panel, including
+item titles, types and links to Zotero. The list survives plugin restarts and is
+replaced on the next bulk run. Manual import and opened-note refresh explain the
+skip in a notice. Updating the bundled schema can enable new Zotero types later.
 
 ## Bibliographies
 

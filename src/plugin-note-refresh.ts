@@ -1,3 +1,4 @@
+import { UnsupportedZoteroItemError } from "./zotero-item-support";
 import { Notice, TFile } from "obsidian";
 import { markLiteratureNoteDeleted } from "./literature-note";
 import {
@@ -230,6 +231,10 @@ export function refreshOpenedLiteratureNote(
   const pending = runOpenedLiteratureNoteRefresh(plugin, file)
     .catch((error) => {
       if (!canSyncLibrary(plugin, target.library)) return;
+      if (error instanceof UnsupportedZoteroItemError) {
+        new Notice(`${PLUGIN_NAME}: ${error.message}`);
+        return;
+      }
       recordRefreshFailure(plugin, target.library, error);
       showRefreshNotice(plugin, error);
       console.error("stratum: literature note refresh failed", error);

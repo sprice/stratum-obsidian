@@ -14,6 +14,7 @@ export function loadRuntime<T>(
     write: false,
     platform: "node",
     format: "cjs",
+    supported: { "dynamic-import": false },
     external: ["obsidian"],
     define: Object.fromEntries(
       [
