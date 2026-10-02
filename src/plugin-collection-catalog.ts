@@ -10,7 +10,7 @@ import { loadLocalZoteroCollections } from "./zotero-local";
 
 const pending = new WeakMap<
   StratumPlugin,
-  Map<string, { until: number; promise: Promise<void> }>
+  Map<string, { until: number; promise: Promise<void>; settled: boolean }>
 >();
 const CACHE_MS = 60_000;
 
@@ -33,10 +33,14 @@ export function ensureCollectionCatalog(
     return Promise.resolve();
   const requests =
     pending.get(plugin) ??
-    new Map<string, { until: number; promise: Promise<void> }>();
+    new Map<
+      string,
+      { until: number; promise: Promise<void>; settled: boolean }
+    >();
   pending.set(plugin, requests);
   const previous = requests.get(library.identity);
-  if (previous && previous.until > Date.now()) return previous.promise;
+  if (previous && (!previous.settled || previous.until > Date.now()))
+    return previous.promise;
   const promise = (async () => {
     try {
       let collections: ZoteroCollectionSummary[];
@@ -65,6 +69,11 @@ export function ensureCollectionCatalog(
       );
     }
   })();
-  requests.set(library.identity, { until: Date.now() + CACHE_MS, promise });
+  const request = { until: 0, promise, settled: false };
+  requests.set(library.identity, request);
+  void promise.then(() => {
+    request.settled = true;
+    request.until = Date.now() + CACHE_MS;
+  });
   return promise;
 }

@@ -181,7 +181,9 @@ export async function writeLiteratureNoteFromDetail(
   plugin: StratumPlugin,
   params: WriteLiteratureNoteFromDetailParams,
 ): Promise<LiteratureNoteWriteResult> {
-  await ensureCollectionCatalog(plugin, params.detail);
+  // Hierarchy is optional browser metadata; its network latency must not hold
+  // up writing a paper (or the rest of a bulk import).
+  void ensureCollectionCatalog(plugin, params.detail);
   let enrichment: OpenAlexEnrichment | null | undefined;
   if (params.enrichmentMode === "skip") {
     enrichment = undefined;

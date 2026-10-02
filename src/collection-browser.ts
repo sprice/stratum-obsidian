@@ -18,6 +18,7 @@ import {
   type CollectionPaper,
 } from "./collection-browser-model";
 import { CollectionPicker } from "./collection-picker";
+import { onCollectionCatalogChange } from "./collection-catalog-store";
 
 export const COLLECTION_BROWSER_VIEW = "stratum-collection-browser";
 
@@ -81,6 +82,7 @@ export class CollectionBrowserView extends ItemView {
   onOpen(): Promise<void> {
     this.contentReady = true;
     const refresh = debounce(() => this.render(), 200, true);
+    this.register(onCollectionCatalogChange(this.plugin, refresh));
     this.registerEvent(this.app.metadataCache.on("changed", refresh));
     this.registerEvent(this.app.metadataCache.on("resolved", refresh));
     this.registerEvent(this.app.vault.on("rename", refresh));
@@ -99,9 +101,13 @@ export class CollectionBrowserView extends ItemView {
   private render(): void {
     if (!this.contentReady) return;
     const focused = this.contentEl.doc.activeElement;
-    const hadSearchFocus =
-      focused?.tagName === "INPUT" &&
-      focused.getAttribute("aria-label") === "Search imported papers";
+    const searchInput = this.contentEl.querySelector<HTMLInputElement>(
+      'input[aria-label="Search imported papers"]',
+    );
+    const hadSearchFocus = focused === searchInput && searchInput !== null;
+    const selection = hadSearchFocus
+      ? ([searchInput.selectionStart, searchInput.selectionEnd] as const)
+      : null;
     this.papers = getCollectionPapers(this.plugin);
     const choices = buildCollectionChoices(
       this.papers,
@@ -174,7 +180,10 @@ export class CollectionBrowserView extends ItemView {
         this.renderResults();
       });
     search.inputEl.setAttribute("aria-label", "Search imported papers");
-    if (hadSearchFocus) search.inputEl.focus();
+    if (hadSearchFocus) {
+      search.inputEl.focus();
+      if (selection) search.inputEl.setSelectionRange(...selection);
+    }
     this.count = header.createDiv({
       cls: "stratum-collection-count",
       attr: { "aria-live": "polite", role: "status" },
@@ -266,7 +275,7 @@ export class CollectionBrowserView extends ItemView {
         void this.app.workspace.openLinkText(
           paper.path,
           "",
-          Keymap.isModEvent(event),
+          Keymap.isModEvent(event) || "tab",
         );
       };
       link.addEventListener("click", open);

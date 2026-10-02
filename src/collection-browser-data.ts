@@ -21,6 +21,14 @@ export function getCollectionPapers(plugin: StratumPlugin): CollectionPaper[] {
     )
       continue;
     const identity = `${type}/${id}/${key}`;
+    // Match sync's identity contract: never let conflicting explicit identity
+    // metadata win simply because the file happens to be in the path cache.
+    if (
+      fm.zotero_item_identity != null &&
+      fm.zotero_item_identity !== identity &&
+      fm.zotero_item_identity !== key
+    )
+      continue;
     const previous = papers.get(identity);
     const preferredPath = plugin.settings.itemFileMap[identity]?.filePath;
     if (
