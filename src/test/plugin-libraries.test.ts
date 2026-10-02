@@ -32,6 +32,7 @@ function createMockPlugin(params?: {
   const enabledLibraries = params?.enabledLibraries ?? [personalLibrary];
   const settingsOverrides = params?.settings ?? {};
   const settings: StratumSettings = {
+    collectionCatalogs: {},
     notesFolder: "Notes/Literature Notes",
     filenameFormat: "readable",
     bulkSyncEnabled: false,

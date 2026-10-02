@@ -1145,3 +1145,25 @@ test("Details callout is omitted when all detail fields are null", () => {
 
   assert.doesNotMatch(output, /\[!example\]\+ Details/);
 });
+
+test("sync replaces collection keys, records unfiled membership, and preserves My Notes", () => {
+  const existing = `---\n{}\n---\n<!-- stratum:managed:start -->\nOld generated content\n<!-- stratum:managed:end -->\n\n> [!stratum]- My Notes\n\nMy personal argument with [[Other note]].\n`;
+  for (const collections of [[], [{ key: "NEW", name: "Culture" }]]) {
+    const output = buildLiteratureNoteContent({
+      detail: createDetail({ item: { collections } }),
+      filenameStem: null,
+      existingContent: existing,
+      parseYaml: () => ({ zotero_collection_keys: ["OLD"] }),
+      stringifyYaml: stringifyForTest,
+      htmlToMarkdown: (html) => html,
+    });
+    assert.match(
+      output,
+      collections.length
+        ? /zotero_collection_keys: \[NEW\]/
+        : /zotero_collection_keys: \[\]/,
+    );
+    assert.doesNotMatch(output, /zotero_collection_keys: \[OLD\]/);
+    assert.ok(output.endsWith("My personal argument with [[Other note]].\n"));
+  }
+});

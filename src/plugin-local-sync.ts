@@ -1,3 +1,4 @@
+import { rememberCollectionCatalog } from "./collection-catalog-store";
 import { Platform } from "obsidian";
 import type { ZoteroCollectionSummary } from "./backend-types";
 import {
@@ -291,6 +292,7 @@ async function runSyncCollectionsRequest(
       port: plugin.settings.zoteroLocalApiPort,
       library,
     });
+    await rememberCollectionCatalog(plugin, library, collections);
     if (
       requestId !== plugin.syncCollectionsRequestId ||
       plugin.syncCollectionsLibraryIdentity !== library.identity

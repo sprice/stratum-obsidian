@@ -2,7 +2,7 @@ name: Build & Lint
 
 on:
     push:
-        branches: ["**"]
+        branches: ["master"]
     pull_request:
         branches: ["**"]
 
@@ -24,7 +24,8 @@ jobs:
                   cache: "pnpm"
             - run: pnpm install --frozen-lockfile
             - run: pnpm format:check
-            - run: pnpm lint:review
+            - name: Obsidian lint (no errors or warnings)
+              run: pnpm lint:review
             - run: pnpm test
             - run: pnpm typecheck
             - run: pnpm build

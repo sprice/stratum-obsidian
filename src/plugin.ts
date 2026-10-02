@@ -1,3 +1,8 @@
+import {
+  browseCollections,
+  CollectionBrowserView,
+  COLLECTION_BROWSER_VIEW,
+} from "./collection-browser";
 import { MarkdownView, Platform, Plugin, TFile } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
@@ -265,6 +270,16 @@ export default class StratumPlugin extends Plugin {
           this.refreshViews();
         });
       },
+    });
+
+    this.registerView(
+      COLLECTION_BROWSER_VIEW,
+      (leaf) => new CollectionBrowserView(leaf, this),
+    );
+    this.addCommand({
+      id: "browse-papers-by-collection",
+      name: "Browse papers by collection",
+      callback: () => browseCollections(this),
     });
 
     this.addCommand({

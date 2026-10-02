@@ -1,3 +1,4 @@
+import type { CollectionCatalogs } from "./collection-catalog";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import { getDefaultZoteroDataDir } from "./zotero-data-dir";
@@ -37,6 +38,7 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  collectionCatalogs: CollectionCatalogs;
   notesFolder: string;
   filenameFormat: LiteratureNoteFilenameFormat;
   bulkSyncEnabled: boolean;
@@ -60,6 +62,7 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  collectionCatalogs: {},
   notesFolder: DEFAULT_NOTE_FOLDER,
   filenameFormat: "readable",
   bulkSyncEnabled: false,
