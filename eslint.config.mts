@@ -68,6 +68,7 @@ export default tseslint.config(
 		rules: {
 			"@typescript-eslint/no-floating-promises": "off",
 			"import/no-nodejs-modules": "off",
+			"obsidianmd/no-nodejs-modules": "off",
 		},
 	},
 	globalIgnores([

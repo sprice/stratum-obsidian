@@ -27,3 +27,10 @@ export class ZoteroRateLimitedError extends Error {
     this.retryAfterSeconds = retryAfterSeconds;
   }
 }
+
+export class ZoteroItemNotFoundError extends Error {
+  constructor() {
+    super("Zotero item not found.");
+    this.name = "ZoteroItemNotFoundError";
+  }
+}

@@ -18,6 +18,7 @@ import {
   updateLastKnownZoteroSnapshot,
 } from "./plugin-sync-helpers";
 import {
+  clearLibrarySearchState,
   buildPersonalLibrary,
   reconcileLibrariesFromConnection,
   setSelectedSearchLibrary,
@@ -63,11 +64,13 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
   return new BackendClient({
     initialSession: getStoredAuthSession(plugin),
     onSessionChange: async (session) => {
+      if (plugin.isUnloaded) return;
       persistAuthSessionSecrets(plugin, session);
       plugin.settings.authSessionExpiresAt = session?.expiresAt ?? null;
       await plugin.saveSettings();
     },
     onUserChange: async (user) => {
+      if (plugin.isUnloaded) return;
       const nextEmail = user?.email ?? null;
       const previousEmail = plugin.settings.accountEmail;
       let changed = false;
@@ -92,6 +95,10 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
       }
 
       if (shouldClearZoteroSnapshot) {
+        plugin.zoteroConnectionRequestId += 1;
+        plugin.isLoadingZoteroConnection = false;
+        clearLibrarySearchState(plugin);
+        clearLocalSyncState(plugin);
         if (plugin.settings.lastKnownZoteroUserId !== null) {
           plugin.settings.lastKnownZoteroUserId = null;
           changed = true;
@@ -226,6 +233,7 @@ export async function signOutFromPlugin(plugin: StratumPlugin): Promise<void> {
 export async function refreshZoteroConnection(
   plugin: StratumPlugin,
 ): Promise<void> {
+  if (plugin.isUnloaded) return;
   log("auth", "refreshing zotero connection");
   if (!plugin.backend.hasSession()) {
     plugin.zoteroConnection = null;
@@ -241,9 +249,12 @@ export async function refreshZoteroConnection(
   plugin.refreshSettingTab();
 
   const previousConnection = plugin.zoteroConnection;
+  const requestId = ++plugin.zoteroConnectionRequestId;
 
   try {
     const nextConnection = await plugin.backend.getZoteroConnectionStatus();
+    if (plugin.isUnloaded || requestId !== plugin.zoteroConnectionRequestId)
+      return;
     if (nextConnection) {
       plugin.zoteroConnection = applyLastKnownZoteroSnapshot(
         plugin,
@@ -297,6 +308,8 @@ export async function refreshZoteroConnection(
       }
     }
   } catch (error) {
+    if (plugin.isUnloaded || requestId !== plugin.zoteroConnectionRequestId)
+      return;
     console.error("stratum: failed to load Zotero connection state", error);
     plugin.zoteroConnection = plugin.backend.hasSession()
       ? previousConnection
@@ -307,18 +320,20 @@ export async function refreshZoteroConnection(
       clearLocalSyncState(plugin);
     }
   } finally {
-    plugin.isLoadingZoteroConnection = false;
-    await plugin.reconcileLocalLiveSync();
-    const tokenValid = !plugin.backend.hasSession()
-      ? "signed_out"
-      : (plugin.zoteroConnection?.tokenValid ?? "unknown");
-    log("auth", "zotero connection refreshed", {
-      connected: Boolean(plugin.zoteroConnection?.connected),
-      tokenValid,
-    });
-    plugin.refreshAutoSyncUi();
-    plugin.refreshViews();
-    plugin.refreshSettingTab();
+    if (!plugin.isUnloaded && requestId === plugin.zoteroConnectionRequestId) {
+      plugin.isLoadingZoteroConnection = false;
+      await plugin.reconcileLocalLiveSync();
+      const tokenValid = !plugin.backend.hasSession()
+        ? "signed_out"
+        : (plugin.zoteroConnection?.tokenValid ?? "unknown");
+      log("auth", "zotero connection refreshed", {
+        connected: Boolean(plugin.zoteroConnection?.connected),
+        tokenValid,
+      });
+      plugin.refreshAutoSyncUi();
+      plugin.refreshViews();
+      plugin.refreshSettingTab();
+    }
   }
 }
 
@@ -326,6 +341,7 @@ export async function handleAuthProtocol(
   plugin: StratumPlugin,
   params: ObsidianProtocolData,
 ): Promise<void> {
+  if (plugin.isUnloaded) return;
   const handoff = typeof params.handoff === "string" ? params.handoff : null;
   const email = typeof params.email === "string" ? params.email : null;
   const zoteroConnected = params.zotero_connected === "true";
@@ -394,7 +410,7 @@ export async function handleAuthProtocol(
 export async function bootstrapRemoteState(
   plugin: StratumPlugin,
 ): Promise<void> {
-  if (!plugin.backend.hasSession()) {
+  if (plugin.isUnloaded || !plugin.backend.hasSession()) {
     log("auth", "bootstrap skipped, no session");
     return;
   }

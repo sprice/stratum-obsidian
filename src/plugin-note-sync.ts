@@ -163,6 +163,19 @@ export async function requireZoteroItemDetailForNoteSync(
   throw error;
 }
 
+export function canSyncLibrary(
+  plugin: StratumPlugin,
+  library: { type: string; id: string },
+): boolean {
+  return (
+    !plugin.isUnloaded &&
+    plugin.backend.hasSession() &&
+    plugin.settings.enabledLibraries.some(
+      (entry) => entry.type === library.type && entry.id === library.id,
+    )
+  );
+}
+
 export async function writeLiteratureNoteFromDetail(
   plugin: StratumPlugin,
   params: WriteLiteratureNoteFromDetailParams,
@@ -184,6 +197,7 @@ export async function writeLiteratureNoteFromDetail(
     filenameFormat: plugin.settings.filenameFormat,
     detail: params.detail,
     existingFile: params.existingFile,
+    canWrite: () => canSyncLibrary(plugin, params.detail.library),
     enrichment,
   });
   plugin.rememberLiteratureNoteFile(params.detail, writeResult.file);

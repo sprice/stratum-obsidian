@@ -25,3 +25,6 @@ data.json
 .env
 .env.local
 .env.*.local
+
+# Local design review configuration
+.impeccable/

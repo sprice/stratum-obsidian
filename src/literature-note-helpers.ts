@@ -40,10 +40,7 @@ export function getLiteratureNoteCandidates(
     .map((file) => ({
       path: file.path,
       name: file.name,
-      frontmatter:
-        (app.metadataCache.getFileCache(file)?.frontmatter as
-          | Record<string, unknown>
-          | undefined) ?? null,
+      frontmatter: app.metadataCache.getFileCache(file)?.frontmatter ?? null,
     }));
 }
 

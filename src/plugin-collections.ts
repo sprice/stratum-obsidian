@@ -1,3 +1,4 @@
+import { clearLibrarySearchDebounce } from "./plugin-library-search";
 import type { ZoteroCollectionSummary } from "./backend-client";
 import type StratumPlugin from "./plugin";
 import type { EnabledLibrary } from "./settings";
@@ -7,10 +8,7 @@ import {
 } from "./zotero-errors";
 
 function clearCollectionScopedSearchState(plugin: StratumPlugin): void {
-  if (plugin.librarySearchDebounceTimer !== null) {
-    window.clearTimeout(plugin.librarySearchDebounceTimer);
-    plugin.librarySearchDebounceTimer = null;
-  }
+  clearLibrarySearchDebounce(plugin);
 
   plugin.librarySearchPendingPromise = null;
   plugin.librarySearchPendingQuery = null;

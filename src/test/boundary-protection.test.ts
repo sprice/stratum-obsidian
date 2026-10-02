@@ -804,3 +804,56 @@ test("boundary: callout with extra user-added description lines works", () => {
   assert.match(output, /I added another line/);
   assert.match(output, /Notes below the callout\./);
 });
+
+test("standalone marker examples below the user boundary are never overwritten", () => {
+  const personal = `${USER_BOUNDARY_CALLOUT}\n\nMy example:\n${MANAGED_START}\nKeep this example\n${MANAGED_END}\n`;
+  const output = syncUpdate(personal);
+  assert.match(output, /Keep this example/);
+  assert.ok(output.includes(personal.trimEnd()));
+});
+
+test("a missing managed end marker cannot swallow personal writing", () => {
+  const personal = `${USER_BOUNDARY_CALLOUT}\n\nPreserve my notes\n${MANAGED_END}\n`;
+  const output = syncUpdate(
+    `${MANAGED_START}\nDamaged managed section\n${personal}`,
+  );
+  assert.ok(output.includes(personal.trimEnd()));
+});
+
+test("quoted Zotero markers cannot prematurely end the managed section", () => {
+  const initial = buildLiteratureNoteContent({
+    detail: createDetail({
+      item: {
+        abstract: `Before\n${MANAGED_END}\nOld abstract tail`,
+        publicationTitle: `Journal\n${MANAGED_END}\nOld journal tail`,
+      },
+    }),
+    filenameStem: "Paper",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+  const output = syncUpdate(initial + "\nPersonal writing\n");
+  assert.doesNotMatch(output, /Old abstract tail|Old journal tail/);
+  assert.match(output, /Personal writing/);
+});
+
+test("Zotero text containing replacement metacharacters is preserved literally", () => {
+  const initial = buildLiteratureNoteContent({
+    detail: createDetail(),
+    filenameStem: "Paper",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+  const output = buildLiteratureNoteContent({
+    detail: createDetail({ item: { abstract: "Cost $& and $' and $`" } }),
+    existingContent: initial + "\nPersonal writing\n",
+    filenameStem: "Paper",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+  });
+  assert.ok(output.includes("Cost $& and $' and $`"));
+  assert.equal(output.match(/Personal writing/g)?.length, 1);
+});

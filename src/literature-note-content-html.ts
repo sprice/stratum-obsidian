@@ -15,17 +15,22 @@ function decodeDatasetJson<T>(encoded: string): T | null {
 
 function buildLocalUri(
   ext: "select" | "open-pdf",
-  uri: string,
+  uri: unknown,
   params?: Record<string, string>,
-): string {
-  const itemId = uri.split("/").pop();
-  if (!itemId) {
-    return uri;
+): string | null {
+  if (typeof uri !== "string") {
+    return null;
   }
 
-  const base = /\/groups\//.test(uri)
-    ? uri.replace("http://zotero.org", `zotero://${ext}`)
-    : `zotero://${ext}/library/items/${itemId}`;
+  // Only canonical Zotero identities may become generated HTML link targets.
+  const match = uri.match(
+    /^https?:\/\/(?:www\.)?zotero\.org\/(?:groups\/(\d+)|users\/(?:local\/)?[a-z0-9]+)\/items\/([a-z0-9]+)\/?$/i,
+  );
+  if (!match) {
+    return null;
+  }
+  const library = match[1] ? `groups/${match[1]}` : "library";
+  const base = `zotero://${ext}/${library}/items/${match[2]}`;
 
   if (!params || Object.keys(params).length === 0) {
     return base;
@@ -44,9 +49,9 @@ function buildLocalUri(
 
 function buildAnnotationUriFromDataset(encoded: string): string | null {
   const json = decodeDatasetJson<{
-    attachmentURI?: string;
-    pageLabel?: string;
-    annotationKey?: string;
+    attachmentURI?: unknown;
+    pageLabel?: unknown;
+    annotationKey?: unknown;
   }>(encoded);
 
   if (!json?.attachmentURI) {
@@ -54,8 +59,9 @@ function buildAnnotationUriFromDataset(encoded: string): string | null {
   }
 
   return buildLocalUri("open-pdf", json.attachmentURI, {
-    page: json.pageLabel ?? "",
-    annotation: json.annotationKey ?? "",
+    page: typeof json.pageLabel === "string" ? json.pageLabel : "",
+    annotation:
+      typeof json.annotationKey === "string" ? json.annotationKey : "",
   });
 }
 

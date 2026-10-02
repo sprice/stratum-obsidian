@@ -2,6 +2,7 @@ import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { normalizeDoi } from "./doi";
 import {
   MANAGED_START,
+  MANAGED_END,
   USER_BOUNDARY_CALLOUT,
   USER_BOUNDARY_PATTERN,
   ZOTERO_STATUS_FRONTMATTER_KEY,
@@ -25,12 +26,14 @@ function escapeRegExp(value: string): string {
 
 function upsertManagedBlock(body: string, managedBlock: string): string {
   const managedPattern = new RegExp(
-    `${escapeRegExp(MANAGED_START)}[\\s\\S]*?${escapeRegExp("<!-- stratum:managed:end -->")}\\n*`,
+    `^${escapeRegExp(MANAGED_START)}\\r?$[\\s\\S]*?^${escapeRegExp(MANAGED_END)}\\r?$(?:\\r?\\n)*`,
     "m",
   );
-
-  if (managedPattern.test(body)) {
-    return body.replace(managedPattern, `${managedBlock}\n\n`);
+  const match = managedPattern.exec(body);
+  const boundary = USER_BOUNDARY_PATTERN.exec(body);
+  // Markers in personal writing are examples, never writable boundaries.
+  if (match && (!boundary || match.index + match[0].length <= boundary.index)) {
+    return body.replace(managedPattern, () => `${managedBlock}\n\n`);
   }
 
   const trimmedBody = body.trim();

@@ -1,13 +1,9 @@
+import { ZoteroItemNotFoundError } from "./zotero-errors";
 import type { ZoteroConnectionState } from "./backend-types";
 import type StratumPlugin from "./plugin";
 
 export function isMissingZoteroItemError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    /zotero item not found|failed to load zotero item detail/i.test(
-      error.message,
-    )
-  );
+  return error instanceof ZoteroItemNotFoundError;
 }
 
 export function markZoteroTokenInvalid(plugin: StratumPlugin): void {

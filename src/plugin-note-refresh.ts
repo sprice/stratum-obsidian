@@ -24,6 +24,7 @@ import {
   LocalZoteroUnavailableError,
 } from "./zotero-local";
 import {
+  canSyncLibrary,
   loadZoteroItemDetailForNoteSync,
   writeLiteratureNoteFromDetail,
 } from "./plugin-note-sync";
@@ -86,9 +87,7 @@ function getRefreshTarget(
   itemKey: string;
 } | null {
   const frontmatter =
-    (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
-      | Record<string, unknown>
-      | undefined) ?? null;
+    plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
   const itemKey = getItemKeyFromFrontmatter(frontmatter);
   if (!itemKey) {
     return null;
@@ -160,6 +159,7 @@ async function runOpenedLiteratureNoteRefresh(
     return;
   }
   const { itemKey, library } = target;
+  if (!canSyncLibrary(plugin, library)) return;
   const {
     detail,
     usedLocal,
@@ -173,6 +173,7 @@ async function runOpenedLiteratureNoteRefresh(
     sourcePreference: "auto",
   });
 
+  if (!canSyncLibrary(plugin, library)) return;
   if (!detail) {
     if (
       shouldMarkLiteratureNoteDeletedAfterRefreshMiss({
@@ -184,6 +185,8 @@ async function runOpenedLiteratureNoteRefresh(
       await markLiteratureNoteDeleted({
         app: plugin.app,
         file,
+        identity: { libraryType: library.type, libraryId: library.id, itemKey },
+        canWrite: () => canSyncLibrary(plugin, library),
       });
       recordRefreshSuccess(plugin, library);
       return;
@@ -209,7 +212,7 @@ export function refreshOpenedLiteratureNote(
   plugin: StratumPlugin,
   file: TFile,
 ): Promise<void> | null {
-  if (plugin.isBulkLibrarySyncRunning()) {
+  if (plugin.isUnloaded || plugin.isBulkLibrarySyncRunning()) {
     return null;
   }
 
@@ -218,23 +221,25 @@ export function refreshOpenedLiteratureNote(
     return null;
   }
 
-  const existing = plugin.noteRefreshPromises.get(file.path);
+  const refreshPath = file.path;
+  const existing = plugin.noteRefreshPromises.get(refreshPath);
   if (existing) {
     return existing;
   }
 
   const pending = runOpenedLiteratureNoteRefresh(plugin, file)
     .catch((error) => {
+      if (!canSyncLibrary(plugin, target.library)) return;
       recordRefreshFailure(plugin, target.library, error);
       showRefreshNotice(plugin, error);
       console.error("stratum: literature note refresh failed", error);
     })
     .finally(() => {
-      plugin.noteRefreshPromises.delete(file.path);
+      plugin.noteRefreshPromises.delete(refreshPath);
       plugin.refreshAutoSyncUi();
     });
 
-  plugin.noteRefreshPromises.set(file.path, pending);
+  plugin.noteRefreshPromises.set(refreshPath, pending);
   plugin.refreshAutoSyncUi();
   return pending;
 }

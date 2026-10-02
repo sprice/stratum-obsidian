@@ -111,6 +111,7 @@ The account-backed design lets Stratum skip the usual Zotero plugin setup burden
 
 ## Privacy
 
+- Cloud sync and session requests use the Stratum app's `/api/stratum` endpoint, which proxies authentication and functions to Supabase. Desktop sync connects directly to Zotero on localhost. DOI and OpenAlex links in generated notes open the corresponding academic websites when selected.
 - No telemetry, no analytics, no ad tech, no third-party tracking SDKs in the plugin.
 - The Stratum web app uses cookie-free analytics (Umami) to track anonymous usage metrics. No personally identifiable information is collected.
 - The managed service uses Sentry for error tracking. When something goes wrong, Sentry captures technical details about the error and your account ID to help us diagnose issues. Sentry does not receive your email, Zotero credentials, or note contents.

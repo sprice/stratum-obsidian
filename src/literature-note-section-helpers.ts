@@ -6,8 +6,10 @@ export function toCalloutBlock(
   bodyLines: string[],
 ): string {
   return [
-    `> [!${type}] ${title}`,
-    ...bodyLines.map((line) => `> ${line}`),
+    `> [!${type}] ${title.replace(/\r?\n/g, " ")}`,
+    ...bodyLines.flatMap((line) =>
+      line.split(/\r?\n/).map((part) => `> ${part}`),
+    ),
   ].join("\n");
 }
 
@@ -19,8 +21,10 @@ export function toFoldableCalloutBlock(
 ): string {
   const marker = collapsed ? "-" : "+";
   return [
-    `> [!${type}]${marker} ${title}`,
-    ...bodyLines.map((line) => `> ${line}`),
+    `> [!${type}]${marker} ${title.replace(/\r?\n/g, " ")}`,
+    ...bodyLines.flatMap((line) =>
+      line.split(/\r?\n/).map((part) => `> ${part}`),
+    ),
   ].join("\n");
 }
 

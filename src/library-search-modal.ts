@@ -79,7 +79,7 @@ export function buildLiteratureNoteEntries(
 
   for (const file of plugin.app.vault.getMarkdownFiles()) {
     const cache = plugin.app.metadataCache.getFileCache(file);
-    const fm = cache?.frontmatter as Record<string, unknown> | undefined;
+    const fm = cache?.frontmatter;
     if (!fm || fm.stratum_note_type !== "literature-note") continue;
     const title = extractTitle(fm, file.basename);
 

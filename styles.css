@@ -210,7 +210,7 @@
 .stratum-settings-panel .setting-item-control button.stratum-button-danger-subtle,
 .stratum-settings-panel .setting-item-control button.stratum-button-danger-subtle:hover,
 .stratum-settings-panel .setting-item-control button.stratum-button-danger-subtle:focus-visible {
-	color: var(--text-error) !important;
+	color: var(--text-error);
 }
 
 .stratum-settings-subaction-row {
@@ -630,47 +630,56 @@
 
 /* Highlight callout colors — match Zotero's annotation palette */
 .callout[data-callout="stratum-yellow"] {
-	--callout-color: 255, 212, 0;
+	--stratum-callout-rgb: 255, 212, 0;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-red"] {
-	--callout-color: 255, 101, 101;
+	--stratum-callout-rgb: 255, 101, 101;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-green"] {
-	--callout-color: 92, 200, 130;
+	--stratum-callout-rgb: 92, 200, 130;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-blue"] {
-	--callout-color: 45, 165, 223;
+	--stratum-callout-rgb: 45, 165, 223;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-purple"] {
-	--callout-color: 167, 118, 220;
+	--stratum-callout-rgb: 167, 118, 220;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-magenta"] {
-	--callout-color: 232, 107, 171;
+	--stratum-callout-rgb: 232, 107, 171;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-orange"] {
-	--callout-color: 255, 165, 0;
+	--stratum-callout-rgb: 255, 165, 0;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-cyan"] {
-	--callout-color: 0, 200, 200;
+	--stratum-callout-rgb: 0, 200, 200;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-gray"] {
-	--callout-color: 170, 170, 170;
+	--stratum-callout-rgb: 170, 170, 170;
+	--callout-color: var(--stratum-callout-rgb);
 	--callout-icon: lucide-highlighter;
 }
 
@@ -706,4 +715,9 @@
 .metadata-property[data-property-key="zotero_library_type"],
 .metadata-property[data-property-key="zotero_synced_at"] {
 	display: flex;
+}
+
+/* Obsidian's full-color callout API; keep RGB channels for older versions. */
+body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
+	--callout-color: rgb(var(--stratum-callout-rgb));
 }
