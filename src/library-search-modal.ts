@@ -1,3 +1,4 @@
+import { buildCitekey } from "./bibtex-format";
 import {
   readCreators,
   primaryCreators,
@@ -181,7 +182,7 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
       entry.authors.length > 0 ? entry.authors.join(", ") : null,
       entry.year,
       entry.title,
-      entry.citationKey ? `@${entry.citationKey}` : null,
+      `@${buildCitekey(entry)}`,
     ].filter(Boolean);
     return parts.join(" ");
   }
@@ -194,6 +195,10 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
     el.createDiv({
       cls: "stratum-suggestion-title",
       text: entry.title,
+    });
+    el.createDiv({
+      cls: "stratum-suggestion-citekey",
+      text: `@${buildCitekey(entry)}`,
     });
     const meta = [entry.authors.join(", "), entry.year]
       .filter(Boolean)

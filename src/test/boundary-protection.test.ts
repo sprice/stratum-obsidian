@@ -864,3 +864,26 @@ test("Zotero text containing replacement metacharacters is preserved literally",
   assert.ok(output.includes("Cost $& and $' and $`"));
   assert.equal(output.match(/Personal writing/g)?.length, 1);
 });
+
+test("deletion marking never edits warning or marker examples in personal notes", () => {
+  const warning =
+    "> [!warning] This item was removed from Zotero\n> The source item is no longer in your Zotero library. This note is preserved but will no longer receive updates.";
+  const personal = `${USER_BOUNDARY_CALLOUT}\n\n${warning}\n\n${MANAGED_START}\nExample\n${MANAGED_END}\n`;
+  for (const prefix of ["", `${MANAGED_START}\nManaged\n${MANAGED_END}\n\n`]) {
+    const output = markLiteratureNoteAsDeletedContent({
+      existingContent: prefix + personal,
+      parseYaml: () => ({}),
+      stringifyYaml: stringifyForTest,
+    });
+    assert.ok(output.includes(personal.trimEnd()));
+  }
+});
+
+test("deletion warning is inserted in CRLF managed notes", () => {
+  const output = markLiteratureNoteAsDeletedContent({
+    existingContent: `${MANAGED_START}\r\nManaged\r\n${MANAGED_END}\r\n${USER_BOUNDARY_CALLOUT}`,
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+  });
+  assert.match(output, /This item was removed from Zotero/);
+});

@@ -3,6 +3,7 @@ import test from "node:test";
 import type { LiteratureNoteEntry } from "../library-search-modal";
 import {
   buildBibtexEntry,
+  formatPandocCitation,
   escapeBibtex,
   referenceTypeToBibtex,
 } from "../bibtex-format";
@@ -341,4 +342,12 @@ test("citation keys cannot escape Pandoc citation delimiters", () => {
     assert.throws(() => resolveBibliographyCitekey("", invalid), /unsupported/);
     assert.throws(() => buildBibtexEntry(invalid), /unsupported/);
   }
+});
+
+test("Pandoc insertion preserves punctuation-heavy bibliography keys", () => {
+  assert.equal(formatPandocCitation("example2026"), "[@example2026]");
+  assert.equal(formatPandocCitation("example!"), "[@{example!}]");
+  assert.equal(formatPandocCitation("example."), "[@{example.}]");
+  assert.equal(formatPandocCitation("-example"), "[@{-example}]");
+  assert.throws(() => formatPandocCitation("invalid key"));
 });

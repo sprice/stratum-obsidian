@@ -19,6 +19,7 @@ import {
   LiteratureNoteSearchModal,
 } from "./library-search-modal";
 import { ensureBibEntry } from "./bibtex";
+import { formatPandocCitation } from "./bibtex-format";
 import { buildLiteratureNoteWikiLink } from "./literature-note-links";
 import {
   requireZoteroItemDetailForNoteSync,
@@ -215,7 +216,7 @@ export function insertPandocCitation(
     const target = getActiveEditor(plugin) ?? editor;
     void ensureBibEntry(plugin.app, entry)
       .then((citekey) => {
-        target.replaceSelection(`[@${citekey}]`);
+        target.replaceSelection(formatPandocCitation(citekey));
       })
       .catch((error: unknown) => {
         new Notice(

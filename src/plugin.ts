@@ -1,3 +1,4 @@
+import { SourcesController } from "./sources-controller";
 import {
   browseCollections,
   CollectionBrowserView,
@@ -152,7 +153,8 @@ export default class StratumPlugin extends Plugin {
   selectedLibraryResult: ZoteroSearchResult | null = null;
   isSelectedLibraryAbstractExpanded = false;
   activeNoteActionKey: string | null = null;
-  activeViewTab: "search" | "sync" | "reader" = "search";
+  sources!: SourcesController;
+  activeViewTab: "search" | "sync" | "reader" | "sources" = "search";
   readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
   librarySearchDebounceTimer: number | null = null;
@@ -250,6 +252,7 @@ export default class StratumPlugin extends Plugin {
     setSelectedSearchLibrary(this, this.selectedSearchLibrary);
     const openStratumRibbonLabel = `Open ${PLUGIN_NAME}`;
 
+    this.sources = this.addChild(new SourcesController(this));
     this.settingTab = new StratumSettingTab(this);
     this.addSettingTab(this.settingTab);
     this.registerView(VIEW_TYPE_STRATUM, (leaf) => new StratumView(leaf, this));
@@ -302,8 +305,18 @@ export default class StratumPlugin extends Plugin {
 
     this.addCommand({
       id: "insert-pandoc-citation",
-      name: "Insert pandoc citation",
+      name: "Insert citation",
       editorCallback: (editor) => insertPandocCitation(this, editor),
+    });
+
+    this.addCommand({
+      id: "show-document-sources",
+      name: "Show sources for current note",
+      callback: () => {
+        this.sources.showCurrent();
+        this.activeViewTab = "sources";
+        void this.activateView().then(() => this.refreshViews());
+      },
     });
 
     this.registerObsidianProtocolHandler(AUTH_PROTOCOL_ACTION, (params) => {

@@ -1,5 +1,6 @@
 import {
   TFile,
+  TFolder,
   htmlToMarkdown,
   normalizePath,
   parseYaml,
@@ -32,7 +33,14 @@ export async function ensureFolder(
       continue;
     }
 
-    await app.vault.createFolder(currentPath);
+    try {
+      await app.vault.createFolder(currentPath);
+    } catch (error) {
+      // Bulk workers can race to create the same parent directory. Only a
+      // successfully created folder makes that error safe to ignore.
+      if (!(app.vault.getAbstractFileByPath(currentPath) instanceof TFolder))
+        throw error;
+    }
   }
 }
 

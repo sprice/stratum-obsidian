@@ -1,3 +1,4 @@
+import { SourcesPanel, type SourcesViewState } from "./view-sources";
 import { browseCollections } from "./collection-browser";
 import {
   Component,
@@ -95,6 +96,13 @@ function getBulkSyncCompletionFadeState(
 
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
+  private sourcesPanel: SourcesPanel | null = null;
+  private sourcesState: SourcesViewState = {
+    query: "",
+    sort: "appearance",
+    expanded: new Set(),
+    scroll: 0,
+  };
   private paperSuggest: LibraryPaperInputSuggest | null = null;
   private readerSuggest: ReaderLiteratureNoteInputSuggest | null = null;
   private bulkSyncStatusFadeTimer: number | null = null;
@@ -137,6 +145,10 @@ export class StratumView extends ItemView {
   }
 
   onClose(): Promise<void> {
+    if (this.sourcesPanel) {
+      this.removeChild(this.sourcesPanel);
+      this.sourcesPanel = null;
+    }
     this.clearBulkSyncStatusTimers();
     this.clearReaderFileWatcher();
     this.clearReaderMarkdownComponent();
@@ -215,7 +227,7 @@ export class StratumView extends ItemView {
     });
   }
 
-  private setActiveTab(tab: "search" | "sync" | "reader"): void {
+  private setActiveTab(tab: "search" | "sync" | "reader" | "sources"): void {
     if (this.plugin.activeViewTab === tab) {
       return;
     }
@@ -238,7 +250,7 @@ export class StratumView extends ItemView {
     return entry?.title ?? file.basename;
   }
 
-  private focusTab(tab: "search" | "sync" | "reader"): void {
+  private focusTab(tab: "search" | "sync" | "reader" | "sources"): void {
     const tabId = `${this.tabIdPrefix}-tab-${tab}`;
     window.requestAnimationFrame(() => {
       this.contentEl.querySelector<HTMLElement>(`#${tabId}`)?.focus();
@@ -333,6 +345,10 @@ export class StratumView extends ItemView {
   }
 
   render(): void {
+    if (this.sourcesPanel) {
+      this.removeChild(this.sourcesPanel);
+      this.sourcesPanel = null;
+    }
     this.clearBulkSyncStatusTimers();
     this.paperSuggest?.close();
     this.paperSuggest = null;
@@ -352,7 +368,7 @@ export class StratumView extends ItemView {
 
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
     const browse = shell.createEl("button", {
-      text: "Browse imported papers",
+      text: "Browse literature notes",
       cls: "stratum-browse-collections",
     });
     browse.addEventListener("click", () => browseCollections(this.plugin));
@@ -361,12 +377,13 @@ export class StratumView extends ItemView {
       hasSession: this.plugin.backend.hasSession(),
     });
     const visibleTabs: Array<{
-      id: "search" | "sync" | "reader";
+      id: "search" | "sync" | "reader" | "sources";
       label: string;
     }> = [
       { id: "search", label: "Search" },
       ...(showSyncTab ? [{ id: "sync" as const, label: "Sync" }] : []),
       { id: "reader", label: "Reader" },
+      { id: "sources", label: "Sources" },
     ];
     if (!visibleTabs.some((tab) => tab.id === this.plugin.activeViewTab)) {
       this.plugin.activeViewTab = "search";
@@ -378,11 +395,13 @@ export class StratumView extends ItemView {
     for (const tab of visibleTabs) {
       const panel = tabContent.createDiv({
         cls:
-          tab.id === "reader"
-            ? "stratum-reader-tab"
-            : tab.id === "sync"
-              ? "stratum-sync-tab"
-              : "stratum-search-tab",
+          tab.id === "sources"
+            ? "stratum-sources-tab"
+            : tab.id === "reader"
+              ? "stratum-reader-tab"
+              : tab.id === "sync"
+                ? "stratum-sync-tab"
+                : "stratum-search-tab",
       });
       panel.id = `${this.tabIdPrefix}-panel-${tab.id}`;
       panel.setAttr("role", "tabpanel");
@@ -397,6 +416,10 @@ export class StratumView extends ItemView {
         this.renderSearchTab(panel);
       } else if (tab.id === "sync") {
         this.renderSyncTab(panel);
+      } else if (tab.id === "sources") {
+        this.sourcesPanel = this.addChild(
+          new SourcesPanel(panel, this.plugin.sources, this.sourcesState),
+        );
       } else {
         this.renderReaderTab(panel);
       }
@@ -405,7 +428,10 @@ export class StratumView extends ItemView {
 
   private renderTabBar(
     container: HTMLElement,
-    tabs: Array<{ id: "search" | "sync" | "reader"; label: string }>,
+    tabs: Array<{
+      id: "search" | "sync" | "reader" | "sources";
+      label: string;
+    }>,
   ): void {
     const tabBar = container.createDiv({ cls: "stratum-tab-bar" });
     tabBar.setAttr("role", "tablist");

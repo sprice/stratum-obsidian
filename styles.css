@@ -711,6 +711,7 @@
 	display: none;
 }
 
+.metadata-property[data-property-key="stratum_version"],
 .metadata-property[data-property-key="zotero_status"],
 .metadata-property[data-property-key="zotero_library_type"],
 .metadata-property[data-property-key="zotero_synced_at"] {
@@ -735,3 +736,30 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-collection-title { display: block; overflow-wrap: anywhere; margin-bottom: var(--size-4-1); }
 .stratum-collection-title:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
 .stratum-browse-collections { margin-bottom: var(--size-4-3); }
+
+/* Document sources stay compact and usable in narrow Obsidian sidebars. */
+.stratum-sources { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; min-height: 0; }
+.stratum-sources-header { display: flex; align-items: center; justify-content: space-between; }
+.stratum-sources-header h3 { margin: 0; }
+.stratum-sources-header [aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
+.stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.stratum-sources-document { width: 100%; }
+.stratum-sources-summary, .stratum-sources-meta, .stratum-sources-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
+.stratum-sources-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
+.stratum-sources-tools .search-input-container { flex: 1 1 140px; min-width: 0; }
+.stratum-sources-tools select { max-width: 100%; }
+.stratum-sources-results { flex: 1; min-height: 0; overflow-y: auto; }
+.stratum-sources-list { list-style: none; padding: 0; margin: 0; }
+.stratum-sources-list > li { padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.stratum-sources-title { border: 0; box-shadow: none; background: transparent; padding: var(--size-4-1) 0; color: var(--text-normal); font-weight: var(--font-semibold); width: 100%; }
+.stratum-sources-title:hover { color: var(--text-accent); }
+.stratum-sources-keys { display: flex; flex-wrap: wrap; gap: var(--size-4-1); margin: var(--size-4-1) 0 var(--size-4-2); }
+.stratum-sources-key { height: auto; white-space: normal; overflow-wrap: anywhere; max-width: 100%; text-align: left; font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-accent); }
+.stratum-sources-list summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-1) 0; }
+.stratum-sources-excerpt { width: 100%; margin-top: var(--size-4-2); font-size: var(--font-ui-small); }
+.stratum-sources-issue { color: var(--text-warning); font-size: var(--font-ui-small); }
+.stratum-sources button:focus-visible, .stratum-sources summary:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.stratum-suggestion-citekey { font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-muted); overflow-wrap: anywhere; }
+.stratum-tab-bar > button { padding-inline: var(--size-4-2); }
+.stratum-tab-content > [hidden] { display: none; }
+.stratum-sources-tab { height: 100%; min-height: 0; }

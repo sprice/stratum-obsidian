@@ -765,24 +765,17 @@ export async function loadLocalZoteroCollections(params: {
   const collectionMap = new Map(
     rawCollections.map((collection) => [collection.key, collection] as const),
   );
-  const displayNameCache = new Map<string, string>();
-
   const buildDisplayName = (collectionKey: string): string => {
-    const cached = displayNameCache.get(collectionKey);
-    if (cached) {
-      return cached;
+    const names: string[] = [];
+    const visited = new Set<string>();
+    let key: string | null = collectionKey;
+    while (key && !visited.has(key)) {
+      visited.add(key);
+      const collection = collectionMap.get(key);
+      names.unshift(collection?.name ?? key);
+      key = collection?.parentCollectionKey ?? null;
     }
-
-    const collection = collectionMap.get(collectionKey);
-    if (!collection) {
-      return collectionKey;
-    }
-
-    const displayName = collection.parentCollectionKey
-      ? `${buildDisplayName(collection.parentCollectionKey)} / ${collection.name}`
-      : collection.name;
-    displayNameCache.set(collectionKey, displayName);
-    return displayName;
+    return names.join(" / ");
   };
 
   return rawCollections
@@ -828,6 +821,13 @@ export async function loadLocalZoteroCatalogPage(params: {
     totalResults !== null
       ? nextStart < totalResults
       : response.data.length === params.limit;
+
+  if (hasMore && response.data.length === 0) {
+    throw new LocalZoteroApiError(
+      "Zotero returned an empty page before the catalog was complete. Run sync again.",
+      502,
+    );
+  }
 
   return {
     library: {

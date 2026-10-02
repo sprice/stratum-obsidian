@@ -276,3 +276,18 @@ test("completed sync does not describe failed items as successfully synced", () 
   assert.match(message, /1 skipped/);
   assert.doesNotMatch(message, /syncing 3 papers/);
 });
+
+test("relative sync times retain minutes, hours and days in the past", () => {
+  const now = Date.parse("2026-01-10T12:00:00Z");
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  for (const [seconds, value, unit] of [
+    [300, -5, "minute"],
+    [7200, -2, "hour"],
+    [259200, -3, "day"],
+  ] as const) {
+    assert.equal(
+      formatRelativeSyncTime(new Date(now - seconds * 1000).toISOString(), now),
+      formatter.format(value, unit),
+    );
+  }
+});
