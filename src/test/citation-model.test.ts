@@ -93,3 +93,30 @@ test("page lists and named section locators survive editing", () => {
     assert.deepEqual(parseCitation(serializeCitation(draft)), draft);
   }
 });
+
+test("narrative citations do not consume a following Markdown link", () => {
+  for (const text of [
+    "@smith2024 [a link](https://example.test)",
+    "@smith2024 [a link][ref]\n\n[ref]: https://example.test",
+    "@smith2024\n\n[another paragraph]",
+  ]) {
+    const result = citationAt(text, 3);
+    assert.equal(result?.to, "@smith2024".length);
+    assert.equal(result?.draft?.items[0].suffix, "");
+  }
+});
+
+test("brackets in code, comments and metadata cannot swallow a later citation", () => {
+  for (const prefix of [
+    "`[`",
+    "<!-- [ -->",
+    "%% [ %%",
+    "---\nvalue: '['\n---",
+    "```\n[\n```",
+  ]) {
+    const text = `${prefix}\n\n[@smith2024, p. 5]`;
+    const result = citationAt(text, text.indexOf("smith"));
+    assert.equal(result?.from, prefix.length + 2);
+    assert.equal(result?.draft?.items[0].locator, "5");
+  }
+});

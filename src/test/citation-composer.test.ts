@@ -1,3 +1,4 @@
+import type { CitationDraft } from "../citation-model";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
@@ -9,8 +10,15 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
     "closed",
     "cancelled",
     "disk-failure",
+    "draft-mutated",
+    "changed-during-write",
+    "cancelled-during-write",
+    "unloaded-during-read",
   ]) {
-    let modal: { isActive: boolean; save: () => Promise<void> } | undefined;
+    let modal:
+      | { isActive: boolean; save: () => Promise<void>; draft: CitationDraft }
+      | undefined;
+    let unload = () => {};
     class File {}
     const file = new File(),
       bib = new File();
@@ -54,7 +62,9 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
       { Error },
     );
     const plugin = {
-      register: () => {},
+      register: (callback: () => void) => {
+        unload = callback;
+      },
       app: {
         workspace: {
           activeEditor: { editor, file },
@@ -75,7 +85,10 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
             { path: "Papers/Test source.md", basename: "Test source" },
           ],
           getAbstractFileByPath: () => bib,
-          read: () => Promise.resolve(""),
+          read: () => {
+            if (scenario === "unloaded-during-read") unload();
+            return Promise.resolve("");
+          },
           process: async (
             _file: File,
             transform: (value: string) => string,
@@ -84,11 +97,19 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
             if (scenario === "disk-failure") throw new Error("Disk full");
             transform("");
             writes++;
+            if (scenario === "draft-mutated")
+              modal!.draft.items[0].locator = "99";
+            if (scenario === "changed-during-write") text += "Changed";
+            if (scenario === "cancelled-during-write") modal!.isActive = false;
           },
         },
       },
     };
     await runtime.openCitationComposer(plugin as never, editor as never);
+    if (scenario === "unloaded-during-read") {
+      assert.equal(modal, undefined);
+      continue;
+    }
     assert.ok(modal);
     // Another active editor must not steal the insertion target.
     plugin.app.workspace.activeEditor = {
@@ -98,7 +119,7 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
     if (scenario === "changed") text += "Changed";
     if (scenario === "closed") open = false;
     if (scenario === "cancelled") modal.isActive = false;
-    if (scenario === "save") {
+    if (scenario === "save" || scenario === "draft-mutated") {
       await modal.save();
       assert.equal(inserted, "[@synthetic2026, p. xiv]");
       assert.equal(text, "A claim [@synthetic2026, p. xiv].");
@@ -106,7 +127,7 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
     } else {
       await assert.rejects(modal.save());
       assert.equal(inserted, "");
-      assert.equal(writes, 0);
+      assert.equal(writes, scenario.endsWith("during-write") ? 1 : 0);
     }
   }
 });

@@ -18,13 +18,32 @@ import {
   type CitationDraft,
 } from "./citation-model";
 
-const openComposers = new WeakMap<StratumPlugin, Set<CitationComposer>>();
+interface ComposerSession {
+  active: Set<CitationComposer>;
+  disposed: boolean;
+}
+const sessions = new WeakMap<StratumPlugin, ComposerSession>();
+function composerSession(plugin: StratumPlugin): ComposerSession {
+  let session = sessions.get(plugin);
+  if (!session) {
+    session = { active: new Set(), disposed: false };
+    sessions.set(plugin, session);
+    const tracked = session;
+    plugin.register(() => {
+      tracked.disposed = true;
+      for (const composer of tracked.active) composer.close();
+    });
+  }
+  return session;
+}
 
 export async function openCitationComposer(
   plugin: StratumPlugin,
   editor: Editor,
   initial?: { entry: LiteratureNoteEntry; from: number; to: number },
 ): Promise<void> {
+  const session = composerSession(plugin);
+  if (session.disposed) return;
   const original = editor.getValue();
   const file = plugin.app.workspace.activeEditor?.file;
   const from = initial?.from ?? editor.posToOffset(editor.getCursor("from"));
@@ -54,6 +73,7 @@ export async function openCitationComposer(
   const bib = plugin.app.vault.getAbstractFileByPath("stratum.bib");
   const bibliography =
     bib instanceof TFile ? await plugin.app.vault.read(bib) : "";
+  if (session.disposed) return;
   const bindings = readBibliographyBindings(bibliography);
   const resolveKey = (entry: LiteratureNoteEntry) =>
     resolveBibliographyCitekey(bibliography, entry);
@@ -100,8 +120,14 @@ export async function openCitationComposer(
         throw new Error(
           "The original note changed or closed. Reopen the citation command to avoid replacing the wrong text.",
         );
-      serializeCitation(draft);
-      const sources = draft.items.map((item) => {
+      // UI callbacks can still fire while disk I/O is pending (including native
+      // toggles). Save precisely the draft that was confirmed, not mutable UI state.
+      const confirmed: CitationDraft = {
+        narrative: draft.narrative,
+        items: draft.items.map((item) => ({ ...item })),
+      };
+      serializeCitation(confirmed);
+      const sources = confirmed.items.map((item) => {
         const entry = selected.get(item.key);
         if (!entry) throw new Error("Select a source for every citation.");
         return entry;
@@ -112,8 +138,8 @@ export async function openCitationComposer(
           "The note changed while saving references. No citation was inserted; reopen the command.",
         );
       const output = serializeCitation({
-        ...draft,
-        items: draft.items.map((item, i) => ({ ...item, key: keys[i] })),
+        ...confirmed,
+        items: confirmed.items.map((item, i) => ({ ...item, key: keys[i] })),
       });
       editor.replaceRange(
         output,
@@ -126,17 +152,7 @@ export async function openCitationComposer(
       editor.focus();
     },
   );
-  let active = openComposers.get(plugin);
-  if (!active) {
-    active = new Set();
-    openComposers.set(plugin, active);
-    const tracked = active;
-    plugin.register(() => {
-      for (const composer of tracked) composer.close();
-    });
-  }
-  const tracked = active;
-  tracked.add(modal);
-  modal.onDismiss = () => tracked.delete(modal);
+  session.active.add(modal);
+  modal.onDismiss = () => session.active.delete(modal);
   modal.open();
 }

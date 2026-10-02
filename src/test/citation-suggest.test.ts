@@ -18,6 +18,10 @@ test("autocomplete excludes emails, code, comments, links and frontmatter", () =
   } as never);
   for (const [text, expected] of [
     ["A claim @smi", true],
+    ["[see @smi]", false],
+    ["[see @smi", false],
+    ["[@other; @smi]", false],
+    ["@smi [p. 42]", false],
     ["@", true],
     ["name@smi", false],
     ["` @smi`", false],
@@ -28,7 +32,7 @@ test("autocomplete excludes emails, code, comments, links and frontmatter", () =
     ["```\n@smi", false],
     ["    @smi", false],
   ] as const) {
-    const offset = text.indexOf("@") + (text.includes("smi") ? 4 : 1);
+    const offset = text.lastIndexOf("@") + (text.includes("smi") ? 4 : 1);
     const before = text.slice(0, offset);
     const lines = text.split("\n");
     const line = before.split("\n").length - 1;

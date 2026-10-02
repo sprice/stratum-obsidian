@@ -16,6 +16,7 @@ export class CitationComposer extends Modal {
   private preview!: HTMLElement;
   private error!: HTMLElement;
   private busy = false;
+  private picker: LiteratureNoteSearchModal | null = null;
   isActive = false;
   onDismiss: (() => void) | undefined;
   constructor(
@@ -131,46 +132,56 @@ export class CitationComposer extends Modal {
         .addButton((button) =>
           button.setButtonText("Remove").onClick(() => {
             this.draft.items.splice(index, 1);
+            if (
+              !this.draft.items.some((candidate) => candidate.key === item.key)
+            )
+              this.selected.delete(item.key);
             this.render();
           }),
         );
     });
     new Setting(el).addButton((button) =>
       button.setButtonText("Add source").onClick(() => {
-        new LiteratureNoteSearchModal(this.app, this.entries, (entry) => {
-          if (
-            this.draft.items.some(
-              (item) =>
-                this.selected.get(item.key)?.file.path === entry.file.path,
-            )
-          ) {
-            new Notice("This source is already in the citation.");
-            return;
-          }
-          let key: string;
-          try {
-            key = this.resolveKey(entry);
-          } catch (error) {
-            new Notice(
-              error instanceof Error
-                ? error.message
-                : "Cannot safely resolve this citation key.",
-            );
-            return;
-          }
-          if (
-            this.selected.has(key) &&
-            this.selected.get(key)?.file.path !== entry.file.path
-          ) {
-            new Notice(
-              "These sources share a citation key. Give them unique keys in Zotero first.",
-            );
-            return;
-          }
-          this.selected.set(key, entry);
-          this.draft.items.push(citationItem(key));
-          this.render();
-        }).open();
+        this.picker = new LiteratureNoteSearchModal(
+          this.app,
+          this.entries,
+          (entry) => {
+            if (!this.isActive || this.busy) return;
+            if (
+              this.draft.items.some(
+                (item) =>
+                  this.selected.get(item.key)?.file.path === entry.file.path,
+              )
+            ) {
+              new Notice("This source is already in the citation.");
+              return;
+            }
+            let key: string;
+            try {
+              key = this.resolveKey(entry);
+            } catch (error) {
+              new Notice(
+                error instanceof Error
+                  ? error.message
+                  : "Cannot safely resolve this citation key.",
+              );
+              return;
+            }
+            if (
+              this.selected.has(key) &&
+              this.selected.get(key)?.file.path !== entry.file.path
+            ) {
+              new Notice(
+                "These sources share a citation key. Give them unique keys in Zotero first.",
+              );
+              return;
+            }
+            this.selected.set(key, entry);
+            this.draft.items.push(citationItem(key));
+            this.render();
+          },
+        );
+        this.picker.open();
       }),
     );
     el.createEl("h3", { text: "Markdown preview" });
@@ -220,6 +231,8 @@ export class CitationComposer extends Modal {
   }
   onClose(): void {
     this.isActive = false;
+    this.picker?.close();
+    this.picker = null;
     this.onDismiss?.();
     this.contentEl.empty();
   }

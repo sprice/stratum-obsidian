@@ -13,7 +13,7 @@ import {
   type LiteratureNoteEntry,
 } from "./library-search-modal";
 import { buildCitekey } from "./bibtex-format";
-import { parseSourceOccurrences } from "./source-occurrences";
+import { citationAt } from "./citation-model";
 import { openCitationComposer } from "./citation-composer";
 
 export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
@@ -44,13 +44,14 @@ export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
       text.slice(0, offset) +
       "@stratumProbe" +
       text.slice(editor.posToOffset(cursor));
+    const candidate = citationAt(probe, offset);
+    // Only complete standalone tokens are safe to replace with a new citation.
+    // Groups (including unfinished ones) and narrative locators use the editor.
     if (
-      !parseSourceOccurrences(probe).some(
-        (o) =>
-          o.kind === "citation" &&
-          o.from === offset &&
-          o.target === "stratumProbe",
-      )
+      !candidate?.draft?.narrative ||
+      candidate.from !== offset ||
+      candidate.to !== offset + "@stratumProbe".length ||
+      candidate.draft.items[0]?.key !== "stratumProbe"
     )
       return null;
     if (!this.context) this.entries = buildLiteratureNoteEntries(this.plugin);

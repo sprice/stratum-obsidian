@@ -1,5 +1,5 @@
 import { formatPandocCitation } from "./bibtex-format";
-import { parseSourceOccurrences } from "./source-occurrences";
+import { parseSourceOccurrences, sourceProse } from "./source-occurrences";
 
 export const locatorLabels = {
   "p.": "Page",
@@ -127,22 +127,22 @@ export function citationAt(
   text: string,
   offset: number,
 ): { from: number; to: number; draft: CitationDraft | null } | null {
-  const occurrences = parseSourceOccurrences(text).filter(
-    (o) => o.kind === "citation",
-  );
+  const allOccurrences = parseSourceOccurrences(text);
+  const occurrences = allOccurrences.filter((o) => o.kind === "citation");
   // Find whole outer groups so nested/unsupported syntax never falls back to
   // editing only an inner key and leaving broken brackets around it.
+  const visible = sourceProse(text);
   let depth = 0;
   let start = -1;
   for (let i = 0; i <= text.length; i++) {
     let slashes = 0;
-    for (let j = i - 1; j >= 0 && text[j] === "\\"; j--) slashes++;
+    for (let j = i - 1; j >= 0 && visible[j] === "\\"; j--) slashes++;
     if (slashes % 2) continue;
-    if (text[i] === "[") {
+    if (visible[i] === "[") {
       if (depth++ === 0) start = i;
     }
     if (
-      (text[i] === "]" && depth > 0 && --depth === 0) ||
+      (visible[i] === "]" && depth > 0 && --depth === 0) ||
       (i === text.length && depth > 0)
     ) {
       const to = Math.min(i + 1, text.length);
@@ -163,8 +163,15 @@ export function citationAt(
     let from = occurrence.from;
     if (text[from - 1] === "-") from--;
     let to = occurrence.to;
-    const tail = /^\s+\[[^[\]\n]*\]/.exec(text.slice(to));
-    if (tail) to += tail[0].length;
+    const tail = /^[ \t]+\[[^[\]\n]*\]/.exec(text.slice(to));
+    if (
+      tail &&
+      !allOccurrences.some(
+        (o) =>
+          o.kind === "link" && o.from >= to && o.from < to + tail[0].length,
+      )
+    )
+      to += tail[0].length;
     if (offset >= from && offset <= to)
       return { from, to, draft: parseCitation(text.slice(from, to)) };
   }
