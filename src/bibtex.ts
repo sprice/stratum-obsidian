@@ -56,3 +56,36 @@ export async function refreshManagedBibEntry(
 ): Promise<void> {
   await write(app, entry, false, canWrite);
 }
+
+/** Validate the entire group before committing any bibliography changes. */
+export function ensureBibEntries(
+  app: App,
+  entries: LiteratureNoteEntry[],
+  canWrite: () => boolean,
+): Promise<string[]> {
+  const previous = pending.get(app) ?? Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      const file = app.vault.getAbstractFileByPath(BIB_FILENAME);
+      let keys: string[] = [];
+      const update = (content: string) => {
+        if (!canWrite())
+          throw new Error(
+            "The original note changed. Reopen the citation command.",
+          );
+        keys = [];
+        for (const entry of entries) {
+          keys.push(resolveBibliographyCitekey(content, entry));
+          content = updateManagedBibliography(content, entry, true);
+        }
+        return content;
+      };
+      if (file instanceof TFile) await app.vault.process(file, update);
+      else if (file) throw new Error(`${BIB_FILENAME} is not a file.`);
+      else await app.vault.create(BIB_FILENAME, update(""));
+      return keys;
+    });
+  pending.set(app, next);
+  return next;
+}

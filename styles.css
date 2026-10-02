@@ -791,3 +791,21 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-tab-bar > button { padding-inline: var(--size-4-2); }
 .stratum-tab-content > [hidden] { display: none; }
 .stratum-sources-tab { height: 100%; min-height: 0; }
+
+.stratum-citation-composer .stratum-citation-source {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: var(--size-4-3);
+  margin-block: var(--size-4-3);
+}
+.stratum-citation-preview { white-space: pre-wrap; overflow-wrap: anywhere; }
+.stratum-citation-error { color: var(--text-error); }
+.stratum-citation-source code { overflow-wrap: anywhere; }
+.stratum-citation-source h3 { margin: 0 0 var(--size-4-1); font-size: var(--font-ui-medium); }
+.stratum-citation-details summary { color: var(--text-muted); cursor: pointer; padding-block: var(--size-4-2); }
+.stratum-citation-composer .setting-item { padding-block: var(--size-4-2); }
+.stratum-citation-composer { container-type: inline-size; }
+@container (max-width: 26rem) {
+  .stratum-citation-composer .setting-item { flex-wrap: wrap; gap: var(--size-4-2); }
+  .stratum-citation-composer .setting-item-control { flex-wrap: wrap; }
+}

@@ -1,3 +1,4 @@
+import { CitationSuggest } from "./citation-suggest";
 import { SourcesController } from "./sources-controller";
 import {
   browseCollections,
@@ -303,9 +304,11 @@ export default class StratumPlugin extends Plugin {
       editorCallback: (editor) => insertLiteratureNoteLink(this, editor),
     });
 
+    this.registerEditorSuggest(new CitationSuggest(this));
+
     this.addCommand({
       id: "insert-pandoc-citation",
-      name: "Insert citation",
+      name: "Insert or edit citation",
       editorCallback: (editor) => insertPandocCitation(this, editor),
     });
 
