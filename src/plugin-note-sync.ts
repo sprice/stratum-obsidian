@@ -1,3 +1,8 @@
+import { assertSupportedZoteroItem } from "./zotero-item-support";
+import { parseYaml } from "obsidian";
+import { refreshManagedBibEntry } from "./bibtex";
+import { literatureNoteEntryFromFrontmatter } from "./library-search-modal";
+import { splitFrontmatterContent } from "./literature-note-content";
 import { ensureCollectionCatalog } from "./plugin-collection-catalog";
 import type { TFile } from "obsidian";
 import { Platform } from "obsidian";
@@ -181,6 +186,7 @@ export async function writeLiteratureNoteFromDetail(
   plugin: StratumPlugin,
   params: WriteLiteratureNoteFromDetailParams,
 ): Promise<LiteratureNoteWriteResult> {
+  assertSupportedZoteroItem(params.detail);
   // Hierarchy is optional browser metadata; its network latency must not hold
   // up writing a paper (or the rest of a bulk import).
   void ensureCollectionCatalog(plugin, params.detail);
@@ -196,6 +202,7 @@ export async function writeLiteratureNoteFromDetail(
   }
 
   const writeResult = await createOrUpdateLiteratureNote({
+    stratumVersion: plugin.manifest.version,
     app: plugin.app,
     notesFolder: plugin.settings.notesFolder,
     filenameFormat: plugin.settings.filenameFormat,
@@ -205,5 +212,21 @@ export async function writeLiteratureNoteFromDetail(
     enrichment,
   });
   plugin.rememberLiteratureNoteFile(params.detail, writeResult.file);
+  if (plugin.app.vault.getAbstractFileByPath("stratum.bib")) {
+    try {
+      const content = await plugin.app.vault.read(writeResult.file);
+      const { frontmatter } = splitFrontmatterContent(content, parseYaml);
+      await refreshManagedBibEntry(
+        plugin.app,
+        literatureNoteEntryFromFrontmatter(writeResult.file, frontmatter),
+        () => canSyncLibrary(plugin, params.detail.library),
+      );
+    } catch (error) {
+      console.error(
+        "stratum: could not refresh managed bibliography entry",
+        error,
+      );
+    }
+  }
   return writeResult;
 }

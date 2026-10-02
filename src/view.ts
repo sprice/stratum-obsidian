@@ -987,6 +987,30 @@ export class StratumView extends ItemView {
       cls: "stratum-search-section",
     });
     syncSection.createEl("h3", { text: "Bulk sync" });
+    const unsupported = scopedBulkSyncState.unsupportedItems ?? [];
+    if (unsupported.length) {
+      const report = syncSection.createEl("details");
+      report.createEl("summary", {
+        text: `${unsupported.length} unsupported Zotero items skipped`,
+      });
+      report.createEl("p", {
+        text: "These item types are not supported yet. Existing notes were left unchanged.",
+      });
+      const list = report.createEl("ul");
+      for (const item of unsupported) {
+        const row = list.createEl("li");
+        row.createSpan({
+          text: `${item.title} (${item.itemType ?? "missing type"}) — `,
+        });
+        // Construct the protocol link from the selected library and item key,
+        // rather than trusting a URL restored from plugin settings.
+        row.createEl("a", {
+          text: "Open in Zotero",
+          href: `zotero://select/${selectedSyncLibrary.type === "group" ? `groups/${encodeURIComponent(selectedSyncLibrary.id)}` : "library"}/items/${encodeURIComponent(item.itemKey)}`,
+        });
+      }
+    }
+
     syncSection.createEl("p", {
       cls: "stratum-placeholder",
       text: "Choose a local Zotero library and collection, then sync all matching papers from your local Zotero app.",

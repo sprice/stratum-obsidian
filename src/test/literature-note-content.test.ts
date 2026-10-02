@@ -187,6 +187,7 @@ test("buildLiteratureNoteContent preserves invalid frontmatter during updates", 
   ].join("\n");
 
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     existingContent,
@@ -204,6 +205,7 @@ test("buildLiteratureNoteContent preserves invalid frontmatter during updates", 
 
 test("buildLiteratureNoteContent emits native metadata and omits empty managed sections", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     parseYaml: () => ({}),
@@ -250,6 +252,7 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
 
 test("buildLiteratureNoteContent renders Zotero notes as foldable callouts", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       zoteroNotes: [
         {
@@ -283,6 +286,7 @@ test("buildLiteratureNoteContent renders Zotero notes as foldable callouts", () 
 
 test("buildLiteratureNoteContent strips OpenAlex blocks when enrichment is absent on update", () => {
   const existingContent = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     parseYaml: () => ({}),
@@ -292,6 +296,7 @@ test("buildLiteratureNoteContent strips OpenAlex blocks when enrichment is absen
   });
 
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     existingContent,
@@ -312,6 +317,7 @@ test("buildLiteratureNoteContent strips OpenAlex blocks when enrichment is absen
 
 test("buildLiteratureNoteContent preserves existing OpenAlex blocks when enrichment is explicitly deferred and DOI is unchanged", () => {
   const existingContent = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     parseYaml: () => ({}),
@@ -321,6 +327,7 @@ test("buildLiteratureNoteContent preserves existing OpenAlex blocks when enrichm
   });
 
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         title: "Updated Zotero Title",
@@ -373,6 +380,7 @@ test("buildLiteratureNoteContent normalizes legacy OpenAlex section labels when 
   ].join("\n");
 
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     existingContent,
@@ -397,6 +405,7 @@ test("buildLiteratureNoteContent normalizes legacy OpenAlex section labels when 
 
 test("buildLiteratureNoteContent clears existing OpenAlex blocks when enrichment is deferred and DOI changed", () => {
   const existingContent = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     parseYaml: () => ({}),
@@ -406,6 +415,7 @@ test("buildLiteratureNoteContent clears existing OpenAlex blocks when enrichment
   });
 
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         doi: "10.0000/different",
@@ -432,6 +442,7 @@ test("buildLiteratureNoteContent clears existing OpenAlex blocks when enrichment
 
 test("buildLiteratureNoteContent renders highlights as grouped callouts", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       annotations: [
         {
@@ -476,6 +487,7 @@ test("annotation comments preserve Markdown blocks inside the highlight callout"
   for (const comment of comments) {
     for (const newline of ["\n", "\r\n"]) {
       const output = buildLiteratureNoteContent({
+        stratumVersion: "0.2.1",
         detail: createDetail({
           annotations: [
             {
@@ -524,6 +536,7 @@ test("annotation comments preserve Markdown blocks inside the highlight callout"
 test("comment-only annotations are rendered and empty comments are omitted", () => {
   for (const comment of ["A comment without highlighted text.", null, ""]) {
     const output = buildLiteratureNoteContent({
+      stratumVersion: "0.2.1",
       detail: createDetail({
         annotations: [
           {
@@ -554,6 +567,7 @@ test("comment-only annotations are rendered and empty comments are omitted", () 
 
 test("buildLiteratureNoteContent keeps grouped highlights expanded when there are many", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       annotations: [
         {
@@ -606,6 +620,7 @@ test("buildLiteratureNoteContent keeps grouped highlights expanded when there ar
 
 test("markLiteratureNoteAsDeletedContent updates frontmatter and adds a warning", () => {
   const existingContent = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     parseYaml: () => ({}),
@@ -631,6 +646,7 @@ test("markLiteratureNoteAsDeletedContent updates frontmatter and adds a warning"
 
 test("buildLiteratureNoteContent keeps Zotero notes expanded when multiple are present", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       zoteroNotes: [
         {
@@ -678,6 +694,7 @@ test("buildLiteratureNoteContent removes stale managed frontmatter keys on updat
   ].join("\n");
 
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Managed Name",
     existingContent,
@@ -911,6 +928,7 @@ test("invalid Zotero datasets cannot crash note sync or inject link attributes",
 
 test("journal article with volume/issue/pages renders location in Details callout", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         volume: "23",
@@ -930,6 +948,7 @@ test("journal article with volume/issue/pages renders location in Details callou
 
 test("book with ISBN and no DOI shows ISBN as primary identifier in Cite callout", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         itemType: "book",
@@ -953,6 +972,7 @@ test("book with ISBN and no DOI shows ISBN as primary identifier in Cite callout
 
 test("preprint with arXiv shows arXiv as primary identifier in Cite callout", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         itemType: "preprint",
@@ -975,6 +995,7 @@ test("preprint with arXiv shows arXiv as primary identifier in Cite callout", ()
 
 test("conference paper renders type-aware venue label", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         itemType: "conferencePaper",
@@ -993,6 +1014,7 @@ test("conference paper renders type-aware venue label", () => {
 
 test("thesis renders university as type-aware venue", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         itemType: "thesis",
@@ -1011,6 +1033,7 @@ test("thesis renders university as type-aware venue", () => {
 
 test("formatted citation renders as a Citation callout", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         citation:
@@ -1029,6 +1052,7 @@ test("formatted citation renders as a Citation callout", () => {
 
 test("PMID and PMCID render as linked identifiers in Details callout", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         pmid: "12345678",
@@ -1053,6 +1077,7 @@ test("PMID and PMCID render as linked identifiers in Details callout", () => {
 
 test("new frontmatter fields are emitted when present", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         volume: "10",
@@ -1088,6 +1113,7 @@ test("new frontmatter fields are emitted when present", () => {
 
 test("group-backed notes emit group library metadata in frontmatter", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       library: {
         type: "group",
@@ -1113,6 +1139,7 @@ test("group-backed notes emit group library metadata in frontmatter", () => {
 
 test("expanded aliases include @citationKey and shortTitle", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         citationKey: "bleidorn2019",
@@ -1131,6 +1158,7 @@ test("expanded aliases include @citationKey and shortTitle", () => {
 
 test("Details callout is omitted when all detail fields are null", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         collections: [],
@@ -1150,6 +1178,7 @@ test("sync replaces collection keys, records unfiled membership, and preserves M
   const existing = `---\n{}\n---\n<!-- stratum:managed:start -->\nOld generated content\n<!-- stratum:managed:end -->\n\n> [!stratum]- My Notes\n\nMy personal argument with [[Other note]].\n`;
   for (const collections of [[], [{ key: "NEW", name: "Culture" }]]) {
     const output = buildLiteratureNoteContent({
+      stratumVersion: "0.2.1",
       detail: createDetail({ item: { collections } }),
       filenameStem: null,
       existingContent: existing,
@@ -1166,4 +1195,30 @@ test("sync replaces collection keys, records unfiled membership, and preserves M
     assert.doesNotMatch(output, /zotero_collection_keys: \[OLD\]/);
     assert.ok(output.endsWith("My personal argument with [[Other note]].\n"));
   }
+});
+
+test("note frontmatter records and replaces the importing plugin version", () => {
+  const params = {
+    detail: createDetail(),
+    filenameStem: "Managed Name",
+    parseYaml: JSON.parse,
+    stringifyYaml: JSON.stringify,
+    htmlToMarkdown: (html: string) => html,
+  };
+  const initial = buildLiteratureNoteContent({
+    ...params,
+    stratumVersion: "0.2.1",
+  });
+  const readFrontmatter = (content: string) =>
+    JSON.parse(content.split("---")[1]) as Record<string, unknown>;
+  assert.equal(readFrontmatter(initial).stratum_version, "0.2.1");
+  const existingContent = initial + "\nMy personal notes.\n";
+  const refreshed = buildLiteratureNoteContent({
+    ...params,
+    stratumVersion: "0.3.0",
+    existingContent,
+  });
+  assert.equal(readFrontmatter(refreshed).stratum_version, "0.3.0");
+  assert.equal(readFrontmatter(refreshed).zotero_item_version, 12);
+  assert.match(refreshed, /My personal notes\./);
 });

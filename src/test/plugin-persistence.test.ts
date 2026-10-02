@@ -196,3 +196,27 @@ test("loadPluginSettings clears stale pendingAuth state", async () => {
   const persisted = savedValues[0] as Record<string, unknown>;
   assert.equal(persisted.pendingAuth, null);
 });
+
+test("unsupported item reports survive settings reload and discard malformed entries", async () => {
+  const item = { itemKey: "NEW", title: "Future item", itemType: "futureType" };
+  const plugin = {
+    loadData: () =>
+      Promise.resolve({
+        enabledLibraries: [
+          { type: "user", id: "1", name: "My Library", identity: "user:1" },
+        ],
+        libraryBulkSync: {
+          "user:1": { unsupportedItems: [item, null, { title: "broken" }] },
+        },
+      }),
+    saveData: async () => {},
+    app: { secretStorage: { getSecret: () => null, setSecret: () => {} } },
+    settings: undefined as
+      import("../settings-data").StratumSettings | undefined,
+  };
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(
+    plugin.settings?.libraryBulkSync["user:1"].unsupportedItems,
+    [item],
+  );
+});

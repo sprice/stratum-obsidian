@@ -22,7 +22,11 @@ const detail = normalizeZoteroItemDetail({
     identity: "user:1",
     zoteroUriSegment: "library",
   },
-  parentItem: { key: "ABCD1234", version: 2, data: { title: "Paper" } },
+  parentItem: {
+    key: "ABCD1234",
+    version: 2,
+    data: { title: "Paper", itemType: "document" },
+  },
   childItems: [],
   collections: [],
 });
@@ -117,6 +121,7 @@ test("sync preserves user edits made after the initial read", async () => {
     fixture.current += "New user edit\n";
   };
   await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
     app: fixture.app,
     existingFile: fixture.file,
     detail,
@@ -135,6 +140,7 @@ test("a stale file lookup cannot overwrite a different or ordinary note", async 
     const fixture = vaultFixture(content(fm));
     await assert.rejects(
       note.createOrUpdateLiteratureNote({
+        stratumVersion: "0.2.1",
         app: fixture.app,
         existingFile: fixture.file,
         detail,
@@ -154,6 +160,7 @@ test("identity is checked again inside the atomic update", async () => {
   };
   await assert.rejects(
     note.createOrUpdateLiteratureNote({
+      stratumVersion: "0.2.1",
       app: fixture.app,
       existingFile: fixture.file,
       detail,
@@ -197,6 +204,7 @@ test("a stale cached file path is discarded and repaired by identity", () => {
   const correct = new FakeFile();
   correct.path = "Literature Notes/correct.md";
   const plugin = {
+    manifest: { version: "0.2.1" },
     settings: {
       notesFolder: "Literature Notes",
       itemFileMap: { "user/1/ABCD1234": { filePath: stale.path } },
@@ -232,6 +240,7 @@ test("an unloaded plugin cannot write while its atomic update is queued", async 
   };
   await assert.rejects(
     note.createOrUpdateLiteratureNote({
+      stratumVersion: "0.2.1",
       app: fixture.app,
       existingFile: fixture.file,
       detail,
@@ -247,6 +256,7 @@ test("an unloaded plugin cannot write while its atomic update is queued", async 
 test("CRLF frontmatter remains recognized and user content survives updates", async () => {
   const fixture = vaultFixture(content(frontmatter).replace(/\n/g, "\r\n"));
   await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
     app: fixture.app,
     existingFile: fixture.file,
     detail,
@@ -271,6 +281,7 @@ test("renaming a note during refresh does not leave sync permanently marked as r
     },
   });
   const plugin = {
+    manifest: { version: "0.2.1" },
     settings: {
       notesFolder: "Literature Notes",
       filenameFormat: "readable",
@@ -295,3 +306,80 @@ test("renaming a note during refresh does not leave sync permanently marked as r
   assert.equal(plugin.noteRefreshPromises.size, 0);
   assert.equal(fixture.writes, 1);
 });
+
+test("metadata corrections preserve existing managed paths, aliases and personal content", async () => {
+  const fixture = vaultFixture(
+    content(
+      {
+        ...frontmatter,
+        stratum_filename_stem: "custom",
+        aliases: ["Canada n.d.", "Personal alias"],
+        stratum_managed_aliases: ["Canada n.d."],
+        custom_property: "keep me",
+      },
+      "My original notes\n[[Another note]] ^my-block",
+    ),
+  );
+  const corrected = {
+    ...detail,
+    item: { ...detail.item, title: "Correct title", year: "1997" },
+  };
+  const result = await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
+    app: fixture.app,
+    existingFile: fixture.file,
+    detail: corrected,
+    filenameFormat: "readable",
+    notesFolder: "Literature Notes",
+  });
+  assert.equal(result.file.path, "Literature Notes/custom.md");
+  assert.match(fixture.current, /Canada n.d./);
+  assert.match(fixture.current, /Personal alias/);
+  assert.match(fixture.current, /"custom_property":"keep me"/);
+  assert.match(fixture.current, /"zotero_title":"Correct title"/);
+  assert.ok(
+    fixture.current.includes("My original notes\n[[Another note]] ^my-block"),
+  );
+});
+
+for (const itemType of [
+  "futureType",
+  null,
+  "attachment",
+  "note",
+  "annotation",
+]) {
+  test(`unsupported ${itemType} cannot create or change an existing note`, async () => {
+    const unsupported = { ...detail, item: { ...detail.item, itemType } };
+    for (const existing of [true, false]) {
+      const fixture = vaultFixture();
+      const original = fixture.current;
+      await assert.rejects(
+        note.createOrUpdateLiteratureNote({
+          stratumVersion: "0.2.1",
+          app: fixture.app,
+          existingFile: existing ? fixture.file : null,
+          detail: unsupported,
+          filenameFormat: "readable",
+          notesFolder: "Literature Notes",
+        }),
+        /not supported/,
+      );
+      assert.equal(fixture.writes, 0);
+      assert.equal(fixture.current, original);
+    }
+    const sync = loadRuntime<typeof import("../plugin-note-sync")>(
+      "plugin-note-sync.ts",
+      host,
+    );
+    // Empty plugin deliberately fails if anything is accessed before the guard.
+    await assert.rejects(
+      sync.writeLiteratureNoteFromDetail({} as never, {
+        detail: unsupported,
+        existingFile: null,
+        enrichmentMode: "load",
+      }),
+      /not supported/,
+    );
+  });
+}

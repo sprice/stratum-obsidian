@@ -1,3 +1,8 @@
+import {
+  normalizeZoteroMetadata,
+  resolveZoteroFields,
+  type ZoteroCreator,
+} from "./zotero-schema.ts";
 export interface ZoteroItemDetail {
   zoteroUserId: string;
   library: {
@@ -12,6 +17,8 @@ export interface ZoteroItemDetail {
     version: number;
     title: string;
     creators: string[];
+    creatorDetails?: ZoteroCreator[];
+    sourceFields?: Record<string, string>;
     year: string | null;
     date: string | null;
     itemType: string | null;
@@ -87,6 +94,7 @@ export interface ZoteroItemDetail {
 }
 
 export type RawZoteroCreator = {
+  creatorType?: string;
   firstName?: string;
   lastName?: string;
   name?: string;
@@ -97,6 +105,7 @@ export type RawZoteroTag = {
 };
 
 export type RawZoteroItemData = {
+  [field: string]: unknown;
   itemType?: string;
   parentItem?: string;
   title?: string;
@@ -196,27 +205,6 @@ function buildOpenPdfUri(
   }
 
   return url.toString();
-}
-
-function formatCreators(creators: RawZoteroCreator[] | undefined): string[] {
-  return (creators ?? [])
-    .map((creator) => {
-      if (creator.name) {
-        return creator.name;
-      }
-
-      return [creator.firstName, creator.lastName].filter(Boolean).join(" ");
-    })
-    .filter((creator) => creator.length > 0);
-}
-
-function extractYear(date: string | undefined): string | null {
-  if (!date) {
-    return null;
-  }
-
-  const match = date.match(/\b\d{4}\b/);
-  return match?.[0] ?? null;
 }
 
 function formatTags(tags: RawZoteroTag[] | undefined): string[] {
@@ -365,7 +353,10 @@ export function normalizeZoteroItemDetail(params: {
   const annotationItems =
     params.annotationItems ??
     params.childItems.filter((child) => child.data.itemType === "annotation");
-  const extraIds = parseExtraIdentifiers(params.parentItem.data.extra);
+  const raw = params.parentItem.data;
+  const data = { ...raw, ...resolveZoteroFields(raw) };
+  const metadata = normalizeZoteroMetadata(raw);
+  const extraIds = parseExtraIdentifiers(data.extra);
 
   return {
     zoteroUserId: params.zoteroUserId,
@@ -373,48 +364,41 @@ export function normalizeZoteroItemDetail(params: {
     item: {
       key: params.parentItem.key,
       version: params.parentItem.version,
-      title: params.parentItem.data.title ?? "Untitled",
-      creators: formatCreators(params.parentItem.data.creators),
-      year: extractYear(params.parentItem.data.date),
-      date: params.parentItem.data.date ?? null,
-      itemType: params.parentItem.data.itemType ?? null,
-      abstract: params.parentItem.data.abstractNote ?? null,
-      doi: normalizeDoi(params.parentItem.data.DOI),
-      url: params.parentItem.data.url ?? null,
-      publicationTitle: params.parentItem.data.publicationTitle ?? null,
+      ...metadata,
+      abstract: data.abstractNote ?? null,
+      doi: normalizeDoi(data.DOI),
+      url: data.url ?? null,
+      publicationTitle: data.publicationTitle ?? null,
       collections: params.collections,
-      tags: formatTags(params.parentItem.data.tags),
+      tags: formatTags(data.tags),
       zoteroSelectUri: buildSelectUri(params.library, params.parentItem.key),
-      isbn: params.parentItem.data.ISBN ?? null,
-      issn: params.parentItem.data.ISSN ?? null,
-      volume: params.parentItem.data.volume ?? null,
-      issue: params.parentItem.data.issue ?? null,
-      pages: params.parentItem.data.pages ?? null,
-      publisher: params.parentItem.data.publisher ?? null,
-      place: params.parentItem.data.place ?? null,
-      language: params.parentItem.data.language ?? null,
-      shortTitle: params.parentItem.data.shortTitle ?? null,
-      citationKey:
-        params.parentItem.data.citationKey ?? extraIds.citationKey ?? null,
-      edition: params.parentItem.data.edition ?? null,
-      numPages: params.parentItem.data.numPages ?? null,
-      series: params.parentItem.data.series ?? null,
-      seriesTitle: params.parentItem.data.seriesTitle ?? null,
-      seriesNumber: params.parentItem.data.seriesNumber ?? null,
-      journalAbbreviation: params.parentItem.data.journalAbbreviation ?? null,
-      conferenceName: params.parentItem.data.conferenceName ?? null,
-      university: params.parentItem.data.university ?? null,
-      bookTitle: params.parentItem.data.bookTitle ?? null,
-      reportNumber: params.parentItem.data.reportNumber ?? null,
-      reportType: params.parentItem.data.reportType ?? null,
-      thesisType: params.parentItem.data.thesisType ?? null,
+      isbn: data.ISBN ?? null,
+      issn: data.ISSN ?? null,
+      volume: data.volume ?? null,
+      issue: data.issue ?? null,
+      pages: data.pages ?? null,
+      publisher: data.publisher ?? null,
+      place: data.place ?? null,
+      language: data.language ?? null,
+      shortTitle: data.shortTitle ?? null,
+      citationKey: data.citationKey?.trim() || extraIds.citationKey || null,
+      edition: data.edition ?? null,
+      numPages: data.numPages ?? null,
+      series: data.series ?? null,
+      seriesTitle: data.seriesTitle ?? null,
+      seriesNumber: data.seriesNumber ?? null,
+      journalAbbreviation: data.journalAbbreviation ?? null,
+      conferenceName: data.conferenceName ?? null,
+      university: data.university ?? null,
+      bookTitle: data.bookTitle ?? null,
+      reportNumber: data.reportNumber ?? null,
+      reportType: data.reportType ?? null,
+      thesisType: data.thesisType ?? null,
       pmid: extraIds.pmid,
       pmcid: extraIds.pmcid,
-      arxivId:
-        extraIds.arxivId ??
-        extractArxivFromArchiveId(params.parentItem.data.archiveID),
-      dateAdded: params.parentItem.data.dateAdded ?? null,
-      dateModified: params.parentItem.data.dateModified ?? null,
+      arxivId: extraIds.arxivId ?? extractArxivFromArchiveId(data.archiveID),
+      dateAdded: data.dateAdded ?? null,
+      dateModified: data.dateModified ?? null,
       citation: stripCitationHtml(params.parentItem.bib),
     },
     attachments: attachments.map((attachment) => ({

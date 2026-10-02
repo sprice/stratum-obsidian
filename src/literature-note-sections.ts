@@ -1,3 +1,4 @@
+import { creatorName } from "./zotero-schema";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { normalizeDoi } from "./doi";
 import { preprocessZoteroNoteHtml } from "./literature-note-content-html";
@@ -105,7 +106,14 @@ function formatPageRange(pages: string): string {
 function renderCiteCallout(detail: ZoteroItemDetail): string {
   const sourceUrl = buildSourceUrl(detail);
   const referenceLines = [
-    `**Authors**: ${detail.item.creators.length > 0 ? renderWikiList(detail.item.creators) : "_Unknown_"}`,
+    ...(detail.item.creatorDetails
+      ? [...new Set(detail.item.creatorDetails.map((c) => c.creatorType))].map(
+          (role) =>
+            `**${humanizeItemType(role)}**: ${renderWikiList(detail.item.creatorDetails!.filter((c) => c.creatorType === role).map(creatorName))}`,
+        )
+      : [
+          `**Authors**: ${detail.item.creators.length > 0 ? renderWikiList(detail.item.creators) : "_Unknown_"}`,
+        ]),
     `**Year**: ${detail.item.year ?? "_Unknown_"}`,
     `**Type**: ${humanizeItemType(detail.item.itemType) ?? "_Unknown_"}`,
     renderVenueLine(detail),
@@ -145,6 +153,34 @@ function renderDetailsCallout(detail: ZoteroItemDetail): string | null {
   const lines: string[] = [];
   const doi = normalizeDoi(detail.item.doi);
 
+  for (const key of [
+    "court",
+    "docketNumber",
+    "reporter",
+    "reportType",
+    "thesisType",
+    "patentNumber",
+    "assignee",
+    "legalStatus",
+    "nameOfAct",
+    "code",
+    "section",
+    "websiteType",
+    "postType",
+    "type",
+    "versionNumber",
+    "system",
+    "runningTime",
+    "audioRecordingFormat",
+    "videoRecordingFormat",
+    "artworkMedium",
+    "artworkSize",
+    "presentationType",
+    "meetingName",
+  ]) {
+    const value = detail.item.sourceFields?.[key];
+    if (value) lines.push(`**${humanizeItemType(key)}**: ${value}`);
+  }
   const locationParts: string[] = [];
   if (detail.item.volume) locationParts.push(`Vol. ${detail.item.volume}`);
   if (detail.item.issue) locationParts.push(`No. ${detail.item.issue}`);

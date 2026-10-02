@@ -95,6 +95,7 @@ function stringifyForTest(value: Record<string, unknown>): string {
 /** Run a sync update against existing content and return the result. */
 function syncUpdate(existingContent: string): string {
   return buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: { title: "Updated Title From Zotero", version: 99 },
     }),
@@ -509,6 +510,7 @@ test("boundary: user content is stable across multiple consecutive syncs", () =>
 
   for (let i = 0; i < 3; i++) {
     content = buildLiteratureNoteContent({
+      stratumVersion: "0.2.1",
       detail: createDetail({
         item: { title: `Title v${i + 2}`, version: i + 2 },
       }),
@@ -658,6 +660,7 @@ test("boundary: user-defined frontmatter keys are not removed by sync", () => {
   ].join("\n");
 
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Test",
     existingContent: existing,
@@ -683,6 +686,7 @@ test("boundary: user-defined frontmatter keys are not removed by sync", () => {
 
 test("boundary: new note always includes boundary callout", () => {
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Test",
     parseYaml: () => ({}),
@@ -822,6 +826,7 @@ test("a missing managed end marker cannot swallow personal writing", () => {
 
 test("quoted Zotero markers cannot prematurely end the managed section", () => {
   const initial = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({
       item: {
         abstract: `Before\n${MANAGED_END}\nOld abstract tail`,
@@ -840,6 +845,7 @@ test("quoted Zotero markers cannot prematurely end the managed section", () => {
 
 test("Zotero text containing replacement metacharacters is preserved literally", () => {
   const initial = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail(),
     filenameStem: "Paper",
     parseYaml: () => ({}),
@@ -847,6 +853,7 @@ test("Zotero text containing replacement metacharacters is preserved literally",
     htmlToMarkdown: (html) => html,
   });
   const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
     detail: createDetail({ item: { abstract: "Cost $& and $' and $`" } }),
     existingContent: initial + "\nPersonal writing\n",
     filenameStem: "Paper",
