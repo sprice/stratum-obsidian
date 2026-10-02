@@ -63,7 +63,9 @@ BibTeX equivalent use `misc`; unknown thesis degrees are not guessed.
 
 New entries carry a Stratum ownership marker and an encoded generated baseline.
 Sync refreshes only entries whose bodies still match that baseline and preserves
-their citation keys. Manually edited entries, unrelated entries and old unmarked
+their citation keys. Citation insertion reuses the established key even when
+Zotero metadata changes. Ambiguous collisions with unmarked entries are reported
+instead of silently citing an unverified work. Manually edited entries, unrelated entries and old unmarked
 entries are left untouched. Legacy entries cannot safely be auto-adopted because
 there is no evidence that the user has not edited them. Refresh never creates a
 bibliography by itself; inserting a citation does.

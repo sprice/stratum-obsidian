@@ -36,10 +36,12 @@ export interface LiteratureNoteEntry {
 }
 
 function stripWikiLink(value: string): string {
-  return value
-    .replace(/^\[\[/, "")
-    .replace(/]]$/, "")
-    .replace(/\|.*$/, "")
+  const text = value.trim();
+  if (!text.startsWith("[[") || !text.endsWith("]]")) return text;
+  return text
+    .slice(2, -2)
+    .split(/(?<!\\)\|/, 1)[0]
+    .replace(/\\([|\]])/g, "$1")
     .trim();
 }
 

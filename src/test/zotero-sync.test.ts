@@ -260,3 +260,19 @@ test("completion explicitly reports unsupported items instead of calling them im
   assert.match(message, /1 skipped/);
   assert.match(message, /Sync panel/);
 });
+
+test("completed sync does not describe failed items as successfully synced", () => {
+  const message = formatBulkLibrarySyncCompletionMessage({
+    state: {
+      ...DEFAULT_BULK_SYNC_STATE,
+      processedCount: 3,
+      failedCount: 1,
+      unsupportedItems: [
+        { itemKey: "NEW", title: "Future", itemType: "futureType" },
+      ],
+    },
+  });
+  assert.match(message, /1 failed/);
+  assert.match(message, /1 skipped/);
+  assert.doesNotMatch(message, /syncing 3 papers/);
+});

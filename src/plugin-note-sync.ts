@@ -218,6 +218,7 @@ export async function writeLiteratureNoteFromDetail(
       await refreshManagedBibEntry(
         plugin.app,
         literatureNoteEntryFromFrontmatter(writeResult.file, frontmatter),
+        () => canSyncLibrary(plugin, params.detail.library),
       );
     } catch (error) {
       console.error(

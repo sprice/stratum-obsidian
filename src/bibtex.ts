@@ -1,7 +1,10 @@
 import { TFile, type App } from "obsidian";
 import type { LiteratureNoteEntry } from "./library-search-modal";
 import { buildCitekey } from "./bibtex-format";
-import { updateManagedBibliography } from "./bibtex-managed";
+import {
+  resolveBibliographyCitekey,
+  updateManagedBibliography,
+} from "./bibtex-managed";
 export { buildCitekey } from "./bibtex-format";
 const BIB_FILENAME = "stratum.bib";
 
@@ -12,16 +15,21 @@ function write(
   app: App,
   entry: LiteratureNoteEntry,
   append: boolean,
-): Promise<void> {
+  canWrite: () => boolean = () => true,
+): Promise<string> {
   const previous = pending.get(app) ?? Promise.resolve();
   const next = previous
     .catch(() => {})
     .then(async () => {
+      let citekey = buildCitekey(entry);
+      if (!canWrite()) return citekey;
       const file = app.vault.getAbstractFileByPath(BIB_FILENAME);
       if (file instanceof TFile) {
-        await app.vault.process(file, (content) =>
-          updateManagedBibliography(content, entry, append),
-        );
+        await app.vault.process(file, (content) => {
+          if (!canWrite()) return content;
+          if (append) citekey = resolveBibliographyCitekey(content, entry);
+          return updateManagedBibliography(content, entry, append);
+        });
       } else if (file) {
         throw new Error(`${BIB_FILENAME} is not a file.`);
       } else if (append) {
@@ -30,6 +38,7 @@ function write(
           updateManagedBibliography("", entry, true),
         );
       }
+      return citekey;
     });
   pending.set(app, next);
   return next;
@@ -38,12 +47,12 @@ export async function ensureBibEntry(
   app: App,
   entry: LiteratureNoteEntry,
 ): Promise<string> {
-  await write(app, entry, true);
-  return buildCitekey(entry);
+  return write(app, entry, true);
 }
-export function refreshManagedBibEntry(
+export async function refreshManagedBibEntry(
   app: App,
   entry: LiteratureNoteEntry,
+  canWrite?: () => boolean,
 ): Promise<void> {
-  return write(app, entry, false);
+  await write(app, entry, false, canWrite);
 }

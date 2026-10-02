@@ -44,7 +44,9 @@ export function referenceTypeToBibtex(entry: LiteratureNoteEntry): string {
       : /master/i.test(entry.sourceFields?.thesisType ?? "")
         ? "mastersthesis"
         : "misc";
-  return types[type] ?? "misc";
+  return Object.prototype.hasOwnProperty.call(types, type)
+    ? types[type]
+    : "misc";
 }
 export function buildCitekey(entry: LiteratureNoteEntry): string {
   if (entry.citationKey) return entry.citationKey;
@@ -59,12 +61,19 @@ export function buildCitekey(entry: LiteratureNoteEntry): string {
       .replace(/[^a-z]/g, "") || "unknown"
   }${entry.year ?? ""}`;
 }
+export function assertValidCitationKey(citekey: string): void {
+  // The same key is emitted into both BibTeX and Pandoc [@key] syntax.
+  if (!/^[^\s{},()=\\%#"[\];@]+$/.test(citekey))
+    throw new Error(
+      "Citation key contains unsupported BibTeX or Pandoc characters.",
+    );
+}
+
 export function buildBibtexEntry(
   entry: LiteratureNoteEntry,
   citekey = buildCitekey(entry),
 ): string {
-  if (!/^[^\s{},()=\\%#"]+$/.test(citekey))
-    throw new Error("Citation key contains unsupported BibTeX characters.");
+  assertValidCitationKey(citekey);
   const type = referenceTypeToBibtex(entry);
   const fields: string[] = [];
   const add = (key: string, value: string | null | undefined) => {

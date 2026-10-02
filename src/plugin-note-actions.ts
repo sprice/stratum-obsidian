@@ -18,7 +18,7 @@ import {
   buildLiteratureNoteEntries,
   LiteratureNoteSearchModal,
 } from "./library-search-modal";
-import { buildCitekey, ensureBibEntry } from "./bibtex";
+import { ensureBibEntry } from "./bibtex";
 import { buildLiteratureNoteWikiLink } from "./literature-note-links";
 import {
   requireZoteroItemDetailForNoteSync,
@@ -213,9 +213,14 @@ export function insertPandocCitation(
 
   new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
     const target = getActiveEditor(plugin) ?? editor;
-    const citekey = buildCitekey(entry);
-    void ensureBibEntry(plugin.app, entry).then(() => {
-      target.replaceSelection(`[@${citekey}]`);
-    });
+    void ensureBibEntry(plugin.app, entry)
+      .then((citekey) => {
+        target.replaceSelection(`[@${citekey}]`);
+      })
+      .catch((error: unknown) => {
+        new Notice(
+          `${PLUGIN_NAME}: ${error instanceof Error ? error.message : "Could not save the bibliography entry."}`,
+        );
+      });
   }).open();
 }
