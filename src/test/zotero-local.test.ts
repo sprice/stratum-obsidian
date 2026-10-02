@@ -381,7 +381,7 @@ test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations vi
           },
         },
       },
-    "http://127.0.0.1:23119/api/users/19946899/items/PARENT/children?format=json&limit=500":
+    "http://127.0.0.1:23119/api/users/19946899/items/PARENT/children?format=json&limit=100&start=0":
       {
         status: 200,
         json: [
@@ -499,4 +499,45 @@ test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations vi
         "zotero://open-pdf/library/items/ATTACH1?page=7&annotation=ANN_COMMENT",
     },
   ]);
+});
+
+test("local item loading includes every child beyond the first page", async () => {
+  const children = Array.from({ length: 501 }, (_, index) => ({
+    key: `NOTE${index}`,
+    version: 1,
+    data: {
+      itemType: "note",
+      parentItem: "PARENT",
+      note: `<p>Note ${index}</p>`,
+    },
+  }));
+  const starts: number[] = [];
+  const detail = await loadLocalZoteroItemDetail({
+    port: 23119,
+    userId: "1",
+    library: buildPersonalLibrary("1"),
+    itemKey: "PARENT",
+    request: ({ url }) => {
+      const parsed = new URL(url);
+      let json: unknown;
+      if (parsed.pathname.endsWith("/children")) {
+        const start = Number(parsed.searchParams.get("start"));
+        starts.push(start);
+        json = children.slice(
+          start,
+          start + Number(parsed.searchParams.get("limit")),
+        );
+      } else {
+        json = { key: "PARENT", version: 1, data: { title: "Paper" } };
+      }
+      return Promise.resolve({
+        status: 200,
+        headers: {},
+        json,
+        text: JSON.stringify(json),
+      });
+    },
+  });
+  assert.equal(detail.zoteroNotes.length, 501);
+  assert.deepEqual(starts, [0, 100, 200, 300, 400, 500]);
 });

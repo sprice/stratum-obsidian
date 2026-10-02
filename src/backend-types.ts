@@ -170,9 +170,7 @@ export interface OpenAlexEnrichment {
 }
 
 export type OpenAlexEnrichmentStatus =
-  | "enriched"
-  | "not_found"
-  | "temporary_failure";
+  "enriched" | "not_found" | "temporary_failure";
 
 export interface OpenAlexEnrichmentBatchResult {
   doi: string;

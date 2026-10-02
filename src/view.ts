@@ -1207,7 +1207,7 @@ export class StratumView extends ItemView {
     });
 
     const title = this.getReaderTitle(readerFile, entries);
-    const titleEl = header.createEl("div", {
+    const titleEl = header.createDiv({
       cls: "stratum-reader-title",
       text: title,
     });

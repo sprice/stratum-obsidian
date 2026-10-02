@@ -7,11 +7,7 @@ import type {
 export const PENDING_AUTH_MAX_AGE_MS = 1000 * 60 * 60;
 
 export type PendingAuthMatchStatus =
-  | "missing_handoff"
-  | "missing_pending_auth"
-  | "mismatch"
-  | "stale"
-  | "matched";
+  "missing_handoff" | "missing_pending_auth" | "mismatch" | "stale" | "matched";
 
 export function createPendingAuth(params: {
   code: string;

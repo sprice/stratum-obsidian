@@ -23,6 +23,7 @@ import {
   loadLocalZoteroCatalogPage,
 } from "./zotero-local";
 import {
+  canSyncLibrary,
   loadLocalZoteroItemDetailForPlugin,
   resolveLocalZoteroUserId,
   writeLiteratureNoteFromDetail,
@@ -269,7 +270,7 @@ async function processCatalogPage(
 
   const workers = Array.from({ length: workerCount }, async () => {
     while (true) {
-      if (fatalError) {
+      if (fatalError || !canSyncLibrary(plugin, library)) {
         return;
       }
 
@@ -366,6 +367,8 @@ async function retryFailedCatalogItems(
 
   setBulkLibrarySyncPageProgress(plugin, 0, failedItemKeys.length);
   for (let index = 0; index < failedItemKeys.length; index += 1) {
+    if (!canSyncLibrary(plugin, library))
+      throw new Error("Bulk sync was cancelled.");
     const itemKey = failedItemKeys[index];
     try {
       const synced = await syncCatalogItem(plugin, library, itemKey);
@@ -461,6 +464,8 @@ async function runEnrichmentPass(
   }
 
   for (const note of touchedNotes) {
+    if (!canSyncLibrary(plugin, library))
+      throw new Error("Bulk sync was cancelled.");
     let enrichmentKey = getNormalizedDoiLookupKey(note.doi);
     try {
       plugin.localZoteroUserId = userId;
@@ -562,6 +567,7 @@ export async function runBulkLibrarySync(
 
   const runPromise = (async () => {
     try {
+      if (!canSyncLibrary(plugin, library)) return;
       if (plugin.isZoteroAutoSyncRunning()) {
         new Notice(
           `${PLUGIN_NAME}: Wait for the current Zotero sync to finish first.`,
@@ -630,6 +636,8 @@ export async function runBulkLibrarySync(
       );
 
       while (true) {
+        if (!canSyncLibrary(plugin, library))
+          throw new Error("Bulk sync was cancelled.");
         plugin.bulkLibrarySyncStage = "catalog";
         const state = getLibraryBulkSyncState(plugin, library);
         const page = await loadLocalZoteroCatalogPage({
@@ -646,6 +654,8 @@ export async function runBulkLibrarySync(
           library,
           pageResult.failedItemKeys,
         );
+        if (!canSyncLibrary(plugin, library))
+          throw new Error("Bulk sync was cancelled.");
         const batchResult = mergeCatalogResults(pageResult, retryResult);
 
         log("bulk-sync", "starting enrichment batch", {
@@ -696,6 +706,7 @@ export async function runBulkLibrarySync(
         }),
       );
     } catch (error) {
+      if (!canSyncLibrary(plugin, library)) return;
       const state = getLibraryBulkSyncState(plugin, library);
       state.phase = "paused-error";
       state.lastError =

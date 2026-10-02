@@ -458,11 +458,98 @@ test("buildLiteratureNoteContent renders highlights as grouped callouts", () => 
   assert.match(output, /> \[!stratum-yellow\]\+ Yellow · 1 highlight/);
   assert.match(output, /> \*\*Page 4\*\* · highlight/);
   assert.match(output, /> A useful highlighted sentence\./);
-  assert.doesNotMatch(output, /> Comment: This matters\./);
+  assert.ok(output.includes("> **Comment**:\n> \n> This matters."));
   assert.match(
     output,
     /> \[Open annotation in Zotero\]\(zotero:\/\/open-pdf\/library\/items\/ATTACH1\?page=4&annotation=ANNOT1\)/,
   );
+});
+
+test("annotation comments preserve Markdown blocks inside the highlight callout", () => {
+  const comments = [
+    // Reproduces the annotation in GitHub issue #1, including its blank lines.
+    "In essence, the author makes the following claim:\n\n- foo:bar,\n- another bullet, and\n- the third one\n\nWhich will break the Obsidian note's rendering.",
+    "- **First bullet**\n  - Nested *bullet*\n\n1. Ordered item\n2. [Linked item](https://example.com)",
+    "## Comment heading\n\n> Nested quote\n\n```ts\nconst value = 1;\n```",
+  ];
+
+  for (const comment of comments) {
+    for (const newline of ["\n", "\r\n"]) {
+      const output = buildLiteratureNoteContent({
+        detail: createDetail({
+          annotations: [
+            {
+              key: "ANNOT1",
+              attachmentKey: "ATTACH1",
+              type: "highlight",
+              color: "#2ea8e5",
+              pageLabel: "663",
+              text: "The original highlighted text.",
+              comment: comment.replaceAll("\n", newline),
+              dateModified: null,
+              zoteroOpenPdfUri:
+                "zotero://open-pdf/library/items/ATTACH1?annotation=ANNOT1",
+            },
+          ],
+        }),
+        filenameStem: "Managed Name",
+        parseYaml: () => ({}),
+        stringifyYaml: stringifyForTest,
+        htmlToMarkdown: (html) => html,
+      });
+
+      const highlights = output
+        .split("## Highlights\n\n")[1]
+        ?.split("\n<!-- stratum:managed:end -->")[0];
+      assert.ok(highlights);
+      assert.ok(highlights.includes("> The original highlighted text."));
+      assert.ok(
+        highlights.includes(
+          "> **Comment**:\n> \n" +
+            comment
+              .split("\n")
+              .map((line) => `> ${line}`)
+              .join("\n"),
+        ),
+      );
+      assert.ok(
+        highlights.split("\n").every((line) => line.startsWith("> ")),
+        "Every physical line, including blank lines, stays inside the callout",
+      );
+      assert.ok(highlights.includes("> [Open annotation in Zotero]"));
+    }
+  }
+});
+
+test("comment-only annotations are rendered and empty comments are omitted", () => {
+  for (const comment of ["A comment without highlighted text.", null, ""]) {
+    const output = buildLiteratureNoteContent({
+      detail: createDetail({
+        annotations: [
+          {
+            key: "ANNOT1",
+            attachmentKey: "ATTACH1",
+            type: "note",
+            color: null,
+            pageLabel: "2",
+            text: null,
+            comment,
+            dateModified: null,
+            zoteroOpenPdfUri: null,
+          },
+        ],
+      }),
+      filenameStem: "Managed Name",
+      parseYaml: () => ({}),
+      stringifyYaml: stringifyForTest,
+      htmlToMarkdown: (html) => html,
+    });
+    if (comment) {
+      assert.ok(output.includes("> **Comment**:\n> \n> " + comment));
+    } else {
+      assert.doesNotMatch(output, /\*\*Comment\*\*:/);
+    }
+  }
 });
 
 test("buildLiteratureNoteContent keeps grouped highlights expanded when there are many", () => {
@@ -732,6 +819,92 @@ test("preprocessZoteroNoteHtml adds Zotero links for annotation and citation dat
     output,
     /<a href="zotero:\/\/select\/library\/items\/ABCD1234">\(Bleidorn, 2019\)<\/a>/,
   );
+});
+
+test("Zotero group citations and annotations become local links for HTTP and HTTPS URIs", () => {
+  for (const protocol of ["http", "https"]) {
+    const citation = encodeURIComponent(
+      JSON.stringify({
+        citationItems: [
+          { uris: [`${protocol}://zotero.org/groups/2001/items/PAPER1`] },
+        ],
+      }),
+    );
+    const annotation = encodeURIComponent(
+      JSON.stringify({
+        attachmentURI: `${protocol}://zotero.org/groups/2001/items/ATTACH1`,
+        pageLabel: "7",
+        annotationKey: "ANNOT1",
+      }),
+    );
+    const output = preprocessZoteroNoteHtml(
+      `<span data-citation="${citation}">Citation</span><span data-annotation="${annotation}">Highlight</span>`,
+    );
+    assert.ok(
+      output.includes('href="zotero://select/groups/2001/items/PAPER1"'),
+    );
+    assert.ok(
+      output.includes(
+        'href="zotero://open-pdf/groups/2001/items/ATTACH1?page=7&annotation=ANNOT1"',
+      ),
+    );
+  }
+});
+
+test("Zotero item links normalize trailing slashes without losing library identity", () => {
+  for (const [path, target] of [
+    ["groups/2001", "groups/2001"],
+    ["users/123456", "library"],
+    ["users/local/abc123", "library"],
+  ]) {
+    const payload = encodeURIComponent(
+      JSON.stringify({
+        citationItems: [{ uris: [`https://zotero.org/${path}/items/PAPER1/`] }],
+      }),
+    );
+    const output = preprocessZoteroNoteHtml(
+      `<span data-citation="${payload}">Paper</span>`,
+    );
+    assert.equal(
+      output,
+      `<a href="zotero://select/${target}/items/PAPER1">Paper</a>`,
+    );
+  }
+});
+
+test("invalid annotation parameters cannot crash otherwise valid Zotero notes", () => {
+  const payload = encodeURIComponent(
+    JSON.stringify({
+      attachmentURI: "https://zotero.org/groups/2001/items/ATTACH1",
+      pageLabel: { toString: "not a function" },
+      annotationKey: { toString: "not a function" },
+    }),
+  );
+  assert.ok(
+    preprocessZoteroNoteHtml(
+      `<span data-annotation="${payload}">Note</span>`,
+    ).includes('href="zotero://open-pdf/groups/2001/items/ATTACH1"'),
+  );
+});
+
+test("invalid Zotero datasets cannot crash note sync or inject link attributes", () => {
+  for (const uri of [
+    123,
+    {},
+    ["https://zotero.org/groups/2001/items/PAPER1"],
+    'https://zotero.org/groups/2001/items/PAPER1" onmouseover="bad',
+    "https://example.com/groups/2001/items/PAPER1",
+    "javascript:alert(1)",
+  ]) {
+    const citation = encodeURIComponent(
+      JSON.stringify({ citationItems: [{ uris: [uri] }] }),
+    );
+    const annotation = encodeURIComponent(
+      JSON.stringify({ attachmentURI: uri }),
+    );
+    const html = `<span data-citation="${citation}">Paper</span><span data-annotation="${annotation}">Note</span>`;
+    assert.equal(preprocessZoteroNoteHtml(html), html);
+  }
 });
 
 // --- New tests for expanded metadata and redesigned layout ---

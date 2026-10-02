@@ -63,6 +63,7 @@ export async function createLiteratureNoteFile(params: {
   detail: ZoteroItemDetail;
   filenameFormat: LiteratureNoteFilenameFormat;
   enrichment?: OpenAlexEnrichment | null;
+  canWrite?: () => boolean;
 }): Promise<{ file: TFile; filenameStem: string }> {
   let lastError: unknown = null;
 
@@ -86,6 +87,8 @@ export async function createLiteratureNoteFile(params: {
         ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
       });
 
+      if (params.canWrite && !params.canWrite())
+        throw new Error("Note sync was cancelled.");
       try {
         const file = await params.app.vault.create(path, initialContent);
         return { file, filenameStem };

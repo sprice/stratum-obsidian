@@ -8,6 +8,8 @@ import {
   splitFrontmatterContent,
   type LiteratureNoteSummary,
 } from "./literature-note-content";
+import { getLiteratureNoteMatchPriority } from "./literature-note-matching";
+import type { LiteratureNoteIdentity } from "./literature-note-content-types";
 import {
   getGeneratedFileStem,
   isLegacyManagedFileStem,
@@ -51,6 +53,18 @@ export interface LiteratureNoteDeleteMarkResult {
 
 export { ensureFolder };
 
+function assertNoteIdentity(
+  content: string,
+  identity: LiteratureNoteIdentity,
+): void {
+  const { frontmatter } = splitFrontmatterContent(content, parseYaml);
+  if (getLiteratureNoteMatchPriority(frontmatter, identity) === null) {
+    throw new Error(
+      "The note no longer matches this Zotero item. Sync again to rebuild its file lookup.",
+    );
+  }
+}
+
 export async function createOrUpdateLiteratureNote(params: {
   app: App;
   notesFolder: string;
@@ -58,7 +72,13 @@ export async function createOrUpdateLiteratureNote(params: {
   filenameFormat: LiteratureNoteFilenameFormat;
   existingFile?: TFile | null;
   enrichment?: OpenAlexEnrichment | null;
+  canWrite?: () => boolean;
 }): Promise<LiteratureNoteWriteResult> {
+  const assertActive = () => {
+    if (params.canWrite && !params.canWrite())
+      throw new Error("Note sync was cancelled.");
+  };
+  assertActive();
   const summary = getLiteratureNoteSummary(params.detail);
   const identity = toIdentity(params.detail);
   const existingFile =
@@ -67,7 +87,9 @@ export async function createOrUpdateLiteratureNote(params: {
   const folder = getNormalizedNotesFolder(params.notesFolder);
 
   if (existingFile) {
-    const existingContent = await params.app.vault.cachedRead(existingFile);
+    const existingContent = await params.app.vault.read(existingFile);
+    assertActive();
+    assertNoteIdentity(existingContent, identity);
     const { frontmatter } = splitFrontmatterContent(existingContent, parseYaml);
     const desiredStem = getGeneratedFileStem(
       params.detail,
@@ -107,43 +129,36 @@ export async function createOrUpdateLiteratureNote(params: {
       filenameStem = renamed.filenameStem;
     }
 
-    const nextContent = buildLiteratureNoteContent({
-      detail: params.detail,
-      filenameStem,
-      existingContent,
-      parseYaml,
-      stringifyYaml,
-      htmlToMarkdown,
-      ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
+    let changed = false;
+    await params.app.vault.process(file, (currentContent) => {
+      assertActive();
+      assertNoteIdentity(currentContent, identity);
+      const nextContent = buildLiteratureNoteContent({
+        detail: params.detail,
+        filenameStem,
+        existingContent: currentContent,
+        parseYaml,
+        stringifyYaml,
+        htmlToMarkdown,
+        ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
+      });
+      changed = nextContent !== currentContent;
+      return nextContent;
     });
-
-    if (nextContent === existingContent) {
-      return {
-        created: false,
-        changed: false,
-        file,
-        summary,
-      };
-    }
-
-    await params.app.vault.modify(file, nextContent);
-    return {
-      created: false,
-      changed: true,
-      file,
-      summary,
-    };
+    return { created: false, changed, file, summary };
   }
 
   if (folder) {
     await ensureFolder(params.app, folder);
   }
 
+  assertActive();
   const created = await createLiteratureNoteFile({
     app: params.app,
     notesFolder: folder,
     detail: params.detail,
     filenameFormat: params.filenameFormat,
+    canWrite: params.canWrite,
     ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
   });
 
@@ -158,25 +173,22 @@ export async function createOrUpdateLiteratureNote(params: {
 export async function markLiteratureNoteDeleted(params: {
   app: App;
   file: TFile;
+  identity: LiteratureNoteIdentity;
+  canWrite?: () => boolean;
 }): Promise<LiteratureNoteDeleteMarkResult> {
-  const existingContent = await params.app.vault.cachedRead(params.file);
-  const { frontmatter } = splitFrontmatterContent(existingContent, parseYaml);
-  if (frontmatter.zotero_status === "deleted") {
-    return {
-      file: params.file,
-      changed: false,
-    };
-  }
-
-  const nextContent = markLiteratureNoteAsDeletedContent({
-    existingContent,
-    parseYaml,
-    stringifyYaml,
+  let changed = false;
+  await params.app.vault.process(params.file, (existingContent) => {
+    if (params.canWrite && !params.canWrite())
+      throw new Error("Note sync was cancelled.");
+    assertNoteIdentity(existingContent, params.identity);
+    const { frontmatter } = splitFrontmatterContent(existingContent, parseYaml);
+    if (frontmatter.zotero_status === "deleted") return existingContent;
+    changed = true;
+    return markLiteratureNoteAsDeletedContent({
+      existingContent,
+      parseYaml,
+      stringifyYaml,
+    });
   });
-  await params.app.vault.modify(params.file, nextContent);
-
-  return {
-    file: params.file,
-    changed: true,
-  };
+  return { file: params.file, changed };
 }

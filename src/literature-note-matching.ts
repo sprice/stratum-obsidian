@@ -8,8 +8,35 @@ import {
   type LiteratureNoteIdentity,
 } from "./literature-note-content-types";
 
-function getLegacyItemIdentity(itemKey: string): string {
-  return itemKey;
+export function getLiteratureNoteMatchPriority(
+  frontmatter: Record<string, unknown> | null | undefined,
+  identity: LiteratureNoteIdentity,
+): number | null {
+  const fm = frontmatter ?? {};
+  const expected = `${identity.libraryType}/${identity.libraryId}/${identity.itemKey}`;
+  const storedIdentity = fm[IDENTITY_FRONTMATTER_KEY];
+  // A legacy key is ambiguous; it must never override explicit library identity.
+  if (
+    (storedIdentity != null &&
+      storedIdentity !== expected &&
+      storedIdentity !== identity.itemKey) ||
+    (fm[ITEM_KEY_FRONTMATTER_KEY] != null &&
+      fm[ITEM_KEY_FRONTMATTER_KEY] !== identity.itemKey) ||
+    (fm[LIBRARY_TYPE_FRONTMATTER_KEY] != null &&
+      fm[LIBRARY_TYPE_FRONTMATTER_KEY] !== identity.libraryType) ||
+    (fm[LIBRARY_ID_FRONTMATTER_KEY] != null &&
+      fm[LIBRARY_ID_FRONTMATTER_KEY] !== identity.libraryId)
+  ) {
+    return null;
+  }
+  if (storedIdentity === expected) return 0;
+  if (fm[ITEM_KEY_FRONTMATTER_KEY] === identity.itemKey) {
+    return fm[LIBRARY_ID_FRONTMATTER_KEY] === identity.libraryId &&
+      fm[LIBRARY_TYPE_FRONTMATTER_KEY] === identity.libraryType
+      ? 1
+      : 2;
+  }
+  return storedIdentity === identity.itemKey ? 2 : null;
 }
 
 function prioritizeCandidates(
@@ -43,33 +70,13 @@ export function findExistingLiteratureNoteMatch(
   identity: LiteratureNoteIdentity,
   preferredFolder?: string,
 ): ExistingLiteratureNoteMatch | null {
-  const itemIdentity = `${identity.libraryType}/${identity.libraryId}/${identity.itemKey}`;
-  const legacyIdentity = getLegacyItemIdentity(identity.itemKey);
   const buckets: LiteratureNoteCandidate[][] = [[], [], []];
-
   for (const entry of entries) {
-    const frontmatter = entry.frontmatter ?? {};
-
-    if (frontmatter[IDENTITY_FRONTMATTER_KEY] === itemIdentity) {
-      buckets[0].push(entry);
-      continue;
-    }
-
-    if (
-      frontmatter[LIBRARY_ID_FRONTMATTER_KEY] === identity.libraryId &&
-      frontmatter[LIBRARY_TYPE_FRONTMATTER_KEY] === identity.libraryType &&
-      frontmatter[ITEM_KEY_FRONTMATTER_KEY] === identity.itemKey
-    ) {
-      buckets[1].push(entry);
-      continue;
-    }
-
-    if (
-      frontmatter[IDENTITY_FRONTMATTER_KEY] === legacyIdentity ||
-      frontmatter[ITEM_KEY_FRONTMATTER_KEY] === identity.itemKey
-    ) {
-      buckets[2].push(entry);
-    }
+    const priority = getLiteratureNoteMatchPriority(
+      entry.frontmatter,
+      identity,
+    );
+    if (priority !== null) buckets[priority].push(entry);
   }
 
   for (const bucket of buckets) {

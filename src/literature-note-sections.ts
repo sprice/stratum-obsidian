@@ -320,6 +320,9 @@ function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
         const itemLines = [
           `**${annotation.pageLabel ? `Page ${annotation.pageLabel}` : "Page unknown"}**${annotation.type ? ` · ${annotation.type}` : ""}`,
           annotation.text ? annotation.text.replace(/\n+/g, " ").trim() : null,
+          // Keep the label separate so leading Markdown blocks still render.
+          // The callout helper prefixes every physical comment line, even blanks.
+          annotation.comment ? `\n**Comment**:\n\n${annotation.comment}` : null,
           annotation.zoteroOpenPdfUri
             ? `[Open annotation in Zotero](${annotation.zoteroOpenPdfUri})`
             : null,

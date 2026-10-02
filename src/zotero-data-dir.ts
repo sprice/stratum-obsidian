@@ -3,24 +3,17 @@ type ProcessEnvLike = {
   HOME?: string;
   USERPROFILE?: string;
 };
+type RuntimeProcess = { platform?: string; env?: ProcessEnvLike };
 
-function getRuntimeProcess(): {
-  platform?: string;
-  env?: ProcessEnvLike;
-} | null {
-  if (typeof globalThis !== "object" || !("process" in globalThis)) {
+// Obsidian desktop exposes process; mobile may not.
+declare const process: RuntimeProcess | undefined;
+
+function getRuntimeProcess(): RuntimeProcess | null {
+  if (typeof process === "undefined") {
     return null;
   }
 
-  const runtime = (
-    globalThis as {
-      process?: {
-        platform?: string;
-        env?: ProcessEnvLike;
-      };
-    }
-  ).process;
-  return runtime ?? null;
+  return process;
 }
 
 function getSeparator(platform: RuntimePlatform): string {

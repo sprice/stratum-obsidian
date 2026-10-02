@@ -6,9 +6,19 @@
 - Entry point: `main.ts` compiled to `main.js` and loaded by Obsidian.
 - Required release artifacts: `main.js`, `manifest.json`, and optional `styles.css`.
 
+## Literature note compatibility contract
+
+Read [the literature note link stability contract](docs/literature-note-link-contract.md)
+before changing filenames, paths, aliases, identity matching, sync, folder
+enumeration, or settings persistence. Links from other vault notes must keep
+resolving to the same Zotero item, including after the Literature Notes folder
+is deleted and fully synced again. Treat naming changes as compatibility
+changes. The document records current implementation gaps; do not assume the
+live-file cache or deterministic filename formatting alone fulfills the contract.
+
 ## Environment & tooling
 
-- Node.js: use current LTS (Node 18+ recommended).
+- Node.js: use Node 22 or newer for development. The minimum supported build version is 20.12.0; the build uses Node's built-in `.env` loader.
 - **Package manager: pnpm** (required for this project - `package.json`, CI workflows, and the lockfile are all configured for pnpm).
 - **Bundler: esbuild** (required for this sample - `esbuild.config.mjs` and build scripts depend on it). Alternative bundlers like Rollup or webpack are acceptable for other projects if they bundle all external dependencies into `main.js`.
 - Types: `obsidian` type definitions.

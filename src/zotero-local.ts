@@ -960,15 +960,15 @@ export async function loadLocalZoteroItemDetail(params: {
       path: `${basePath}/items/${encodeURIComponent(params.itemKey)}?format=json&include=data,bib&style=apa`,
       request: params.request,
     }),
-    requestLocalJson<LocalApiItem[]>({
+    requestPagedLocalArray<LocalApiItem>({
       port: params.port,
-      path: `${basePath}/items/${encodeURIComponent(params.itemKey)}/children?format=json&limit=500`,
+      path: `${basePath}/items/${encodeURIComponent(params.itemKey)}/children?format=json`,
       request: params.request,
     }),
   ]);
 
   const parentItem = parentResponse.data;
-  const children = childrenResponse.data;
+  const children = childrenResponse;
   const attachments = children.filter(
     (child) => child.data.itemType === "attachment",
   );

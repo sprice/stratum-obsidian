@@ -87,16 +87,13 @@ export async function ensureBibEntry(
   const bibtexEntry = buildBibtexEntry(entry);
 
   if (existingFile instanceof TFile) {
-    const content = await app.vault.cachedRead(existingFile);
     const keyPattern = new RegExp(
       `@\\w+\\{${citekey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")},`,
     );
-    if (keyPattern.test(content)) {
-      return citekey;
-    }
-    await app.vault.modify(
-      existingFile,
-      `${content.trimEnd()}\n\n${bibtexEntry}\n`,
+    await app.vault.process(existingFile, (content) =>
+      keyPattern.test(content)
+        ? content
+        : `${content.trimEnd()}\n\n${bibtexEntry}\n`,
     );
   } else if (existingFile) {
     throw new Error(

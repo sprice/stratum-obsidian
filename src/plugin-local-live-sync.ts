@@ -1,6 +1,7 @@
 import { Platform, TFile } from "obsidian";
 import { getTrackedChildItemKeysFromFrontmatter } from "./literature-note-frontmatter";
 import { log } from "./log";
+import { getLibraryAutoSyncState } from "./plugin-libraries";
 import {
   getTrackedLibraryRefreshCandidates,
   shouldTriggerLocalLiveSyncFromWatchEvent,
@@ -204,6 +205,7 @@ export function validateZoteroDataDir(
 
 function shouldRunLocalLiveSync(plugin: StratumPlugin): boolean {
   return (
+    !plugin.isUnloaded &&
     Platform.isDesktopApp &&
     plugin.settings.bulkSyncEnabled &&
     plugin.backend.hasSession() &&
@@ -287,6 +289,7 @@ async function seedMissingLibraryBaselines(
   clearLiveSyncBaselines(plugin, libraries);
 
   for (const library of libraries) {
+    if (!shouldRunLocalLiveSync(plugin)) return;
     if (
       plugin.localLiveSyncLibraryVersions.has(library.identity) &&
       plugin.localLiveSyncLibraryItemVersions.has(library.identity)
@@ -300,6 +303,7 @@ async function seedMissingLibraryBaselines(
         library,
         topLevelOnly: false,
       });
+      if (!shouldRunLocalLiveSync(plugin)) return;
       plugin.localLiveSyncLibraryVersions.set(
         library.identity,
         versionsResponse.libraryVersion,
@@ -360,9 +364,7 @@ function getTrackedChildKeysByIdentity(
     }
 
     const frontmatter =
-      (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
-        | Record<string, unknown>
-        | undefined) ?? null;
+      plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
     trackedChildKeysByIdentity[identity] =
       getTrackedChildItemKeysFromFrontmatter(frontmatter);
   }
@@ -447,8 +449,14 @@ async function runLocalLiveSyncFlush(plugin: StratumPlugin): Promise<void> {
         }
 
         await refresh;
+        if (getLibraryAutoSyncState(plugin, library).lastError) {
+          throw new Error(
+            "A note could not be refreshed; keeping the previous live-sync baseline for retry.",
+          );
+        }
       }
 
+      if (!shouldRunLocalLiveSync(plugin)) return;
       plugin.localLiveSyncLibraryVersions.set(
         library.identity,
         versionsResponse.libraryVersion,

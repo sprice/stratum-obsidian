@@ -11,6 +11,7 @@ import {
   PLUGIN_SUPABASE_URL,
 } from "./build-config";
 import {
+  ZoteroItemNotFoundError,
   ZoteroNotConnectedError,
   ZoteroRateLimitedError,
   ZoteroTokenInvalidError,
@@ -78,6 +79,10 @@ export {
 
 export class BackendClient {
   private state: BackendAuthState;
+  private pendingRefresh: {
+    session: PersistedAuthSession;
+    promise: Promise<PersistedAuthSession | null>;
+  } | null = null;
   private onSessionChange: (
     session: PersistedAuthSession | null,
   ) => Promise<void>;
@@ -95,6 +100,12 @@ export class BackendClient {
     };
     this.onSessionChange = options.onSessionChange;
     this.onUserChange = options.onUserChange;
+  }
+
+  invalidatePendingRequests(): void {
+    // Detach in-flight responses without logging out or deleting saved tokens.
+    this.state.session = this.state.session ? { ...this.state.session } : null;
+    this.pendingRefresh = null;
   }
 
   hasSession(): boolean {
@@ -117,7 +128,9 @@ export class BackendClient {
       expiresAt: params.expiresAt,
     };
 
-    await this.onSessionChange(this.state.session);
+    const session = this.state.session;
+    await this.onSessionChange(session);
+    if (this.state.session !== session) return;
     await this.onUserChange({
       email: params.email ?? null,
     });
@@ -126,15 +139,17 @@ export class BackendClient {
   async clearSession(): Promise<void> {
     this.state.session = null;
     await this.onSessionChange(null);
+    if (this.state.session !== null) return;
     await this.onUserChange(null);
   }
 
   async validateSession(): Promise<AuthenticatedUserSummary | null> {
     const accessToken = await this.getValidAccessToken();
-    if (!accessToken) {
+    if (!accessToken || this.state.session?.accessToken !== accessToken) {
       return null;
     }
 
+    const session = this.state.session;
     const response = await requestUrl({
       url: `${PLUGIN_SUPABASE_URL}/auth/v1/user`,
       headers: {
@@ -144,6 +159,7 @@ export class BackendClient {
       throw: false,
     });
 
+    if (this.state.session !== session) return null;
     if (!this.isOk(response)) {
       if (AUTH_ERROR_STATUSES.has(response.status)) {
         await this.clearSession();
@@ -244,6 +260,13 @@ export class BackendClient {
       `/zotero-item-detail?${query.toString()}`,
     );
 
+    if (
+      response.status === 404 &&
+      this.tryReadJson<BackendErrorPayload>(response)?.error ===
+        "Zotero item not found."
+    ) {
+      throw new ZoteroItemNotFoundError();
+    }
     this.throwIfBackendError(response, "Failed to load Zotero item detail");
 
     return this.readJson<ZoteroItemDetail>(response);
@@ -359,10 +382,11 @@ export class BackendClient {
     init?: AuthedRequestOptions,
   ): Promise<RequestUrlResponse> {
     const accessToken = await this.getValidAccessToken();
-    if (!accessToken) {
+    if (!accessToken || this.state.session?.accessToken !== accessToken) {
       throw new Error("No authenticated app session available.");
     }
 
+    const session = this.state.session;
     const { skipSessionClearOnAuthError, ...requestInit } = init ?? {};
     const method = requestInit.method ?? "GET";
     const start = performance.now();
@@ -384,6 +408,11 @@ export class BackendClient {
       ms: Math.round(performance.now() - start),
     });
 
+    if (this.state.session !== session) {
+      throw new Error(
+        "The app session changed while the request was in progress. Try again.",
+      );
+    }
     const payload = this.tryReadJson<BackendErrorPayload>(response);
     if (
       hasAuthenticatedUserRequiredError(payload) ||
@@ -407,12 +436,24 @@ export class BackendClient {
     }
 
     log("auth", "access token expiring, refreshing session");
-    const refreshed = await this.refreshSession(session.refreshToken);
-    return refreshed?.accessToken ?? null;
+    if (this.pendingRefresh?.session !== session) {
+      const promise = this.refreshSession(session);
+      const pending = { session, promise };
+      this.pendingRefresh = pending;
+      void promise
+        .finally(() => {
+          if (this.pendingRefresh === pending) this.pendingRefresh = null;
+        })
+        .catch(() => {});
+    }
+    const refreshed = await this.pendingRefresh.promise;
+    return refreshed && this.state.session === refreshed
+      ? refreshed.accessToken
+      : null;
   }
 
   private async refreshSession(
-    refreshToken: string,
+    session: PersistedAuthSession,
   ): Promise<PersistedAuthSession | null> {
     const response = await requestUrl({
       url: `${PLUGIN_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
@@ -422,19 +463,34 @@ export class BackendClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        refresh_token: refreshToken,
+        refresh_token: session.refreshToken,
       }),
       throw: false,
     });
 
+    if (this.state.session !== session) return null;
     if (!this.isOk(response)) {
       log("auth", "session refresh failed", { status: response.status });
-      await this.clearSession();
-      return null;
+      if (response.status === 400 || AUTH_ERROR_STATUSES.has(response.status)) {
+        await this.clearSession();
+        return null;
+      }
+      throw new Error(
+        "The app session could not be refreshed. Try again shortly.",
+      );
     }
 
     log("auth", "session refreshed");
     const payload = this.readJson<RefreshResponse>(response);
+    if (
+      !payload ||
+      typeof payload.access_token !== "string" ||
+      !payload.access_token ||
+      typeof payload.refresh_token !== "string" ||
+      !payload.refresh_token
+    ) {
+      throw new Error("The app returned an invalid session refresh response.");
+    }
     const nextSession: PersistedAuthSession = {
       accessToken: payload.access_token,
       refreshToken: payload.refresh_token,
@@ -447,6 +503,7 @@ export class BackendClient {
 
     this.state.session = nextSession;
     await this.onSessionChange(nextSession);
+    if (this.state.session !== nextSession) return null;
     if (payload.user?.email) {
       await this.onUserChange({ email: payload.user.email });
     }

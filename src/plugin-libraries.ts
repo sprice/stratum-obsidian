@@ -1,3 +1,4 @@
+import { clearLibrarySearchDebounce } from "./plugin-library-search";
 import type {
   ZoteroConnectionState,
   ZoteroGroupSummary,
@@ -229,10 +230,7 @@ export function getActiveBulkSyncLibrary(
 }
 
 export function clearLibrarySearchState(plugin: StratumPlugin): void {
-  if (plugin.librarySearchDebounceTimer !== null) {
-    window.clearTimeout(plugin.librarySearchDebounceTimer);
-    plugin.librarySearchDebounceTimer = null;
-  }
+  clearLibrarySearchDebounce(plugin);
 
   plugin.librarySearchPendingPromise = null;
   plugin.librarySearchPendingQuery = null;

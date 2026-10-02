@@ -100,12 +100,14 @@ type LocalLiveSyncWatcher = {
 };
 
 export default class StratumPlugin extends Plugin {
+  isUnloaded = false;
   settings: StratumSettings = DEFAULT_SETTINGS;
   settingTab: StratumSettingTab | null = null;
   backend!: BackendClient;
   zoteroConnection: ZoteroConnectionState | null = null;
   availableGroups: ZoteroGroupSummary[] = [];
   isLoadingZoteroConnection = false;
+  zoteroConnectionRequestId = 0;
   selectedSearchLibrary: EnabledLibrary | null = null;
   selectedSearchCollection: ZoteroCollectionSummary | null = null;
   libraryCollectionsLibraryIdentity: string | null = null;
@@ -226,6 +228,17 @@ export default class StratumPlugin extends Plugin {
 
   async onload(): Promise<void> {
     console.debug("stratum: Loading Stratum plugin");
+    // Obsidian's newer callout CSS uses full colors instead of RGB channels.
+    // Detect the format rather than excluding older supported app versions.
+    const defaultCalloutColor = getComputedStyle(document.body)
+      .getPropertyValue("--callout-default")
+      .trim();
+    if (CSS.supports("color", defaultCalloutColor)) {
+      document.body.addClass("stratum-full-callout-colors");
+      this.register(() =>
+        document.body.removeClass("stratum-full-callout-colors"),
+      );
+    }
     await loadPluginSettings(this);
     this.backend = createBackendClient(this);
     hydrateZoteroConnectionFromCache(this);
@@ -334,6 +347,13 @@ export default class StratumPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.isUnloaded = true;
+    this.backend?.invalidatePendingRequests();
+    this.zoteroConnectionRequestId += 1;
+    this.localSyncLibrariesRequestId += 1;
+    this.syncCollectionsRequestId += 1;
+    this.libraryCollectionsRequestId += 1;
+    this.librarySearchRequestId += 1;
     clearLibrarySearchDebounce(this);
     cancelLibraryPickerClose(this);
     stopAutoSyncStatusRefresh(this);
@@ -364,7 +384,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await savePluginSettings(this);
+    if (!this.isUnloaded) await savePluginSettings(this);
   }
 
   async activateView(): Promise<void> {
@@ -383,6 +403,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   refreshViews(): void {
+    if (this.isUnloaded) return;
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STRATUM)) {
       const view = leaf.view;
       if (view instanceof StratumView) {
@@ -392,6 +413,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   refreshSettingTab(): void {
+    if (this.isUnloaded) return;
     if (this.settingTab?.containerEl?.isConnected) {
       this.settingTab.display();
     }
@@ -472,7 +494,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   async reconcileLocalLiveSync(): Promise<void> {
-    if (Platform.isDesktopApp) {
+    if (!this.isUnloaded && Platform.isDesktopApp) {
       const { reconcileLocalLiveSync } =
         await import("./plugin-local-live-sync");
       await reconcileLocalLiveSync(this);
@@ -480,7 +502,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   notifyLocalLiveSyncAfterBulkSync(): void {
-    if (Platform.isDesktopApp) {
+    if (!this.isUnloaded && Platform.isDesktopApp) {
       void import("./plugin-local-live-sync").then(
         ({ notifyLocalLiveSyncAfterBulkSync }) => {
           notifyLocalLiveSyncAfterBulkSync(this);

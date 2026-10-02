@@ -20,6 +20,10 @@ import {
 } from "./zotero-errors";
 
 const LIBRARY_SEARCH_DEBOUNCE_MS = 500;
+const queuedSearchResolvers = new WeakMap<
+  StratumPlugin,
+  (results: ZoteroSearchResult[]) => void
+>();
 
 export type LibrarySearchSuggestionSnapshot = {
   results: ZoteroSearchResult[];
@@ -168,6 +172,8 @@ export function clearLibrarySearchDebounce(plugin: StratumPlugin): void {
 
   window.clearTimeout(plugin.librarySearchDebounceTimer);
   plugin.librarySearchDebounceTimer = null;
+  queuedSearchResolvers.get(plugin)?.([]);
+  queuedSearchResolvers.delete(plugin);
 }
 
 function queueLibrarySearch(
@@ -193,8 +199,10 @@ function queueLibrarySearch(
   plugin.librarySearchPendingQuery = cacheKey;
 
   const pending = new Promise<ZoteroSearchResult[]>((resolve) => {
+    queuedSearchResolvers.set(plugin, resolve);
     plugin.librarySearchDebounceTimer = window.setTimeout(() => {
       plugin.librarySearchDebounceTimer = null;
+      queuedSearchResolvers.delete(plugin);
       void runLibrarySearchRequest(plugin, query, { requestId }).then(resolve);
     }, LIBRARY_SEARCH_DEBOUNCE_MS);
   });

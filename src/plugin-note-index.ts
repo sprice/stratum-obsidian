@@ -5,11 +5,13 @@ import {
   type TAbstractFile,
 } from "obsidian";
 import {
-  LIBRARY_ID_FRONTMATTER_KEY,
-  LIBRARY_TYPE_FRONTMATTER_KEY,
   IDENTITY_FRONTMATTER_KEY,
   ITEM_KEY_FRONTMATTER_KEY,
 } from "./literature-note-content";
+import {
+  getLiteratureNoteMatchPriority,
+  findExistingLiteratureNoteMatch,
+} from "./literature-note-matching";
 import type { ItemFileMapEntry } from "./settings";
 import type StratumPlugin from "./plugin";
 
@@ -73,26 +75,8 @@ function getVersionFromFrontmatter(
   return 0;
 }
 
-function getLibraryTypeFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null,
-): string | null {
-  const libraryType = frontmatter?.[LIBRARY_TYPE_FRONTMATTER_KEY];
-  return typeof libraryType === "string" && libraryType.trim()
-    ? libraryType.trim()
-    : null;
-}
-
-function getLibraryIdFromFrontmatter(
-  frontmatter?: Record<string, unknown> | null,
-): string | null {
-  const libraryId = frontmatter?.[LIBRARY_ID_FRONTMATTER_KEY];
-  return typeof libraryId === "string" && libraryId.trim()
-    ? libraryId.trim()
-    : null;
-}
-
 function queuePersistItemFileMap(plugin: StratumPlugin): void {
-  if (plugin.itemFileMapPersistTimer !== null) {
+  if (plugin.isUnloaded || plugin.itemFileMapPersistTimer !== null) {
     return;
   }
 
@@ -140,10 +124,8 @@ export function syncItemFileMapForFile(
   }
 
   const frontmatter =
-    (cache?.frontmatter as Record<string, unknown> | undefined) ??
-    (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
-      | Record<string, unknown>
-      | undefined) ??
+    cache?.frontmatter ??
+    plugin.app.metadataCache.getFileCache(file)?.frontmatter ??
     null;
   const identity = getIdentityFromFrontmatter(frontmatter);
   const itemKey = getItemKeyFromFrontmatter(frontmatter);
@@ -185,9 +167,7 @@ export async function rebuildItemFileMap(plugin: StratumPlugin): Promise<void> {
     }
 
     const frontmatter =
-      (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
-        | Record<string, unknown>
-        | undefined) ?? null;
+      plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
     const identity = getIdentityFromFrontmatter(frontmatter);
     const itemKey = getItemKeyFromFrontmatter(frontmatter);
     if (!identity || !itemKey) {
@@ -228,7 +208,16 @@ export function findExistingLiteratureNoteFile(
       cachedEntry.filePath,
     );
     if (cachedFile instanceof TFile) {
-      return cachedFile;
+      const frontmatter =
+        plugin.app.metadataCache.getFileCache(cachedFile)?.frontmatter;
+      // A newly written file can precede its metadata cache. The write boundary
+      // still checks its actual contents before any change.
+      if (
+        !frontmatter ||
+        getLiteratureNoteMatchPriority(frontmatter, identity) !== null
+      ) {
+        return cachedFile;
+      }
     }
 
     delete plugin.settings.itemFileMap[cacheKey];
@@ -239,29 +228,18 @@ export function findExistingLiteratureNoteFile(
     .getMarkdownFiles()
     .filter((file) => isPathInsideNotesFolder(plugin, file.path));
 
+  const match = findExistingLiteratureNoteMatch(
+    noteFiles.map((file) => ({
+      path: file.path,
+      name: file.name,
+      frontmatter: plugin.app.metadataCache.getFileCache(file)?.frontmatter,
+    })),
+    identity,
+    plugin.settings.notesFolder,
+  );
   const repaired =
-    noteFiles.find((file) => {
-      const frontmatter =
-        (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
-          | Record<string, unknown>
-          | undefined) ?? null;
-      return getIdentityFromFrontmatter(frontmatter) === cacheKey;
-    }) ??
-    noteFiles.find((file) => {
-      const frontmatter =
-        (plugin.app.metadataCache.getFileCache(file)?.frontmatter as
-          | Record<string, unknown>
-          | undefined) ?? null;
-      return (
-        getItemKeyFromFrontmatter(frontmatter) === identity.itemKey &&
-        getLibraryTypeFromFrontmatter(frontmatter) === identity.libraryType &&
-        getLibraryIdFromFrontmatter(frontmatter) === identity.libraryId
-      );
-    });
-
-  if (!repaired) {
-    return null;
-  }
+    match && plugin.app.vault.getAbstractFileByPath(match.candidate.path);
+  if (!(repaired instanceof TFile)) return null;
 
   syncItemFileMapForFile(plugin, repaired);
   return repaired;
