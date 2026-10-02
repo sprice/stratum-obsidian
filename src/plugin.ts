@@ -414,9 +414,7 @@ export default class StratumPlugin extends Plugin {
 
   refreshSettingTab(): void {
     if (this.isUnloaded) return;
-    if (this.settingTab?.containerEl?.isConnected) {
-      this.settingTab.display();
-    }
+    this.settingTab?.refresh();
   }
 
   getAutoSyncStatusLabel(): string {
