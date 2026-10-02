@@ -90,6 +90,7 @@ function extractPreservedManagedSections(
 }
 
 export function buildLiteratureNoteContent(params: {
+  stratumVersion: string;
   detail: ZoteroItemDetail;
   filenameStem: string | null;
   zoteroStatus?: ZoteroSyncStatus;
@@ -131,6 +132,7 @@ export function buildLiteratureNoteContent(params: {
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
+      params.stratumVersion,
       params.enrichment,
     );
     const nextBody = ensureUserBoundary(upsertManagedBlock(body, managedBlock));
@@ -151,6 +153,7 @@ export function buildLiteratureNoteContent(params: {
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
+      params.stratumVersion,
       params.enrichment,
     ),
     managedBlock,

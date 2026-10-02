@@ -195,6 +195,7 @@ export function renderFrontmatterContent(
   filenameStem: string | null,
   zoteroStatus: ZoteroSyncStatus,
   stringifyYaml: YamlStringifier,
+  stratumVersion: string,
   enrichment?: OpenAlexEnrichment | null,
 ): string {
   const preserveExistingOpenAlex =
@@ -338,6 +339,7 @@ export function renderFrontmatterContent(
     ...nativeFrontmatter,
     ...(filenameStem ? { stratum_filename_stem: filenameStem } : {}),
     stratum_note_type: "literature-note",
+    stratum_version: stratumVersion,
     zotero_status: zoteroStatus,
     zotero_item_identity: getItemIdentity(detail),
     zotero_item_key: detail.item.key,

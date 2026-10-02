@@ -121,6 +121,7 @@ test("sync preserves user edits made after the initial read", async () => {
     fixture.current += "New user edit\n";
   };
   await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
     app: fixture.app,
     existingFile: fixture.file,
     detail,
@@ -139,6 +140,7 @@ test("a stale file lookup cannot overwrite a different or ordinary note", async 
     const fixture = vaultFixture(content(fm));
     await assert.rejects(
       note.createOrUpdateLiteratureNote({
+        stratumVersion: "0.2.1",
         app: fixture.app,
         existingFile: fixture.file,
         detail,
@@ -158,6 +160,7 @@ test("identity is checked again inside the atomic update", async () => {
   };
   await assert.rejects(
     note.createOrUpdateLiteratureNote({
+      stratumVersion: "0.2.1",
       app: fixture.app,
       existingFile: fixture.file,
       detail,
@@ -201,6 +204,7 @@ test("a stale cached file path is discarded and repaired by identity", () => {
   const correct = new FakeFile();
   correct.path = "Literature Notes/correct.md";
   const plugin = {
+    manifest: { version: "0.2.1" },
     settings: {
       notesFolder: "Literature Notes",
       itemFileMap: { "user/1/ABCD1234": { filePath: stale.path } },
@@ -236,6 +240,7 @@ test("an unloaded plugin cannot write while its atomic update is queued", async 
   };
   await assert.rejects(
     note.createOrUpdateLiteratureNote({
+      stratumVersion: "0.2.1",
       app: fixture.app,
       existingFile: fixture.file,
       detail,
@@ -251,6 +256,7 @@ test("an unloaded plugin cannot write while its atomic update is queued", async 
 test("CRLF frontmatter remains recognized and user content survives updates", async () => {
   const fixture = vaultFixture(content(frontmatter).replace(/\n/g, "\r\n"));
   await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
     app: fixture.app,
     existingFile: fixture.file,
     detail,
@@ -275,6 +281,7 @@ test("renaming a note during refresh does not leave sync permanently marked as r
     },
   });
   const plugin = {
+    manifest: { version: "0.2.1" },
     settings: {
       notesFolder: "Literature Notes",
       filenameFormat: "readable",
@@ -318,6 +325,7 @@ test("metadata corrections preserve existing managed paths, aliases and personal
     item: { ...detail.item, title: "Correct title", year: "1997" },
   };
   const result = await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
     app: fixture.app,
     existingFile: fixture.file,
     detail: corrected,
@@ -348,6 +356,7 @@ for (const itemType of [
       const original = fixture.current;
       await assert.rejects(
         note.createOrUpdateLiteratureNote({
+          stratumVersion: "0.2.1",
           app: fixture.app,
           existingFile: existing ? fixture.file : null,
           detail: unsupported,

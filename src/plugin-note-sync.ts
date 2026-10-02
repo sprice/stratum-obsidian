@@ -202,6 +202,7 @@ export async function writeLiteratureNoteFromDetail(
   }
 
   const writeResult = await createOrUpdateLiteratureNote({
+    stratumVersion: plugin.manifest.version,
     app: plugin.app,
     notesFolder: plugin.settings.notesFolder,
     filenameFormat: plugin.settings.filenameFormat,

@@ -65,6 +65,7 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
     },
   );
   const plugin = {
+    manifest: { version: "0.2.1" },
     localZoteroUserId: "1",
     zoteroConnection: { connected: true, zoteroUserId: "1" },
     settings: {
