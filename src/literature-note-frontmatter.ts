@@ -1,3 +1,4 @@
+import { creatorName } from "./zotero-schema";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { normalizeDoi } from "./doi";
 import {
@@ -75,7 +76,7 @@ function buildAliases(detail: ZoteroItemDetail): string[] {
   );
 
   aliases.add(
-    `${getReadableAuthorLabel(detail.item.creators)} ${getReadableYearLabel(detail.item.year)}`,
+    `${getReadableAuthorLabel(detail.item.creators, detail.item.creatorDetails, detail.item.itemType)} ${getReadableYearLabel(detail.item.year)}`,
   );
   aliases.add(mainTitle);
 
@@ -224,15 +225,20 @@ export function renderFrontmatterContent(
     : {};
   const sourceUrl = buildSourceUrl(detail);
   const nativeFrontmatter: Record<string, unknown> = {
-    aliases: Array.from(new Set([...managedAliases, ...userAliases])),
+    aliases: Array.from(
+      new Set([...managedAliases, ...userAliases, ...existingAliases]),
+    ),
     stratum_managed_aliases: managedAliases,
     tags: Array.from(new Set([...buildNativeTags(detail), ...preservedTags])),
     zotero_link: detail.item.zoteroSelectUri,
   };
 
-  if (detail.item.creators.length > 0) {
-    nativeFrontmatter.authors = detail.item.creators.map((c) => toWikiLink(c));
-  }
+  const authors = detail.item.creatorDetails
+    ? detail.item.creatorDetails
+        .filter((c) => c.creatorType === "author")
+        .map(creatorName)
+    : detail.item.creators;
+  if (authors.length) nativeFrontmatter.authors = authors.map(toWikiLink);
   if (detail.item.year) {
     nativeFrontmatter.year = detail.item.year;
   }
@@ -335,6 +341,19 @@ export function renderFrontmatterContent(
     zotero_status: zoteroStatus,
     zotero_item_identity: getItemIdentity(detail),
     zotero_item_key: detail.item.key,
+    zotero_title: detail.item.title,
+    zotero_item_type: detail.item.itemType,
+    zotero_date: detail.item.date,
+    ...(detail.item.creatorDetails
+      ? { zotero_creators: detail.item.creatorDetails }
+      : existingFrontmatter.zotero_creators
+        ? { zotero_creators: existingFrontmatter.zotero_creators }
+        : {}),
+    ...(detail.item.sourceFields
+      ? { zotero_fields: detail.item.sourceFields }
+      : existingFrontmatter.zotero_fields
+        ? { zotero_fields: existingFrontmatter.zotero_fields }
+        : {}),
     zotero_collection_keys: detail.item.collections.map(
       (collection) => collection.key,
     ),

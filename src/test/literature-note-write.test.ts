@@ -295,3 +295,37 @@ test("renaming a note during refresh does not leave sync permanently marked as r
   assert.equal(plugin.noteRefreshPromises.size, 0);
   assert.equal(fixture.writes, 1);
 });
+
+test("metadata corrections preserve existing managed paths, aliases and personal content", async () => {
+  const fixture = vaultFixture(
+    content(
+      {
+        ...frontmatter,
+        stratum_filename_stem: "custom",
+        aliases: ["Canada n.d.", "Personal alias"],
+        stratum_managed_aliases: ["Canada n.d."],
+        custom_property: "keep me",
+      },
+      "My original notes\n[[Another note]] ^my-block",
+    ),
+  );
+  const corrected = {
+    ...detail,
+    item: { ...detail.item, title: "Correct title", year: "1997" },
+  };
+  const result = await note.createOrUpdateLiteratureNote({
+    app: fixture.app,
+    existingFile: fixture.file,
+    detail: corrected,
+    filenameFormat: "readable",
+    notesFolder: "Literature Notes",
+  });
+  assert.equal(result.file.path, "Literature Notes/custom.md");
+  assert.match(fixture.current, /Canada n.d./);
+  assert.match(fixture.current, /Personal alias/);
+  assert.match(fixture.current, /"custom_property":"keep me"/);
+  assert.match(fixture.current, /"zotero_title":"Correct title"/);
+  assert.ok(
+    fixture.current.includes("My original notes\n[[Another note]] ^my-block"),
+  );
+});

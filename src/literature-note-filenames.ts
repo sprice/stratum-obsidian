@@ -1,3 +1,8 @@
+import {
+  creatorFamilyName,
+  primaryCreators,
+  type ZoteroCreator,
+} from "./zotero-schema";
 import type { ZoteroItemDetail } from "./backend-client";
 
 export type LiteratureNoteFilenameFormat = "readable" | "citekey";
@@ -140,10 +145,14 @@ export function getCollisionSuffix(collisionIndex: number): string {
   return toAlphabeticSuffix(collisionIndex + 1);
 }
 
-export function getReadableAuthorLabel(creators: string[]): string {
-  const lastNames = creators
-    .map((creator) => getCreatorLastName(creator))
-    .filter(Boolean);
+export function getReadableAuthorLabel(
+  creators: string[],
+  structured?: ZoteroCreator[],
+  itemType: string | null = null,
+): string {
+  const lastNames = structured
+    ? primaryCreators(structured, itemType).map(creatorFamilyName)
+    : creators.map(getCreatorLastName).filter(Boolean);
 
   if (lastNames.length === 0) {
     return "Unknown Author";
@@ -187,12 +196,17 @@ export function getReadableFileStem(
   detail: ZoteroItemDetail,
   collisionSuffix = "",
 ): string {
-  const authorLabel = getReadableAuthorLabel(detail.item.creators);
+  const authorLabel = getReadableAuthorLabel(
+    detail.item.creators,
+    detail.item.creatorDetails,
+    detail.item.itemType,
+  );
   const yearLabel = `${getReadableYearLabel(detail.item.year)}${collisionSuffix}`;
   const title = getReadableTitleVariants(detail.item.title).fileTitle;
   return (
-    removeIllegalFilenameCharacters(`${authorLabel} ${yearLabel} - ${title}`) ||
-    "Untitled"
+    removeIllegalFilenameCharacters(
+      `${truncateAtWordBoundary(authorLabel, 80)} ${yearLabel} - ${title}`,
+    ) || "Untitled"
   );
 }
 
@@ -201,7 +215,16 @@ export function getGeneratedCitekeyStem(
   collisionSuffix = "",
 ): string {
   const firstCreatorLastName =
-    toAsciiWord(getCreatorLastName(detail.item.creators[0] ?? "")) || "unknown";
+    toAsciiWord(
+      detail.item.creatorDetails
+        ? creatorFamilyName(
+            primaryCreators(
+              detail.item.creatorDetails,
+              detail.item.itemType,
+            )[0] ?? { creatorType: "author" },
+          )
+        : getCreatorLastName(detail.item.creators[0] ?? ""),
+    ) || "unknown";
   const year = toAsciiWord(detail.item.year ?? "") || "nd";
   const significantTitleWord =
     toAsciiWord(getFirstSignificantTitleWord(detail.item.title)) || "untitled";

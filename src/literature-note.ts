@@ -10,22 +10,15 @@ import {
 } from "./literature-note-content";
 import { getLiteratureNoteMatchPriority } from "./literature-note-matching";
 import type { LiteratureNoteIdentity } from "./literature-note-content-types";
-import {
-  getGeneratedFileStem,
-  isLegacyManagedFileStem,
-  resolveExistingFilenameStemState,
-  type LiteratureNoteFilenameFormat,
-} from "./literature-note-filenames";
+import { type LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import {
   createLiteratureNoteFile,
   ensureFolder,
-  renameLiteratureNoteFile,
 } from "./literature-note-files";
 import {
   findExistingLiteratureNote,
   getNormalizedNotesFolder,
   getStoredFilenameStem,
-  getStoredZoteroVersion,
   toIdentity,
 } from "./literature-note-helpers";
 
@@ -91,43 +84,9 @@ export async function createOrUpdateLiteratureNote(params: {
     assertActive();
     assertNoteIdentity(existingContent, identity);
     const { frontmatter } = splitFrontmatterContent(existingContent, parseYaml);
-    const desiredStem = getGeneratedFileStem(
-      params.detail,
-      params.filenameFormat,
-    );
-    const currentStem = existingFile.basename;
-    const storedStem = getStoredFilenameStem(frontmatter);
-    const previousVersion = getStoredZoteroVersion(frontmatter);
-    const filenameState = resolveExistingFilenameStemState({
-      currentStem,
-      storedStem,
-      desiredStem,
-      previousVersion,
-      currentVersion: params.detail.item.version,
-    });
-
-    let file = existingFile;
-    let filenameStem = filenameState.nextStoredStem;
-
-    if (
-      !storedStem &&
-      filenameState.nextStoredStem === null &&
-      isLegacyManagedFileStem(currentStem)
-    ) {
-      filenameStem = currentStem;
-    }
-
-    if (filenameState.shouldRename) {
-      const renamed = await renameLiteratureNoteFile({
-        app: params.app,
-        file,
-        notesFolder: folder,
-        detail: params.detail,
-        filenameFormat: params.filenameFormat,
-      });
-      file = renamed.file;
-      filenameStem = renamed.filenameStem;
-    }
+    const file = existingFile;
+    const filenameStem =
+      getStoredFilenameStem(frontmatter) ?? existingFile.basename;
 
     let changed = false;
     await params.app.vault.process(file, (currentContent) => {
