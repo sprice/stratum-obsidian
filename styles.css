@@ -754,7 +754,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-sources-title { border: 0; box-shadow: none; background: transparent; padding: var(--size-4-1) 0; color: var(--text-normal); font-weight: var(--font-semibold); width: 100%; }
 .stratum-sources-title:hover { color: var(--text-accent); }
 .stratum-sources-keys { display: flex; flex-wrap: wrap; gap: var(--size-4-1); margin: var(--size-4-1) 0 var(--size-4-2); }
-.stratum-sources-key { height: auto; white-space: normal; overflow-wrap: anywhere; max-width: 100%; text-align: left; font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-accent); }
+.stratum-sources-key { white-space: normal; overflow-wrap: anywhere; max-width: 100%; text-align: left; font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-muted); background: var(--background-secondary); padding: var(--size-2-1) var(--size-4-1); border-radius: var(--radius-s); user-select: text; -webkit-user-select: text; cursor: text; }
 .stratum-sources-list summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-1) 0; }
 .stratum-sources-excerpt { width: 100%; margin-top: var(--size-4-2); font-size: var(--font-ui-small); }
 .stratum-sources-issue { color: var(--text-warning); font-size: var(--font-ui-small); }

@@ -1,4 +1,4 @@
-import { Component, Notice, SearchComponent, setIcon } from "obsidian";
+import { Component, SearchComponent, setIcon } from "obsidian";
 import type { SourcesController } from "./sources-controller";
 import type { SourceRow } from "./document-sources";
 
@@ -165,19 +165,9 @@ export class SourcesPanel extends Component {
     }
     const keys = item.createDiv({ cls: "stratum-sources-keys" });
     for (const key of row.keys) {
-      const copy = keys.createEl("button", {
+      keys.createEl("code", {
         cls: "stratum-sources-key",
         text: `@${key}`,
-      });
-      copy.type = "button";
-      copy.title = "Copy citation key";
-      copy.setAttr("aria-label", `Copy citation key @${key}`);
-      copy.dataset.sourceAction = `${row.id}:key:${key}`;
-      copy.addEventListener("click", () => {
-        void navigator.clipboard.writeText(`@${key}`).then(
-          () => new Notice("Citation key copied."),
-          () => new Notice("Could not copy the citation key."),
-        );
       });
     }
     if (row.issue)
