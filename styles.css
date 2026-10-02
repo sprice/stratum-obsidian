@@ -711,6 +711,7 @@
 	display: none;
 }
 
+.metadata-property[data-property-key="stratum_version"],
 .metadata-property[data-property-key="zotero_status"],
 .metadata-property[data-property-key="zotero_library_type"],
 .metadata-property[data-property-key="zotero_synced_at"] {
