@@ -1,39 +1,60 @@
 name: Release Obsidian plugin
 
 on:
-    push:
-        tags:
-            - "*"
+  push:
+    tags:
+      - "*"
 
 permissions:
-    contents: write
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-        steps:
-            - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
 
-            - name: Use Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: "22.x"
-                  cache: "pnpm"
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "pnpm"
 
-            - run: pnpm install --frozen-lockfile
+      - name: Verify release version
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
+            if (manifest.version !== process.env.GITHUB_REF_NAME) {
+              throw new Error("Release tag must match manifest.json version");
+            }
+          '
 
-            - name: Build plugin
-              run: pnpm build
+      - run: pnpm install --frozen-lockfile
 
-            - name: Create release
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: |
-                  tag="${GITHUB_REF#refs/tags/}"
+      - name: Build plugin
+        run: pnpm build
 
-                  gh release create "$tag" \
-                    --title="$tag" \
-                    --draft \
-                    main.js manifest.json styles.css
+      - name: Attest release assets
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+
+          gh release create "$tag" \
+            --title="$tag" \
+            --draft \
+            main.js manifest.json styles.css
