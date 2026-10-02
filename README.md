@@ -127,10 +127,10 @@ The account-backed design lets Stratum skip the usual Zotero plugin setup burden
 
 Released under the [MIT License](LICENSE).
 
-## Browse imported papers by collection
+## Browse literature notes by collection
 
 Run **Stratum: Browse papers by collection** from the command palette, or select
-**Browse imported papers** in the Stratum panel. Search for a collection by name,
+**Browse literature notes** in the Stratum panel. Search for a collection by name,
 library, or parent path. The browser opens existing literature notes; it does not
 import papers or create collection pages.
 

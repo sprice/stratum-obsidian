@@ -368,7 +368,7 @@ export class StratumView extends ItemView {
 
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
     const browse = shell.createEl("button", {
-      text: "Browse imported papers",
+      text: "Browse literature notes",
       cls: "stratum-browse-collections",
     });
     browse.addEventListener("click", () => browseCollections(this.plugin));
