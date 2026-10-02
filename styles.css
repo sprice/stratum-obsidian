@@ -21,7 +21,11 @@
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	min-width: 0;
-	border-bottom: 1px solid var(--background-modifier-border);
+	gap: var(--size-2-1);
+	padding: var(--size-2-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
 }
 
 .stratum-tab-bar > button {
@@ -29,10 +33,10 @@
 	height: auto;
 	white-space: normal;
 	overflow-wrap: anywhere;
-	padding: 0.8rem 0.75rem;
+	padding: var(--size-4-2) var(--size-4-3);
 	border: 0;
-	border-bottom: 2px solid transparent;
-	border-radius: 0;
+	border-radius: var(--radius-s);
+	box-shadow: none;
 	background: transparent;
 	color: var(--text-muted);
 	font-weight: 600;
@@ -60,8 +64,13 @@
 }
 
 .stratum-tab-bar > button.is-active {
-	color: var(--color-accent);
-	border-bottom-color: var(--color-accent);
+	color: var(--text-on-accent);
+	background: var(--interactive-accent);
+}
+
+.stratum-tab-bar > button:focus-visible {
+	outline: 2px solid var(--background-modifier-border-focus);
+	outline-offset: -2px;
 }
 
 .stratum-tab-content {
