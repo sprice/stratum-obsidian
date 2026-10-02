@@ -74,8 +74,10 @@ export class SourcesPanel extends Component {
         ? active.dataset.sourceAction
         : undefined;
     const file = this.sources.document;
-    this.documentButton.textContent =
-      file?.basename ?? "No writing note selected";
+    this.documentButton.textContent = file
+      ? `Sources for: ${file.basename}`
+      : "";
+    this.documentButton.hidden = !this.sources.showDocumentLink;
     this.documentButton.disabled = !file;
     this.documentButton.title = file
       ? "Return to this note"

@@ -769,7 +769,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-sources-header h3 { margin: 0; }
 .stratum-sources-header [aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
 .stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
-.stratum-sources-document { width: 100%; }
+.stratum-sources-document { align-self: flex-start; max-width: 100%; min-height: 0; padding: var(--size-2-1) 0; border: 0; box-shadow: none; background: transparent; color: var(--link-color); font-size: var(--font-ui-small); text-decoration: underline; cursor: pointer; }
+.stratum-sources-document:hover { background: transparent; color: var(--link-color-hover); }
+.stratum-sources-document[hidden] { display: none; }
 .stratum-sources-summary, .stratum-sources-meta, .stratum-sources-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
 .stratum-sources-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
 .stratum-sources-tools .search-input-container { flex: 1 1 140px; min-width: 0; }
