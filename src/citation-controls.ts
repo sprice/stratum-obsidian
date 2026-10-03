@@ -32,6 +32,7 @@ class StylePicker extends FuzzySuggestModal<CitationStyle> {
     this.choose(item);
   }
 }
+const openPreferences = new WeakMap<StratumPlugin, Set<CitationPreferences>>();
 export class CitationPreferences extends Modal {
   private selected: string;
   private language: string;
@@ -61,14 +62,25 @@ export class CitationPreferences extends Modal {
         };
     this.selected = prefs.style;
     this.language = prefs.language;
-    plugin.register(() => this.close());
+    let active = openPreferences.get(plugin);
+    if (!active) {
+      active = new Set();
+      openPreferences.set(plugin, active);
+      const tracked = active;
+      plugin.register(() => {
+        for (const modal of tracked) modal.close();
+        tracked.clear();
+      });
+    }
   }
   onOpen(): void {
     this.active = true;
+    openPreferences.get(this.plugin)!.add(this);
     this.render();
   }
   onClose(): void {
     this.active = false;
+    openPreferences.get(this.plugin)?.delete(this);
     this.picker?.close();
     this.contentEl.empty();
   }
@@ -183,6 +195,55 @@ export class CitationPreferences extends Modal {
     credits.appendText(
       " by Frank Bennett. Styles: Citation Style Language project.",
     );
+    new Setting(el)
+      .setName("Unused custom styles")
+      .setDesc("Remove imported styles that no paper uses.")
+      .addButton((button) =>
+        button
+          .setButtonText("Remove unused styles")
+          .setDisabled(this.busy)
+          .onClick(async () => {
+            if (!this.active || this.busy || this.plugin.isUnloaded) return;
+            this.busy = true;
+            button.setDisabled(true);
+            const used = new Set([
+              this.selected,
+              this.plugin.settings.citationStyle,
+            ]);
+            for (const file of this.app.vault.getMarkdownFiles()) {
+              const cache = this.app.metadataCache.getFileCache(file);
+              if (!cache) {
+                this.busy = false;
+                if (this.active) this.render();
+                new Notice(
+                  "Wait for Obsidian to index your notes before removing styles.",
+                );
+                return;
+              }
+              const style: unknown = cache.frontmatter?.stratum_citation_style;
+              if (typeof style === "string") used.add(style);
+            }
+            const previous = this.plugin.settings.citationStyles;
+            this.plugin.settings.citationStyles = Object.fromEntries(
+              Object.entries(previous).filter(
+                ([id]) => !id.startsWith("custom-") || used.has(id),
+              ),
+            );
+            try {
+              const { saveCitationResources } =
+                await import("./citation-resources");
+              await saveCitationResources(this.plugin);
+              await this.plugin.saveSettings();
+              new Notice("Unused custom citation styles removed.");
+            } catch {
+              this.plugin.settings.citationStyles = previous;
+              new Notice("Could not remove unused styles.");
+            } finally {
+              this.busy = false;
+              if (this.active) this.render();
+            }
+          }),
+      );
     const preview = el.createDiv({
       cls: "stratum-citation-preview stratum-reference-output",
     });
@@ -269,7 +330,7 @@ export class CitationPreferences extends Modal {
     try {
       const xml = await this.app.vault.read(file);
       readStyle(xml);
-      const id = `custom-${Date.now()}`;
+      const id = `custom-${Array.from(path).reduce((hash, char) => Math.imul(hash ^ char.charCodeAt(0), 16777619), 2166136261) >>> 0}`;
       await prepareStyle(this.plugin, id, this.language, xml);
       if (this.active) {
         this.selected = id;

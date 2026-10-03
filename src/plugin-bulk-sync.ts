@@ -1,3 +1,4 @@
+import { beginReferenceBatch } from "./citation-reference-store";
 import {
   UnsupportedZoteroItemError,
   type UnsupportedZoteroItem,
@@ -57,6 +58,7 @@ type TouchedNote = {
   file: TFile | null;
   itemKey: string;
   doi: string | null;
+  detail: import("./backend-client").ZoteroItemDetail;
 };
 
 function queueBulkLibrarySyncUiRefresh(plugin: StratumPlugin): void {
@@ -66,8 +68,11 @@ function queueBulkLibrarySyncUiRefresh(plugin: StratumPlugin): void {
 
   plugin.bulkLibrarySyncUiRefreshTimer = window.setTimeout(() => {
     plugin.bulkLibrarySyncUiRefreshTimer = null;
-    plugin.refreshViews();
-    plugin.refreshSettingTab();
+    for (const leaf of plugin.app.workspace.getLeavesOfType("stratum-view")) {
+      const view = leaf.view as import("./view").StratumView;
+      if (typeof view.refreshSyncProgress === "function")
+        view.refreshSyncProgress();
+    }
     plugin.refreshAutoSyncUi();
   }, BULK_LIBRARY_SYNC_UI_REFRESH_MS);
 }
@@ -247,6 +252,7 @@ async function syncCatalogItem(
       file: writeResult.file,
       itemKey,
       doi: detail.item.doi,
+      detail,
     },
   };
 }
@@ -279,6 +285,7 @@ async function processCatalogPage(
     page.items.length,
   );
 
+  const flush = beginReferenceBatch(plugin.app);
   const workers = Array.from({ length: workerCount }, async () => {
     while (true) {
       if (fatalError || !canSyncLibrary(plugin, library)) {
@@ -306,7 +313,8 @@ async function processCatalogPage(
           result.unsupportedItems.push(error.item);
         } else if (
           error instanceof LocalZoteroUnavailableError ||
-          (error instanceof LocalZoteroApiError && error.status !== 404)
+          (error instanceof LocalZoteroApiError &&
+            [401, 403, 429].includes(error.status ?? 0))
         ) {
           fatalError = fatalError ?? normalizeBulkSyncError(error);
         } else if (
@@ -333,7 +341,18 @@ async function processCatalogPage(
     }
   });
 
-  await Promise.all(workers);
+  try {
+    await Promise.all(workers);
+  } finally {
+    try {
+      await flush();
+    } catch (error) {
+      console.error(
+        "stratum: citation cache batch failed; literature notes were synced",
+        error,
+      );
+    }
+  }
   if (fatalError) {
     throw normalizeBulkSyncError(fatalError);
   }
@@ -396,7 +415,8 @@ async function retryFailedCatalogItems(
     } catch (error) {
       if (
         error instanceof LocalZoteroUnavailableError ||
-        (error instanceof LocalZoteroApiError && error.status !== 404)
+        (error instanceof LocalZoteroApiError &&
+          [401, 403, 429].includes(error.status ?? 0))
       ) {
         throw error;
       }
@@ -481,66 +501,75 @@ async function runEnrichmentPass(
     return enrichmentFailureCount;
   }
 
-  for (const note of touchedNotes) {
-    if (!canSyncLibrary(plugin, library))
-      throw new Error("Bulk sync was cancelled.");
-    let enrichmentKey = getNormalizedDoiLookupKey(note.doi);
-    try {
-      plugin.localZoteroUserId = userId;
-      const detail = await loadLocalZoteroItemDetailForPlugin(plugin, {
-        library,
-        itemKey: note.itemKey,
-      });
-      enrichmentKey = getNormalizedDoiLookupKey(detail.item.doi);
-      if (!enrichmentKey) {
-        continue;
-      }
+  const flush = beginReferenceBatch(plugin.app);
+  try {
+    for (const note of touchedNotes) {
+      if (!canSyncLibrary(plugin, library))
+        throw new Error("Bulk sync was cancelled.");
+      let enrichmentKey = getNormalizedDoiLookupKey(note.doi);
+      try {
+        plugin.localZoteroUserId = userId;
+        const detail = note.detail;
+        enrichmentKey = getNormalizedDoiLookupKey(detail.item.doi);
+        if (!enrichmentKey) {
+          continue;
+        }
 
-      if (
-        !Object.prototype.hasOwnProperty.call(enrichmentLookup, enrichmentKey)
-      ) {
-        enrichmentFailureCount += 1;
-        console.error(
-          `stratum: bulk enrichment response missing DOI ${enrichmentKey} for item ${note.itemKey}`,
-        );
-        continue;
-      }
+        if (
+          !Object.prototype.hasOwnProperty.call(enrichmentLookup, enrichmentKey)
+        ) {
+          enrichmentFailureCount += 1;
+          console.error(
+            `stratum: bulk enrichment response missing DOI ${enrichmentKey} for item ${note.itemKey}`,
+          );
+          continue;
+        }
 
-      const existingFile =
-        note.file ??
-        plugin.findExistingLiteratureNoteFile({
-          libraryType: detail.library.type,
-          libraryId: detail.library.id,
-          itemKey: note.itemKey,
+        const existingFile =
+          note.file ??
+          plugin.findExistingLiteratureNoteFile({
+            libraryType: detail.library.type,
+            libraryId: detail.library.id,
+            itemKey: note.itemKey,
+          });
+        if (!existingFile) {
+          enrichmentFailureCount += 1;
+          continue;
+        }
+
+        const enrichmentResult = enrichmentLookup[enrichmentKey];
+        if (enrichmentResult.status === "temporary_failure") {
+          enrichmentFailureCount += 1;
+          continue;
+        }
+
+        await writeLiteratureNoteFromDetail(plugin, {
+          detail,
+          existingFile,
+          enrichmentMode: "provided",
+          enrichment: enrichmentResult.enrichment,
         });
-      if (!existingFile) {
-        enrichmentFailureCount += 1;
-        continue;
+      } catch (error) {
+        if (enrichmentKey) {
+          enrichmentFailureCount += 1;
+        }
+        console.error(
+          `stratum: bulk enrichment failed for item ${note.itemKey}`,
+          error,
+        );
+      } finally {
+        processedCount += 1;
+        setBulkLibrarySyncPageProgress(plugin, processedCount, batchItemCount);
       }
-
-      const enrichmentResult = enrichmentLookup[enrichmentKey];
-      if (enrichmentResult.status === "temporary_failure") {
-        enrichmentFailureCount += 1;
-        continue;
-      }
-
-      await writeLiteratureNoteFromDetail(plugin, {
-        detail,
-        existingFile,
-        enrichmentMode: "provided",
-        enrichment: enrichmentResult.enrichment,
-      });
+    }
+  } finally {
+    try {
+      await flush();
     } catch (error) {
-      if (enrichmentKey) {
-        enrichmentFailureCount += 1;
-      }
       console.error(
-        `stratum: bulk enrichment failed for item ${note.itemKey}`,
+        "stratum: citation cache enrichment batch failed; literature notes were synced",
         error,
       );
-    } finally {
-      processedCount += 1;
-      setBulkLibrarySyncPageProgress(plugin, processedCount, batchItemCount);
     }
   }
 

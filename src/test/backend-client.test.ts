@@ -153,3 +153,42 @@ for (const [status, payload, expected] of [
     );
   });
 }
+
+for (const status of [401, 403])
+  test(`access ${status} refreshes and retries once without discarding the session`, async () => {
+    const calls: string[] = [];
+    const { client } = setup(({ url, headers }) => {
+      calls.push(url);
+      return Promise.resolve(
+        response(
+          url.includes("/token?")
+            ? 200
+            : headers?.Authorization === "Bearer refreshed"
+              ? 200
+              : status,
+          url.includes("/token?") ? refreshed : {},
+        ),
+      );
+    });
+    await client.setSession(fresh);
+    const result = await client.authedFetch("/one");
+    assert.equal(result.status, 200);
+    assert.equal(calls.length, 3);
+    assert.equal(client.getSession()?.refreshToken, "rotated");
+  });
+test("repeated access rejection stops after one refresh and retains the rotated token", async () => {
+  let calls = 0;
+  const { client } = setup(({ url }) => {
+    calls++;
+    return Promise.resolve(
+      response(
+        url.includes("/token?") ? 200 : 401,
+        url.includes("/token?") ? refreshed : {},
+      ),
+    );
+  });
+  await client.setSession(fresh);
+  assert.equal((await client.authedFetch("/one")).status, 401);
+  assert.equal(calls, 3);
+  assert.equal(client.getSession()?.refreshToken, "rotated");
+});

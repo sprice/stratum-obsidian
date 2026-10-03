@@ -25,7 +25,7 @@ export function citationDisplayEdits(
     let { from, to } = citation;
     let html = result.citations[index];
     if (citation.generatedNote) {
-      html = `<sup><a class="stratum-note-ref" href="#${escapeHtml(noteId(path, citation.noteIndex))}" aria-label="Citation note ${citation.noteIndex}">${citation.noteIndex}</a></sup>`;
+      html = `<sup><a class="stratum-note-ref footnote-link" data-footnote-id="${escapeHtml(noteId(path, citation.noteIndex))}-citation-ref" id="${escapeHtml(noteId(path, citation.noteIndex))}-citation-ref" href="#${escapeHtml(noteId(path, citation.noteIndex))}" aria-label="Citation note ${citation.noteIndex}">${citation.noteIndex}</a></sup>`;
       // Match Pandoc's default placement after punctuation, without modifying Markdown.
       const punctuation = /^[.,;:!?]+/.exec(text.slice(to));
       if (punctuation) {

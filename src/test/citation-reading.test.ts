@@ -18,7 +18,7 @@ test("Reading postprocessing never formats rendered blocks inside Live Preview",
     { document: { createElement: () => ({}) } },
     "browser",
   );
-  let processor!: (el: unknown, ctx: unknown) => void;
+  let processor!: (el: unknown, ctx: unknown) => Promise<void> | undefined;
   let formats = 0;
   registerCitationReading({
     plugin: {
@@ -65,7 +65,7 @@ test("a detached block mounted in Live Preview during formatting receives no out
     { document: { createElement: () => ({}) } },
     "browser",
   );
-  let processor!: (el: unknown, ctx: unknown) => void;
+  let processor!: (el: unknown, ctx: unknown) => Promise<void> | undefined;
   let finish!: (value: unknown) => void;
   let inEditor = false;
   let restored = 0;
@@ -99,13 +99,14 @@ test("a detached block mounted in Live Preview during formatting receives no out
       getSectionInfo: () => ({ text: "[@example]", lineStart: 0, lineEnd: 0 }),
     },
   );
+  await Promise.resolve();
   inEditor = true;
   finish(undefined);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(restored, 1);
 });
 
-test("ordinary notes and removed citations restore native output without formatting", () => {
+test("ordinary notes and removed citations restore native output without formatting", async () => {
   class File {}
   class Child {
     constructor(public containerEl: unknown) {}
@@ -117,7 +118,7 @@ test("ordinary notes and removed citations restore native output without formatt
     { document: { createElement: () => ({}) } },
     "browser",
   );
-  let processor!: (el: unknown, ctx: unknown) => void;
+  let processor!: (el: unknown, ctx: unknown) => Promise<void> | undefined;
   let restored = 0;
   let formats = 0;
   registerCitationReading({
@@ -139,7 +140,7 @@ test("ordinary notes and removed citations restore native output without formatt
     "`[@example]`",
     "[[note|@example]]",
   ]) {
-    processor(
+    await processor(
       {
         closest: () => null,
         normalize() {

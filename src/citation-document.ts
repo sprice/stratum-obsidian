@@ -1,7 +1,7 @@
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
-import { citationAt, type CitationDraft } from "./citation-model";
+import { citationMatches, type CitationDraft } from "./citation-model";
 import { parseSourceOccurrences, sourceProse } from "./source-occurrences";
 interface Node {
   type: string;
@@ -41,6 +41,7 @@ const parser = unified().use(remarkParse).use(remarkGfm);
 export function citationDocument(
   text: string,
   noteStyle: boolean,
+  include: (draft: CitationDraft) => boolean = () => true,
 ): CitationDocument {
   const prose = sourceProse(text);
   const tree = parser.parse(text) as Node;
@@ -61,6 +62,18 @@ export function citationDocument(
   let nextNote = 0;
   const start = (node: Node) => node.position?.start.offset ?? 0;
   const end = (node: Node) => node.position?.end.offset ?? 0;
+  // Link labels can contain native footnote references, while citation prose
+  // deliberately excludes links. Refuse note takeover if the order is unsafe.
+  const inspectNestedReferences = (node: Node, insideLink = false) => {
+    if (insideLink && node.type === "footnoteReference")
+      result.problems.push(
+        "Explanatory footnotes inside links are not supported for note-based citation styles. Move the reference outside the link.",
+      );
+    node.children?.forEach((child) =>
+      inspectNestedReferences(child, insideLink || node.type === "link"),
+    );
+  };
+  inspectNestedReferences(tree);
   const collect = (node: Node) => {
     if (node.type !== "root" && !prose.slice(start(node), end(node)).trim())
       return;
@@ -143,17 +156,16 @@ export function citationDocument(
           }
         | { kind: "note"; from: number; node: Node }
       )[] = [];
-      let until = -1;
-      for (const occurrence of parseSourceOccurrences(raw)) {
+      for (const match of citationMatches(raw)) {
         if (
-          occurrence.kind !== "citation" ||
-          occurrence.from < until ||
-          !globalOccurrences.has(from + occurrence.from)
+          !globalOccurrences.has(from + match.from) &&
+          !parseSourceOccurrences(raw.slice(match.from, match.to)).some(
+            (o) =>
+              o.kind === "citation" &&
+              globalOccurrences.has(from + match.from + o.from),
+          )
         )
           continue;
-        const match = citationAt(raw, occurrence.from);
-        if (!match) continue;
-        until = match.to;
         events.push({
           kind: "citation",
           ...match,
@@ -162,6 +174,8 @@ export function citationDocument(
         });
       }
       const refs = (child: Node) => {
+        if (["link", "image", "inlineCode", "html"].includes(child.type))
+          return;
         if (
           child.type === "footnoteReference" &&
           prose.slice(start(child), end(child)).trim()
@@ -182,6 +196,7 @@ export function citationDocument(
           );
           continue;
         }
+        if (!include(event.draft)) continue;
         const generatedNote = noteStyle && noteIndex === 0;
         result.citations.push({
           from: event.from,
@@ -197,5 +212,23 @@ export function citationDocument(
       node.children?.forEach((child) => visit(child, noteIndex));
   };
   visit(tree);
+  return result;
+}
+
+/** Lightweight authoring model: footnote ordering and CSL belong to Reading view. */
+export function citationAuthoringDocument(text: string): CitationDocument {
+  const result: CitationDocument = {
+    citations: [],
+    notes: [],
+    references: [],
+    bibliographies: [],
+    problems: [],
+  };
+  if (!text.includes("@")) return result;
+  result.citations = citationMatches(text).flatMap((match) =>
+    match.draft
+      ? [{ ...match, draft: match.draft, noteIndex: 0, generatedNote: false }]
+      : [],
+  );
   return result;
 }

@@ -2,7 +2,7 @@ export const MANAGED_START = "<!-- stratum:managed:start -->";
 export const MANAGED_END = "<!-- stratum:managed:end -->";
 export const USER_BOUNDARY_CALLOUT_TYPE = "stratum";
 export const USER_BOUNDARY_CALLOUT_TITLE = "My Notes";
-export const USER_BOUNDARY_PATTERN = /^> \[!stratum\]/m;
+export const USER_BOUNDARY_PATTERN = /^ {0,3}>[ \t]*\[!stratum\]/im;
 export const USER_BOUNDARY_CALLOUT = [
   `> [!${USER_BOUNDARY_CALLOUT_TYPE}]- ${USER_BOUNDARY_CALLOUT_TITLE}`,
   "> This block and everything above it is managed by Stratum. Write your notes below.",

@@ -9,7 +9,13 @@ class Element {
   isConnected = true;
   addClass() {}
   setAttr() {}
-  addEventListener() {}
+  listeners = new Map<string, () => void>();
+  addEventListener(name: string, callback: () => void) {
+    this.listeners.set(name, callback);
+  }
+  blur() {
+    this.listeners.get("blur")?.();
+  }
   empty() {}
   createDiv() {
     return new Element();
@@ -23,6 +29,9 @@ class Control {
   click?: () => Promise<void>;
   value?: string | boolean;
   disabled = false;
+  getValue() {
+    return String(this.value ?? "");
+  }
   setValue(value: string | boolean) {
     this.value = value;
     return this;
@@ -104,6 +113,9 @@ function fixture(desktop = false, modern = true) {
   let indexedNames: string[] = [];
   const plugin = {
     app: {},
+    backend: {
+      hasSession: (): boolean => Boolean(plugin.settings.accountEmail),
+    },
     settings: structuredClone(DEFAULT_SETTINGS),
     availableGroups: [] as { id: string; name: string; type: string }[],
     zoteroConnection: null as null | {
@@ -271,13 +283,17 @@ for (const modern of [false, true]) {
     const format = Row.rendered.find(
       (r) => r.name === "Literature note filename format",
     );
-    await folder?.control?.change?.("  Papers  ");
+    folder?.control?.setValue("  Papers  ");
+    folder?.control?.inputEl.blur();
+    await new Promise((resolve) => setImmediate(resolve));
     await format?.control?.change?.("citekey");
     assert.equal(f.plugin.settings.notesFolder, "Papers");
     assert.equal(f.plugin.settings.filenameFormat, "citekey");
     assert.equal(f.saves, 2);
     assert.equal(f.rebuilds, 1);
-    await folder?.control?.change?.(" ");
+    folder?.control?.setValue(" ");
+    folder?.control?.inputEl.blur();
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(f.plugin.settings.notesFolder, DEFAULT_SETTINGS.notesFolder);
   });
 }

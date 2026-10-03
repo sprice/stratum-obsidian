@@ -31,14 +31,76 @@ export function readReferenceStore(text: string): ReferenceStore {
   });
   return { version: 1, items };
 }
+const snapshots = new WeakMap<App, { text: string; store: ReferenceStore }>();
+function cachedStore(app: App, text: string): ReferenceStore {
+  const old = snapshots.get(app);
+  if (old?.text === text) return old.store;
+  const store = readReferenceStore(text);
+  snapshots.set(app, { text, store });
+  return store;
+}
 export async function loadReferenceStore(app: App): Promise<CslItem[]> {
   const file = app.vault.getAbstractFileByPath(REFERENCE_FILE);
   if (!file) return [];
   if (!(file instanceof TFile))
     throw new Error("The citation data path is not a file.");
-  return readReferenceStore(await app.vault.read(file)).items;
+  return cachedStore(app, await app.vault.read(file)).items;
 }
 const pending = new WeakMap<App, Promise<unknown>>();
+const batches = new WeakMap<
+  App,
+  Map<string, { item: CslItem; active: () => boolean }>
+>();
+/** Batch a catalog page without blocking its workers on per-item cache writes. */
+export function beginReferenceBatch(app: App): () => Promise<void> {
+  if (batches.has(app)) throw new Error("Citation cache batch already active.");
+  const items = new Map<string, { item: CslItem; active: () => boolean }>();
+  batches.set(app, items);
+  return async () => {
+    batches.delete(app);
+    await writeReferences(app, [...items.values()]);
+  };
+}
+async function writeReferences(
+  app: App,
+  updates: { item: CslItem; active: () => boolean }[],
+): Promise<void> {
+  if (!updates.length) return;
+  const next = (pending.get(app) ?? Promise.resolve())
+    .catch(() => {})
+    .then(async () => {
+      const file = app.vault.getAbstractFileByPath(REFERENCE_FILE);
+      if (file && !(file instanceof TFile))
+        throw new Error("The citation data path is not a file.");
+      const merge = (text: string, creating = false) => {
+        const active = updates.filter((update) => update.active());
+        if (!active.length) return text;
+        const store = creating
+          ? { version: 1, items: [] as CslItem[] }
+          : cachedStore(app, text);
+        const index = new Map(store.items.map((item) => [item.id, item]));
+        let changed = false;
+        for (const { item } of active) {
+          if (JSON.stringify(index.get(item.id)) !== JSON.stringify(item)) {
+            index.set(item.id, item);
+            changed = true;
+          }
+        }
+        return changed
+          ? JSON.stringify({ version: 1, items: [...index.values()] }) + "\n"
+          : text;
+      };
+      if (file instanceof TFile) {
+        const original = await app.vault.read(file);
+        if (merge(original) !== original) await app.vault.process(file, merge);
+      } else {
+        const content = merge("", true);
+        if (content) await app.vault.create(REFERENCE_FILE, content);
+      }
+    });
+  pending.set(app, next);
+  await next;
+}
 export async function saveReference(
   app: App,
   detail: ZoteroItemDetail,
@@ -46,26 +108,11 @@ export async function saveReference(
 ): Promise<void> {
   const id = `${detail.library.type}/${detail.library.id}/${detail.item.key}`;
   const item = readCslItem(detail.item.csl, id);
-  if (!item) return; // Older servers cannot erase previously imported CSL data.
-  const next = (pending.get(app) ?? Promise.resolve())
-    .catch(() => {})
-    .then(async () => {
-      if (!active()) return;
-      const file = app.vault.getAbstractFileByPath(REFERENCE_FILE);
-      const update = (text: string, creating = false) => {
-        if (!active()) return text;
-        const store = creating
-          ? { version: 1, items: [] as CslItem[] }
-          : readReferenceStore(text);
-        const index = store.items.findIndex((value) => value.id === id);
-        if (index < 0) store.items.push(item);
-        else store.items[index] = item;
-        return JSON.stringify(store, null, 2) + "\n";
-      };
-      if (file instanceof TFile) await app.vault.process(file, update);
-      else if (file) throw new Error("The citation data path is not a file.");
-      else await app.vault.create(REFERENCE_FILE, update("", true));
-    });
-  pending.set(app, next);
-  await next;
+  if (!item) return;
+  const batch = batches.get(app);
+  if (batch) {
+    batch.set(id, { item, active });
+    return;
+  }
+  await writeReferences(app, [{ item, active }]);
 }

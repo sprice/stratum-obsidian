@@ -21,6 +21,10 @@ import { citationAt } from "./citation-model";
 import { openCitationComposer } from "./citation-composer";
 
 export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
+  private suggestions: Promise<{
+    index: ReturnType<typeof citationKeyIndex>;
+    ordered: LiteratureNoteEntry[];
+  }> | null = null;
   private entries: LiteratureNoteEntry[] = [];
   private labels = new Map<LiteratureNoteEntry, string>();
   constructor(private plugin: StratumPlugin) {
@@ -43,6 +47,12 @@ export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
     const match = /(?:^|[\s(])@([\p{L}\p{N}_.:-]*)$/u.exec(before);
     if (!match) return null;
     const start = { line: cursor.line, ch: cursor.ch - match[1].length - 1 };
+    if (
+      this.context?.file === file &&
+      this.context.start.line === start.line &&
+      this.context.start.ch === start.ch
+    )
+      return { start, end: cursor, query: match[1] };
     const offset = editor.posToOffset(start);
     const text = editor.getValue();
     const probe =
@@ -59,29 +69,39 @@ export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
       candidate.draft.items[0]?.key !== "stratumProbe"
     )
       return null;
-    if (!this.context) {
-      this.entries = buildLiteratureNoteEntries(this.plugin);
-      this.labels.clear();
-    }
+    this.entries = buildLiteratureNoteEntries(this.plugin);
+    this.labels.clear();
+    this.suggestions = null;
     return { start, end: cursor, query: match[1] };
   }
   async getSuggestions(
     context: EditorSuggestContext,
   ): Promise<LiteratureNoteEntry[]> {
     const entries = this.entries;
-    let bibliography: string;
+    let index: ReturnType<typeof citationKeyIndex>,
+      ordered: LiteratureNoteEntry[];
     try {
-      bibliography = await readCitationBibliography(this.plugin.app);
+      this.suggestions ??= readCitationBibliography(this.plugin.app).then(
+        (bibliography) => ({
+          index: citationKeyIndex(entries, bibliography),
+          ordered: preferCitedSources(
+            entries,
+            context.editor.getValue(),
+            bibliography,
+          ),
+        }),
+      );
+      ({ index, ordered } = await this.suggestions);
     } catch {
+      this.suggestions = null;
       return [];
     }
-    const index = citationKeyIndex(entries, bibliography);
     for (const entry of entries) this.labels.set(entry, index.label(entry));
     const terms = context.query
       .toLocaleLowerCase()
       .split(/\s+/)
       .filter(Boolean);
-    return preferCitedSources(entries, context.editor.getValue(), bibliography)
+    return ordered
       .filter((entry) => {
         const text = [
           entry.title,

@@ -258,7 +258,6 @@ export default class StratumPlugin extends Plugin {
     const { CitationService } = await import("./citation-service");
     const { citationEditor } = await import("./citation-editor");
     const { registerCitationReading } = await import("./citation-reading");
-    const { CitationPreferences } = await import("./citation-controls");
     if (this.isUnloaded) return;
     const { refreshCitationData } = await import("./citation-refresh");
     const { citationDocument } = await import("./citation-document");
@@ -325,7 +324,10 @@ export default class StratumPlugin extends Plugin {
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file || file.extension !== "md") return false;
-        if (!checking) new CitationPreferences(this, file).open();
+        if (!checking)
+          void import("./citation-controls").then(({ CitationPreferences }) => {
+            if (!this.isUnloaded) new CitationPreferences(this, file).open();
+          });
         return true;
       },
     });
@@ -368,7 +370,9 @@ export default class StratumPlugin extends Plugin {
     });
 
     this.registerObsidianProtocolHandler(AUTH_PROTOCOL_ACTION, (params) => {
-      void handleAuthProtocol(this, params);
+      void handleAuthProtocol(this, params).catch(
+        () => new Notice("Sign-in could not be completed. Please try again."),
+      );
     });
 
     this.registerEvent(
@@ -413,13 +417,40 @@ export default class StratumPlugin extends Plugin {
       }),
     );
 
-    this.statusBarItemEl = this.addStatusBarItem();
-    startAutoSyncStatusRefresh(this);
+    if (Platform.isDesktopApp) {
+      this.statusBarItemEl = this.addStatusBarItem();
+      startAutoSyncStatusRefresh(this);
+    }
     refreshAutoSyncUi(this);
 
     this.app.workspace.onLayoutReady(() => {
       void bootstrapRemoteState(this);
     });
+  }
+
+  async onExternalSettingsChange(): Promise<void> {
+    const data = (await this.loadData()) as Record<string, unknown> | null;
+    if (this.isUnloaded || !data) return;
+    if (
+      typeof data.citationStyle === "string" &&
+      /^[a-z0-9-]+$/.test(data.citationStyle)
+    )
+      this.settings.citationStyle = data.citationStyle;
+    if (
+      typeof data.citationLanguage === "string" &&
+      /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(data.citationLanguage)
+    )
+      this.settings.citationLanguage = data.citationLanguage;
+    try {
+      const { loadCitationResources } = await import("./citation-resources");
+      await loadCitationResources(this);
+    } catch {
+      new Notice(
+        "Synced citation resources could not be loaded. Your current resources are retained.",
+      );
+    }
+    this.citations?.invalidate();
+    this.refreshSettingTab();
   }
 
   onunload(): void {

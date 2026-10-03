@@ -129,17 +129,20 @@ export function parseCitation(raw: string): CitationDraft | null {
   }
 }
 
-export function citationAt(
-  text: string,
-  offset: number,
-): { from: number; to: number; draft: CitationDraft | null } | null {
+export interface CitationMatch {
+  from: number;
+  to: number;
+  draft: CitationDraft | null;
+}
+/** Parse groups once, rather than scanning the document for each key. */
+export function citationMatches(text: string): CitationMatch[] {
+  if (!text.includes("@")) return [];
   const allOccurrences = parseSourceOccurrences(text);
   const occurrences = allOccurrences.filter((o) => o.kind === "citation");
-  // Find whole outer groups so nested/unsupported syntax never falls back to
-  // editing only an inner key and leaving broken brackets around it.
   const visible = sourceProse(text);
-  let depth = 0;
-  let start = -1;
+  const groups: { from: number; to: number; closed: boolean }[] = [];
+  let depth = 0,
+    start = -1;
   for (let i = 0; i <= text.length; i++) {
     let slashes = 0;
     for (let j = i - 1; j >= 0 && visible[j] === "\\"; j--) slashes++;
@@ -147,28 +150,44 @@ export function citationAt(
     if (visible[i] === "[") {
       if (depth++ === 0) start = i;
     }
+    const boundary =
+      i === text.length ||
+      (visible[i] === "\n" &&
+        (visible[i + 1] === "\n" ||
+          (visible[i + 1] === "\r" && visible[i + 2] === "\n")));
     if (
       (visible[i] === "]" && depth > 0 && --depth === 0) ||
-      (i === text.length && depth > 0)
+      (boundary && depth > 0)
     ) {
-      const to = Math.min(i + 1, text.length);
-      if (
-        offset >= start &&
-        offset <= to &&
-        occurrences.some((o) => o.from > start && o.to <= to)
-      ) {
-        return {
-          from: start,
-          to,
-          draft: depth ? null : parseCitation(text.slice(start, to)),
-        };
-      }
+      groups.push({
+        from: start,
+        to: Math.min(i + (boundary ? 0 : 1), text.length),
+        closed: !depth,
+      });
+      depth = 0;
     }
   }
+  const matches: CitationMatch[] = [];
+  let groupIndex = 0,
+    until = -1;
   for (const occurrence of occurrences) {
-    let from = occurrence.from;
+    if (occurrence.from < until) continue;
+    while (groups[groupIndex] && groups[groupIndex].to <= occurrence.from)
+      groupIndex++;
+    const group = groups[groupIndex];
+    if (group && occurrence.from > group.from && occurrence.to <= group.to) {
+      matches.push({
+        ...group,
+        draft: group.closed
+          ? parseCitation(text.slice(group.from, group.to))
+          : null,
+      });
+      until = group.to;
+      continue;
+    }
+    let from = occurrence.from,
+      to = occurrence.to;
     if (text[from - 1] === "-") from--;
-    let to = occurrence.to;
     const tail = /^[ \t]+\[[^[\]\n]*\]/.exec(text.slice(to));
     if (
       tail &&
@@ -178,8 +197,17 @@ export function citationAt(
       )
     )
       to += tail[0].length;
-    if (offset >= from && offset <= to)
-      return { from, to, draft: parseCitation(text.slice(from, to)) };
+    matches.push({ from, to, draft: parseCitation(text.slice(from, to)) });
+    until = to;
   }
-  return null;
+  return matches;
+}
+export function citationAt(text: string, offset: number): CitationMatch | null {
+  return (
+    citationMatches(text).find(
+      (match) =>
+        offset >= match.from &&
+        (text[match.from] === "[" ? offset < match.to : offset <= match.to),
+    ) ?? null
+  );
 }

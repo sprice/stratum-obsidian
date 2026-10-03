@@ -133,3 +133,10 @@ test("bare numeric Pandoc locators retain page semantics when edited", () => {
   assert.equal(draft.items[0].suffix, "for discussion");
   assert.equal(parseCitation("[@example, 42 unsupported tail]"), null);
 });
+
+test("an unmatched bracket does not capture citations in later CRLF paragraphs", () => {
+  const text = "An unfinished [ with @smith2024\r\n\r\nA valid [@jones2023].";
+  const match = citationAt(text, text.indexOf("@jones2023"));
+  assert.equal(match?.draft?.items[0].key, "jones2023");
+  assert.equal(match?.from, text.indexOf("[@jones2023]"));
+});

@@ -164,7 +164,9 @@ export function splitFrontmatterContent(
   frontmatter: Record<string, unknown>;
   body: string;
 } {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  const match = content
+    .replace(/^\uFEFF/, "")
+    .match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match) {
     return {
       frontmatter: {},
@@ -179,7 +181,9 @@ export function splitFrontmatterContent(
         parsed && typeof parsed === "object" && !Array.isArray(parsed)
           ? (parsed as Record<string, unknown>)
           : {},
-      body: content.slice(match[0].length),
+      body: content.slice(
+        match[0].length + (content.startsWith("\uFEFF") ? 1 : 0),
+      ),
     };
   } catch {
     return {

@@ -1,4 +1,5 @@
-import CSL from "citeproc";
+import { saveCitationResources } from "./citation-resources";
+
 import { requestUrl } from "obsidian";
 import assets from "./csl/assets.json";
 import type StratumPlugin from "./plugin";
@@ -61,7 +62,14 @@ async function download(url: string): Promise<string> {
     throw new Error("Citation resource is too large.");
   return result.text;
 }
-export async function styleCatalog(): Promise<CitationStyle[]> {
+let catalog: Promise<CitationStyle[]> | undefined;
+export function styleCatalog(): Promise<CitationStyle[]> {
+  return (catalog ??= fetchStyleCatalog().catch((error: unknown) => {
+    catalog = undefined;
+    throw error;
+  }));
+}
+async function fetchStyleCatalog(): Promise<CitationStyle[]> {
   const data: unknown = JSON.parse(
     await download("https://www.zotero.org/styles-files/styles.json"),
   );
@@ -81,6 +89,7 @@ export function cachedStyle(
   plugin: StratumPlugin,
   id: string,
 ): string | undefined {
+  if (Object.hasOwn(initial, id)) return initial[id];
   if (Object.hasOwn(plugin.settings.citationStyles, id))
     return plugin.settings.citationStyles[id];
   return Object.hasOwn(initial, id) ? initial[id] : undefined;
@@ -92,7 +101,11 @@ export function cachedLocales(plugin: StratumPlugin): Record<string, string> {
         ([key]) => key.includes("-") && key.length === 5,
       ),
     ),
-    ...plugin.settings.citationLocales,
+    ...Object.fromEntries(
+      Object.entries(plugin.settings.citationLocales).filter(
+        ([key]) => !Object.hasOwn(initial, key),
+      ),
+    ),
   };
 }
 /** Resolve dependencies before persisting a selection; no partial switch on network failure. */
@@ -141,6 +154,7 @@ export async function prepareStyle(
   }
   const info = readStyle(xml);
   const locales = cachedLocales(plugin);
+  const CSL = (await import("citeproc")).default;
   for (const lang of new Set([
     language,
     info.locale?.split(" ")[0] || "en-US",
@@ -164,7 +178,7 @@ export async function prepareStyle(
       locales[requested] = resource;
     }
   }
-  styles[id] = xml;
+  if (!Object.hasOwn(initial, id) || customXml) styles[id] = xml;
   if (plugin.isUnloaded) throw new Error("Stratum has been unloaded.");
   const previousStyles = plugin.settings.citationStyles;
   const previousLocales = plugin.settings.citationLocales;
@@ -174,11 +188,18 @@ export async function prepareStyle(
     [id]: chosenTitle ?? info.title,
   };
   plugin.settings.citationStyles = {
-    ...plugin.settings.citationStyles,
+    ...Object.fromEntries(
+      Object.entries(plugin.settings.citationStyles).filter(
+        ([key]) => !Object.hasOwn(initial, key),
+      ),
+    ),
     ...styles,
   };
-  plugin.settings.citationLocales = locales;
+  plugin.settings.citationLocales = Object.fromEntries(
+    Object.entries(locales).filter(([key, value]) => initial[key] !== value),
+  );
   try {
+    await saveCitationResources(plugin);
     await plugin.saveSettings();
   } catch (error) {
     plugin.settings.citationStyles = previousStyles;
@@ -189,6 +210,8 @@ export async function prepareStyle(
 }
 
 export function styleTitle(plugin: StratumPlugin, id: string): string {
+  const bundled = bundledStyles.find((style) => style.id === id);
+  if (bundled) return bundled.title;
   const xml = cachedStyle(plugin, id);
   try {
     return (

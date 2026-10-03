@@ -5,7 +5,7 @@ import {
   getGeneratedCitekeyStem,
   getReadableFileStem,
   getReadableTitleVariants,
-  resolveExistingFilenameStemState,
+  removeIllegalFilenameCharacters,
 } from "../literature-note-filenames";
 
 function createDetail(overrides?: Partial<ZoteroItemDetail>): ZoteroItemDetail {
@@ -114,65 +114,14 @@ test("getGeneratedCitekeyStem uses a generated fallback citekey", () => {
   );
 });
 
-test("resolveExistingFilenameStemState respects manual renames and legacy notes", () => {
-  assert.deepEqual(
-    resolveExistingFilenameStemState({
-      currentStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
-      storedStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
-      desiredStem: "@glockner2020predicting",
-      previousVersion: 34,
-      currentVersion: 34,
-    }),
-    {
-      shouldRename: true,
-      nextStoredStem: "@glockner2020predicting",
-    },
+test("new filenames remove wikilink separators and never split a Unicode code point", () => {
+  assert.equal(
+    removeIllegalFilenameCharacters("C# ^ [Introduction]"),
+    "C Introduction",
   );
-
-  assert.deepEqual(
-    resolveExistingFilenameStemState({
-      currentStem: "My custom paper name",
-      storedStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
-      desiredStem: "@glockner2020predicting",
-      previousVersion: 34,
-      currentVersion: 35,
-    }),
-    {
-      shouldRename: false,
-      nextStoredStem:
-        "Glöckner et al 2020 - Predicting Personality Test Scores",
-    },
-  );
-
-  assert.deepEqual(
-    resolveExistingFilenameStemState({
-      currentStem:
-        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-123456-ITEM0001",
-      storedStem: null,
-      desiredStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
-      previousVersion: 34,
-      currentVersion: 34,
-    }),
-    {
-      shouldRename: false,
-      nextStoredStem:
-        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-123456-ITEM0001",
-    },
-  );
-
-  assert.deepEqual(
-    resolveExistingFilenameStemState({
-      currentStem:
-        "glockner-2020-predicting-personality-test-scores-with-machine-learning-methodology-investigati--user-123456-ITEM0001",
-      storedStem: null,
-      desiredStem: "Glöckner et al 2020 - Predicting Personality Test Scores",
-      previousVersion: 34,
-      currentVersion: 35,
-    }),
-    {
-      shouldRename: true,
-      nextStoredStem:
-        "Glöckner et al 2020 - Predicting Personality Test Scores",
-    },
-  );
+  const detail = createDetail();
+  detail.item.title = "🧪".repeat(100);
+  const stem = getReadableFileStem(detail);
+  assert.equal(Array.from(stem.slice(stem.indexOf(" - ") + 3)).length, 80);
+  assert.ok(!/[\uD800-\uDBFF]$/.test(stem));
 });

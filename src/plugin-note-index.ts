@@ -91,6 +91,11 @@ function setItemFileMapEntry(
   identity: string,
   entry: ItemFileMapEntry,
 ): void {
+  if (
+    JSON.stringify(plugin.settings.itemFileMap[identity]) ===
+    JSON.stringify(entry)
+  )
+    return;
   plugin.settings.itemFileMap[identity] = entry;
   queuePersistItemFileMap(plugin);
 }
@@ -117,12 +122,6 @@ export function syncItemFileMapForFile(
   file: TFile,
   cache?: CachedMetadata | null,
 ): void {
-  removeItemFileMapEntriesForPath(plugin, file.path);
-
-  if (!isPathInsideNotesFolder(plugin, file.path)) {
-    return;
-  }
-
   const frontmatter =
     cache?.frontmatter ??
     plugin.app.metadataCache.getFileCache(file)?.frontmatter ??
@@ -130,6 +129,7 @@ export function syncItemFileMapForFile(
   const identity = getIdentityFromFrontmatter(frontmatter);
   const itemKey = getItemKeyFromFrontmatter(frontmatter);
   if (!identity || !itemKey) {
+    removeItemFileMapEntriesForPath(plugin, file.path);
     return;
   }
 
@@ -162,10 +162,6 @@ export async function rebuildItemFileMap(plugin: StratumPlugin): Promise<void> {
   const nextMap: Record<string, ItemFileMapEntry> = {};
 
   for (const file of plugin.app.vault.getMarkdownFiles()) {
-    if (!isPathInsideNotesFolder(plugin, file.path)) {
-      continue;
-    }
-
     const frontmatter =
       plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
     const identity = getIdentityFromFrontmatter(frontmatter);
@@ -203,7 +199,7 @@ export function findExistingLiteratureNoteFile(
 ): TFile | null {
   const cacheKey = getIdentityCacheKey(identity);
   const cachedEntry = plugin.settings.itemFileMap[cacheKey];
-  if (cachedEntry && isPathInsideNotesFolder(plugin, cachedEntry.filePath)) {
+  if (cachedEntry) {
     const cachedFile = plugin.app.vault.getAbstractFileByPath(
       cachedEntry.filePath,
     );
@@ -226,7 +222,12 @@ export function findExistingLiteratureNoteFile(
 
   const noteFiles = plugin.app.vault
     .getMarkdownFiles()
-    .filter((file) => isPathInsideNotesFolder(plugin, file.path));
+    .filter(
+      (file) =>
+        isPathInsideNotesFolder(plugin, file.path) ||
+        plugin.app.metadataCache.getFileCache(file)?.frontmatter
+          ?.stratum_note_type === "literature-note",
+    );
 
   const match = findExistingLiteratureNoteMatch(
     noteFiles.map((file) => ({

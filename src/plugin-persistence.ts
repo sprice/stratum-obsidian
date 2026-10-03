@@ -1,3 +1,8 @@
+import {
+  loadCitationResources,
+  saveCitationResources,
+  settingsWithoutResources,
+} from "./citation-resources";
 import { readCollectionCatalogs } from "./collection-catalog";
 import {
   AUTH_ACCESS_TOKEN_SECRET_ID,
@@ -35,6 +40,7 @@ type StoredSettingsData = Partial<
     | "zoteroDataDir"
     | "pendingAuth"
     | "accountEmail"
+    | "accountId"
     | "accountLinkedAt"
     | "authSessionExpiresAt"
     | "lastKnownZoteroUserId"
@@ -432,6 +438,8 @@ function readStoredSettings(value: unknown): Omit<
         : null,
     );
   }
+  if (typeof value.accountId === "string" || value.accountId === null)
+    nextSettings.accountId = value.accountId;
   if (typeof value.accountEmail === "string" || value.accountEmail === null) {
     nextSettings.accountEmail = value.accountEmail;
   }
@@ -578,7 +586,18 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
     activeBulkSyncLibrary: persistedSettings.activeBulkSyncLibrary ?? null,
   };
 
+  let migratedResources = false;
+  try {
+    await loadCitationResources(plugin);
+    await saveCitationResources(plugin);
+    migratedResources =
+      !Object.hasOwn(settingsWithoutResources(plugin), "citationStyles") &&
+      Object.hasOwn(rawData ?? {}, "citationStyles");
+  } catch (error) {
+    console.error("stratum: citation resources could not be loaded", error);
+  }
   let shouldPersist =
+    migratedResources ||
     hasLegacyPendingAuth ||
     hasLegacySettingKeys ||
     hasLegacyOpenAlexKeys ||
@@ -673,7 +692,7 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
 }
 
 export async function savePluginSettings(plugin: StratumPlugin): Promise<void> {
-  await plugin.saveData(plugin.settings);
+  await plugin.saveData(settingsWithoutResources(plugin));
 }
 
 export function persistAuthSessionSecrets(

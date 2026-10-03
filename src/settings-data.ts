@@ -52,6 +52,7 @@ export interface StratumSettings {
   zoteroDataDir: string;
   pendingAuth: PendingAuthState | null;
   accountEmail: string | null;
+  accountId?: string | null;
   accountLinkedAt: string | null;
   authSessionExpiresAt: number | null;
   lastKnownZoteroUserId: string | null;

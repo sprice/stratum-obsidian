@@ -38,6 +38,7 @@ function detail(key: string, title = "Synthetic reference") {
 }
 function fixture(initial?: string) {
   let text = initial;
+  let writes = 0;
   const app = {
     vault: {
       getAbstractFileByPath: () =>
@@ -47,15 +48,23 @@ function fixture(initial?: string) {
         await Promise.resolve();
         assert.equal(text, undefined);
         text = value;
+        writes++;
       },
       process: async (_file: File, update: (value: string) => string) => {
         await Promise.resolve();
         text = update(text!);
+        writes++;
       },
     },
   };
   return {
     app: app as never,
+    get writes() {
+      return writes;
+    },
+    set text(value: string | undefined) {
+      text = value;
+    },
     get text() {
       return text;
     },
@@ -106,4 +115,26 @@ test("an existing empty cache is not silently replaced during sync", async () =>
   const f = fixture("");
   await assert.rejects(store.saveReference(f.app, detail("A"), () => true));
   assert.equal(f.text, "");
+});
+
+test("catalog batches write once and repeated enrichment saves do not rewrite references", async () => {
+  const f = fixture();
+  const flush = store.beginReferenceBatch(f.app);
+  await Promise.all([
+    store.saveReference(f.app, detail("A"), () => true),
+    store.saveReference(f.app, detail("B"), () => true),
+  ]);
+  assert.equal(f.writes, 0);
+  await flush();
+  assert.equal(f.writes, 1);
+  await store.saveReference(f.app, detail("A"), () => true);
+  assert.equal(f.writes, 1);
+  const current = JSON.parse(f.text!) as {
+    version: number;
+    items: { id: string }[];
+  };
+  current.items.push({ ...current.items[0], id: "user/1/C" });
+  f.text = JSON.stringify(current);
+  await store.saveReference(f.app, detail("B", "Updated"), () => true);
+  assert.equal((await store.loadReferenceStore(f.app)).length, 3);
 });

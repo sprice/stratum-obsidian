@@ -1222,3 +1222,71 @@ test("note frontmatter records and replaces the importing plugin version", () =>
   assert.equal(readFrontmatter(refreshed).zotero_item_version, 12);
   assert.match(refreshed, /My personal notes\./);
 });
+
+test("deferred enrichment survives CRLF content and DOI letter-case changes", () => {
+  const old = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
+    detail: createDetail({ item: { doi: "10.0000/EXAMPLE" } }),
+    filenameStem: "Synthetic",
+    parseYaml: () => ({}),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: DEFAULT_OPENALEX_ENRICHMENT,
+  }).replace(/\n/g, "\r\n");
+  const output = buildLiteratureNoteContent({
+    stratumVersion: "0.2.1",
+    detail: createDetail(),
+    filenameStem: "Synthetic",
+    existingContent: old,
+    parseYaml: () => ({ doi: "10.0000/EXAMPLE" }),
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html) => html,
+    enrichment: undefined,
+  });
+  assert.match(output, /> \[!bar-chart\]\+ Impact/);
+  assert.match(output, /> \[!globe\]\+ Enrichment/);
+});
+test("an unchanged refresh retains its timestamp, while a newer plugin version is recorded", () => {
+  const params = {
+    stratumVersion: "0.2.1",
+    detail: createDetail(),
+    filenameStem: "Synthetic",
+    stringifyYaml: stringifyForTest,
+    htmlToMarkdown: (html: string) => html,
+  };
+  const first = buildLiteratureNoteContent({
+    ...params,
+    parseYaml: () => ({}),
+  }).replace(
+    /^zotero_synced_at:.*$/m,
+    "zotero_synced_at: 2000-01-01T00:00:00.000Z",
+  );
+  const fm = Object.fromEntries(
+    first
+      .slice(4, first.indexOf("\n---", 4))
+      .split("\n")
+      .map((line) => {
+        const colon = line.indexOf(":");
+        const value = line.slice(colon + 1).trim();
+        return [
+          line.slice(0, colon),
+          value.startsWith("[") && value.endsWith("]")
+            ? value.slice(1, -1).split(", ")
+            : value,
+        ];
+      }),
+  );
+  const repeated = buildLiteratureNoteContent({
+    ...params,
+    existingContent: first,
+    parseYaml: () => fm,
+  });
+  assert.equal(repeated, first);
+  const newer = buildLiteratureNoteContent({
+    ...params,
+    stratumVersion: "0.2.2",
+    existingContent: first,
+    parseYaml: () => fm,
+  });
+  assert.match(newer, /stratum_version: 0.2.2/);
+});

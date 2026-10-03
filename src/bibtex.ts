@@ -27,6 +27,11 @@ function write(
       if (!canWrite()) return citekey;
       const file = app.vault.getAbstractFileByPath(BIB_FILENAME);
       if (file instanceof TFile) {
+        const before = await app.vault.read(file);
+        if (!canWrite()) return citekey;
+        if (append) citekey = resolveBibliographyCitekey(before, entry);
+        if (updateManagedBibliography(before, entry, append) === before)
+          return citekey;
         await app.vault.process(file, (content) => {
           if (!canWrite()) return content;
           if (append) citekey = resolveBibliographyCitekey(content, entry);

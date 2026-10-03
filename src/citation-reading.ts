@@ -1,3 +1,4 @@
+import { nativeFootnoteReference } from "./citation-footnotes";
 import {
   Component,
   MarkdownRenderChild,
@@ -22,9 +23,11 @@ export function registerCitationReading(service: CitationService): void {
     const child = new ReadingCitations(el, ctx, service);
     children.set(el, child);
     ctx.addChild(child);
+    return child.ready;
   });
 }
 class ReadingCitations extends MarkdownRenderChild {
+  ready: Promise<void> = Promise.resolve();
   private generation = 0;
   private active = false;
   private undo: (() => void)[] = [];
@@ -44,11 +47,11 @@ class ReadingCitations extends MarkdownRenderChild {
   onload(): void {
     this.active = true;
     this.register(
-      this.service.subscribe(() => {
-        void this.render();
+      this.service.subscribe((path) => {
+        if (!path || path === this.ctx.sourcePath) void this.render();
       }),
     );
-    void this.render();
+    this.ready = this.render();
   }
   onunload(): void {
     this.active = false;
@@ -72,11 +75,13 @@ class ReadingCitations extends MarkdownRenderChild {
       return;
     }
     const text = info.text;
-    if (
-      !parseSourceOccurrences(text).some(
+    const hasCitations =
+      (await this.service.hasCitationIntent?.(text)) ??
+      parseSourceOccurrences(text).some(
         (occurrence) => occurrence.kind === "citation",
-      )
-    ) {
+      );
+    if (generation !== this.generation || !this.active) return;
+    if (!hasCitations) {
       this.restore();
       return;
     }
@@ -89,6 +94,8 @@ class ReadingCitations extends MarkdownRenderChild {
         return;
       }
       this.restore();
+      if (!result.model.citations.length && !result.model.problems.length)
+        return;
       const scope = citationScope(this.containerEl, file.path);
       const lines = text.split("\n");
       const from = lines
@@ -157,25 +164,40 @@ class ReadingCitations extends MarkdownRenderChild {
           break;
         }
       }
-      for (const ref of Array.from(
-        this.containerEl.querySelectorAll<HTMLElement>(".footnote-ref"),
-      )) {
-        const link = ref.matches("a") ? ref : ref.querySelector("a");
-        if (!link) continue;
-        const originalNumber = Number(link.textContent?.replace(/[^0-9]/g, ""));
-        const note = result.model.notes[originalNumber - 1];
-        if (note) {
-          const children = Array.from(link.childNodes);
-          const href = link.getAttribute("href");
-          this.undo.push(() => {
-            link.replaceChildren(...children);
-            if (href === null) link.removeAttribute("href");
-            else link.setAttribute("href", href);
-          });
-          link.textContent = String(note.number);
-          link.setAttribute("href", `#${noteId(scope, note.number)}`);
+      if (result.noteStyle)
+        for (const ref of Array.from(
+          this.containerEl.querySelectorAll<HTMLElement>(".footnote-ref"),
+        )) {
+          const link = ref.matches("a") ? ref : ref.querySelector("a");
+          if (!link) continue;
+          const { note, referenceIndex } = nativeFootnoteReference(
+            link,
+            result.model,
+          );
+          {
+            const children = Array.from(link.childNodes);
+            const href = link.getAttribute("href");
+            const id = link.getAttribute("id");
+            this.undo.push(() => {
+              link.replaceChildren(...children);
+              if (id === null) link.removeAttribute("id");
+              else link.setAttribute("id", id);
+              if (href === null) link.removeAttribute("href");
+              else link.setAttribute("href", href);
+            });
+            const refId = `${noteId(scope, note.number)}-ref-${referenceIndex}`;
+            const originalTarget = ref.getAttribute("data-footnote-id");
+            this.undo.push(() => {
+              if (originalTarget === null)
+                ref.removeAttribute("data-footnote-id");
+              else ref.setAttribute("data-footnote-id", originalTarget);
+            });
+            ref.setAttribute("data-footnote-id", refId);
+            link.id = refId;
+            link.textContent = String(note.number);
+            link.setAttribute("href", `#${noteId(scope, note.number)}`);
+          }
         }
-      }
       for (const target of this.bibliographyTargets()) {
         const output = target.createDiv({ cls: "stratum-reference-output" });
         this.undo.push(() => output.remove());
@@ -184,7 +206,7 @@ class ReadingCitations extends MarkdownRenderChild {
       const footnotes = this.containerEl.matches(".footnotes")
         ? this.containerEl
         : this.containerEl.querySelector<HTMLElement>(".footnotes");
-      if (footnotes) {
+      if (footnotes && result.noteStyle) {
         const wasHidden = footnotes.hidden;
         footnotes.hidden = true;
         this.undo.push(() => {
@@ -201,16 +223,21 @@ class ReadingCitations extends MarkdownRenderChild {
         this.undo.push(() => output.remove());
         const owner = this.addChild(new Component());
         this.undo.push(() => this.removeChild(owner));
-        await renderDocumentNotes(
-          output,
-          text,
-          file.path,
-          result,
-          this.service,
-          owner,
-          scope,
-        );
+        if (result.noteStyle)
+          await renderDocumentNotes(
+            output,
+            text,
+            file.path,
+            result,
+            this.service,
+            owner,
+            scope,
+          );
         if (generation !== this.generation || !this.active) return;
+        if (result.model.problems.length)
+          output.createEl("p", {
+            text: "Some references could not be formatted. Review sources for details.",
+          });
         if (footer.bibliography) {
           output.createEl("h2", { text: footer.heading });
           renderCsl(output, footer.bibliography);

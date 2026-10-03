@@ -346,6 +346,15 @@ export class StratumView extends ItemView {
     });
   }
 
+  refreshSyncProgress(): void {
+    if (this.plugin.activeViewTab !== "sync") return;
+    const panel =
+      this.contentEl.querySelector<HTMLElement>(".stratum-sync-tab");
+    if (!panel) return;
+    panel.empty();
+    this.renderSyncTab(panel);
+  }
+
   render(): void {
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
@@ -482,9 +491,8 @@ export class StratumView extends ItemView {
 
   private renderSearchTab(container: HTMLElement): void {
     const searchTab = container;
-    const signedInEmail = this.plugin.settings.accountEmail;
     const zoteroConnection = this.plugin.zoteroConnection;
-    const isAppConnected = Boolean(signedInEmail);
+    const isAppConnected = this.plugin.backend.hasSession();
     const isZoteroConnected = Boolean(zoteroConnection?.connected);
     const lastKnownZoteroUsername =
       zoteroConnection?.zoteroUsername ??

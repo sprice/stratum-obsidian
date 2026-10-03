@@ -8,7 +8,7 @@ import type { ZoteroItemDetail } from "./backend-client";
 export type LiteratureNoteFilenameFormat = "readable" | "citekey";
 
 const MAX_READABLE_TITLE_LENGTH = 80;
-const ILLEGAL_FILENAME_CHARACTERS = /[/\\:*?"<>|]/g;
+const ILLEGAL_FILENAME_CHARACTERS = /[/\\:*?"<>|#^[\]]/g;
 const SIGNIFICANT_TITLE_STOP_WORDS = new Set([
   "a",
   "an",
@@ -40,11 +40,11 @@ export function removeIllegalFilenameCharacters(value: string): string {
 }
 
 function truncateAtWordBoundary(value: string, maxLength: number): string {
-  if (value.length <= maxLength) {
+  if (Array.from(value).length <= maxLength) {
     return value;
   }
 
-  const truncated = value.slice(0, maxLength);
+  const truncated = Array.from(value).slice(0, maxLength).join("");
   const lastSpaceIndex = truncated.lastIndexOf(" ");
   if (lastSpaceIndex >= 0) {
     return truncated.slice(0, lastSpaceIndex).trimEnd();
@@ -254,66 +254,4 @@ export function getAsciiFallbackFileStem(stem: string): string {
   return (
     removeIllegalFilenameCharacters(stripCombiningMarks(stem)) || "Untitled"
   );
-}
-
-export function isLegacyManagedFileStem(stem: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*--(?:user|group)-[a-z0-9-]+-[a-z0-9]+$/i.test(
-    stem,
-  );
-}
-
-export function resolveExistingFilenameStemState(params: {
-  currentStem: string;
-  storedStem: string | null;
-  desiredStem: string;
-  previousVersion: number | null;
-  currentVersion: number;
-}): {
-  shouldRename: boolean;
-  nextStoredStem: string | null;
-} {
-  const {
-    currentStem,
-    storedStem,
-    desiredStem,
-    previousVersion,
-    currentVersion,
-  } = params;
-
-  if (storedStem) {
-    if (currentStem !== storedStem) {
-      return {
-        shouldRename: false,
-        nextStoredStem: storedStem,
-      };
-    }
-
-    return {
-      shouldRename: desiredStem !== currentStem,
-      nextStoredStem: desiredStem !== currentStem ? desiredStem : currentStem,
-    };
-  }
-
-  const isRecognizedManagedStem =
-    currentStem === desiredStem || isLegacyManagedFileStem(currentStem);
-  if (!isRecognizedManagedStem) {
-    return {
-      shouldRename: false,
-      nextStoredStem: null,
-    };
-  }
-
-  const versionChanged =
-    previousVersion !== null && previousVersion !== currentVersion;
-  if (versionChanged && desiredStem !== currentStem) {
-    return {
-      shouldRename: true,
-      nextStoredStem: desiredStem,
-    };
-  }
-
-  return {
-    shouldRename: false,
-    nextStoredStem: currentStem,
-  };
 }

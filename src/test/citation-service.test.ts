@@ -159,6 +159,8 @@ test("formatting and diagnostics share cached ownership even without literature 
       },
     },
   } as never);
+  assert.equal(await service.hasCitationIntent("Contact @alice."), false);
+  assert.equal(await service.hasCitationIntent("According to @oldKey."), true);
   const [health] = await service.diagnose(["oldKey"]);
   assert.equal(health.problem, undefined);
   assert.equal(health.notes.length, 0);
@@ -191,8 +193,7 @@ test("formatting and diagnostics share cached ownership even without literature 
   const retried = await service.format("[@oldKey]", "Papers/Retry.md");
   assert.match(retried.bibliography, /Updated reference/);
   assert.equal((await service.diagnose(["oldKey"]))[0].problem, undefined);
-  await assert.rejects(
-    service.format("[@unknown]", "Papers/Example.md"),
-    /Citation key not found/,
-  );
+  const missing = await service.format("[@unknown]", "Papers/Example.md");
+  assert.match(missing.model.problems.join(" "), /Citation key not found/);
+  assert.equal(missing.citations.length, 0);
 });

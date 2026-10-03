@@ -73,7 +73,7 @@ have disappeared from Zotero.
 | Fresh filenames | Readable names use authors, year, and a shortened title. The citekey format uses a generated fallback. | These are derived from current metadata and settings, not a permanent assignment to an identity. |
 | Name collisions | Creation tries the first available generated name, then alphabetic suffixes, with an ASCII fallback when needed. Existing paths are skipped. | The assignment depends on availability and processing order. Concurrent bulk workers and different catalog orders can assign different names on a rebuild. A collision must not overwrite or retarget another paper. |
 | Existing names | Existing files retain their paths on refresh, including previously generated and manually chosen names. | The name still lives in the note being deleted; no durable naming history restores it after deletion. |
-| Renames | The plugin uses Obsidian's `fileManager.renameFile`, whose link updates depend on the user's preferences. | This does not guarantee preservation with automatic link updates disabled, or retain names for a future folder rebuild. |
+| Renames | Refresh keeps the existing path, including manually moved managed notes. Naming preferences apply to newly created notes. | Recreating deleted notes still needs a durable filename registry; folder-setting changes do not migrate existing notes. |
 | Stored paths | Rename and delete events update the file map; rebuilding the map reads surviving note frontmatter. | Deleted file entries are removed, and rebuilding replaces the map. It is a cache of live files, not a durable naming history. |
 | Aliases | New managed aliases are added; previous managed and user-added aliases are retained during updates. | Retained aliases do not restore filename or folder-qualified links after deletion. |
 | Full sync | Bulk catalog sync checks for an existing file and writes each selected item, rather than relying only on change versions. | The naming gaps above remain. An incremental refresh of tracked notes is not equivalent to recreating the whole library. |
@@ -128,13 +128,13 @@ after each operation, rather than checking only whether a target exists.
   an established link point to a different item.
 
 These are acceptance requirements, not a claim of current test coverage.
-Existing unit tests cover filename formatting, rename decisions, link markup,
+Existing unit tests cover filename formatting, retained paths, link markup,
 identity matching, and boundary protection. They do not establish complete
 reconstruction or collision ownership across sync orders.
 
 ## Implementation references
 
-- [Filename generation and rename decisions](../src/literature-note-filenames.ts)
+- [Filename generation](../src/literature-note-filenames.ts)
 - [File creation and collision handling](../src/literature-note-files.ts)
 - [Existing note updates and Zotero deletion marking](../src/literature-note.ts)
 - [Identity matching](../src/literature-note-matching.ts)

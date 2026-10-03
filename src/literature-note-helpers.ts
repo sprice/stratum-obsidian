@@ -36,7 +36,12 @@ export function getLiteratureNoteCandidates(
   const normalizedFolder = getNormalizedNotesFolder(preferredFolder);
   return app.vault
     .getMarkdownFiles()
-    .filter((file) => isPathInsideFolder(file.path, normalizedFolder))
+    .filter(
+      (file) =>
+        isPathInsideFolder(file.path, normalizedFolder) ||
+        app.metadataCache.getFileCache(file)?.frontmatter?.stratum_note_type ===
+          "literature-note",
+    )
     .map((file) => ({
       path: file.path,
       name: file.name,

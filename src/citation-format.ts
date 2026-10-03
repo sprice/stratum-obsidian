@@ -83,13 +83,26 @@ export function createCitationFormatter(
   const noteStyle = engine.opt.xclass === "note";
   let last: { signature: string; value: FormattedDocument } | null = null;
   return (text: string) => {
-    const model = citationDocument(text, noteStyle);
+    const unresolved = new Set<string>();
+    const model = citationDocument(text, noteStyle, (draft) => {
+      const missing = draft.items.filter((item) => !references.has(item.key));
+      if (!draft.narrative)
+        for (const item of missing) unresolved.add(item.key);
+      return missing.length === 0;
+    });
+    for (const key of unresolved)
+      model.problems.push(
+        `Citation data is unavailable for @${key}. Review Sources for details.`,
+      );
     const signature = JSON.stringify(
       model.citations.map((c) => [c.draft, c.noteIndex]),
     );
     if (last?.signature === signature && !model.problems.length)
       return { ...last.value, model };
-    if (model.problems.length) throw new Error(model.problems[0]);
+    const unsafeFootnote = model.problems.find((problem) =>
+      /footnote/.test(problem),
+    );
+    if (noteStyle && unsafeFootnote) throw new Error(unsafeFootnote);
     const clusters: Citation[] = [];
     model.citations.forEach((citation, index) => {
       const citationID = `stratum-${index}`;

@@ -98,8 +98,11 @@ test("bibliography excludes links and code, and updates when citations are remov
   assert.equal(format("Nothing cited.").bibliography, "");
 });
 test("unknown keys and unsupported constructs fail visibly rather than omit references", () => {
-  assert.throws(() => format("[@missing]"), /Missing citation data/);
-  assert.throws(() => format("[@smith2024, [nested]]"), /Unsupported citation/);
+  assert.equal(format("[@missing]").citations.length, 0);
+  assert.match(
+    format("[@smith2024, [nested]]").model.problems.join(" "),
+    /Unsupported citation/,
+  );
 });
 test("CSL data validates identity and preserves roles and dates", () => {
   const item = {
@@ -323,8 +326,17 @@ test("footnote bodies preserve leading code and allow empty notes", () => {
 
 test("inline Obsidian footnotes fail visibly rather than lose explanatory text", () => {
   assert.throws(
-    () => format("A claim [@smith2024]. An explanation^[Keep this text]."),
+    () =>
+      format(
+        "A claim [@smith2024]. An explanation^[Keep this text].",
+        "chicago-notes-bibliography",
+      ),
     /Inline explanatory footnotes/,
+  );
+  assert.equal(
+    format("A claim [@smith2024]. An explanation^[Keep this text].").citations
+      .length,
+    1,
   );
   assert.doesNotThrow(() => format("A claim [@smith2024]. `^[example]`"));
   assert.doesNotThrow(() => format("A claim [@smith2024]. \\^[literal]"));
@@ -339,4 +351,14 @@ test("implicit numeric pages match Pandoc's locator formatting", () => {
     format("[@smith2024, 12–14, for discussion]", "ieee").citations,
     ["[1, pp. 12–14], for discussion"],
   );
+});
+
+test("note styles retain native footnotes when a reference is nested in a link", () => {
+  const text =
+    "A claim [@smith2024]. [Label[^a]](https://example.org).\n\n[^a]: Explanation.";
+  assert.throws(
+    () => format(text, "chicago-notes-bibliography"),
+    /footnotes inside links/,
+  );
+  assert.equal(format(text, "apa").citations.length, 1);
 });

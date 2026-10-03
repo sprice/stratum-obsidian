@@ -37,6 +37,7 @@ export async function renderDocumentNotes(
     if (!active) return;
     const li = list.createEl("li");
     li.id = noteId(scope, item.number);
+    li.setAttribute("data-footnote-id", li.id);
     li.value = item.number;
     if ("citation" in item)
       renderCsl(
@@ -61,6 +62,23 @@ export async function renderDocumentNotes(
     const citations = result.model.citations.filter(
       (citation) => citation.noteIndex === item.number,
     );
+    const referenceIds =
+      "citation" in item
+        ? [`${noteId(scope, item.number)}-citation-ref`]
+        : result.model.references
+            .map((reference, index) =>
+              reference.identifier === item.note.identifier
+                ? `${noteId(scope, item.number)}-ref-${index}`
+                : "",
+            )
+            .filter(Boolean);
+    for (const referenceId of referenceIds)
+      li.createEl("a", {
+        text: "↩",
+        cls: "footnote-backref footnote-link",
+        href: `#${referenceId}`,
+        attr: { "aria-label": "Return to note reference" },
+      });
     if (citations.length) {
       const button = li.createEl("button", {
         text: "Open in reader",

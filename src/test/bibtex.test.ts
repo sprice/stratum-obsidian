@@ -137,6 +137,7 @@ test("simultaneous citations serialize bibliography creation and refresh never c
   const app = {
     vault: {
       getAbstractFileByPath: () => file,
+      read: () => Promise.resolve(contents),
       create: async (_path: string, value: string) => {
         await Promise.resolve();
         creates++;
@@ -211,6 +212,7 @@ test("bibliography writes return the actual stored key and respect cancellation 
   const app = {
     vault: {
       getAbstractFileByPath: () => file,
+      read: () => Promise.resolve(contents),
       process: async (_file: File, transform: (text: string) => string) => {
         await Promise.resolve();
         if (cancelBeforeWrite) active = false;
@@ -325,4 +327,33 @@ test("Pandoc insertion preserves punctuation-heavy bibliography keys", () => {
   assert.equal(formatPandocCitation("example."), "[@{example.}]");
   assert.equal(formatPandocCitation("-example"), "[@{-example}]");
   assert.throws(() => formatPandocCitation("invalid key"));
+});
+
+test("unchanged managed bibliography refresh avoids a vault write", async () => {
+  class File {}
+  const runtime = loadRuntime<typeof import("../bibtex")>("bibtex.ts", {
+    TFile: File,
+  });
+  const file = new File();
+  let content = updateManagedBibliography("", entry, true);
+  let writes = 0;
+  const app = {
+    vault: {
+      getAbstractFileByPath: () => file,
+      read: () => Promise.resolve(content),
+      process: async (_file: File, transform: (text: string) => string) => {
+        writes++;
+        content = transform(content);
+        await Promise.resolve();
+      },
+    },
+  };
+  await runtime.refreshManagedBibEntry(app as never, entry);
+  assert.equal(writes, 0);
+  await runtime.refreshManagedBibEntry(app as never, {
+    ...entry,
+    title: "Changed title",
+  });
+  assert.equal(writes, 1);
+  assert.match(content, /Changed title/);
 });

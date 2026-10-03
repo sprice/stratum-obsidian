@@ -68,8 +68,10 @@ test("short style locales download and cache the formatter's regional locale", a
     );
     assert.equal(
       plugin.settings.citationLocales[locale],
-      plugin.settings.citationLocales[expected],
+      runtime.cachedLocales(plugin as never)[expected],
     );
-    assert.ok(plugin.settings.citationLocales[expected]);
+    assert.ok(runtime.cachedLocales(plugin as never)[expected]);
+    if (locale === "fr")
+      assert.equal(plugin.settings.citationLocales[expected], undefined);
   }
 });

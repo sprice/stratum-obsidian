@@ -1,8 +1,14 @@
-import { Prec, StateField, type Extension } from "@codemirror/state";
+import {
+  Prec,
+  StateEffect,
+  StateField,
+  type Extension,
+} from "@codemirror/state";
 import {
   Decoration,
   EditorView,
   WidgetType,
+  ViewPlugin,
   type DecorationSet,
 } from "@codemirror/view";
 import {
@@ -12,7 +18,11 @@ import {
   Notice,
 } from "obsidian";
 import type { CitationService } from "./citation-service";
-import { citationDocument, type CitationDocument } from "./citation-document";
+import {
+  citationDocument,
+  citationAuthoringDocument,
+  type CitationDocument,
+} from "./citation-document";
 import { openCitationComposer } from "./citation-composer";
 class InlineCitation extends WidgetType {
   constructor(
@@ -64,7 +74,7 @@ class InlineCitation extends WidgetType {
       menu.addItem((item) =>
         item.setTitle("Edit citation").onClick(() => {
           if (!current()) return;
-          editor.setCursor(editor.offsetToPos(this.offset));
+          editor.setCursor(editor.offsetToPos(view.posAtDOM(el)));
           void openCitationComposer(this.service.plugin, editor);
         }),
       );
@@ -75,7 +85,7 @@ class InlineCitation extends WidgetType {
           if (!file) return;
           const text = editor.getValue();
           const citation = citationDocument(text, false).citations.find(
-            (c) => c.from === this.offset,
+            (c) => c.from === view.posAtDOM(el),
           );
           if (!citation) return;
           void import("./citation-evidence").then(({ openCitationEvidence }) =>
@@ -122,42 +132,92 @@ export function citationEditor(service: CitationService): Extension {
     model: CitationDocument,
   ): DecorationSet => {
     if (!state.field(editorLivePreviewField, false)) return Decoration.none;
-    const ranges = model.citations.map((citation) => {
-      const selected = state.selection.ranges.some(
-        (range) => range.from <= citation.to && range.to >= citation.from,
-      );
-      if (selected)
-        return Decoration.mark({ class: "stratum-editable-citation" }).range(
-          citation.from,
-          citation.to,
+    const ranges = model.citations
+      .filter(
+        (citation) =>
+          !citation.draft.narrative ||
+          service.knownKey?.(citation.draft.items[0].key),
+      )
+      .map((citation) => {
+        const selected = state.selection.ranges.some(
+          (range) => range.from <= citation.to && range.to >= citation.from,
         );
-      return Decoration.replace({
-        widget: new InlineCitation(
-          state.doc.sliceString(citation.from, citation.to),
-          citation.from,
-          citation.draft.items.map((item) => `@${item.key}`).join("; "),
-          service,
-        ),
-      }).range(citation.from, citation.to);
-    });
+        if (selected)
+          return Decoration.mark({ class: "stratum-editable-citation" }).range(
+            citation.from,
+            citation.to,
+          );
+        return Decoration.replace({
+          widget: new InlineCitation(
+            state.doc.sliceString(citation.from, citation.to),
+            citation.from,
+            citation.draft.items.map((item) => `@${item.key}`).join("; "),
+            service,
+          ),
+        }).range(citation.from, citation.to);
+      });
     return Decoration.set(ranges, true);
   };
+  const parsed = StateEffect.define<CitationDocument>();
   const field = StateField.define<{
     model: CitationDocument;
     decorations: DecorationSet;
   }>({
     create(state) {
-      const model = citationDocument(state.doc.toString(), false);
+      const model = citationAuthoringDocument(
+        state.field(editorLivePreviewField, false) ? state.doc.toString() : "",
+      );
       return { model, decorations: decorations(state, model) };
     },
     update(previous, tr) {
-      const model = tr.docChanged
-        ? citationDocument(tr.state.doc.toString(), false)
-        : previous.model;
+      const effect = tr.effects.find((effect) => effect.is(parsed));
+      const live = tr.state.field(editorLivePreviewField, false);
+      const model = effect
+        ? effect.value
+        : !live
+          ? citationAuthoringDocument("")
+          : tr.docChanged
+            ? {
+                ...previous.model,
+                citations: previous.model.citations
+                  .map((citation) => ({
+                    ...citation,
+                    from: tr.changes.mapPos(citation.from),
+                    to: tr.changes.mapPos(citation.to, 1),
+                  }))
+                  .filter((citation) => citation.to > citation.from),
+              }
+            : previous.model;
       return { model, decorations: decorations(tr.state, model) };
     },
     provide: (field) =>
       EditorView.decorations.from(field, (value) => value.decorations),
   });
-  return Prec.highest(field);
+  const scheduler = ViewPlugin.fromClass(
+    class {
+      private timer: number | undefined;
+      constructor(private view: EditorView) {}
+      update(update: import("@codemirror/view").ViewUpdate) {
+        if (
+          !update.docChanged &&
+          update.startState.field(editorLivePreviewField, false) ===
+            update.state.field(editorLivePreviewField, false)
+        )
+          return;
+        if (this.timer !== undefined) window.clearTimeout(this.timer);
+        if (!update.state.field(editorLivePreviewField, false)) return;
+        this.timer = window.setTimeout(() => {
+          this.timer = undefined;
+          const model = citationAuthoringDocument(
+            this.view.state.doc.toString(),
+          );
+          this.view.dispatch({ effects: parsed.of(model) });
+        }, 120);
+      }
+      destroy() {
+        if (this.timer !== undefined) window.clearTimeout(this.timer);
+      }
+    },
+  );
+  return Prec.highest([field, scheduler]);
 }

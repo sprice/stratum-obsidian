@@ -103,7 +103,10 @@ control available. **Show citation in paper** returns to the exact occurrence.
 
 Previously recorded Zotero unavailability is shown without deleting cached data.
 A failed network request is not treated as proof that a source was deleted.
-Unreadable reference files and style/syntax failures remain document-level errors;
+Unreadable reference files and unavailable styles remain document-level errors.
+Unsupported citation groups remain raw while supported groups still format.
+For note-based styles, ambiguous or unsupported explanatory footnotes stop
+formatting so Obsidian's native notes and their content remain visible;
 recovery never replaces an unreadable reference file with an empty one.
 
 ## Reference data and offline use
@@ -122,6 +125,11 @@ than silently producing an incomplete bibliography.
 
 Downloading more styles contacts `www.zotero.org`; additional language resources
 come from the Citation Style Language project on `raw.githubusercontent.com`.
+Downloaded and imported style/language XML is cached in
+`citation-resources.json` within the plugin directory. Bundled resources are used
+from the current plugin version. Back up or sync the plugin directory to retain
+additional styles on other devices.
+
 These requests contain resource identifiers, not manuscript text or reference
 data. Formatting runs locally using citeproc-js; attribution and licenses are in
 [Third-party notices](../THIRD_PARTY_NOTICES.md).

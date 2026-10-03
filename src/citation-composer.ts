@@ -61,6 +61,12 @@ export async function openCitationComposer(
     new Notice("Select the whole citation or click inside it to edit.");
     return;
   }
+  if (!initial && !existing && from !== to) {
+    new Notice(
+      "Select an insertion point for the citation. Selected text will be preserved.",
+    );
+    return;
+  }
   if (existing && !existing.draft) {
     new Notice(
       "This citation uses syntax the composer cannot edit safely. Edit it directly in your note.",

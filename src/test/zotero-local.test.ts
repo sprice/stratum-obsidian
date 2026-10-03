@@ -352,7 +352,7 @@ test("loadLocalZoteroItemVersions can read a full library versions map including
   });
 });
 
-test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations via the itemType=annotation endpoint", async () => {
+test("loadLocalZoteroItemDetail normalizes DOI values and fetches only annotations belonging to its attachments", async () => {
   const request = createRequestMock({
     "http://127.0.0.1:23119/api/users/12345/items/PARENT?format=json&include=data,bib,csljson&style=apa":
       {
@@ -409,7 +409,7 @@ test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations vi
         },
       },
     },
-    "http://127.0.0.1:23119/api/users/12345/items?format=json&itemType=annotation&limit=100&start=0":
+    "http://127.0.0.1:23119/api/users/12345/items/ATTACH1/children?format=json&itemType=annotation&limit=100&start=0":
       {
         status: 200,
         json: [

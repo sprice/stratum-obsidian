@@ -256,6 +256,6 @@ this.registerInterval(window.setInterval(() => { /* ... */ }, 1000));
 
 - Obsidian sample plugin: https://github.com/obsidianmd/obsidian-sample-plugin
 - API documentation: https://docs.obsidian.md
-- Developer policies: https://docs.obsidian.md/Developer+policies
-- Plugin guidelines: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines
+- Developer policies: https://docs.obsidian.md/community-directory/developer-policies
+- Plugin guidelines: https://docs.obsidian.md/community-directory/submission-requirements-for-plugins
 - Style guide: https://help.obsidian.md/style-guide

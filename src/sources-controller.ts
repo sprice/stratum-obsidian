@@ -47,17 +47,20 @@ export class SourcesController extends Component {
     if (!this.document || !this.plugin.citations) return null;
     const document = this.document;
     const text = this.text;
-    const { styleTitle } = await import("./citation-styles");
+    const { styleTitle, cachedStyle } = await import("./citation-styles");
     const { style } = this.plugin.citations.preferences(document.path, text);
     const keys = parseSourceOccurrences(text)
       .filter((o) => o.kind === "citation")
       .map((o) => o.target);
     if (keys.length) {
       const health = await this.plugin.citations.diagnose(keys);
-      // Source-level problems belong beside their source, not in place of the style.
-      if (!health.some((source) => source.problem))
-        await this.plugin.citations.format(text, document.path);
+      // Formatting is owned by Reading view; Sources needs only reference health.
+      void health;
     }
+    if (!cachedStyle(this.plugin, style))
+      throw new Error(
+        "Citation style unavailable. Select it in Stratum settings to download it.",
+      );
     return styleTitle(this.plugin, style);
   }
   async changeCitationStyle(): Promise<void> {
@@ -68,7 +71,11 @@ export class SourcesController extends Component {
       new CitationPreferences(this.plugin, file).open();
   }
   subscribeCitationChanges(callback: () => void): () => void {
-    return this.plugin.citations?.subscribe(callback) ?? (() => {});
+    return (
+      this.plugin.citations?.subscribe((path) => {
+        if (!path || path === this.document?.path) callback();
+      }) ?? (() => {})
+    );
   }
   async repairSource(row: SourceRow): Promise<void> {
     const file = this.document;
@@ -130,12 +137,18 @@ export class SourcesController extends Component {
     );
     this.registerEvent(
       this.plugin.app.metadataCache.on("changed", (file) => {
-        if (file !== this.document) this.entries = null;
-        this.schedule();
+        const managed =
+          this.plugin.app.metadataCache.getFileCache(file)?.frontmatter
+            ?.stratum_note_type === "literature-note";
+        if (managed) this.entries = null;
+        if (file === this.document || managed) this.schedule();
       }),
     );
+    let indexed = false;
     this.registerEvent(
       this.plugin.app.metadataCache.on("resolved", () => {
+        if (indexed) return;
+        indexed = true;
         this.entries = null;
         this.schedule();
       }),
@@ -168,13 +181,15 @@ export class SourcesController extends Component {
         this.schedule();
       }),
     );
-    this.registerEvent(
-      this.plugin.app.vault.on("create", () => {
-        this.entries = null;
-        this.bibliography = null;
-        this.schedule();
-      }),
-    );
+    this.plugin.app.workspace.onLayoutReady?.(() => {
+      this.registerEvent(
+        this.plugin.app.vault.on("create", () => {
+          this.entries = null;
+          this.bibliography = null;
+          this.schedule();
+        }),
+      );
+    });
     this.follow(
       this.plugin.app.workspace.getMostRecentLeaf(
         this.plugin.app.workspace.rootSplit,

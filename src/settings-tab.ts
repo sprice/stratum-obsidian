@@ -128,7 +128,9 @@ export class StratumSettingTab extends PluginSettingTab {
           }),
         );
     });
-    const accountEmail = this.plugin.settings.accountEmail;
+    const accountEmail = this.plugin.backend.hasSession()
+      ? this.plugin.settings.accountEmail
+      : null;
     const pendingAuth = isPendingAuthStale({
       pendingAuth: this.plugin.settings.pendingAuth,
     })
@@ -404,18 +406,29 @@ export class StratumSettingTab extends PluginSettingTab {
           .addText((text) => {
             text
               .setPlaceholder("23119")
-              .setValue(String(this.plugin.settings.zoteroLocalApiPort))
-              .onChange(async (value) => {
-                const parsed = Number(value);
-                this.plugin.settings.zoteroLocalApiPort =
-                  Number.isFinite(parsed) && parsed > 0
-                    ? Math.round(parsed)
-                    : 23119;
-                this.plugin.bulkSyncSettingsError = null;
-                clearLocalSyncState(this.plugin);
-                await this.plugin.saveSettings();
-                await this.plugin.reconcileLocalLiveSync();
-              });
+              .setValue(String(this.plugin.settings.zoteroLocalApiPort));
+            const commit = async () => {
+              const parsed = Number(text.getValue());
+              const port =
+                Number.isInteger(parsed) && parsed > 0 && parsed <= 65535
+                  ? parsed
+                  : 23119;
+              if (port === this.plugin.settings.zoteroLocalApiPort) return;
+              this.plugin.settings.zoteroLocalApiPort = port;
+              text.setValue(String(port));
+              this.plugin.bulkSyncSettingsError = null;
+              clearLocalSyncState(this.plugin);
+              await this.plugin.saveSettings();
+              await this.plugin.reconcileLocalLiveSync();
+            };
+            text.inputEl.addEventListener("blur", () => {
+              void commit().catch(
+                () => new Notice("Could not save the Zotero port."),
+              );
+            });
+            text.inputEl.addEventListener("keydown", (event) => {
+              if (event.key === "Enter") text.inputEl.blur();
+            });
 
             text.inputEl.addClass("stratum-interval-input");
             text.inputEl.setAttr("inputmode", "numeric");
@@ -479,17 +492,27 @@ export class StratumSettingTab extends PluginSettingTab {
         setting
           .setName("Literature notes folder")
           .setDesc("Default destination for generated literature notes.")
-          .addText((text) =>
+          .addText((text) => {
             text
               .setPlaceholder(DEFAULT_NOTE_FOLDER)
-              .setValue(this.plugin.settings.notesFolder)
-              .onChange(async (value) => {
-                this.plugin.settings.notesFolder =
-                  value.trim() || DEFAULT_NOTE_FOLDER;
-                await this.plugin.saveSettings();
-                await this.plugin.rebuildItemFileMap();
-              }),
-          );
+              .setValue(this.plugin.settings.notesFolder);
+            const commit = async () => {
+              const folder = text.getValue().trim() || DEFAULT_NOTE_FOLDER;
+              if (folder === this.plugin.settings.notesFolder) return;
+              this.plugin.settings.notesFolder = folder;
+              text.setValue(folder);
+              await this.plugin.saveSettings();
+              await this.plugin.rebuildItemFileMap();
+            };
+            text.inputEl.addEventListener("blur", () => {
+              void commit().catch(
+                () => new Notice("Could not save the literature notes folder."),
+              );
+            });
+            text.inputEl.addEventListener("keydown", (event) => {
+              if (event.key === "Enter") text.inputEl.blur();
+            });
+          });
       },
     );
 

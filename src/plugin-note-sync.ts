@@ -76,11 +76,16 @@ export async function loadLocalZoteroItemDetailForPlugin(
     itemKey: string;
   },
 ): Promise<ZoteroItemDetail> {
+  const catalog = plugin.settings.collectionCatalogs?.[params.library.identity];
   return await loadLocalZoteroItemDetail({
     port: plugin.settings.zoteroLocalApiPort,
     userId: await resolveLocalZoteroUserId(plugin),
     library: params.library,
     itemKey: params.itemKey,
+    knownCollections:
+      catalog && Date.now() - catalog.updatedAt < 60_000
+        ? catalog.collections
+        : undefined,
   });
 }
 
@@ -212,9 +217,16 @@ export async function writeLiteratureNoteFromDetail(
     canWrite: () => canSyncLibrary(plugin, params.detail.library),
     enrichment,
   });
-  await saveReference(plugin.app, params.detail, () =>
-    canSyncLibrary(plugin, params.detail.library),
-  );
+  try {
+    await saveReference(plugin.app, params.detail, () =>
+      canSyncLibrary(plugin, params.detail.library),
+    );
+  } catch (error) {
+    console.error(
+      "stratum: citation cache could not be updated; literature note sync succeeded",
+      error,
+    );
+  }
   plugin.rememberLiteratureNoteFile(params.detail, writeResult.file);
   if (plugin.app.vault.getAbstractFileByPath("stratum.bib")) {
     try {
