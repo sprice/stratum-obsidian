@@ -24,6 +24,7 @@ import * as path from "node:path";
 import * as buffer from "node:buffer";
 import * as http from "node:http";
 import { EventEmitter } from "node:events";
+import { runInNewContext } from "node:vm";
 import type {
   AnnotationFileSystem,
   AnnotationPath,
@@ -38,17 +39,12 @@ const desktopApis: {
   http: AnnotationHttp;
 } = { fs, path, http };
 
-test("desktop host contracts match Node and decode split UTF-8 HTTP chunks", async () => {
-  assert.equal(desktopApis.fs, fs);
-  assert.equal(desktopApis.path, path);
-  assert.equal(desktopApis.http, http);
-  const bytes = new TextEncoder().encode(JSON.stringify({ title: "Étoiles" }));
+function httpTransport(chunks: unknown[]) {
   let cleared = false;
   const runtime = loadRuntime<typeof Bbt>(
     "better-bibtex-images.ts",
     { Platform: { isDesktop: true } },
     {
-      Uint8Array,
       TextDecoder,
       window: {
         setTimeout: () => 1,
@@ -65,8 +61,13 @@ test("desktop host contracts match Node and decode split UTF-8 HTTP chunks", asy
           _options: unknown,
           respond: (response: unknown) => void,
         ) => {
+          let destroyed = false;
           const request = Object.assign(new EventEmitter(), {
-            destroy: () => {},
+            destroy: (error: Error) => {
+              destroyed = true;
+              request.emit("error", error);
+              request.emit("close");
+            },
             setTimeout: () => {},
             end: () => {
               queueMicrotask(() => {
@@ -74,11 +75,14 @@ test("desktop host contracts match Node and decode split UTF-8 HTTP chunks", asy
                   statusCode: 200,
                 });
                 respond(response);
-                // Split inside the multibyte accented character.
-                response.emit("data", bytes.subarray(0, 11));
-                response.emit("data", bytes.subarray(11));
-                response.emit("end");
-                request.emit("close");
+                for (const chunk of chunks) {
+                  if (destroyed) break;
+                  response.emit("data", chunk);
+                }
+                if (!destroyed) {
+                  response.emit("end");
+                  request.emit("close");
+                }
               });
             },
           });
@@ -87,12 +91,49 @@ test("desktop host contracts match Node and decode split UTF-8 HTTP chunks", asy
       },
     },
   );
-  const result = await runtime.requestBetterBibtex(
-    "http://127.0.0.1:23119/better-bibtex/json-rpc",
-    "{}",
-  );
+  return {
+    request: () =>
+      runtime.requestBetterBibtex(
+        "http://127.0.0.1:23119/better-bibtex/json-rpc",
+        "{}",
+      ),
+    get cleared() {
+      return cleared;
+    },
+  };
+}
+
+test("desktop host contracts match Node and decode cross-realm split UTF-8 HTTP chunks", async () => {
+  assert.equal(desktopApis.fs, fs);
+  assert.equal(desktopApis.path, path);
+  assert.equal(desktopApis.http, http);
+  const bytes = new TextEncoder().encode(JSON.stringify({ title: "Étoiles" }));
+  const foreign: unknown = runInNewContext("Uint8Array.from(bytes)", { bytes });
+  assert.equal(foreign instanceof Uint8Array, false);
+  const transport = httpTransport([
+    bytes.subarray(0, 11),
+    (foreign as Uint8Array).subarray(11),
+  ]);
+  const result = await transport.request();
   assert.equal((result as { title: string }).title, "Étoiles");
-  assert.equal(cleared, true);
+  assert.equal(transport.cleared, true);
+});
+
+test("HTTP transport rejects non-byte chunks and closes the request", async () => {
+  for (const chunk of ["unexpected text", new DataView(new ArrayBuffer(2))]) {
+    const transport = httpTransport([chunk]);
+    await assert.rejects(
+      transport.request(),
+      /Unexpected Better BibTeX response chunk/,
+    );
+    assert.equal(transport.cleared, true);
+  }
+});
+
+test("HTTP transport enforces its byte limit before decoding", async () => {
+  const transport = httpTransport([new Uint8Array(4 * 1024 * 1024 + 1)]);
+  await assert.rejects(transport.request(), /response is too large/);
+  assert.equal(transport.cleared, true);
 });
 
 function fixture(): ZoteroItemDetail {

@@ -33,18 +33,27 @@ export async function requestBetterBibtex(
           const chunks: Uint8Array[] = [];
           let size = 0;
           response.on("data", (chunk: unknown) => {
-            if (!(chunk instanceof Uint8Array)) {
+            // Node Buffers may come from a different Electron JavaScript realm.
+            if (
+              !ArrayBuffer.isView(chunk) ||
+              Object.prototype.toString.call(chunk) !== "[object Uint8Array]"
+            ) {
               req.destroy(
                 new Error("Unexpected Better BibTeX response chunk."),
               );
               return;
             }
-            size += chunk.byteLength;
+            const bytes = new Uint8Array(
+              chunk.buffer,
+              chunk.byteOffset,
+              chunk.byteLength,
+            );
+            size += bytes.byteLength;
             if (size > MAX_RESPONSE_BYTES) {
               req.destroy(new Error("Better BibTeX response is too large."));
               return;
             }
-            chunks.push(chunk);
+            chunks.push(bytes);
           });
           response.on("error", reject);
           response.on("end", () => {

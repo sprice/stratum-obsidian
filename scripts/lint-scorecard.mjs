@@ -24,10 +24,27 @@ if (parsed.errors.length)
 
 const program = ts.createProgram(
   parsed.fileNames.filter(
-    (file) => !file.startsWith(resolve(root, "src/test") + "/"),
+    (file) =>
+      !file
+        .replaceAll("\\", "/")
+        .startsWith(resolve(root, "src/test").replaceAll("\\", "/") + "/"),
   ),
   { ...parsed.options, types: [], typeRoots: [] },
 );
+// Explicit dependency references can reintroduce Node declarations despite
+// types/typeRoots. Fail instead of silently testing the wrong environment.
+if (
+  program
+    .getSourceFiles()
+    .some((file) =>
+      file.fileName
+        .replaceAll("\\", "/")
+        .includes("/node_modules/@types/node/"),
+    )
+)
+  throw new Error(
+    "Scorecard compatibility program unexpectedly includes Node declarations.",
+  );
 const eslint = new ESLint({
   cwd: root,
   overrideConfig: [
