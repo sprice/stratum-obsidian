@@ -136,7 +136,7 @@ export class CollectionBrowserView extends ItemView {
     for (const option of choices) {
       switcher.createEl("option", {
         value: option.id,
-        text: option.key ? `${option.name} — ${option.context}` : option.name,
+        text: option.key ? option.context : option.name,
       });
     }
     switcher.value = this.state.collection;

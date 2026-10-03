@@ -96,7 +96,7 @@ export function buildCollectionChoices(
         choices.set(id, {
           id,
           name: paper.collectionNames[i] ?? key,
-          context: `${paper.libraryName} · hierarchy unavailable`,
+          context: `${paper.libraryName} › ${paper.collectionNames[i] ?? key} · hierarchy unavailable`,
           libraryIdentity: paper.libraryIdentity,
           key,
         });
