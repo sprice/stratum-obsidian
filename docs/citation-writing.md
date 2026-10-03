@@ -129,3 +129,31 @@ data. Formatting runs locally using citeproc-js; attribution and licenses are in
 This milestone does not add publishing or document export and does not require
 Pandoc to be installed. Publishing will need to carry these preferences and the
 same citation metadata into the export pipeline.
+
+## Consistent keys and repairs
+
+Citation suggestions and the composer show the established insertion key from
+`stratum.bib`, even if Zotero now supplies a different key. Existing historical
+keys remain valid. Sources shows the keys actually used in the paper. The
+literature note's `citation_key` records the supplied metadata; it does not
+replace established bibliography ownership. Already-cited sources are preferred
+in citation suggestions. Filename preferences do not determine citation identity.
+
+For an unknown or conflicting key, choose **Repair citation** in Sources:
+
+1. Choose the intended imported source.
+2. Select one occurrence (the default) or all matching occurrences in this paper.
+3. Review the source identity, replacement key, and exact changed tokens.
+4. Choose **Apply repair**. One undo restores the manuscript edit.
+
+The repair changes only citation-key tokens, retaining locators, prefixes,
+suffixes, and prose. It reuses a safe established key or adds a unique managed
+key for the chosen source. It never reassigns the ambiguous old key, edits other
+papers, or replaces manual bibliography content. Other papers may still require
+separate repairs. Unsupported citation syntax needs manual editing.
+
+If the paper, sources, or bibliography changes during the preview, reopen it.
+Cancellation or a failed reference write leaves the manuscript unchanged. An
+interruption after a completed reference write, or undoing the manuscript edit,
+may leave an unused bibliography entry; it is safe to keep. Repairs do not create
+literature notes, rename files, or fetch missing citation data automatically.

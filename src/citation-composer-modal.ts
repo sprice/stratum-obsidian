@@ -26,6 +26,7 @@ export class CitationComposer extends Modal {
     private selected: Map<string, LiteratureNoteEntry>,
     private resolveKey: (entry: LiteratureNoteEntry) => string,
     private save: () => Promise<void>,
+    private keyLabel: (entry: LiteratureNoteEntry) => string,
   ) {
     super(plugin.app);
   }
@@ -180,6 +181,7 @@ export class CitationComposer extends Modal {
             this.draft.items.push(citationItem(key));
             this.render();
           },
+          this.keyLabel,
         );
         this.picker.open();
       }),

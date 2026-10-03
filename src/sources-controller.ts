@@ -70,6 +70,28 @@ export class SourcesController extends Component {
   subscribeCitationChanges(callback: () => void): () => void {
     return this.plugin.citations?.subscribe(callback) ?? (() => {});
   }
+  async repairSource(row: SourceRow): Promise<void> {
+    const file = this.document;
+    const key = row.keys[0];
+    if (!file || !key) return;
+    await this.returnToDocument(
+      row.occurrences.find((o) => o.kind === "citation"),
+    );
+    const view = this.plugin.app.workspace.getMostRecentLeaf(
+      this.plugin.app.workspace.rootSplit,
+    )?.view;
+    if (!(view instanceof MarkdownView) || view.file !== file) return;
+    const { openCitationRepair } = await import("./citation-repair");
+    try {
+      await openCitationRepair(this.plugin, file, view.editor, key);
+    } catch (error) {
+      new Notice(
+        error instanceof Error
+          ? error.message
+          : "Could not open citation repair.",
+      );
+    }
+  }
   async recoverSource(row: SourceRow): Promise<void> {
     const key = row.keys[0];
     if (!key || !row.health?.identity)

@@ -124,6 +124,7 @@ test("formatting and diagnostics share cached ownership even without literature 
     "browser",
   );
   let title = "Synthetic reference";
+  let failRead = false;
   const service = new CitationService({
     isUnloaded: false,
     settings: {
@@ -138,21 +139,23 @@ test("formatting and diagnostics share cached ownership even without literature 
         getMarkdownFiles: () => [],
         getAbstractFileByPath: (path: string) => new File(path),
         read: (file: File) =>
-          Promise.resolve(
-            file.path === "stratum.bib"
-              ? "% stratum:begin user%2F1%2FA oldKey baseline\n@book{oldKey,\n title={Synthetic reference}\n}\n% stratum:end"
-              : JSON.stringify({
-                  version: 1,
-                  items: [
-                    {
-                      id: "user/1/A",
-                      type: "book",
-                      title,
-                      author: [{ family: "Example" }],
-                    },
-                  ],
-                }),
-          ),
+          failRead
+            ? Promise.reject(new Error("Temporary read failure"))
+            : Promise.resolve(
+                file.path === "stratum.bib"
+                  ? "% stratum:begin user%2F1%2FA oldKey baseline\n@book{oldKey,\n title={Synthetic reference}\n}\n% stratum:end"
+                  : JSON.stringify({
+                      version: 1,
+                      items: [
+                        {
+                          id: "user/1/A",
+                          type: "book",
+                          title,
+                          author: [{ family: "Example" }],
+                        },
+                      ],
+                    }),
+              ),
       },
     },
   } as never);
@@ -177,6 +180,17 @@ test("formatting and diagnostics share cached ownership even without literature 
     "Papers/Example.md",
   );
   assert.match(updated.bibliography, /Updated reference/);
+  service.invalidate();
+  failRead = true;
+  await assert.rejects(
+    service.format("[@oldKey]", "Papers/Retry.md"),
+    /Temporary read failure/,
+  );
+  failRead = false;
+  // No vault change or explicit invalidation: the unchanged paper can retry.
+  const retried = await service.format("[@oldKey]", "Papers/Retry.md");
+  assert.match(retried.bibliography, /Updated reference/);
+  assert.equal((await service.diagnose(["oldKey"]))[0].problem, undefined);
   await assert.rejects(
     service.format("[@unknown]", "Papers/Example.md"),
     /Citation key not found/,

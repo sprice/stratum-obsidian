@@ -254,6 +254,9 @@ export class SourcesPanel extends Component {
     renderSourceHealth(item, row, {
       busy: this.recovering.has(row.id),
       error: this.recoveryErrors.get(row.id),
+      repair: () => {
+        void this.sources.repairSource(row);
+      },
       recover: () => {
         void this.recover(row);
       },

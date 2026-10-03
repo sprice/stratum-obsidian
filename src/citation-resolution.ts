@@ -26,10 +26,17 @@ export function citationResolver(
     set.add(identity);
     owners.set(key, set);
   };
+  // An established bibliography key cannot be claimed by later Zotero metadata.
+  const established = new Set(
+    bindings
+      .filter((binding) => !binding.identity.startsWith("ambiguous:"))
+      .map((binding) => binding.key),
+  );
   for (const entry of entries) {
     const identity = entry.identity || `file:${entry.file.path}`;
     notes.set(identity, [...(notes.get(identity) ?? []), entry]);
-    add(buildCitekey(entry), identity);
+    const key = buildCitekey(entry);
+    if (!established.has(key)) add(key, identity);
   }
   for (const binding of bindings) add(binding.key, binding.identity);
   return (key) => {

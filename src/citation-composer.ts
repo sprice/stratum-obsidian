@@ -5,7 +5,11 @@ import {
   buildLiteratureNoteEntries,
   type LiteratureNoteEntry,
 } from "./library-search-modal";
-import { resolveBibliographyCitekey } from "./bibtex-managed";
+import {
+  citationEntriesSignature,
+  citationKeyIndex,
+  preferCitedSources,
+} from "./citation-keys";
 import {
   collectDocumentSources,
   readBibliographyBindings,
@@ -75,8 +79,8 @@ export async function openCitationComposer(
     bib instanceof TFile ? await plugin.app.vault.read(bib) : "";
   if (session.disposed) return;
   const bindings = readBibliographyBindings(bibliography);
-  const resolveKey = (entry: LiteratureNoteEntry) =>
-    resolveBibliographyCitekey(bibliography, entry);
+  const index = citationKeyIndex(entries, bibliography);
+  const resolveKey = index.key;
   const draft: CitationDraft = existing?.draft ?? {
     items: [],
     narrative: false,
@@ -98,20 +102,30 @@ export async function openCitationComposer(
     selected.set(item.key, rows[0].entry);
   }
   if (initial) {
-    const key = resolveKey(initial.entry);
-    selected.set(key, initial.entry);
+    const current = entries.find(
+      (entry) =>
+        entry.file.path === initial.entry.file.path &&
+        entry.identity === initial.entry.identity,
+    );
+    if (!current)
+      throw new Error("Source changed. Reopen the citation command.");
+    const key = resolveKey(current);
+    selected.set(key, current);
     draft.items.push(citationItem(key));
   }
+  const entriesSignature = citationEntriesSignature(entries);
   const unchanged = () =>
     modal.isActive &&
     editor.getValue() === original &&
+    citationEntriesSignature(buildLiteratureNoteEntries(plugin)) ===
+      entriesSignature &&
     plugin.app.workspace.getLeavesOfType("markdown").some((leaf) => {
       const view = leaf.view as unknown as { editor?: Editor; file?: TFile };
       return view.editor === editor && view.file === file;
     });
   const modal = new CitationComposer(
     plugin,
-    entries,
+    preferCitedSources(entries, original, bibliography),
     draft,
     selected,
     resolveKey,
@@ -132,7 +146,13 @@ export async function openCitationComposer(
         if (!entry) throw new Error("Select a source for every citation.");
         return entry;
       });
-      const keys = await ensureBibEntries(plugin.app, sources, unchanged);
+      const keys = await ensureBibEntries(
+        plugin.app,
+        sources,
+        unchanged,
+        confirmed.items.map((item) => item.key),
+        entries,
+      );
       if (!unchanged())
         throw new Error(
           "The note changed while saving references. No citation was inserted; reopen the command.",
@@ -151,6 +171,7 @@ export async function openCitationComposer(
       );
       editor.focus();
     },
+    index.label,
   );
   session.active.add(modal);
   modal.onDismiss = () => session.active.delete(modal);

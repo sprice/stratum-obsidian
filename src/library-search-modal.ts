@@ -165,6 +165,8 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
     app: App,
     entries: LiteratureNoteEntry[],
     onSelect: (entry: LiteratureNoteEntry) => void,
+    private keyLabel: (entry: LiteratureNoteEntry) => string = (entry) =>
+      `@${buildCitekey(entry)}`,
   ) {
     super(app);
     this.entries = entries;
@@ -184,7 +186,7 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
       entry.authors.length > 0 ? entry.authors.join(", ") : null,
       entry.year,
       entry.title,
-      `@${buildCitekey(entry)}`,
+      this.keyLabel(entry),
     ].filter(Boolean);
     return parts.join(" ");
   }
@@ -200,7 +202,7 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
     });
     el.createDiv({
       cls: "stratum-suggestion-citekey",
-      text: `@${buildCitekey(entry)}`,
+      text: this.keyLabel(entry),
     });
     const meta = [entry.authors.join(", "), entry.year]
       .filter(Boolean)

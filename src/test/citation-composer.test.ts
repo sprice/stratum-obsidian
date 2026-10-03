@@ -6,6 +6,7 @@ import { loadRuntime } from "./runtime-harness";
 test("composer writes to its captured editor and aborts stale or cancelled edits", async () => {
   for (const scenario of [
     "save",
+    "suggestion",
     "changed",
     "closed",
     "cancelled",
@@ -105,7 +106,20 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
         },
       },
     };
-    await runtime.openCitationComposer(plugin as never, editor as never);
+    await runtime.openCitationComposer(
+      plugin as never,
+      editor as never,
+      scenario === "suggestion"
+        ? {
+            entry: {
+              file: { path: "Papers/Test source.md" },
+              identity: "user/0/TEST",
+            } as never,
+            from: 8,
+            to: 33,
+          }
+        : undefined,
+    );
     if (scenario === "unloaded-during-read") {
       assert.equal(modal, undefined);
       continue;
@@ -119,10 +133,17 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
     if (scenario === "changed") text += "Changed";
     if (scenario === "closed") open = false;
     if (scenario === "cancelled") modal.isActive = false;
-    if (scenario === "save" || scenario === "draft-mutated") {
+    if (
+      scenario === "save" ||
+      scenario === "draft-mutated" ||
+      scenario === "suggestion"
+    ) {
       await modal.save();
-      assert.equal(inserted, "[@synthetic2026, p. xiv]");
-      assert.equal(text, "A claim [@synthetic2026, p. xiv].");
+      if (scenario === "suggestion") assert.equal(inserted, "[@synthetic2026]");
+      else {
+        assert.equal(inserted, "[@synthetic2026, p. xiv]");
+        assert.equal(text, "A claim [@synthetic2026, p. xiv].");
+      }
       assert.equal(writes, 1);
     } else {
       await assert.rejects(modal.save());

@@ -15,6 +15,7 @@ export function renderSourceHealth(
     busy: boolean;
     error?: string;
     recover: () => void;
+    repair: () => void;
     show: () => void;
   },
 ): void {
@@ -107,6 +108,11 @@ export function renderSourceHealth(
           "Source recognized, but its literature note is missing. Sync its library to restore it.",
       }[row.issue],
     );
+  if (
+    health?.problem === "unknown-key" ||
+    health?.problem === "conflicting-key"
+  )
+    action("Repair citation", "repair", options.repair);
   if (options.error) message(options.error);
   if (sourceNeedsAttention(row)) {
     action("Show citation in paper", "show-problem", options.show);

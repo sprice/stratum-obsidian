@@ -12,12 +12,17 @@ import {
   buildLiteratureNoteEntries,
   type LiteratureNoteEntry,
 } from "./library-search-modal";
-import { buildCitekey } from "./bibtex-format";
+import {
+  citationKeyIndex,
+  preferCitedSources,
+  readCitationBibliography,
+} from "./citation-keys";
 import { citationAt } from "./citation-model";
 import { openCitationComposer } from "./citation-composer";
 
 export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
   private entries: LiteratureNoteEntry[] = [];
+  private labels = new Map<LiteratureNoteEntry, string>();
   constructor(private plugin: StratumPlugin) {
     super(plugin.app);
     this.limit = 20;
@@ -54,21 +59,35 @@ export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
       candidate.draft.items[0]?.key !== "stratumProbe"
     )
       return null;
-    if (!this.context) this.entries = buildLiteratureNoteEntries(this.plugin);
+    if (!this.context) {
+      this.entries = buildLiteratureNoteEntries(this.plugin);
+      this.labels.clear();
+    }
     return { start, end: cursor, query: match[1] };
   }
-  getSuggestions(context: EditorSuggestContext): LiteratureNoteEntry[] {
+  async getSuggestions(
+    context: EditorSuggestContext,
+  ): Promise<LiteratureNoteEntry[]> {
+    const entries = this.entries;
+    let bibliography: string;
+    try {
+      bibliography = await readCitationBibliography(this.plugin.app);
+    } catch {
+      return [];
+    }
+    const index = citationKeyIndex(entries, bibliography);
+    for (const entry of entries) this.labels.set(entry, index.label(entry));
     const terms = context.query
       .toLocaleLowerCase()
       .split(/\s+/)
       .filter(Boolean);
-    return this.entries
+    return preferCitedSources(entries, context.editor.getValue(), bibliography)
       .filter((entry) => {
         const text = [
           entry.title,
           ...entry.authors,
           entry.year,
-          buildCitekey(entry),
+          index.label(entry),
         ]
           .join(" ")
           .toLocaleLowerCase();
@@ -79,7 +98,7 @@ export class CitationSuggest extends EditorSuggest<LiteratureNoteEntry> {
   renderSuggestion(entry: LiteratureNoteEntry, el: HTMLElement): void {
     el.createDiv({ text: entry.title, cls: "stratum-suggestion-title" });
     el.createDiv({
-      text: `@${buildCitekey(entry)}`,
+      text: this.labels.get(entry) ?? "Citation key unavailable",
       cls: "stratum-suggestion-citekey",
     });
     el.createDiv({

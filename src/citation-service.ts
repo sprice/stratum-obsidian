@@ -164,9 +164,18 @@ export class CitationService extends Component {
   async diagnose(keys: string[]): Promise<CitationResolution[]> {
     if (this.plugin.isUnloaded) throw new Error("Stratum is unloaded.");
     const revision = this.revision;
-    const resolve = await (this.refs ??= this.references());
-    if (revision !== this.revision) return this.diagnose(keys);
-    return keys.map(resolve);
+    const pending = (this.refs ??= this.references());
+    try {
+      const resolve = await pending;
+      if (revision !== this.revision) return this.diagnose(keys);
+      return keys.map(resolve);
+    } catch (error) {
+      // A failed disk read must not poison subsequent recovery attempts.
+      // Do not clear a newer read started after invalidation.
+      if (this.refs === pending) this.refs = null;
+      if (revision !== this.revision) return this.diagnose(keys);
+      throw error;
+    }
   }
 
   async format(text: string, path: string): Promise<FormattedDocument> {
@@ -224,6 +233,11 @@ export class CitationService extends Component {
     });
     if (this.results.size > 12) this.results.clear();
     this.results.set(path, { text, revision: this.revision, result });
-    return result;
+    try {
+      return await result;
+    } catch (error) {
+      if (this.results.get(path)?.result === result) this.results.delete(path);
+      throw error;
+    }
   }
 }
