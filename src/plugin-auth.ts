@@ -380,14 +380,31 @@ export async function handleAuthProtocol(
     return;
   }
 
+  const isCurrent = () =>
+    !plugin.isUnloaded &&
+    plugin.settings.pendingAuth === pendingAuth &&
+    matchPendingAuth({ handoff, pendingAuth }) === "matched";
+
   if (accessToken && refreshToken) {
     const expiresAt = expiresAtParam ? Number(expiresAtParam) : null;
-    await plugin.backend.setSession({
-      accessToken,
-      refreshToken,
-      expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
-      email,
-    });
+    try {
+      const accepted = await plugin.backend.setSession(
+        {
+          accessToken,
+          refreshToken,
+          expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
+        },
+        isCurrent,
+      );
+      if (!accepted) return;
+    } catch {
+      if (!isCurrent()) return;
+      new Notice(
+        `${PLUGIN_NAME}: could not verify sign-in. Try signing in again.`,
+      );
+      return;
+    }
+    if (!isCurrent()) return;
   } else if (email) {
     plugin.settings.accountEmail = email;
     plugin.settings.accountLinkedAt = new Date().toISOString();

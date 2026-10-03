@@ -688,7 +688,12 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 .stratum-reference-output .stratum-csl-hanging .csl-entry {
   padding-inline-start: 2em;
-  text-indent: -2em;
+}
+/* Shift only the first line; wrapped lines retain the bibliography indent. */
+.stratum-reference-output .stratum-csl-hanging .csl-entry::before {
+  content: "";
+  display: inline-block;
+  margin-inline-start: -2em;
 }
 
 .stratum-formatted-citation .stratum-citation-evidence {
