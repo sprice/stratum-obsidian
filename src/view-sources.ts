@@ -103,6 +103,12 @@ export class SourcesPanel extends Component {
           ? error.message
           : "Citation preview unavailable.",
       );
+      const button = this.citationStatus.createEl("button", {
+        text: "Change citation style",
+      });
+      button.addEventListener("click", () => {
+        void this.sources.changeCitationStyle();
+      });
     }
   }
   private renderRows(): void {

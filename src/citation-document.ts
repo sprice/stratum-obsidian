@@ -42,7 +42,8 @@ export function citationDocument(
   text: string,
   noteStyle: boolean,
 ): CitationDocument {
-  const tree = parser.parse(sourceProse(text)) as Node;
+  const prose = sourceProse(text);
+  const tree = parser.parse(text) as Node;
   const result: CitationDocument = {
     citations: [],
     notes: [],
@@ -61,6 +62,8 @@ export function citationDocument(
   const start = (node: Node) => node.position?.start.offset ?? 0;
   const end = (node: Node) => node.position?.end.offset ?? 0;
   const collect = (node: Node) => {
+    if (node.type !== "root" && !prose.slice(start(node), end(node)).trim())
+      return;
     if (
       node.type === "html" &&
       /^<div\s+id=["']refs["']\s*>\s*<\/div>\s*$/.test(
@@ -76,8 +79,19 @@ export function citationDocument(
     node.children?.forEach(collect);
   };
   collect(tree);
+  // Obsidian supports inline footnotes, but remark-gfm does not model them.
+  // Refuse publication formatting instead of hiding native notes and silently
+  // dropping their content or assigning their references to the wrong note.
+  if (/(^|[^\\])(?:\\\\)*\^\[/.test(prose))
+    result.problems.push(
+      "Inline explanatory footnotes are not supported for citation formatting. Use a named [^note] reference and a [^note]: definition instead.",
+    );
   const visit = (node: Node, noteIndex = 0) => {
-    if (node.type === "footnoteDefinition") return;
+    if (
+      node.type === "footnoteDefinition" ||
+      !prose.slice(start(node), end(node)).trim()
+    )
+      return;
     if (node.type === "footnoteReference" && node.identifier) {
       if (noteIndex) {
         result.problems.push(
@@ -108,7 +122,9 @@ export function citationDocument(
           number: number!,
           from: start(definition),
           to: end(definition),
-          bodyFrom: start(definition.children![0]),
+          bodyFrom: definition.children?.length
+            ? start(definition.children[0])
+            : end(definition),
           bodyTo: end(definition),
         });
         definition.children?.forEach((child) => visit(child, number));
@@ -146,7 +162,10 @@ export function citationDocument(
         });
       }
       const refs = (child: Node) => {
-        if (child.type === "footnoteReference")
+        if (
+          child.type === "footnoteReference" &&
+          prose.slice(start(child), end(child)).trim()
+        )
           events.push({ kind: "note", from: start(child), node: child });
         else child.children?.forEach(refs);
       };

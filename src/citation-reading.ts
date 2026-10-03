@@ -10,7 +10,8 @@ import {
   citationScope,
   noteId,
 } from "./citation-display";
-import { citationFooter } from "./citation-footer";
+import { parseSourceOccurrences } from "./source-occurrences";
+import { citationFooter, readingFooterLine } from "./citation-footer";
 import { renderCsl, renderDocumentNotes } from "./citation-render";
 /** Reading view can render blocks out of order. All blocks use a full-document result. */
 export function registerCitationReading(service: CitationService): void {
@@ -56,16 +57,37 @@ class ReadingCitations extends MarkdownRenderChild {
   }
   private async render(): Promise<void> {
     const generation = ++this.generation;
+    // Obsidian also runs Markdown postprocessors for rendered editor blocks
+    // (tables, callouts, embeds). Publication output must never enter that view.
+    if (this.containerEl.closest(".markdown-source-view, .cm-editor")) {
+      this.restore();
+      return;
+    }
     const info = this.ctx.getSectionInfo(this.containerEl);
     const file = this.service.plugin.app.vault.getAbstractFileByPath(
       this.ctx.sourcePath,
     );
-    if (!(file instanceof TFile) || !info) return;
+    if (!(file instanceof TFile) || !info) {
+      this.restore();
+      return;
+    }
     const text = info.text;
-    if (!text.includes("@") && !text.includes('id="refs"')) return;
+    if (
+      !parseSourceOccurrences(text).some(
+        (occurrence) => occurrence.kind === "citation",
+      )
+    ) {
+      this.restore();
+      return;
+    }
     try {
       const result = await this.service.format(text, file.path);
       if (generation !== this.generation || !this.active) return;
+      // A detached block can be mounted inside the editor while formatting awaits.
+      if (this.containerEl.closest(".markdown-source-view, .cm-editor")) {
+        this.restore();
+        return;
+      }
       this.restore();
       const scope = citationScope(this.containerEl, file.path);
       const lines = text.split("\n");
@@ -174,7 +196,18 @@ class ReadingCitations extends MarkdownRenderChild {
         "data-stratum-citation-error",
         error instanceof Error ? error.message : "Citation formatting failed.",
       );
-      for (const target of this.bibliographyTargets()) {
+      const targets = this.bibliographyTargets();
+      const lastLine = readingFooterLine(text);
+      if (
+        !targets.length &&
+        info.lineStart <= lastLine &&
+        info.lineEnd >= lastLine &&
+        parseSourceOccurrences(text).some(
+          (occurrence) => occurrence.kind === "citation",
+        )
+      )
+        targets.push(this.containerEl);
+      for (const target of targets) {
         const error = target.createDiv({
           cls: "stratum-reference-output",
           text: "References unavailable. Refresh citation data or check sources.",

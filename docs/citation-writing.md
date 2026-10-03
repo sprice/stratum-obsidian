@@ -79,7 +79,9 @@ list or citation notes.
 Note-based styles generate a numbered Notes section. Ordinary `[^note]`
 explanatory footnotes share its sequence and may contain citations. Their
 Markdown remains editable; citation-generated notes disappear or change when
-switching styles. Nested explanatory footnotes are not supported.
+switching styles. Nested explanatory footnotes and inline `^[note text]` notes
+are not supported for citation formatting; use named `[^note]` definitions.
+Unsupported notes keep the original Reading output and show a formatting error.
 
 ## Reference data and offline use
 

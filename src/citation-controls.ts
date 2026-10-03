@@ -61,6 +61,7 @@ export class CitationPreferences extends Modal {
         };
     this.selected = prefs.style;
     this.language = prefs.language;
+    plugin.register(() => this.close());
   }
   onOpen(): void {
     this.active = true;
@@ -229,6 +230,7 @@ export class CitationPreferences extends Modal {
           .setButtonText("Use default style")
           .setDisabled(this.busy)
           .onClick(async () => {
+            if (!this.active || this.busy || this.plugin.isUnloaded) return;
             this.busy = true;
             this.render();
             try {
@@ -280,7 +282,7 @@ export class CitationPreferences extends Modal {
     }
   }
   private async apply(): Promise<void> {
-    if (this.busy) return;
+    if (!this.active || this.busy || this.plugin.isUnloaded) return;
     this.busy = true;
     const id = this.selected,
       language = this.language;

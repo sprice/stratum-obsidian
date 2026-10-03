@@ -76,3 +76,37 @@ test("manuscript changes refresh reused Reading blocks and unload cancels pendin
   service.onunload();
   assert.equal(timers.size, 0);
 });
+
+test("renaming reference files away invalidates previously cached citations", () => {
+  const events = new Map<string, (file: File, oldPath: string) => void>();
+  const { CitationService } = loadRuntime<typeof Service>(
+    "citation-service.ts",
+    {
+      Component: class {
+        registerEvent() {}
+      },
+      MarkdownView: View,
+      TFile: File,
+    },
+    { document: { createElement: () => ({}) } },
+    "browser",
+  );
+  const service = new CitationService({
+    app: {
+      metadataCache: { on: () => ({}), getFileCache: () => ({}) },
+      vault: {
+        on: (name: string, callback: (file: File, oldPath: string) => void) => {
+          events.set(name, callback);
+          return {};
+        },
+      },
+    },
+  } as never);
+  service.onload();
+  let invalidations = 0;
+  service.subscribe(() => invalidations++);
+  events.get("rename")!(new File("archive.bib"), "stratum.bib");
+  events.get("rename")!(new File("archive.json"), "stratum-references.json");
+  assert.equal(invalidations, 2);
+  service.onunload();
+});

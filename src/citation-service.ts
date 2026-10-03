@@ -57,7 +57,20 @@ export class CitationService extends Component {
     this.registerEvent(this.plugin.app.vault.on("create", changed));
     this.registerEvent(this.plugin.app.vault.on("modify", changed));
     this.registerEvent(this.plugin.app.vault.on("delete", changed));
-    this.registerEvent(this.plugin.app.vault.on("rename", changed));
+    this.registerEvent(
+      this.plugin.app.vault.on("rename", (file, oldPath) => {
+        // Renaming a bibliography or reference store away changes the available
+        // references just as deleting it does. The event supplies the new path.
+        if (
+          oldPath === "stratum.bib" ||
+          oldPath === REFERENCE_FILE ||
+          this.managed.delete(oldPath)
+        )
+          this.invalidate();
+        this.results.delete(oldPath);
+        changed(file);
+      }),
+    );
   }
   private refreshReadingView(path: string): void {
     this.previewPaths.add(path);

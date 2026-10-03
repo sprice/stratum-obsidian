@@ -820,16 +820,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
-.stratum-note-button {
-  all: unset;
-  cursor: pointer;
-  color: var(--link-color);
-  vertical-align: super;
-  font-size: var(--font-smallest);
-}
-.stratum-note-button:focus-visible {
-  outline: 2px solid var(--interactive-accent);
-}
 .stratum-reference-output {
   white-space: normal;
   overflow-wrap: anywhere;

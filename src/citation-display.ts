@@ -61,7 +61,6 @@ export function replaceRangeText(
       output.slice(edit.to - from);
   return output;
 }
-export const bibliographyMarker = /<div\s+id=["']refs["']\s*>\s*<\/div>/g;
 
 const viewScopes = new WeakMap<Element, string>();
 let nextScope = 0;

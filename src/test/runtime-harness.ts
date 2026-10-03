@@ -8,6 +8,7 @@ export function loadRuntime<T>(
   obsidian: Record<string, unknown>,
   globals: Record<string, unknown> = {},
   platform: "node" | "browser" = "node",
+  dependencies: Record<string, unknown> = {},
 ): T {
   const result = buildSync({
     entryPoints: [fileURLToPath(new URL(`../${entry}`, import.meta.url))],
@@ -16,7 +17,7 @@ export function loadRuntime<T>(
     platform,
     format: "cjs",
     supported: { "dynamic-import": false },
-    external: ["obsidian"],
+    external: ["obsidian", ...Object.keys(dependencies)],
     define: Object.fromEntries(
       [
         "__STRATUM_WEB_APP_URL__",
@@ -31,6 +32,7 @@ export function loadRuntime<T>(
     module,
     exports: module.exports,
     require: (name: string) => {
+      if (Object.hasOwn(dependencies, name)) return dependencies[name];
       if (name !== "obsidian") throw new Error(`Unexpected import: ${name}`);
       return obsidian;
     },

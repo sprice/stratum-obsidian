@@ -305,3 +305,28 @@ test("Reading footer ignores trailing definitions and comments but follows code 
     code.trimEnd().split("\n").length - 1,
   );
 });
+
+test("footnote bodies preserve leading code and allow empty notes", () => {
+  for (const body of ["`code`", "`code` before ordinary prose", ""]) {
+    const source = `A claim [@smith2024]. Note[^n].\n\n[^n]: ${body}`;
+    const model = format(source).model;
+    assert.equal(model.notes.length, 1);
+    assert.equal(
+      source.slice(model.notes[0].bodyFrom, model.notes[0].bodyTo),
+      body,
+    );
+  }
+  const source =
+    "A claim [@smith2024]. %% hidden[^n] %%\n\n[^n]: Hidden definition";
+  assert.equal(format(source).model.notes.length, 0);
+});
+
+test("inline Obsidian footnotes fail visibly rather than lose explanatory text", () => {
+  assert.throws(
+    () => format("A claim [@smith2024]. An explanation^[Keep this text]."),
+    /Inline explanatory footnotes/,
+  );
+  assert.doesNotThrow(() => format("A claim [@smith2024]. `^[example]`"));
+  assert.doesNotThrow(() => format("A claim [@smith2024]. \\^[literal]"));
+  assert.doesNotThrow(() => format("A claim [@smith2024]. %% ^[hidden] %%"));
+});
