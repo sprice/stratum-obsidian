@@ -1,3 +1,4 @@
+import CSL from "citeproc";
 import { requestUrl } from "obsidian";
 import assets from "./csl/assets.json";
 import type StratumPlugin from "./plugin";
@@ -148,17 +149,15 @@ export async function prepareStyle(
     if (!/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(lang))
       throw new Error("Unsupported formatting language.");
     if (!locales[lang]) {
+      // Use the same base-language mapping as the formatter (e.g. it → it-IT).
       const requested = lang.includes("-")
         ? lang
-        : ((
-            { en: "en-US", fr: "fr-FR", de: "de-DE", es: "es-ES" } as Record<
-              string,
-              string
-            >
-          )[lang] ?? lang);
-      const resource = await download(
-        `https://raw.githubusercontent.com/citation-style-language/locales/master/locales-${requested}.xml`,
-      );
+        : (CSL.LANG_BASES[lang]?.replace(/_/g, "-") ?? lang);
+      const resource =
+        locales[requested] ??
+        (await download(
+          `https://raw.githubusercontent.com/citation-style-language/locales/master/locales-${requested}.xml`,
+        ));
       if (!resource.includes("<locale") || /<!DOCTYPE|<!ENTITY/i.test(resource))
         throw new Error("Invalid formatting language file.");
       locales[lang] = resource;

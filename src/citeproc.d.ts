@@ -47,6 +47,6 @@ declare module "citeproc" {
           string[],
         ];
   }
-  const CSL: { Engine: typeof Engine };
+  const CSL: { Engine: typeof Engine; LANG_BASES: Record<string, string> };
   export default CSL;
 }

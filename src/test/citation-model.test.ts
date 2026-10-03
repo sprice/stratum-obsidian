@@ -120,3 +120,16 @@ test("brackets in code, comments and metadata cannot swallow a later citation", 
     assert.equal(result?.draft?.items[0].locator, "5");
   }
 });
+
+test("bare numeric Pandoc locators retain page semantics when edited", () => {
+  for (const raw of ["[@example, 42]", "@example [42]"]) {
+    const draft = parseCitation(raw)!;
+    assert.equal(draft.items[0].locator, "42");
+    assert.equal(draft.items[0].suffix, "");
+    assert.match(serializeCitation(draft), /p\. 42/);
+  }
+  const draft = parseCitation("[@example, 12–14, 18, for discussion]")!;
+  assert.equal(draft.items[0].locator, "12–14, 18");
+  assert.equal(draft.items[0].suffix, "for discussion");
+  assert.equal(parseCitation("[@example, 42 unsupported tail]"), null);
+});

@@ -330,3 +330,13 @@ test("inline Obsidian footnotes fail visibly rather than lose explanatory text",
   assert.doesNotThrow(() => format("A claim [@smith2024]. \\^[literal]"));
   assert.doesNotThrow(() => format("A claim [@smith2024]. %% ^[hidden] %%"));
 });
+
+test("implicit numeric pages match Pandoc's locator formatting", () => {
+  assert.deepEqual(format("[@smith2024, 42]").citations, [
+    "(Smith, 2024, p. 42)",
+  ]);
+  assert.deepEqual(
+    format("[@smith2024, 12–14, for discussion]", "ieee").citations,
+    ["[1, pp. 12–14], for discussion"],
+  );
+});

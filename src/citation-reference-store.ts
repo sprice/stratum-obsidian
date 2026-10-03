@@ -52,11 +52,11 @@ export async function saveReference(
     .then(async () => {
       if (!active()) return;
       const file = app.vault.getAbstractFileByPath(REFERENCE_FILE);
-      const update = (text: string) => {
+      const update = (text: string, creating = false) => {
         if (!active()) return text;
-        const store = text
-          ? readReferenceStore(text)
-          : { version: 1, items: [] as CslItem[] };
+        const store = creating
+          ? { version: 1, items: [] as CslItem[] }
+          : readReferenceStore(text);
         const index = store.items.findIndex((value) => value.id === id);
         if (index < 0) store.items.push(item);
         else store.items[index] = item;
@@ -64,7 +64,7 @@ export async function saveReference(
       };
       if (file instanceof TFile) await app.vault.process(file, update);
       else if (file) throw new Error("The citation data path is not a file.");
-      else await app.vault.create(REFERENCE_FILE, update(""));
+      else await app.vault.create(REFERENCE_FILE, update("", true));
     });
   pending.set(app, next);
   await next;

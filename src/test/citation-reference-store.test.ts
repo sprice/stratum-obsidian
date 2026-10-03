@@ -101,3 +101,9 @@ test("unload and corrupt stores cannot overwrite retained reference data", async
   assert.equal(broken.text, '{"version":99,"items":[]}');
   assert.throws(() => store.readReferenceStore("null"), /unsupported format/);
 });
+
+test("an existing empty cache is not silently replaced during sync", async () => {
+  const f = fixture("");
+  await assert.rejects(store.saveReference(f.app, detail("A"), () => true));
+  assert.equal(f.text, "");
+});

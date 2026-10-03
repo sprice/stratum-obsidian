@@ -96,7 +96,13 @@ export function parseCitation(raw: string): CitationDraft | null {
       if (!tail.startsWith(",")) return null;
       tail = tail.slice(1).trim();
     }
-    const locator = /^(p\.|pp\.|chap\.|sec\.|para\.|vol\.)\s+(.+)$/u.exec(tail);
+    const explicitLocator =
+      /^(p\.|pp\.|chap\.|sec\.|para\.|vol\.)\s+(.+)$/u.exec(tail);
+    // Pandoc treats a bare numeric locator as a page, not a literal suffix.
+    const implicitPage = /^[0-9]+(?:\s*[-–—]\s*[0-9]+)?(?:,|$)/u.test(tail);
+    if (!explicitLocator && /^[0-9]/.test(tail) && !implicitPage) return null;
+    const locator =
+      explicitLocator ?? (implicitPage ? [tail, "p.", tail] : null);
     if (locator) {
       item.label = locator[1] as LocatorLabel;
       const parts = locator[2].split(/,\s*/);
