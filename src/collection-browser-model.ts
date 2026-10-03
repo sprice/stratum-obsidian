@@ -26,6 +26,7 @@ export interface CollectionBrowserState extends SourceTableState {
   query: string;
   includeSubcollections: boolean;
   scrollTop: number;
+  scrollLeft: number;
   visibleCount: number;
 }
 export const DEFAULT_BROWSER_STATE: CollectionBrowserState = {
@@ -34,6 +35,7 @@ export const DEFAULT_BROWSER_STATE: CollectionBrowserState = {
   query: "",
   includeSubcollections: true,
   scrollTop: 0,
+  scrollLeft: 0,
   visibleCount: 100,
 };
 export function readBrowserState(raw: unknown): CollectionBrowserState {
@@ -55,6 +57,10 @@ export function readBrowserState(raw: unknown): CollectionBrowserState {
     scrollTop:
       typeof value.scrollTop === "number" && Number.isFinite(value.scrollTop)
         ? Math.max(0, value.scrollTop)
+        : 0,
+    scrollLeft:
+      typeof value.scrollLeft === "number" && Number.isFinite(value.scrollLeft)
+        ? Math.max(0, value.scrollLeft)
         : 0,
   };
 }

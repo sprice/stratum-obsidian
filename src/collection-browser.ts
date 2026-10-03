@@ -146,6 +146,7 @@ export class CollectionBrowserView extends ItemView {
         collection: switcher.value,
         query: "",
         scrollTop: 0,
+        scrollLeft: 0,
         visibleCount: 100,
       };
       this.saveState();
@@ -188,6 +189,7 @@ export class CollectionBrowserView extends ItemView {
         this.state.query = query;
         this.state.visibleCount = 100;
         this.state.scrollTop = 0;
+        this.state.scrollLeft = 0;
         this.saveState();
         this.renderResults();
       });
@@ -244,6 +246,7 @@ export class CollectionBrowserView extends ItemView {
     this.results.tabIndex = 0;
     this.results.addEventListener("scroll", () => {
       this.state.scrollTop = this.results.scrollTop;
+      this.state.scrollLeft = this.results.scrollLeft;
       this.saveState();
     });
     search.inputEl.addEventListener("keydown", (event) => {
@@ -368,6 +371,7 @@ export class CollectionBrowserView extends ItemView {
       });
     }
     this.results.scrollTop = this.state.scrollTop;
+    this.results.scrollLeft = this.state.scrollLeft;
   }
   private renderTitle(row: HTMLElement, paper: CollectionPaper): void {
     const link = row.createEl("a", {

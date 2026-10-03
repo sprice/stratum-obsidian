@@ -28,6 +28,8 @@ export class SourcesPanel extends Component {
   private recoveryErrors = new Map<string, string>();
   private active = false;
   private columnsModal: SourceColumnsModal | null = null;
+  private sortMenu!: HTMLSelectElement;
+  private columnOrder!: HTMLOptionElement;
   constructor(
     private container: HTMLElement,
     private sources: SourcesController,
@@ -74,6 +76,7 @@ export class SourcesPanel extends Component {
       });
     search.inputEl.setAttr("aria-label", "Search sources");
     const sort = tools.createEl("select");
+    this.sortMenu = sort;
     sort.setAttr("aria-label", "Sort sources");
     for (const [value, text] of [
       ["appearance", "First appearance"],
@@ -81,6 +84,12 @@ export class SourcesPanel extends Component {
       ["title", "Title"],
     ])
       sort.createEl("option", { value, text });
+    this.columnOrder = sort.createEl("option", {
+      value: "column",
+      text: "Column order",
+    });
+    this.columnOrder.disabled = true;
+    this.columnOrder.hidden = true;
     sort.value = this.state.sort;
     sort.addEventListener("change", () => {
       this.state.sort = sort.value;
@@ -172,6 +181,11 @@ export class SourcesPanel extends Component {
     }
   }
   private renderRows(): void {
+    this.columnOrder.hidden = !this.state.columnSort;
+    this.columnOrder.text = this.state.columnSort
+      ? `Column: ${this.state.columnSort === "source" ? "Source" : sourceColumnLabel(this.state.columnSort)}`
+      : "Column order";
+    this.sortMenu.value = this.state.columnSort ? "column" : this.state.sort;
     void this.renderCitationStatus();
     const active = this.container.doc.activeElement;
     const focus =

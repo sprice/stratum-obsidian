@@ -160,3 +160,25 @@ test("sorting compares signed and decimal numeric properties by value", () => {
     ["A", "B", "C"],
   );
 });
+
+test("numeric sorting includes scientific notation and fractional numeric strings", () => {
+  const rows = [source("A"), source("B"), source("C"), source("D")];
+  const values = new Map<SourceRow, string | number>([
+    [rows[0], 1e-7],
+    [rows[1], ".5"],
+    [rows[2], "+2e2"],
+    [rows[3], -1e-7],
+  ]);
+  const state = { ...readSourceTableState(null), columnSort: "effect_size" };
+  const properties = (row: SourceRow) => ({ effect_size: values.get(row) });
+  assert.deepEqual(
+    sortSourceTable(rows, state, properties).map((row) => row.id),
+    ["D", "A", "B", "C"],
+  );
+  assert.deepEqual(
+    sortSourceTable(rows, { ...state, descending: true }, properties).map(
+      (row) => row.id,
+    ),
+    ["C", "B", "A", "D"],
+  );
+});

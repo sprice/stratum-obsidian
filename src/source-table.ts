@@ -124,9 +124,12 @@ export function compareSourceValues(
   descending: boolean,
 ): number {
   if (!left || !right) return !left && !right ? 0 : !left ? 1 : -1;
-  const numeric = /^-?\d+(?:\.\d+)?$/;
+  const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
   const comparison =
-    numeric.test(left) && numeric.test(right)
+    numeric.test(left) &&
+    numeric.test(right) &&
+    Number.isFinite(Number(left)) &&
+    Number.isFinite(Number(right))
       ? Number(left) - Number(right)
       : left.localeCompare(right, undefined, {
           numeric: true,

@@ -177,6 +177,10 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   action("sort:sample_size").trigger("click");
   assert.equal(state.columnSort, "sample_size");
   assert.equal(saved, 1);
+  const sortMenu = root
+    .all()
+    .find((el) => el.attrs["aria-label"] === "Sort sources")!;
+  assert.equal(sortMenu.value, "column");
   assert.equal(action("sort:sample_size").focused, true);
   const sorted = root.all().find((el) => el.tag === "tbody")!;
   assert.ok(
@@ -184,6 +188,16 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   );
   action("sort:sample_size").trigger("click");
   assert.equal(state.descending, true);
+  sortMenu.value = "appearance";
+  sortMenu.trigger("change");
+  assert.equal(state.columnSort, null);
+  assert.ok(
+    root
+      .all()
+      .find((el) => el.tag === "tbody")!
+      .children[0].all()
+      .some((el) => el.dataset.sourceAction === "A:open"),
+  );
   const layout = root
     .all()
     .find((el) => el.attrs["aria-label"] === "Sources layout")!;
