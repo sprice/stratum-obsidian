@@ -113,16 +113,24 @@ export function sortSourceTable(
   return [...rows].sort((a, b) => {
     const left = values.get(a)!;
     const right = values.get(b)!;
-    // Missing assessments stay visible at the end in either direction.
-    if (!left || !right) return !left && !right ? 0 : !left ? 1 : -1;
-    const numeric = /^-?\d+(?:\.\d+)?$/;
-    const comparison =
-      numeric.test(left) && numeric.test(right)
-        ? Number(left) - Number(right)
-        : left.localeCompare(right, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          });
-    return comparison * (state.descending ? -1 : 1);
+    return compareSourceValues(left, right, state.descending);
   });
+}
+
+/** Keep missing values last and compare numeric properties by their value. */
+export function compareSourceValues(
+  left: string,
+  right: string,
+  descending: boolean,
+): number {
+  if (!left || !right) return !left && !right ? 0 : !left ? 1 : -1;
+  const numeric = /^-?\d+(?:\.\d+)?$/;
+  const comparison =
+    numeric.test(left) && numeric.test(right)
+      ? Number(left) - Number(right)
+      : left.localeCompare(right, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+  return comparison * (descending ? -1 : 1);
 }

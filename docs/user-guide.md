@@ -50,6 +50,18 @@ Select **Browse literature notes** in the Stratum sidebar or run **Stratum: Brow
 
 Use the collection button to switch collections and the search field to filter by title, author, or year. Subcollections are included by default; collections with children offer an **Include subcollections** toggle. **All imported papers** and **Unfiled papers** are also available.
 
+Choose **Table** in the layout menu to compare all imported papers or the selected
+collection in the main pane. **Columns** selects up to eight bibliographic or
+research properties alongside clickable source titles. Select a heading to sort;
+select it again to reverse the order. Missing values stay last, and sorting applies
+to the entire filtered collection before pagination. Choose **List** to return
+to the title list. The browser saves its layout, columns, and sorting independently
+of the Sources sidebar, including when switching collections or reopening Obsidian.
+
+Research columns read properties recorded in your literature notes, using the same
+options as the [Sources table](#compare-sources-in-a-table). Browsing and sorting
+leave your notes unchanged; no working note or Dataview installation is needed.
+
 Normal Obsidian link modifiers open notes in new tabs. The browser remembers the collection, query, and scroll position through workspace view state. Large results load in batches of 100.
 
 Browsing works offline and without signing in. Membership reflects the last sync: Stratum saves collection keys in note properties and caches the library hierarchy locally. Older notes need a sync or refresh before appearing in collection-specific views. Until then, they remain visible in **All imported papers** and are not assumed to be unfiled.
