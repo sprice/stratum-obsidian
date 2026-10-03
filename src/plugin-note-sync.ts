@@ -1,3 +1,4 @@
+import { saveReference } from "./citation-reference-store";
 import { assertSupportedZoteroItem } from "./zotero-item-support";
 import { parseYaml } from "obsidian";
 import { refreshManagedBibEntry } from "./bibtex";
@@ -211,6 +212,9 @@ export async function writeLiteratureNoteFromDetail(
     canWrite: () => canSyncLibrary(plugin, params.detail.library),
     enrichment,
   });
+  await saveReference(plugin.app, params.detail, () =>
+    canSyncLibrary(plugin, params.detail.library),
+  );
   plugin.rememberLiteratureNoteFile(params.detail, writeResult.file);
   if (plugin.app.vault.getAbstractFileByPath("stratum.bib")) {
     try {

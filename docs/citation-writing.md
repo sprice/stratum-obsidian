@@ -38,6 +38,58 @@ Examples (synthetic):
 without creating a formal citation. The composer currently searches imported
 notes; direct citation of unsynced Zotero items is not included.
 
-The preview is portable Pandoc Markdown, not a formatted CSL preview. Citation
-styles, formatted bibliographies, and document export are separate stages of the
-citation roadmap. This feature does not install Pandoc or modify Zotero data.
+The composer previews portable Pandoc Markdown. The document views format those
+citations using your selected style. Stratum does not modify Zotero data.
+
+## Citation styles and previews
+
+Choose the default style in **Settings → Stratum → Default citation style**.
+Papers inherit this choice. APA, IEEE, and Chicago Notes are bundled; **Find more
+styles** searches Zotero's CSL repository. Selected styles and formatting
+languages are downloaded once and saved locally. You can also import a `.csl`
+file already in the vault. The dialog shows a synthetic citation and reference
+example for installed styles.
+
+**Change citation style for this paper**, also available from the style button
+in Sources, creates an explicit override. **Use default style** removes it.
+Overrides use `stratum_citation_style` and `stratum_citation_language` frontmatter.
+Changing styles never rewrites citation keys, locators, or manuscript prose.
+
+Live Preview and Reading view format supported Pandoc citations using the whole
+paper's citation order. Put the cursor inside a citation to edit its Markdown,
+or select a formatted citation in Live Preview and choose **Edit citation**.
+Source mode always shows the underlying Markdown.
+
+Run **Insert bibliography** to add a heading and `<div id="refs"></div>` at the
+cursor. Keep this marker on its own line. Its preview contains only formally
+cited sources and updates as citations change; literature-note links do not add
+references. The formatted text is a view, not content written into the note.
+
+Note-based styles generate a numbered Notes section. Ordinary `[^note]`
+explanatory footnotes share its sequence and may contain citations. Their
+Markdown remains editable; citation-generated notes disappear or change when
+switching styles. Nested explanatory footnotes are not supported.
+
+## Reference data and offline use
+
+Sync now requests Zotero's structured CSL data, preserving source types, creator
+roles, dates, and publication details. It retains this data in the vault-root
+`stratum-references.json`, independently of the literature-note folder. Keep this
+file along with `stratum.bib` when backing up the vault. Older imported notes can
+be backfilled with **Refresh citation data**; this requires a Zotero connection
+and fetches only missing references. Normal sync updates cached references.
+
+Once reference data, a style, and its language are available locally, formatting
+works without Zotero running or an internet connection. Missing or conflicting
+sources leave citations as Markdown and show an explanation in Sources rather
+than silently producing an incomplete bibliography.
+
+Downloading more styles contacts `www.zotero.org`; additional language resources
+come from the Citation Style Language project on `raw.githubusercontent.com`.
+These requests contain resource identifiers, not manuscript text or reference
+data. Formatting runs locally using citeproc-js; attribution and licenses are in
+[Third-party notices](../THIRD_PARTY_NOTICES.md).
+
+This milestone does not add publishing or document export and does not require
+Pandoc to be installed. Publishing will need to carry these preferences and the
+same citation metadata into the export pipeline.

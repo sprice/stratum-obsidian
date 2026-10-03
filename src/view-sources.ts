@@ -13,6 +13,8 @@ export class SourcesPanel extends Component {
   private documentButton!: HTMLButtonElement;
   private pin!: HTMLButtonElement;
   private summary!: HTMLElement;
+  private citationStatus!: HTMLElement;
+  private citationRevision = 0;
   constructor(
     private container: HTMLElement,
     private sources: SourcesController,
@@ -35,6 +37,14 @@ export class SourcesPanel extends Component {
     this.documentButton.addEventListener("click", () => {
       void this.sources.returnToDocument();
     });
+    this.citationStatus = this.container.createDiv({
+      cls: "stratum-citation-status",
+    });
+    this.register(
+      this.sources.subscribeCitationChanges(() => {
+        void this.renderCitationStatus();
+      }),
+    );
     this.summary = this.container.createDiv({ cls: "stratum-sources-summary" });
     this.summary.setAttr("role", "status");
     const tools = this.container.createDiv({ cls: "stratum-sources-tools" });
@@ -67,7 +77,36 @@ export class SourcesPanel extends Component {
     this.register(this.sources.subscribe(() => this.renderRows()));
     this.renderRows();
   }
+  onunload(): void {
+    this.citationRevision++;
+  }
+  private async renderCitationStatus(): Promise<void> {
+    const revision = ++this.citationRevision;
+    try {
+      const label = await this.sources.citationStatus();
+      if (
+        revision !== this.citationRevision ||
+        !this.citationStatus.isConnected
+      )
+        return;
+      this.citationStatus.empty();
+      if (!label) return;
+      const button = this.citationStatus.createEl("button", { text: label });
+      button.title = "Change citation style for this paper";
+      button.addEventListener("click", () => {
+        void this.sources.changeCitationStyle();
+      });
+    } catch (error) {
+      if (revision !== this.citationRevision) return;
+      this.citationStatus.setText(
+        error instanceof Error
+          ? error.message
+          : "Citation preview unavailable.",
+      );
+    }
+  }
   private renderRows(): void {
+    void this.renderCitationStatus();
     const active = this.container.doc.activeElement;
     const focus =
       active instanceof HTMLElement && this.list.contains(active)

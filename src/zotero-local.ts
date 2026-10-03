@@ -49,6 +49,7 @@ type LocalApiItem = {
   key: string;
   version: number;
   bib?: string;
+  csljson?: unknown;
   library?: {
     type?: string;
     id?: number | string;
@@ -957,7 +958,7 @@ export async function loadLocalZoteroItemDetail(params: {
   const [parentResponse, childrenResponse] = await Promise.all([
     requestLocalJson<LocalApiItem>({
       port: params.port,
-      path: `${basePath}/items/${encodeURIComponent(params.itemKey)}?format=json&include=data,bib&style=apa`,
+      path: `${basePath}/items/${encodeURIComponent(params.itemKey)}?format=json&include=data,bib,csljson&style=apa`,
       request: params.request,
     }),
     requestPagedLocalArray<LocalApiItem>({

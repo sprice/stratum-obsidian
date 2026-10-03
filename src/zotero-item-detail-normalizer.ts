@@ -1,3 +1,4 @@
+import { readCslItem, type CslItem } from "./csl-data.ts";
 import {
   normalizeZoteroMetadata,
   resolveZoteroFields,
@@ -15,6 +16,7 @@ export interface ZoteroItemDetail {
   item: {
     key: string;
     version: number;
+    csl?: CslItem | null;
     title: string;
     creators: string[];
     creatorDetails?: ZoteroCreator[];
@@ -159,6 +161,7 @@ export type RawZoteroItem = {
   key: string;
   version: number;
   bib?: string;
+  csljson?: unknown;
   data: RawZoteroItemData;
 };
 
@@ -362,6 +365,10 @@ export function normalizeZoteroItemDetail(params: {
     zoteroUserId: params.zoteroUserId,
     library: params.library,
     item: {
+      csl: readCslItem(
+        params.parentItem.csljson,
+        `${params.library.type}/${params.library.id}/${params.parentItem.key}`,
+      ),
       key: params.parentItem.key,
       version: params.parentItem.version,
       ...metadata,

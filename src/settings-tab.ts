@@ -1,4 +1,5 @@
 import {
+  Notice,
   Platform,
   PluginSettingTab,
   Setting,
@@ -97,6 +98,36 @@ export class StratumSettingTab extends PluginSettingTab {
 
   getSettingDefinitions(): SettingsSection[] {
     const sections: SettingsSection[] = [];
+    const citations = this.createSection(sections, "Citations");
+    this.defineSetting(citations, "Default citation style", (setting) => {
+      setting
+        .setDesc(
+          "Format citations and bibliographies in every paper without an override.",
+        )
+        .addButton((button) =>
+          button.setButtonText("Choose style").onClick(async () => {
+            const { CitationPreferences } = await import("./citation-controls");
+            new CitationPreferences(this.plugin).open();
+          }),
+        );
+    });
+    this.defineSetting(citations, "Citation reference data", (setting) => {
+      setting
+        .setDesc(
+          "Fill missing reference data for previously imported notes. Requires your Zotero connection.",
+        )
+        .addButton((button) =>
+          button.setButtonText("Refresh citation data").onClick(async () => {
+            const { refreshCitationData } = await import("./citation-refresh");
+            await refreshCitationData(this.plugin).catch(
+              () =>
+                new Notice(
+                  "Could not refresh citation data. Check your Zotero connection.",
+                ),
+            );
+          }),
+        );
+    });
     const accountEmail = this.plugin.settings.accountEmail;
     const pendingAuth = isPendingAuthStale({
       pendingAuth: this.plugin.settings.pendingAuth,

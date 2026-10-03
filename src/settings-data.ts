@@ -38,6 +38,11 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  citationStyle: string;
+  citationLanguage: string;
+  citationStyles: Record<string, string>;
+  citationStyleTitles?: Record<string, string>;
+  citationLocales: Record<string, string>;
   collectionCatalogs: CollectionCatalogs;
   notesFolder: string;
   filenameFormat: LiteratureNoteFilenameFormat;
@@ -62,6 +67,10 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  citationStyle: "apa",
+  citationLanguage: "en-US",
+  citationStyles: {},
+  citationLocales: {},
   collectionCatalogs: {},
   notesFolder: DEFAULT_NOTE_FOLDER,
   filenameFormat: "readable",

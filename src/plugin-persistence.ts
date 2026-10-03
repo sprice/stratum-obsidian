@@ -376,6 +376,31 @@ function readStoredSettings(value: unknown): Omit<
     legacyBulkLibrarySync: readBulkLibrarySyncState(value.bulkLibrarySync),
   };
 
+  if (
+    typeof value.citationStyle === "string" &&
+    /^[a-z0-9-]+$/.test(value.citationStyle)
+  )
+    nextSettings.citationStyle = value.citationStyle;
+  if (
+    typeof value.citationLanguage === "string" &&
+    /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(value.citationLanguage)
+  )
+    nextSettings.citationLanguage = value.citationLanguage;
+  for (const key of [
+    "citationStyles",
+    "citationLocales",
+    "citationStyleTitles",
+  ] as const) {
+    if (isRecord(value[key]))
+      nextSettings[key] = Object.fromEntries(
+        Object.entries(value[key]).filter(
+          (pair): pair is [string, string] =>
+            /^[a-zA-Z0-9-]+$/.test(pair[0]) &&
+            typeof pair[1] === "string" &&
+            pair[1].length < 2000000,
+        ),
+      );
+  }
   if (typeof value.notesFolder === "string") {
     nextSettings.notesFolder = value.notesFolder;
   }

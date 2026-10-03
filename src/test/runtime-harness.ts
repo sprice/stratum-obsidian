@@ -7,12 +7,13 @@ export function loadRuntime<T>(
   entry: string,
   obsidian: Record<string, unknown>,
   globals: Record<string, unknown> = {},
+  platform: "node" | "browser" = "node",
 ): T {
   const result = buildSync({
     entryPoints: [fileURLToPath(new URL(`../${entry}`, import.meta.url))],
     bundle: true,
     write: false,
-    platform: "node",
+    platform,
     format: "cjs",
     supported: { "dynamic-import": false },
     external: ["obsidian"],

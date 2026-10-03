@@ -1,3 +1,4 @@
+import type { CitationService } from "./citation-service";
 import { CitationSuggest } from "./citation-suggest";
 import { SourcesController } from "./sources-controller";
 import {
@@ -5,7 +6,7 @@ import {
   CollectionBrowserView,
   COLLECTION_BROWSER_VIEW,
 } from "./collection-browser";
-import { MarkdownView, Platform, Plugin, TFile } from "obsidian";
+import { MarkdownView, Notice, Platform, Plugin, TFile } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
   PLUGIN_NAME,
@@ -155,6 +156,7 @@ export default class StratumPlugin extends Plugin {
   isSelectedLibraryAbstractExpanded = false;
   activeNoteActionKey: string | null = null;
   sources!: SourcesController;
+  citations!: CitationService;
   activeViewTab: "search" | "sync" | "reader" | "sources" = "search";
   readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
@@ -253,6 +255,19 @@ export default class StratumPlugin extends Plugin {
     setSelectedSearchLibrary(this, this.selectedSearchLibrary);
     const openStratumRibbonLabel = `Open ${PLUGIN_NAME}`;
 
+    const { CitationService } = await import("./citation-service");
+    const { citationEditor } = await import("./citation-editor");
+    const { registerCitationReading } = await import("./citation-reading");
+    const { CitationPreferences } = await import("./citation-controls");
+    if (this.isUnloaded) return;
+    const { refreshCitationData } = await import("./citation-refresh");
+    const { citationDocument } = await import("./citation-document");
+    if (this.isUnloaded) return;
+    this.citations = new CitationService(this);
+    this.addChild(this.citations);
+    this.registerEditorExtension(citationEditor(this.citations));
+    registerCitationReading(this.citations);
+
     this.sources = this.addChild(new SourcesController(this));
     this.settingTab = new StratumSettingTab(this);
     this.addSettingTab(this.settingTab);
@@ -304,6 +319,36 @@ export default class StratumPlugin extends Plugin {
       editorCallback: (editor) => insertLiteratureNoteLink(this, editor),
     });
 
+    this.addCommand({
+      id: "citation-preferences",
+      name: "Change citation style for this paper",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (!checking) new CitationPreferences(this, file).open();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "refresh-citation-data",
+      name: "Refresh citation data",
+      callback: () => {
+        void refreshCitationData(this).catch(
+          () => new Notice("Could not refresh citation data."),
+        );
+      },
+    });
+    this.addCommand({
+      id: "insert-bibliography",
+      name: "Insert bibliography",
+      editorCallback: (editor) => {
+        if (citationDocument(editor.getValue(), false).bibliographies.length) {
+          new Notice("This paper already has a bibliography location.");
+          return;
+        }
+        editor.replaceSelection('\n\n## References\n\n<div id="refs"></div>\n');
+      },
+    });
     this.registerEditorSuggest(new CitationSuggest(this));
 
     this.addCommand({

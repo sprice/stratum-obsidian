@@ -38,6 +38,25 @@ export class SourcesController extends Component {
     super();
   }
 
+  async citationStatus(): Promise<string | null> {
+    if (!this.document || !this.plugin.citations) return null;
+    const document = this.document;
+    const text = this.text;
+    const { styleTitle } = await import("./citation-styles");
+    const { style } = this.plugin.citations.preferences(document.path, text);
+    await this.plugin.citations.format(text, document.path);
+    return styleTitle(this.plugin, style);
+  }
+  async changeCitationStyle(): Promise<void> {
+    const file = this.document;
+    if (!file) return;
+    const { CitationPreferences } = await import("./citation-controls");
+    if (!this.plugin.isUnloaded)
+      new CitationPreferences(this.plugin, file).open();
+  }
+  subscribeCitationChanges(callback: () => void): () => void {
+    return this.plugin.citations?.subscribe(callback) ?? (() => {});
+  }
   onload(): void {
     this.registerEvent(
       this.plugin.app.workspace.on("active-leaf-change", (leaf) =>
@@ -208,12 +227,15 @@ export class SourcesController extends Component {
       this.leaf &&
       leaves.includes(this.leaf) &&
       this.leaf.view instanceof MarkdownView &&
-      this.leaf.view.file === this.document
+      this.leaf.view.file === this.document &&
+      this.leaf.view.getMode() === "source"
     )
       return this.leaf.view.editor.getValue();
     const view = leaves.find(
       (leaf) =>
-        leaf.view instanceof MarkdownView && leaf.view.file === this.document,
+        leaf.view instanceof MarkdownView &&
+        leaf.view.file === this.document &&
+        leaf.view.getMode() === "source",
     )?.view;
     return view instanceof MarkdownView ? view.editor.getValue() : null;
   }

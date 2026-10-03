@@ -19,6 +19,10 @@ function createSettings(params: {
   selectedSyncCollectionKey?: string | null;
 }): StratumSettings {
   return {
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+    citationStyles: {},
+    citationLocales: {},
     collectionCatalogs: {},
     notesFolder: "Literature Notes",
     filenameFormat: "readable",
