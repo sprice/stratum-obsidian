@@ -16,6 +16,7 @@ export interface SourcesViewState extends SourceTableState {
   sort: string;
   expanded: Set<string>;
   scroll: number;
+  scrollLeft: number;
 }
 export class SourcesPanel extends Component {
   private list!: HTMLElement;
@@ -128,6 +129,7 @@ export class SourcesPanel extends Component {
       this.state.layout = layout.value === "table" ? "table" : "list";
       this.state.columnSort = null;
       this.state.scroll = 0;
+      this.state.scrollLeft = 0;
       columns.hidden = this.state.layout !== "table";
       this.saveState();
       this.renderRows();
@@ -140,6 +142,7 @@ export class SourcesPanel extends Component {
     );
     this.list.addEventListener("scroll", () => {
       this.state.scroll = this.list.scrollTop;
+      this.state.scrollLeft = this.list.scrollLeft;
     });
     this.register(this.sources.subscribe(() => this.renderRows()));
     this.renderRows();
@@ -266,6 +269,7 @@ export class SourcesPanel extends Component {
         cls: "stratum-sources-empty",
       });
     this.list.scrollTop = this.state.scroll;
+    this.list.scrollLeft = this.state.scrollLeft;
     if (focus)
       this.list
         .querySelectorAll<HTMLElement>("[data-source-action]")

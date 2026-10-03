@@ -107,6 +107,7 @@ export class StratumView extends ItemView {
     sort: "appearance",
     expanded: new Set(),
     scroll: 0,
+    scrollLeft: 0,
   };
   private paperSuggest: LibraryPaperInputSuggest | null = null;
   private readerSuggest: ReaderLiteratureNoteInputSuggest | null = null;

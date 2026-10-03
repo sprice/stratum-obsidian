@@ -12,6 +12,7 @@ class Element {
   doc = { activeElement: null };
   isConnected = true;
   scrollTop = 0;
+  scrollLeft = 0;
   textContent = "";
   value = "";
   focused = false;
@@ -142,6 +143,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     query: "",
     sort: "appearance",
     scroll: 0,
+    scrollLeft: 0,
     expanded: new Set<string>(),
   };
   const panel = new SourcesPanel(
@@ -210,4 +212,46 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     false,
   );
   panel.onunload();
+  state.layout = "table";
+  const firstContainer = new Element();
+  const firstPanel = new SourcesPanel(
+    firstContainer as never,
+    controller as never,
+    state,
+    {} as never,
+    () => {},
+  );
+  firstPanel.onload();
+  const results = firstContainer
+    .all()
+    .find(
+      (el) =>
+        el.attrs["aria-label"] ===
+        "Source results; scroll to see additional columns",
+    )!;
+  results.scrollLeft = 420;
+  results.trigger("scroll");
+  firstPanel.onunload();
+  const nextContainer = new Element();
+  const nextPanel = new SourcesPanel(
+    nextContainer as never,
+    controller as never,
+    state,
+    {} as never,
+    () => {},
+  );
+  nextPanel.onload();
+  const restoredResults = nextContainer
+    .all()
+    .find(
+      (el) =>
+        el.attrs["aria-label"] ===
+        "Source results; scroll to see additional columns",
+    )!;
+  assert.equal(
+    restoredResults.scrollLeft,
+    420,
+    "Rebuilding Sources must preserve the visible research columns",
+  );
+  nextPanel.onunload();
 });
