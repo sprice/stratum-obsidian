@@ -191,6 +191,8 @@ export class LocalZoteroHttpServerUnavailableError extends LocalZoteroUnavailabl
   }
 }
 
+class LocalZoteroRequestTimeoutError extends LocalZoteroUnavailableError {}
+
 export class LocalZoteroApiDisabledError extends LocalZoteroApiError {
   constructor(message = "The local Zotero API is disabled.", status = 403) {
     super(message, status);
@@ -216,9 +218,12 @@ export class LocalZoteroApiVersionMismatchError extends LocalZoteroApiError {
 function defaultLocalRequest(
   params: Pick<RequestUrlParam, "url" | "method" | "headers" | "body">,
 ) {
-  return requestLocalViaNodeHttp(params).catch(() =>
-    fallbackRequestUrl(params),
-  );
+  return requestLocalViaNodeHttp(params).catch((error: unknown) => {
+    // A timed-out socket has already been cancelled. Starting another request
+    // here would defeat that deadline and leave optional image probes running.
+    if (error instanceof LocalZoteroRequestTimeoutError) throw error;
+    return fallbackRequestUrl(params);
+  });
 }
 
 async function fallbackRequestUrl(
@@ -247,66 +252,79 @@ async function requestLocalViaNodeHttp(
     throw new Error("Node HTTP client is not available.");
   }
 
-  return await new Promise<LocalRequestResponse>((resolve, reject) => {
-    const req = requestModule.request(
-      {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port,
-        path: `${url.pathname}${url.search}`,
-        method: params.method ?? "GET",
-        headers: params.headers,
-      },
-      (response) => {
-        const chunks: Uint8Array[] = [];
-        response.on("data", (chunk: unknown) => {
-          const normalizedChunk = normalizeNodeChunk(chunk);
-          if (!normalizedChunk) {
-            reject(
-              new Error("Unsupported response chunk from local Zotero API."),
-            );
-            req.destroy();
-            return;
-          }
-
-          chunks.push(normalizedChunk);
-        });
-        response.on("end", () => {
-          const text = decodeNodeChunks(chunks);
-          let json: unknown = null;
-          try {
-            json = text ? JSON.parse(text) : null;
-          } catch {
-            json = null;
-          }
-
-          const headers: Record<string, string> = {};
-          for (const [key, value] of Object.entries(response.headers)) {
-            if (Array.isArray(value)) {
-              headers[key] = value.join(", ");
-            } else if (typeof value === "string") {
-              headers[key] = value;
+  let timeout: number | undefined;
+  try {
+    return await new Promise<LocalRequestResponse>((resolve, reject) => {
+      const req = requestModule.request(
+        {
+          protocol: url.protocol,
+          hostname: url.hostname,
+          port: url.port,
+          path: `${url.pathname}${url.search}`,
+          method: params.method ?? "GET",
+          headers: params.headers,
+        },
+        (response) => {
+          const chunks: Uint8Array[] = [];
+          response.on("data", (chunk: unknown) => {
+            const normalizedChunk = normalizeNodeChunk(chunk);
+            if (!normalizedChunk) {
+              reject(
+                new Error("Unsupported response chunk from local Zotero API."),
+              );
+              req.destroy();
+              return;
             }
-          }
 
-          resolve({
-            status: response.statusCode ?? 0,
-            headers,
-            json,
-            text,
+            chunks.push(normalizedChunk);
           });
-        });
-        response.on("error", reject);
-      },
-    );
+          response.on("end", () => {
+            const text = decodeNodeChunks(chunks);
+            let json: unknown = null;
+            try {
+              json = text ? JSON.parse(text) : null;
+            } catch {
+              json = null;
+            }
 
-    req.on("error", reject);
-    const requestBody = normalizeNodeRequestBody(params.body);
-    if (requestBody !== null) {
-      req.write(requestBody);
-    }
-    req.end();
-  });
+            const headers: Record<string, string> = {};
+            for (const [key, value] of Object.entries(response.headers)) {
+              if (Array.isArray(value)) {
+                headers[key] = value.join(", ");
+              } else if (typeof value === "string") {
+                headers[key] = value;
+              }
+            }
+
+            resolve({
+              status: response.statusCode ?? 0,
+              headers,
+              json,
+              text,
+            });
+          });
+          response.on("error", reject);
+        },
+      );
+
+      req.on("error", reject);
+      timeout = window.setTimeout(() => {
+        reject(
+          new LocalZoteroRequestTimeoutError(
+            "Local Zotero API request timed out.",
+          ),
+        );
+        req.destroy();
+      }, 10_000);
+      const requestBody = normalizeNodeRequestBody(params.body);
+      if (requestBody !== null) {
+        req.write(requestBody);
+      }
+      req.end();
+    });
+  } finally {
+    if (timeout !== undefined) window.clearTimeout(timeout);
+  }
 }
 
 function normalizeNodeChunk(chunk: unknown): Uint8Array | null {

@@ -58,7 +58,7 @@ To import a whole library or collection on desktop, keep Zotero open, enable **B
 
 These optional plugins complement Stratum. Install them in Zotero:
 
-- **[Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases)** — Generate and manage citation keys for Markdown and other writing workflows.
+- **[Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases)** — Generate and manage citation keys, and enable importing Zotero area annotation images on desktop.
 - **[ZotMeta](https://github.com/RoadToDream/ZotMeta/releases)** — Refresh article and book metadata using identifiers such as DOI, ISBN, and arXiv IDs. Better source metadata helps produce more complete literature notes and citations.
 
 ## Account and privacy

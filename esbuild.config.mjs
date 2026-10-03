@@ -54,8 +54,11 @@ const context = await esbuild.context({
 		"@lezer/highlight",
 		"@lezer/lr",
 		...builtinModules,
+		"node:*",
 	],
 	format: "cjs",
+	// Desktop-only imports must use Obsidian's Node loader, not browser ESM.
+	supported: { "dynamic-import": false },
 	target: "es2018",
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",

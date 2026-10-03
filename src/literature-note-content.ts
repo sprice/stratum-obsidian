@@ -1,3 +1,4 @@
+import { withPreservedAnnotationImages } from "./annotation-image-paths";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { getNormalizedDoiLookupKey as normalizeDoi } from "./doi";
 import {
@@ -119,8 +120,9 @@ export function buildLiteratureNoteContent(params: {
       normalizeDoi(
         typeof frontmatter.doi === "string" ? frontmatter.doi : null,
       ) === normalizeDoi(params.detail.item.doi);
+    const detail = withPreservedAnnotationImages(params.detail, frontmatter);
     const managedBlock = renderManagedBlock(
-      params.detail,
+      detail,
       params.htmlToMarkdown,
       zoteroStatus,
       params.enrichment,
@@ -129,7 +131,7 @@ export function buildLiteratureNoteContent(params: {
         : undefined,
     );
     const nextFrontmatter = renderFrontmatterContent(
-      params.detail,
+      detail,
       frontmatter,
       params.filenameStem,
       zoteroStatus,

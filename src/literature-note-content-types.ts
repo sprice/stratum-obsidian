@@ -63,6 +63,7 @@ export const MANAGED_FRONTMATTER_KEYS = new Set([
   "stratum_managed_aliases",
   "stratum_note_type",
   "stratum_version",
+  "stratum_annotation_images",
   "zotero_annotation_keys",
   "zotero_attachment_keys",
   "zotero_collection_keys",

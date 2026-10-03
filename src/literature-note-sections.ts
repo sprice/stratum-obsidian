@@ -355,6 +355,9 @@ function renderAnnotationsSection(detail: ZoteroItemDetail): string | null {
       const bodyLines = annotations.flatMap((annotation, index) => {
         const itemLines = [
           `**${annotation.pageLabel ? `Page ${annotation.pageLabel}` : "Page unknown"}**${annotation.type ? ` · ${annotation.type}` : ""}`,
+          annotation.imagePath
+            ? `![Selected area](<${annotation.imagePath.split("/").map(encodeURIComponent).join("/")}>)`
+            : (annotation.imageUnavailable ?? null),
           annotation.text ? annotation.text.replace(/\n+/g, " ").trim() : null,
           // Keep the label separate so leading Markdown blocks still render.
           // The callout helper prefixes every physical comment line, even blanks.

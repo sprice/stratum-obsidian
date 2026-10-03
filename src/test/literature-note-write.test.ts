@@ -528,3 +528,71 @@ test("a corrupt citation cache cannot fail a completed literature-note sync", as
     console.error = originalError;
   }
 });
+
+test("image sync resolves an existing note before deciding whether its embed is missing", async () => {
+  const image = new FakeFile();
+  image.path = "Literature Notes/Attachments/paper-area-imgd1234.png";
+  const fm = {
+    ...frontmatter,
+    stratum_annotation_images: { IMGD1234: image.path },
+  };
+  const fixture = vaultFixture(content(fm));
+  const app = {
+    ...fixture.app,
+    vault: {
+      ...fixture.app.vault,
+      getMarkdownFiles: () => [fixture.file],
+      getAbstractFileByPath: (path: string) =>
+        path === fixture.file.path
+          ? fixture.file
+          : path === image.path
+            ? image
+            : null,
+    },
+    metadataCache: { getFileCache: () => ({ frontmatter: fm }) },
+  };
+  const plugin = {
+    app,
+    manifest: { version: "0.3.1" },
+    settings: {
+      notesFolder: "Literature Notes",
+      filenameFormat: "readable",
+      enabledLibraries: [{ type: "user", id: "1" }],
+      collectionCatalogs: {
+        "user:1": { updatedAt: Date.now(), collections: [] },
+      },
+    },
+    backend: { hasSession: () => true },
+    bulkLibrarySyncRunPromise: {},
+    rememberLiteratureNoteFile: () => {},
+  };
+  const sync = loadRuntime<typeof import("../plugin-note-sync")>(
+    "plugin-note-sync.ts",
+    { ...host, Platform: { isDesktopApp: false } },
+  );
+  const result = await sync.writeLiteratureNoteFromDetail(plugin as never, {
+    detail: {
+      ...detail,
+      annotations: [
+        {
+          key: "IMGD1234",
+          attachmentKey: "PDFD1234",
+          type: "image",
+          color: null,
+          pageLabel: "1",
+          text: null,
+          comment: "Synthetic annotation",
+          dateModified: null,
+          zoteroOpenPdfUri:
+            "zotero://open-pdf/library/items/PDFD1234?annotation=IMGD1234",
+        },
+      ],
+    },
+    existingFile: null,
+    enrichmentMode: "skip",
+  });
+  assert.equal(result.file, fixture.file);
+  assert.match(fixture.current, /!\[Selected area\]/);
+  assert.doesNotMatch(fixture.current, /Area image unavailable/);
+  assert.match(fixture.current, /My original notes/);
+});

@@ -1,3 +1,7 @@
+import {
+  annotationImageSyncSummary,
+  beginAnnotationImageSync,
+} from "./plugin-annotation-images";
 import { beginReferenceBatch } from "./citation-reference-store";
 import {
   UnsupportedZoteroItemError,
@@ -664,6 +668,7 @@ export async function runBulkLibrarySync(
         return;
       }
 
+      beginAnnotationImageSync(plugin);
       const startedAt = new Date().toISOString();
       await plugin.rebuildItemFileMap();
 
@@ -750,7 +755,7 @@ export async function runBulkLibrarySync(
           state: completedState,
           libraryName: library.name,
           collectionName: completedState.collectionName,
-        }),
+        }) + annotationImageSyncSummary(plugin),
       );
     } catch (error) {
       if (!canSyncLibrary(plugin, library)) return;

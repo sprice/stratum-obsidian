@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPersonalLibrary } from "../plugin-libraries";
+import { loadRuntime } from "./runtime-harness";
 import {
   ensureLocalZoteroReady,
   LocalZoteroApiDisabledError,
@@ -19,6 +20,50 @@ type MockResponse = {
   json: unknown;
   text?: string;
 };
+
+test("a stalled native Zotero request closes its socket without retrying through another transport", async () => {
+  let timeout: (() => void) | undefined;
+  let destroyed = false;
+  let cleared = false;
+  let fallbacks = 0;
+  const runtime = loadRuntime<typeof import("../zotero-local")>(
+    "zotero-local.ts",
+    {
+      requestUrl: () => {
+        fallbacks++;
+        throw new Error("Unexpected fallback");
+      },
+    },
+    {
+      window: {
+        require: () => ({
+          request: () => ({
+            on: () => {},
+            write: () => {},
+            end: () => {},
+            destroy: () => {
+              destroyed = true;
+            },
+          }),
+        }),
+        setTimeout: (callback: () => void) => {
+          timeout = callback;
+          return 1;
+        },
+        clearTimeout: () => {
+          cleared = true;
+        },
+      },
+    },
+  );
+  const pending = runtime.ensureLocalZoteroReady({ port: 23119 });
+  assert.ok(timeout);
+  timeout();
+  await assert.rejects(pending, /Could not reach the Zotero HTTP server/);
+  assert.equal(destroyed, true);
+  assert.equal(cleared, true);
+  assert.equal(fallbacks, 0);
+});
 
 function createRequestMock(routes: Record<string, MockResponse>) {
   return ({

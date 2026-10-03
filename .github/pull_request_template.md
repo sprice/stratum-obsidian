@@ -6,6 +6,10 @@
 
 <!-- List the changes that matter to a reviewer. Link related issues when applicable. -->
 
+### Unrelated Changes
+
+<!-- List changes outside the PR's main purpose, or write "None." -->
+
 ## Validation
 
 <!-- Record commands run and their results; do not claim checks that were not performed.

@@ -148,7 +148,7 @@ to the Markdown. In-text styles use the heading **References**; note-based style
 use **Bibliography**, after their generated Notes section.
 
 An existing `<div id="refs"></div>` marker still controls explicit placement and
-suppresses the automatic list. **Insert bibliography** remains available for this
+suppresses the automatic list. **Set bibliography location** remains available for this
 optional placement, but formatting stays in Reading view. Live Preview does not generate a reference
 list or citation notes.
 
@@ -308,7 +308,7 @@ Open Obsidian's command palette and search for **Stratum**. Assign shortcuts und
 | Insert or edit citation              | Compose or edit Pandoc citations with groups and locators.  |
 | Change citation style for this paper | Override the current paper's style and language.            |
 | Refresh citation data                | Fetch missing CSL reference data for imported notes.        |
-| Insert bibliography                  | Place an optional marker for Reading view's reference list. |
+| Set bibliography location           | Place an optional marker for Reading view's reference list. |
 | Show sources for current note        | Inspect cited sources, source health, and recovery actions. |
 
 ## Enrichment
@@ -347,3 +347,17 @@ The plugin has no telemetry, analytics, ad tech, or third-party tracking SDKs. D
 The Stratum website uses cookie-free Umami analytics for usage metrics. The managed service uses Sentry for technical error reporting with the Stratum account ID. Sentry user context does not include your email; request bodies, headers, cookies, and query parameters are removed from error events.
 
 Citation formatting runs locally using citeproc-js. See [Third-party notices](../THIRD_PARTY_NOTICES.md) for attribution and licenses, and the [Stratum privacy policy](https://stratumnotes.com/privacy-policy) for service disclosures.
+
+## Area annotation images
+
+On desktop, Stratum can import images made with Zotero’s **Select Area** tool alongside their comments and page links. Install [Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases), keep Zotero running, and make sure the item has a citation key and its PDF is available locally. Enable Zotero’s local API under **Settings → Advanced → Allow other applications on this computer to communicate with Zotero**.
+
+Stratum asks Better BibTeX to generate the selected area image, then reads that PNG from Zotero’s local cache. Images are saved in an **Attachments** folder inside your configured literature note folder. The folder is created only when an image is imported successfully. Images and your personal writing are not uploaded to Stratum.
+
+The existing **Zotero data directory** setting must point to your actual Zotero data directory if you use a custom location. No additional image setting is required.
+
+If an image cannot be retrieved, the annotation’s comment and Zotero link still import. Previously imported images are preserved. Run a full library or collection sync to backfill older notes or retry missing images after installing Better BibTeX. Refreshing an individual literature note also retries its images.
+
+Image filenames use a short lowercase title slug and the clipping’s annotation key, such as `stellar-motion-area-imgd1234.png`. Account IDs are not included. Filename collisions receive a numeric suffix without replacing existing files.
+
+Repeated syncs reuse the same image filenames; changes to a title or citation key do not rename them. Stratum does not automatically delete old images, since other notes may reference them. Imported images work on mobile when your vault sync includes them; fetching new images requires desktop Zotero. Drawing annotations and full PDF downloads are not included.

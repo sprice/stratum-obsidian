@@ -342,7 +342,7 @@ export default class StratumPlugin extends Plugin {
     });
     this.addCommand({
       id: "insert-bibliography",
-      name: "Insert bibliography",
+      name: "Set bibliography location",
       editorCallback: (editor) => {
         if (citationDocument(editor.getValue(), false).bibliographies.length) {
           new Notice("This paper already has a bibliography location.");

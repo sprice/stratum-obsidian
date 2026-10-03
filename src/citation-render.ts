@@ -81,8 +81,12 @@ export async function renderDocumentNotes(
       });
     if (citations.length) {
       const button = li.createEl("button", {
-        text: "Open in reader",
+        text: "↗",
         cls: "stratum-citation-evidence",
+        attr: {
+          "aria-label": "Open cited source in reader",
+          title: "Open cited source in reader",
+        },
       });
       button.type = "button";
       button.addEventListener("click", () => {
