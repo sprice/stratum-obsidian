@@ -41,6 +41,7 @@ function fixture() {
   const view = new View(),
     leaf = { view };
   let leaves = [leaf];
+  let recent: typeof leaf | null = leaf;
   const entries = ["a", "b"].map((key) => ({
     identity: `user/1/${key}`,
     title: `Synthetic ${key}`,
@@ -101,7 +102,7 @@ function fixture() {
     app: {
       workspace: {
         rootSplit: {},
-        getMostRecentLeaf: () => leaf,
+        getMostRecentLeaf: () => recent,
         getLeavesOfType: () => leaves,
         revealLeaf: () => Promise.resolve(),
       },
@@ -120,6 +121,9 @@ function fixture() {
     },
     mutate() {
       text += " changed";
+    },
+    switchTab() {
+      recent = null;
     },
     closeTab() {
       leaves = [];
@@ -215,4 +219,53 @@ test("duplicate notes require an explicit file choice", async () => {
   f.picker.onChooseSuggestion(f.picker.getSuggestions("Other copy")[0]);
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(f.plugin.readerNoteFile, duplicate.file);
+});
+
+test("a delayed lookup cannot navigate after switching papers", async () => {
+  const f = fixture();
+  const diagnose = f.plugin.citations.diagnose;
+  let release!: () => void;
+  f.plugin.citations.diagnose = async (keys) => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return diagnose(keys);
+  };
+  const opening = f.open();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  f.switchTab();
+  release();
+  await opening;
+  assert.equal(f.plugin.readerNoteFile, null);
+  assert.equal(f.counts().followed, 0);
+});
+test("a newer citation request supersedes an older lookup", async () => {
+  const f = fixture();
+  const diagnose = f.plugin.citations.diagnose;
+  let release!: () => void;
+  let calls = 0;
+  f.plugin.citations.diagnose = async (keys) => {
+    if (++calls === 1)
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    return diagnose(keys);
+  };
+  const old = f.open(["a"]);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await f.open(["b"]);
+  release();
+  await old;
+  assert.equal(f.plugin.readerNoteFile, f.entries[1].file);
+});
+test("return does not apply Reading state after switching into editing during a read", async () => {
+  const f = fixture();
+  f.view.mode = "preview";
+  await f.open();
+  f.plugin.app.vault.cachedRead = () => {
+    f.view.mode = "source";
+    return Promise.resolve("A claim [@a; @b].");
+  };
+  await f.runtime.returnToWriting(f.plugin as never);
+  assert.equal(f.counts().restored, 0);
 });

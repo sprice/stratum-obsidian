@@ -19,6 +19,7 @@ interface WritingPosition {
 }
 const positions = new WeakMap<StratumPlugin, WritingPosition>();
 const registered = new WeakSet<StratumPlugin>();
+const requests = new WeakMap<StratumPlugin, object>();
 const pickers = new WeakMap<StratumPlugin, Set<{ close(): void }>>();
 function registerEvidence(plugin: StratumPlugin): Set<{ close(): void }> {
   let active = pickers.get(plugin);
@@ -31,6 +32,7 @@ function registerEvidence(plugin: StratumPlugin): Set<{ close(): void }> {
     const tracked = active;
     plugin.register(() => {
       positions.delete(plugin);
+      requests.delete(plugin);
       for (const picker of tracked) picker.close();
       tracked.clear();
     });
@@ -81,7 +83,8 @@ export async function returnToWriting(plugin: StratumPlugin): Promise<void> {
     !plugin.isUnloaded &&
     workspace.getLeavesOfType("markdown").includes(saved.leaf) &&
     saved.leaf.view === saved.view &&
-    saved.view.file?.path === saved.state.file
+    saved.view.file?.path === saved.state.file &&
+    saved.view.getMode() === "preview"
   )
     saved.view.setEphemeralState(saved.state);
 }
@@ -94,6 +97,12 @@ export async function openCitationEvidence(
   text: string,
 ): Promise<void> {
   try {
+    if (plugin.isUnloaded) return;
+    const request = {};
+    requests.set(plugin, request);
+    const activePickers = registerEvidence(plugin);
+    for (const picker of activePickers) picker.close();
+    activePickers.clear();
     const workspace = plugin.app.workspace;
     const leaf = workspace.getMostRecentLeaf(workspace.rootSplit);
     if (
@@ -113,6 +122,8 @@ export async function openCitationEvidence(
             : null;
       return (
         !plugin.isUnloaded &&
+        requests.get(plugin) === request &&
+        workspace.getMostRecentLeaf(workspace.rootSplit) === leaf &&
         workspace.getLeavesOfType("markdown").includes(leaf) &&
         leaf.view === view &&
         view.file?.path === path &&

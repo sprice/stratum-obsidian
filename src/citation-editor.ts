@@ -5,7 +5,12 @@ import {
   WidgetType,
   type DecorationSet,
 } from "@codemirror/view";
-import { editorInfoField, editorLivePreviewField, Menu } from "obsidian";
+import {
+  editorInfoField,
+  editorLivePreviewField,
+  Menu,
+  Notice,
+} from "obsidian";
 import type { CitationService } from "./citation-service";
 import { citationDocument, type CitationDocument } from "./citation-document";
 import { openCitationComposer } from "./citation-composer";
@@ -40,15 +45,32 @@ class InlineCitation extends WidgetType {
       const info = view.state.field(editorInfoField);
       const editor = info.editor;
       if (!editor) return;
+      const originalText = editor.getValue();
+      const originalFile = info.file;
+      const current = () => {
+        const latest = view.state.field(editorInfoField);
+        if (
+          this.service.plugin.isUnloaded ||
+          latest.editor !== editor ||
+          latest.file !== originalFile ||
+          editor.getValue() !== originalText
+        ) {
+          new Notice("The paper changed. Select the citation again.");
+          return false;
+        }
+        return true;
+      };
       const menu = new Menu();
       menu.addItem((item) =>
         item.setTitle("Edit citation").onClick(() => {
+          if (!current()) return;
           editor.setCursor(editor.offsetToPos(this.offset));
           void openCitationComposer(this.service.plugin, editor);
         }),
       );
       menu.addItem((item) =>
         item.setTitle("Open in reader").onClick(() => {
+          if (!current()) return;
           const file = info.file;
           if (!file) return;
           const text = editor.getValue();
@@ -68,6 +90,7 @@ class InlineCitation extends WidgetType {
       );
       menu.addItem((item) =>
         item.setTitle("Show sources").onClick(() => {
+          if (!current()) return;
           this.service.plugin.sources.showCurrent();
           this.service.plugin.activeViewTab = "sources";
           void this.service.plugin.activateView();
