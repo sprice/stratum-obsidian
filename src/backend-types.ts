@@ -6,6 +6,7 @@ export interface BackendAuthState {
 }
 
 export interface AuthenticatedUserSummary {
+  id?: string;
   email: string | null;
 }
 
@@ -105,11 +106,13 @@ export type RefreshResponse = {
   expires_at?: number;
   expires_in?: number;
   user?: {
+    id?: string;
     email?: string | null;
   };
 };
 
 export type AuthenticatedUserResponse = {
+  id?: string;
   email?: string | null;
 };
 

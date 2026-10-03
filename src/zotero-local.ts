@@ -49,6 +49,7 @@ type LocalApiItem = {
   key: string;
   version: number;
   bib?: string;
+  csljson?: unknown;
   library?: {
     type?: string;
     id?: number | string;
@@ -557,6 +558,7 @@ async function fetchCollectionNameMap(params: {
   port: number;
   library: EnabledLibrary;
   keys: string[];
+  knownCollections?: { key: string; name: string }[];
   request?: LocalRequest;
 }): Promise<Array<{ key: string; name: string }>> {
   const uniqueKeys = Array.from(new Set(params.keys));
@@ -565,23 +567,30 @@ async function fetchCollectionNameMap(params: {
   }
 
   const basePath = buildLibraryBasePath(params.library);
-  const collectionMap = new Map<string, string>();
+  const collectionMap = new Map(
+    (params.knownCollections ?? []).map((collection) => [
+      collection.key,
+      collection.name,
+    ]),
+  );
 
   await Promise.all(
-    uniqueKeys.map(async (collectionKey) => {
-      try {
-        const response = await requestLocalJson<LocalApiCollection>({
-          port: params.port,
-          path: `${basePath}/collections/${encodeURIComponent(collectionKey)}?format=json`,
-          request: params.request,
-        });
-        const key = response.data.data?.key?.trim() || collectionKey;
-        const name = response.data.data?.name?.trim() || collectionKey;
-        collectionMap.set(key, name);
-      } catch {
-        collectionMap.set(collectionKey, collectionKey);
-      }
-    }),
+    uniqueKeys
+      .filter((key) => !collectionMap.has(key))
+      .map(async (collectionKey) => {
+        try {
+          const response = await requestLocalJson<LocalApiCollection>({
+            port: params.port,
+            path: `${basePath}/collections/${encodeURIComponent(collectionKey)}?format=json`,
+            request: params.request,
+          });
+          const key = response.data.data?.key?.trim() || collectionKey;
+          const name = response.data.data?.name?.trim() || collectionKey;
+          collectionMap.set(key, name);
+        } catch {
+          collectionMap.set(collectionKey, collectionKey);
+        }
+      }),
   );
 
   return params.keys.map((collectionKey) => ({
@@ -615,11 +624,17 @@ async function fetchLocalAnnotationsForAttachments(params: {
   );
 
   const basePath = buildLibraryBasePath(params.library);
-  const annotationItems = await requestPagedLocalArray<LocalApiItem>({
-    port: params.port,
-    path: `${basePath}/items?format=json&itemType=annotation`,
-    request: params.request,
-  });
+  const annotationItems = (
+    await Promise.all(
+      params.attachments.map((attachment) =>
+        requestPagedLocalArray<LocalApiItem>({
+          port: params.port,
+          path: `${basePath}/items/${encodeURIComponent(attachment.key)}/children?format=json&itemType=annotation`,
+          request: params.request,
+        }),
+      ),
+    )
+  ).flat();
 
   return annotationItems.filter((item) => {
     if (item.data.itemType !== "annotation") {
@@ -943,6 +958,7 @@ export async function loadLocalZoteroItemDetail(params: {
   userId: string;
   library: EnabledLibrary;
   itemKey: string;
+  knownCollections?: { key: string; name: string }[];
   request?: LocalRequest;
 }): Promise<ZoteroItemDetail> {
   const basePath = buildLibraryBasePath(params.library);
@@ -957,7 +973,7 @@ export async function loadLocalZoteroItemDetail(params: {
   const [parentResponse, childrenResponse] = await Promise.all([
     requestLocalJson<LocalApiItem>({
       port: params.port,
-      path: `${basePath}/items/${encodeURIComponent(params.itemKey)}?format=json&include=data,bib&style=apa`,
+      path: `${basePath}/items/${encodeURIComponent(params.itemKey)}?format=json&include=data,bib,csljson&style=apa`,
       request: params.request,
     }),
     requestPagedLocalArray<LocalApiItem>({
@@ -976,6 +992,7 @@ export async function loadLocalZoteroItemDetail(params: {
     port: params.port,
     library: params.library,
     keys: parentItem.data.collections ?? [],
+    knownCollections: params.knownCollections,
     request: params.request,
   });
   const annotations = await fetchLocalAnnotationsForAttachments({

@@ -1,4 +1,5 @@
 import {
+  Notice,
   Platform,
   PluginSettingTab,
   Setting,
@@ -97,7 +98,9 @@ export class StratumSettingTab extends PluginSettingTab {
 
   getSettingDefinitions(): SettingsSection[] {
     const sections: SettingsSection[] = [];
-    const accountEmail = this.plugin.settings.accountEmail;
+    const accountEmail = this.plugin.backend.hasSession()
+      ? this.plugin.settings.accountEmail
+      : null;
     const pendingAuth = isPendingAuthStale({
       pendingAuth: this.plugin.settings.pendingAuth,
     })
@@ -373,18 +376,29 @@ export class StratumSettingTab extends PluginSettingTab {
           .addText((text) => {
             text
               .setPlaceholder("23119")
-              .setValue(String(this.plugin.settings.zoteroLocalApiPort))
-              .onChange(async (value) => {
-                const parsed = Number(value);
-                this.plugin.settings.zoteroLocalApiPort =
-                  Number.isFinite(parsed) && parsed > 0
-                    ? Math.round(parsed)
-                    : 23119;
-                this.plugin.bulkSyncSettingsError = null;
-                clearLocalSyncState(this.plugin);
-                await this.plugin.saveSettings();
-                await this.plugin.reconcileLocalLiveSync();
-              });
+              .setValue(String(this.plugin.settings.zoteroLocalApiPort));
+            const commit = async () => {
+              const parsed = Number(text.getValue());
+              const port =
+                Number.isInteger(parsed) && parsed > 0 && parsed <= 65535
+                  ? parsed
+                  : 23119;
+              if (port === this.plugin.settings.zoteroLocalApiPort) return;
+              this.plugin.settings.zoteroLocalApiPort = port;
+              text.setValue(String(port));
+              this.plugin.bulkSyncSettingsError = null;
+              clearLocalSyncState(this.plugin);
+              await this.plugin.saveSettings();
+              await this.plugin.reconcileLocalLiveSync();
+            };
+            text.inputEl.addEventListener("blur", () => {
+              void commit().catch(
+                () => new Notice("Could not save the Zotero port."),
+              );
+            });
+            text.inputEl.addEventListener("keydown", (event) => {
+              if (event.key === "Enter") text.inputEl.blur();
+            });
 
             text.inputEl.addClass("stratum-interval-input");
             text.inputEl.setAttr("inputmode", "numeric");
@@ -439,6 +453,37 @@ export class StratumSettingTab extends PluginSettingTab {
       }
     }
 
+    const citations = this.createSection(sections, "Citations");
+    this.defineSetting(citations, "Default citation style", (setting) => {
+      setting
+        .setDesc(
+          "Format citations and bibliographies in every paper without an override.",
+        )
+        .addButton((button) =>
+          button.setButtonText("Choose style").onClick(async () => {
+            const { CitationPreferences } = await import("./citation-controls");
+            new CitationPreferences(this.plugin).open();
+          }),
+        );
+    });
+    this.defineSetting(citations, "Citation reference data", (setting) => {
+      setting
+        .setDesc(
+          "Fill missing reference data for previously imported notes. Requires your Zotero connection.",
+        )
+        .addButton((button) =>
+          button.setButtonText("Refresh citation data").onClick(async () => {
+            const { refreshCitationData } = await import("./citation-refresh");
+            await refreshCitationData(this.plugin).catch(
+              () =>
+                new Notice(
+                  "Could not refresh citation data. Check your Zotero connection.",
+                ),
+            );
+          }),
+        );
+    });
+
     const defaultsSection = this.createSection(sections, "Workspace defaults");
 
     this.defineSetting(
@@ -448,17 +493,27 @@ export class StratumSettingTab extends PluginSettingTab {
         setting
           .setName("Literature notes folder")
           .setDesc("Default destination for generated literature notes.")
-          .addText((text) =>
+          .addText((text) => {
             text
               .setPlaceholder(DEFAULT_NOTE_FOLDER)
-              .setValue(this.plugin.settings.notesFolder)
-              .onChange(async (value) => {
-                this.plugin.settings.notesFolder =
-                  value.trim() || DEFAULT_NOTE_FOLDER;
-                await this.plugin.saveSettings();
-                await this.plugin.rebuildItemFileMap();
-              }),
-          );
+              .setValue(this.plugin.settings.notesFolder);
+            const commit = async () => {
+              const folder = text.getValue().trim() || DEFAULT_NOTE_FOLDER;
+              if (folder === this.plugin.settings.notesFolder) return;
+              this.plugin.settings.notesFolder = folder;
+              text.setValue(folder);
+              await this.plugin.saveSettings();
+              await this.plugin.rebuildItemFileMap();
+            };
+            text.inputEl.addEventListener("blur", () => {
+              void commit().catch(
+                () => new Notice("Could not save the literature notes folder."),
+              );
+            });
+            text.inputEl.addEventListener("keydown", (event) => {
+              if (event.key === "Enter") text.inputEl.blur();
+            });
+          });
       },
     );
 
@@ -469,7 +524,7 @@ export class StratumSettingTab extends PluginSettingTab {
         setting
           .setName("Literature note filename format")
           .setDesc(
-            "Controls how new literature notes are named. Existing notes are not bulk-renamed when this changes. The citation key format currently uses a generated fallback until richer citekey support is wired in.",
+            "Choose how new literature notes are named. Existing filenames stay unchanged. Citation key filenames are generated from author, year, and title.",
           )
           .addDropdown((dropdown) =>
             dropdown

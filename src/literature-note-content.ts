@@ -1,5 +1,5 @@
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
-import { normalizeDoi } from "./doi";
+import { getNormalizedDoiLookupKey as normalizeDoi } from "./doi";
 import {
   MANAGED_START,
   MANAGED_END,
@@ -61,9 +61,11 @@ function normalizeLegacyEnrichmentSection(section: string): string {
 function extractPreservedManagedSections(
   existingContent: string,
 ): PreservedManagedSections {
-  const managedMatch = existingContent.match(
-    /<!-- stratum:managed:start -->\n([\s\S]*?)\n<!-- stratum:managed:end -->/,
-  );
+  const managedMatch = existingContent
+    .replace(/\r\n/g, "\n")
+    .match(
+      /<!-- stratum:managed:start -->\n([\s\S]*?)\n<!-- stratum:managed:end -->/,
+    );
   if (!managedMatch) {
     return {};
   }
@@ -136,7 +138,13 @@ export function buildLiteratureNoteContent(params: {
       params.enrichment,
     );
     const nextBody = ensureUserBoundary(upsertManagedBlock(body, managedBlock));
-    return `${nextFrontmatter}\n${nextBody.trimStart()}`.trimEnd() + "\n";
+    const result =
+      `${nextFrontmatter}\n${nextBody.trimStart()}`.trimEnd() + "\n";
+    const withoutTimestamp = (content: string) =>
+      content.replace(/^zotero_synced_at:.*\r?$/gm, "");
+    return withoutTimestamp(result) === withoutTimestamp(params.existingContent)
+      ? params.existingContent
+      : result;
   }
 
   const managedBlock = renderManagedBlock(

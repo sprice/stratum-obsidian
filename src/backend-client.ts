@@ -36,6 +36,24 @@ import type {
 } from "./backend-types";
 import type { PersistedAuthSession } from "./settings";
 
+// Used only to separate cached account state; authentication remains server-side.
+function sessionSubject(token: string): string | undefined {
+  try {
+    const part = token.split(".")[1];
+    const payload: unknown = JSON.parse(
+      atob(part.replace(/-/g, "+").replace(/_/g, "/")),
+    );
+    const subject =
+      payload && typeof payload === "object" && "sub" in payload
+        ? payload.sub
+        : null;
+    return typeof subject === "string" && subject.length > 0
+      ? subject
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 const REFRESH_BUFFER_SECONDS = 60;
 const AUTH_ERROR_STATUSES = new Set([401, 403]);
 
@@ -133,6 +151,9 @@ export class BackendClient {
     if (this.state.session !== session) return;
     await this.onUserChange({
       email: params.email ?? null,
+      ...(sessionSubject(params.accessToken)
+        ? { id: sessionSubject(params.accessToken) }
+        : {}),
     });
   }
 
@@ -143,7 +164,9 @@ export class BackendClient {
     await this.onUserChange(null);
   }
 
-  async validateSession(): Promise<AuthenticatedUserSummary | null> {
+  async validateSession(
+    retried = false,
+  ): Promise<AuthenticatedUserSummary | null> {
     const accessToken = await this.getValidAccessToken();
     if (!accessToken || this.state.session?.accessToken !== accessToken) {
       return null;
@@ -161,8 +184,9 @@ export class BackendClient {
 
     if (this.state.session !== session) return null;
     if (!this.isOk(response)) {
-      if (AUTH_ERROR_STATUSES.has(response.status)) {
-        await this.clearSession();
+      if (AUTH_ERROR_STATUSES.has(response.status) && !retried && session) {
+        const refreshed = await this.sharedRefresh(session);
+        if (refreshed) return this.validateSession(true);
       }
       return null;
     }
@@ -170,6 +194,7 @@ export class BackendClient {
     const payload = this.readJson<AuthenticatedUserResponse>(response);
     const user = {
       email: payload.email ?? null,
+      ...(payload.id ? { id: payload.id } : {}),
     };
     await this.onUserChange(user);
     return user;
@@ -380,6 +405,7 @@ export class BackendClient {
   async authedFetch(
     path: string,
     init?: AuthedRequestOptions,
+    retried = false,
   ): Promise<RequestUrlResponse> {
     const accessToken = await this.getValidAccessToken();
     if (!accessToken || this.state.session?.accessToken !== accessToken) {
@@ -418,7 +444,11 @@ export class BackendClient {
       hasAuthenticatedUserRequiredError(payload) ||
       (AUTH_ERROR_STATUSES.has(response.status) && !skipSessionClearOnAuthError)
     ) {
-      await this.clearSession();
+      if (!retried) {
+        const refreshed = await this.sharedRefresh(session);
+        if (refreshed && this.state.session === refreshed)
+          return this.authedFetch(path, init, true);
+      }
     }
 
     return response;
@@ -436,6 +466,15 @@ export class BackendClient {
     }
 
     log("auth", "access token expiring, refreshing session");
+    const refreshed = await this.sharedRefresh(session);
+    return refreshed && this.state.session === refreshed
+      ? refreshed.accessToken
+      : null;
+  }
+
+  private sharedRefresh(
+    session: PersistedAuthSession,
+  ): Promise<PersistedAuthSession | null> {
     if (this.pendingRefresh?.session !== session) {
       const promise = this.refreshSession(session);
       const pending = { session, promise };
@@ -446,10 +485,7 @@ export class BackendClient {
         })
         .catch(() => {});
     }
-    const refreshed = await this.pendingRefresh.promise;
-    return refreshed && this.state.session === refreshed
-      ? refreshed.accessToken
-      : null;
+    return this.pendingRefresh.promise;
   }
 
   private async refreshSession(
@@ -505,7 +541,10 @@ export class BackendClient {
     await this.onSessionChange(nextSession);
     if (this.state.session !== nextSession) return null;
     if (payload.user?.email) {
-      await this.onUserChange({ email: payload.user.email });
+      await this.onUserChange({
+        email: payload.user.email,
+        ...(payload.user.id ? { id: payload.user.id } : {}),
+      });
     }
 
     return nextSession;

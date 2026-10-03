@@ -61,7 +61,7 @@ test("loadLocalZoteroLibraries resolves the real personal user id and groups", a
       {
         status: 200,
         headers: {
-          Link: '<https://www.zotero.org/users/19946899/items/top>; rel="alternate"',
+          Link: '<https://www.zotero.org/users/12345/items/top>; rel="alternate"',
         },
         json: {},
       },
@@ -69,10 +69,10 @@ test("loadLocalZoteroLibraries resolves the real personal user id and groups", a
       status: 200,
       json: [
         {
-          id: 6489674,
+          id: 67890,
           data: {
-            id: 6489674,
-            name: "sprice",
+            id: 67890,
+            name: "example-group",
           },
           meta: {
             numItems: 3,
@@ -87,15 +87,15 @@ test("loadLocalZoteroLibraries resolves the real personal user id and groups", a
     request,
   });
 
-  assert.equal(response.userId, "19946899");
+  assert.equal(response.userId, "12345");
   assert.deepEqual(
     response.libraries.map((library) => ({
       identity: library.identity,
       name: library.name,
     })),
     [
-      { identity: "user:19946899", name: "My Library" },
-      { identity: "group:6489674", name: "sprice" },
+      { identity: "user:12345", name: "My Library" },
+      { identity: "group:67890", name: "example-group" },
     ],
   );
 });
@@ -157,7 +157,7 @@ test("ensureLocalZoteroReady fails when the local API version is incompatible", 
 
 test("loadLocalZoteroCollections builds nested display names", async () => {
   const request = createRequestMock({
-    "http://127.0.0.1:23119/api/users/19946899/collections?format=json&limit=100&start=0":
+    "http://127.0.0.1:23119/api/users/12345/collections?format=json&limit=100&start=0":
       {
         status: 200,
         json: [
@@ -183,7 +183,7 @@ test("loadLocalZoteroCollections builds nested display names", async () => {
 
   const collections = await loadLocalZoteroCollections({
     port: 23119,
-    library: buildPersonalLibrary("19946899"),
+    library: buildPersonalLibrary("12345"),
     request,
   });
 
@@ -205,7 +205,7 @@ test("loadLocalZoteroCollections builds nested display names", async () => {
 
 test("loadLocalZoteroCatalogPage reads versions, totals, and library version headers", async () => {
   const request = createRequestMock({
-    "http://127.0.0.1:23119/api/users/19946899/items/top?format=json&sort=dateAdded&direction=asc&limit=50&start=0":
+    "http://127.0.0.1:23119/api/users/12345/items/top?format=json&sort=dateAdded&direction=asc&limit=50&start=0":
       {
         status: 200,
         headers: {
@@ -240,7 +240,7 @@ test("loadLocalZoteroCatalogPage reads versions, totals, and library version hea
 
   const page = await loadLocalZoteroCatalogPage({
     port: 23119,
-    library: buildPersonalLibrary("19946899"),
+    library: buildPersonalLibrary("12345"),
     start: 0,
     limit: 50,
     request,
@@ -258,7 +258,7 @@ test("loadLocalZoteroCatalogPage reads versions, totals, and library version hea
 
 test("loadLocalZoteroLibraryVersion reads the lightweight versions header", async () => {
   const request = createRequestMock({
-    "http://127.0.0.1:23119/api/users/19946899/items/top?format=versions&limit=1&start=0":
+    "http://127.0.0.1:23119/api/users/12345/items/top?format=versions&limit=1&start=0":
       {
         status: 200,
         headers: {
@@ -272,7 +272,7 @@ test("loadLocalZoteroLibraryVersion reads the lightweight versions header", asyn
 
   const version = await loadLocalZoteroLibraryVersion({
     port: 23119,
-    library: buildPersonalLibrary("19946899"),
+    library: buildPersonalLibrary("12345"),
     request,
   });
 
@@ -281,7 +281,7 @@ test("loadLocalZoteroLibraryVersion reads the lightweight versions header", asyn
 
 test("loadLocalZoteroItemVersions pages through the local versions map", async () => {
   const request = createRequestMock({
-    "http://127.0.0.1:23119/api/users/19946899/items/top?format=versions&limit=500&start=0":
+    "http://127.0.0.1:23119/api/users/12345/items/top?format=versions&limit=500&start=0":
       {
         status: 200,
         headers: {
@@ -294,7 +294,7 @@ test("loadLocalZoteroItemVersions pages through the local versions map", async (
           ]),
         ),
       },
-    "http://127.0.0.1:23119/api/users/19946899/items/top?format=versions&limit=500&start=500":
+    "http://127.0.0.1:23119/api/users/12345/items/top?format=versions&limit=500&start=500":
       {
         status: 200,
         headers: {
@@ -309,7 +309,7 @@ test("loadLocalZoteroItemVersions pages through the local versions map", async (
 
   const response = await loadLocalZoteroItemVersions({
     port: 23119,
-    library: buildPersonalLibrary("19946899"),
+    library: buildPersonalLibrary("12345"),
     request,
   });
 
@@ -323,7 +323,7 @@ test("loadLocalZoteroItemVersions pages through the local versions map", async (
 
 test("loadLocalZoteroItemVersions can read a full library versions map including child items", async () => {
   const request = createRequestMock({
-    "http://127.0.0.1:23119/api/users/19946899/items?format=versions&limit=500&start=0":
+    "http://127.0.0.1:23119/api/users/12345/items?format=versions&limit=500&start=0":
       {
         status: 200,
         headers: {
@@ -339,7 +339,7 @@ test("loadLocalZoteroItemVersions can read a full library versions map including
 
   const response = await loadLocalZoteroItemVersions({
     port: 23119,
-    library: buildPersonalLibrary("19946899"),
+    library: buildPersonalLibrary("12345"),
     topLevelOnly: false,
     request,
   });
@@ -352,9 +352,9 @@ test("loadLocalZoteroItemVersions can read a full library versions map including
   });
 });
 
-test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations via the itemType=annotation endpoint", async () => {
+test("loadLocalZoteroItemDetail normalizes DOI values and fetches only annotations belonging to its attachments", async () => {
   const request = createRequestMock({
-    "http://127.0.0.1:23119/api/users/19946899/items/PARENT?format=json&include=data,bib&style=apa":
+    "http://127.0.0.1:23119/api/users/12345/items/PARENT?format=json&include=data,bib,csljson&style=apa":
       {
         status: 200,
         json: {
@@ -381,7 +381,7 @@ test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations vi
           },
         },
       },
-    "http://127.0.0.1:23119/api/users/19946899/items/PARENT/children?format=json&limit=100&start=0":
+    "http://127.0.0.1:23119/api/users/12345/items/PARENT/children?format=json&limit=100&start=0":
       {
         status: 200,
         json: [
@@ -400,7 +400,7 @@ test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations vi
           },
         ],
       },
-    "http://127.0.0.1:23119/api/users/19946899/collections/COLL1?format=json": {
+    "http://127.0.0.1:23119/api/users/12345/collections/COLL1?format=json": {
       status: 200,
       json: {
         data: {
@@ -409,7 +409,7 @@ test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations vi
         },
       },
     },
-    "http://127.0.0.1:23119/api/users/19946899/items?format=json&itemType=annotation&limit=100&start=0":
+    "http://127.0.0.1:23119/api/users/12345/items/ATTACH1/children?format=json&itemType=annotation&limit=100&start=0":
       {
         status: 200,
         json: [
@@ -461,8 +461,8 @@ test("loadLocalZoteroItemDetail normalizes DOI values and fetches annotations vi
 
   const detail = await loadLocalZoteroItemDetail({
     port: 23119,
-    userId: "19946899",
-    library: buildPersonalLibrary("19946899"),
+    userId: "12345",
+    library: buildPersonalLibrary("12345"),
     itemKey: "PARENT",
     request,
   });

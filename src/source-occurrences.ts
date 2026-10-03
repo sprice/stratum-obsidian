@@ -15,7 +15,7 @@ function escaped(text: string, offset: number): boolean {
 }
 
 /** Mask non-prose without changing UTF-16 offsets used by the editor. */
-function prose(text: string): string {
+export function sourceProse(text: string): string {
   const chars = text.split("");
   const mask = (start: number, end: number) => {
     for (let i = start; i < end; i++) if (chars[i] !== "\n") chars[i] = " ";
@@ -118,7 +118,7 @@ function excerpt(text: string, from: number, to: number): string {
 }
 
 export function parseSourceOccurrences(text: string): SourceOccurrence[] {
-  let visible = prose(text);
+  let visible = sourceProse(text);
   const occurrences: SourceOccurrence[] = [];
   const mask = (from: number, to: number) => {
     visible =

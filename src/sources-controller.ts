@@ -1,3 +1,4 @@
+import { fetchCitationData } from "./citation-refresh";
 import {
   Component,
   MarkdownView,
@@ -18,13 +19,17 @@ import {
   type BibliographyBinding,
 } from "./document-sources";
 import { shouldFollowSourceDocument } from "./sources-context";
-import type { SourceOccurrence } from "./source-occurrences";
+import {
+  parseSourceOccurrences,
+  type SourceOccurrence,
+} from "./source-occurrences";
 
 export class SourcesController extends Component {
   document: TFile | null = null;
   pinned = false;
   rows: SourceRow[] = [];
   error: string | null = null;
+  referenceError: string | null = null;
   private leaf: WorkspaceLeaf | null = null;
   private text = "";
   private timer: number | null = null;
@@ -38,7 +43,79 @@ export class SourcesController extends Component {
     super();
   }
 
+  async citationStatus(): Promise<string | null> {
+    if (!this.document || !this.plugin.citations) return null;
+    const document = this.document;
+    const text = this.text;
+    const { styleTitle, cachedStyle } = await import("./citation-styles");
+    const { style } = this.plugin.citations.preferences(document.path, text);
+    const keys = parseSourceOccurrences(text)
+      .filter((o) => o.kind === "citation")
+      .map((o) => o.target);
+    if (keys.length) {
+      const health = await this.plugin.citations.diagnose(keys);
+      // Formatting is owned by Reading view; Sources needs only reference health.
+      void health;
+    }
+    if (!cachedStyle(this.plugin, style))
+      throw new Error(
+        "Citation style unavailable. Select it in Stratum settings to download it.",
+      );
+    return styleTitle(this.plugin, style);
+  }
+  async changeCitationStyle(): Promise<void> {
+    const file = this.document;
+    if (!file) return;
+    const { CitationPreferences } = await import("./citation-controls");
+    if (!this.plugin.isUnloaded)
+      new CitationPreferences(this.plugin, file).open();
+  }
+  subscribeCitationChanges(callback: () => void): () => void {
+    return (
+      this.plugin.citations?.subscribe((path) => {
+        if (!path || path === this.document?.path) callback();
+      }) ?? (() => {})
+    );
+  }
+  async repairSource(row: SourceRow): Promise<void> {
+    const file = this.document;
+    const key = row.keys[0];
+    if (!file || !key) return;
+    await this.returnToDocument(
+      row.occurrences.find((o) => o.kind === "citation"),
+    );
+    const view = this.plugin.app.workspace.getMostRecentLeaf(
+      this.plugin.app.workspace.rootSplit,
+    )?.view;
+    if (!(view instanceof MarkdownView) || view.file !== file) return;
+    const { openCitationRepair } = await import("./citation-repair");
+    try {
+      await openCitationRepair(this.plugin, file, view.editor, key);
+    } catch (error) {
+      new Notice(
+        error instanceof Error
+          ? error.message
+          : "Could not open citation repair.",
+      );
+    }
+  }
+  async recoverSource(row: SourceRow): Promise<void> {
+    const key = row.keys[0];
+    if (!key || !row.health?.identity)
+      throw new Error("This source needs its identity resolved first.");
+    const [current] = await this.plugin.citations.diagnose([key]);
+    if (
+      current.identity !== row.health.identity ||
+      current.problem === "conflicting-key"
+    )
+      throw new Error(
+        "Source ownership changed. Review the updated Sources list before retrying.",
+      );
+    await fetchCitationData(this.plugin, current.identity);
+    this.schedule();
+  }
   onload(): void {
+    this.register(this.subscribeCitationChanges(() => this.schedule()));
     this.registerEvent(
       this.plugin.app.workspace.on("active-leaf-change", (leaf) =>
         this.follow(leaf),
@@ -60,12 +137,18 @@ export class SourcesController extends Component {
     );
     this.registerEvent(
       this.plugin.app.metadataCache.on("changed", (file) => {
-        if (file !== this.document) this.entries = null;
-        this.schedule();
+        const managed =
+          this.plugin.app.metadataCache.getFileCache(file)?.frontmatter
+            ?.stratum_note_type === "literature-note";
+        if (managed) this.entries = null;
+        if (file === this.document || managed) this.schedule();
       }),
     );
+    let indexed = false;
     this.registerEvent(
       this.plugin.app.metadataCache.on("resolved", () => {
+        if (indexed) return;
+        indexed = true;
         this.entries = null;
         this.schedule();
       }),
@@ -98,13 +181,15 @@ export class SourcesController extends Component {
         this.schedule();
       }),
     );
-    this.registerEvent(
-      this.plugin.app.vault.on("create", () => {
-        this.entries = null;
-        this.bibliography = null;
-        this.schedule();
-      }),
-    );
+    this.plugin.app.workspace.onLayoutReady?.(() => {
+      this.registerEvent(
+        this.plugin.app.vault.on("create", () => {
+          this.entries = null;
+          this.bibliography = null;
+          this.schedule();
+        }),
+      );
+    });
     this.follow(
       this.plugin.app.workspace.getMostRecentLeaf(
         this.plugin.app.workspace.rootSplit,
@@ -168,6 +253,7 @@ export class SourcesController extends Component {
     if (this.document !== file) {
       this.rows = [];
       this.error = null;
+      this.referenceError = null;
     }
     this.document = file;
     this.leaf = leaf;
@@ -208,12 +294,15 @@ export class SourcesController extends Component {
       this.leaf &&
       leaves.includes(this.leaf) &&
       this.leaf.view instanceof MarkdownView &&
-      this.leaf.view.file === this.document
+      this.leaf.view.file === this.document &&
+      this.leaf.view.getMode() === "source"
     )
       return this.leaf.view.editor.getValue();
     const view = leaves.find(
       (leaf) =>
-        leaf.view instanceof MarkdownView && leaf.view.file === this.document,
+        leaf.view instanceof MarkdownView &&
+        leaf.view.file === this.document &&
+        leaf.view.getMode() === "source",
     )?.view;
     return view instanceof MarkdownView ? view.editor.getValue() : null;
   }
@@ -243,7 +332,7 @@ export class SourcesController extends Component {
       this.bindings = bindings;
       const entries = this.entries ?? buildLiteratureNoteEntries(this.plugin);
       this.entries = entries;
-      this.rows = collectDocumentSources(
+      const rows = collectDocumentSources(
         text,
         entries,
         bindings,
@@ -263,6 +352,28 @@ export class SourcesController extends Component {
           );
         },
       );
+      let referenceError: string | null = null;
+      try {
+        const cited = rows.filter((row) =>
+          row.occurrences.some((o) => o.kind === "citation"),
+        );
+        if (cited.length) {
+          const health = await this.plugin.citations.diagnose(
+            cited.map((row) => row.keys[0]),
+          );
+          cited.forEach((row, i) => {
+            row.health = health[i];
+          });
+        }
+      } catch (error) {
+        referenceError =
+          error instanceof Error
+            ? error.message
+            : "Could not read citation data.";
+      }
+      if (revision !== this.revision) return;
+      this.rows = rows;
+      this.referenceError = referenceError;
       this.text = text;
       this.error = null;
       this.emit();

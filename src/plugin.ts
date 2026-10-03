@@ -1,10 +1,12 @@
+import type { CitationService } from "./citation-service";
+import { CitationSuggest } from "./citation-suggest";
 import { SourcesController } from "./sources-controller";
 import {
   browseCollections,
   CollectionBrowserView,
   COLLECTION_BROWSER_VIEW,
 } from "./collection-browser";
-import { MarkdownView, Platform, Plugin, TFile } from "obsidian";
+import { MarkdownView, Notice, Platform, Plugin, TFile } from "obsidian";
 import {
   AUTH_PROTOCOL_ACTION,
   PLUGIN_NAME,
@@ -154,6 +156,7 @@ export default class StratumPlugin extends Plugin {
   isSelectedLibraryAbstractExpanded = false;
   activeNoteActionKey: string | null = null;
   sources!: SourcesController;
+  citations!: CitationService;
   activeViewTab: "search" | "sync" | "reader" | "sources" = "search";
   readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
@@ -252,6 +255,18 @@ export default class StratumPlugin extends Plugin {
     setSelectedSearchLibrary(this, this.selectedSearchLibrary);
     const openStratumRibbonLabel = `Open ${PLUGIN_NAME}`;
 
+    const { CitationService } = await import("./citation-service");
+    const { citationEditor } = await import("./citation-editor");
+    const { registerCitationReading } = await import("./citation-reading");
+    if (this.isUnloaded) return;
+    const { refreshCitationData } = await import("./citation-refresh");
+    const { citationDocument } = await import("./citation-document");
+    if (this.isUnloaded) return;
+    this.citations = new CitationService(this);
+    this.addChild(this.citations);
+    this.registerEditorExtension(citationEditor(this.citations));
+    registerCitationReading(this.citations);
+
     this.sources = this.addChild(new SourcesController(this));
     this.settingTab = new StratumSettingTab(this);
     this.addSettingTab(this.settingTab);
@@ -304,8 +319,43 @@ export default class StratumPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "citation-preferences",
+      name: "Change citation style for this paper",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (!checking)
+          void import("./citation-controls").then(({ CitationPreferences }) => {
+            if (!this.isUnloaded) new CitationPreferences(this, file).open();
+          });
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "refresh-citation-data",
+      name: "Refresh citation data",
+      callback: () => {
+        void refreshCitationData(this).catch(
+          () => new Notice("Could not refresh citation data."),
+        );
+      },
+    });
+    this.addCommand({
+      id: "insert-bibliography",
+      name: "Insert bibliography",
+      editorCallback: (editor) => {
+        if (citationDocument(editor.getValue(), false).bibliographies.length) {
+          new Notice("This paper already has a bibliography location.");
+          return;
+        }
+        editor.replaceSelection('\n\n## References\n\n<div id="refs"></div>\n');
+      },
+    });
+    this.registerEditorSuggest(new CitationSuggest(this));
+
+    this.addCommand({
       id: "insert-pandoc-citation",
-      name: "Insert citation",
+      name: "Insert or edit citation",
       editorCallback: (editor) => insertPandocCitation(this, editor),
     });
 
@@ -320,7 +370,9 @@ export default class StratumPlugin extends Plugin {
     });
 
     this.registerObsidianProtocolHandler(AUTH_PROTOCOL_ACTION, (params) => {
-      void handleAuthProtocol(this, params);
+      void handleAuthProtocol(this, params).catch(
+        () => new Notice("Sign-in could not be completed. Please try again."),
+      );
     });
 
     this.registerEvent(
@@ -365,13 +417,40 @@ export default class StratumPlugin extends Plugin {
       }),
     );
 
-    this.statusBarItemEl = this.addStatusBarItem();
-    startAutoSyncStatusRefresh(this);
+    if (Platform.isDesktopApp) {
+      this.statusBarItemEl = this.addStatusBarItem();
+      startAutoSyncStatusRefresh(this);
+    }
     refreshAutoSyncUi(this);
 
     this.app.workspace.onLayoutReady(() => {
       void bootstrapRemoteState(this);
     });
+  }
+
+  async onExternalSettingsChange(): Promise<void> {
+    const data = (await this.loadData()) as Record<string, unknown> | null;
+    if (this.isUnloaded || !data) return;
+    if (
+      typeof data.citationStyle === "string" &&
+      /^[a-z0-9-]+$/.test(data.citationStyle)
+    )
+      this.settings.citationStyle = data.citationStyle;
+    if (
+      typeof data.citationLanguage === "string" &&
+      /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(data.citationLanguage)
+    )
+      this.settings.citationLanguage = data.citationLanguage;
+    try {
+      const { loadCitationResources } = await import("./citation-resources");
+      await loadCitationResources(this);
+    } catch {
+      new Notice(
+        "Synced citation resources could not be loaded. Your current resources are retained.",
+      );
+    }
+    this.citations?.invalidate();
+    this.refreshSettingTab();
   }
 
   onunload(): void {

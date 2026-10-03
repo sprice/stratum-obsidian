@@ -406,3 +406,125 @@ test("concurrent folder creation tolerates another sync creating the folder", as
     ensureFolder(app, "Sources"),
   ]);
 });
+
+test("managed-note refresh preserves paper style overrides and a BOM-prefixed frontmatter block", async () => {
+  const f = vaultFixture(
+    "\uFEFF" +
+      content({
+        ...frontmatter,
+        stratum_citation_style: "ieee",
+        stratum_citation_language: "fr-FR",
+      }),
+  );
+  await note.createOrUpdateLiteratureNote({
+    app: f.app,
+    existingFile: f.file,
+    detail,
+    notesFolder: "Literature Notes",
+    filenameFormat: "readable",
+    stratumVersion: "0.2.2",
+  });
+  assert.match(f.current, /stratum_citation_style.*ieee/);
+  assert.match(f.current, /stratum_citation_language.*fr-FR/);
+  assert.match(f.current, /My original notes/);
+});
+test("identity lookup keeps a manually moved managed note outside the configured folder", async () => {
+  const f = vaultFixture();
+  f.file.path = "Papers/Moved source.md";
+  const runtime = loadRuntime<typeof Index>("plugin-note-index.ts", host);
+  const fm = { ...frontmatter, stratum_note_type: "literature-note" };
+  const plugin = {
+    settings: { notesFolder: "Literature Notes", itemFileMap: {} },
+    app: {
+      vault: {
+        getMarkdownFiles: () => [f.file],
+        getAbstractFileByPath: () => f.file,
+      },
+      metadataCache: { getFileCache: () => ({ frontmatter: fm }) },
+    },
+    itemFileMapPersistTimer: null,
+    saveSettings: () => Promise.resolve(),
+  };
+  assert.equal(
+    runtime.findExistingLiteratureNoteFile(plugin as never, identity),
+    f.file,
+  );
+  await runtime.rebuildItemFileMap(plugin as never);
+  assert.equal(
+    (plugin.settings.itemFileMap as Record<string, { filePath: string }>)[
+      "user/1/ABCD1234"
+    ].filePath,
+    f.file.path,
+  );
+});
+
+test("a corrupt citation cache cannot fail a completed literature-note sync", async () => {
+  const fixture = vaultFixture();
+  const cache = new FakeFile();
+  cache.path = "stratum-references.json";
+  const app = {
+    ...fixture.app,
+    vault: {
+      ...fixture.app.vault,
+      getAbstractFileByPath: (path: string) =>
+        path === cache.path ? cache : null,
+      read: (file: TFile) =>
+        file === (cache as unknown)
+          ? Promise.resolve("{")
+          : fixture.app.vault.read(file),
+    },
+  };
+  let remembered = false;
+  const plugin = {
+    app,
+    manifest: { version: "0.2.2" },
+    settings: {
+      notesFolder: "Literature Notes",
+      filenameFormat: "readable",
+      enabledLibraries: [{ type: "user", id: "1" }],
+      collectionCatalogs: {
+        "user:1": { updatedAt: Date.now(), collections: [] },
+      },
+    },
+    backend: { hasSession: () => true },
+    rememberLiteratureNoteFile: () => {
+      remembered = true;
+    },
+  };
+  const sync = loadRuntime<typeof import("../plugin-note-sync")>(
+    "plugin-note-sync.ts",
+    host,
+  );
+  const errors: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args);
+  };
+  try {
+    const result = await sync.writeLiteratureNoteFromDetail(plugin as never, {
+      detail: {
+        ...detail,
+        item: {
+          ...detail.item,
+          csl: {
+            id: "user/1/ABCD1234",
+            type: "book",
+            title: "Synthetic reference",
+          },
+        },
+      },
+      existingFile: fixture.file,
+      enrichmentMode: "skip",
+    });
+    assert.equal(result.file, fixture.file);
+    assert.equal(remembered, true);
+    assert.equal(fixture.writes, 1);
+    assert.ok(
+      errors.some((args) =>
+        String(args[0]).includes("literature note sync succeeded"),
+      ),
+    );
+  } finally {
+    console.error = originalError;
+  }
+});

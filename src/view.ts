@@ -1,7 +1,9 @@
+import { hasWritingPosition, returnToWriting } from "./citation-evidence";
 import { SourcesPanel, type SourcesViewState } from "./view-sources";
 import { browseCollections } from "./collection-browser";
 import {
   Component,
+  Notice,
   ItemView,
   MarkdownRenderer,
   MarkdownView,
@@ -344,6 +346,15 @@ export class StratumView extends ItemView {
     });
   }
 
+  refreshSyncProgress(): void {
+    if (this.plugin.activeViewTab !== "sync") return;
+    const panel =
+      this.contentEl.querySelector<HTMLElement>(".stratum-sync-tab");
+    if (!panel) return;
+    panel.empty();
+    this.renderSyncTab(panel);
+  }
+
   render(): void {
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
@@ -480,9 +491,8 @@ export class StratumView extends ItemView {
 
   private renderSearchTab(container: HTMLElement): void {
     const searchTab = container;
-    const signedInEmail = this.plugin.settings.accountEmail;
     const zoteroConnection = this.plugin.zoteroConnection;
-    const isAppConnected = Boolean(signedInEmail);
+    const isAppConnected = this.plugin.backend.hasSession();
     const isZoteroConnected = Boolean(zoteroConnection?.connected);
     const lastKnownZoteroUsername =
       zoteroConnection?.zoteroUsername ??
@@ -1245,6 +1255,15 @@ export class StratumView extends ItemView {
 
     const header = readerTab.createDiv({ cls: "stratum-reader-header" });
     const actions = header.createDiv({ cls: "stratum-reader-actions" });
+    if (hasWritingPosition(this.plugin)) {
+      const back = actions.createEl("button", { text: "Return to writing" });
+      back.type = "button";
+      back.addEventListener("click", () => {
+        void returnToWriting(this.plugin).catch(
+          () => new Notice("Could not return to the writing tab."),
+        );
+      });
+    }
     const openButton = actions.createEl("button", {
       text: "Open in editor",
     });

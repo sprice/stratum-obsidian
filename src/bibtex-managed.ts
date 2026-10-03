@@ -17,50 +17,77 @@ export function resolveBibliographyCitekey(
   content: string,
   entry: LiteratureNoteEntry,
 ): string {
-  const owned = entry.identity
-    ? [...content.matchAll(blocks)].find(
-        (match) => match[1] === encodeURIComponent(entry.identity!),
-      )
-    : undefined;
-  let key = buildCitekey(entry);
-  if (owned) {
-    try {
-      key = decodeURIComponent(owned[2]);
-    } catch {
-      throw new Error(
-        "The managed bibliography marker has an invalid citation key.",
-      );
+  return bibliographyKeyResolver(content)(entry);
+}
+
+/** Parse the bibliography once when building a picker for a large library. */
+export function bibliographyKeyResolver(
+  content: string,
+): (entry: LiteratureNoteEntry) => string {
+  const owned = new Map<string, RegExpMatchArray[]>();
+  for (const match of content.matchAll(blocks))
+    owned.set(match[1], [...(owned.get(match[1]) ?? []), match]);
+  const counts = new Map<string, number>();
+  for (const match of content
+    .replace(/^\s*%[^\n]*$/gm, "")
+    .matchAll(/@\w+\s*[({]\s*([^\s,]+)\s*,/g))
+    counts.set(match[1], (counts.get(match[1]) ?? 0) + 1);
+  return (entry) => {
+    const candidates = entry.identity
+      ? (owned.get(encodeURIComponent(entry.identity)) ?? [])
+      : [];
+    let error: unknown;
+    for (const match of candidates.length ? candidates : [undefined]) {
+      try {
+        const key = match ? decodeURIComponent(match[2]) : buildCitekey(entry);
+        if (
+          match &&
+          /^\s*@\w+\s*[({]\s*([^\s,]+)\s*,/.exec(match[4])?.[1] !== key
+        )
+          throw new Error(
+            "The bibliography citation key was manually changed. Repair it in Sources before inserting this citation.",
+          );
+        assertValidCitationKey(key);
+        if ((counts.get(key) ?? 0) > (match ? 1 : 0))
+          throw new Error(
+            `Citation key ${key} already exists without unambiguous ownership. Repair this reference in Sources.`,
+          );
+        return key;
+      } catch (cause) {
+        error = cause;
+      }
     }
-    const bodyKey = /^\s*@\w+\s*[({]\s*([^\s,]+)\s*,/.exec(owned[4])?.[1];
-    if (bodyKey !== key)
-      throw new Error(
-        "The bibliography citation key was manually changed. Restore its managed key before inserting this citation.",
-      );
-  }
-  assertValidCitationKey(key);
-  const keys = [
-    // Be conservative about inline entries too: ambiguity must never silently
-    // attach a citation to another work. Ignore full-line BibTeX comments.
-    ...content
-      .replace(/^\s*%[^\n]*$/gm, "")
-      .matchAll(/@\w+\s*[({]\s*([^\s,]+)\s*,/g),
-  ].filter((match) => match[1] === key);
-  if (keys.length > (owned ? 1 : 0)) {
-    throw new Error(
-      `Citation key ${key} already exists without unambiguous ownership. Use a unique Zotero citation key or resolve the duplicate in stratum.bib.`,
-    );
-  }
-  return key;
+    throw error;
+  };
 }
 
 export function updateManagedBibliography(
   content: string,
   entry: LiteratureNoteEntry,
   append: boolean,
+  explicitKey?: string,
 ): string {
-  const key = append
-    ? resolveBibliographyCitekey(content, entry)
-    : buildCitekey(entry);
+  if (explicitKey) {
+    assertValidCitationKey(explicitKey);
+    const owns = [...content.matchAll(blocks)].some(
+      (match) =>
+        match[1] === encodeURIComponent(entry.identity ?? "") &&
+        match[2] === encodeURIComponent(explicitKey) &&
+        /^\s*@\w+\s*[({]\s*([^\s,]+)\s*,/.exec(match[4])?.[1] === explicitKey,
+    );
+    const count = [
+      ...content
+        .replace(/^\s*%[^\n]*$/gm, "")
+        .matchAll(/@\w+\s*[({]\s*([^\s,]+)\s*,/g),
+    ].filter((match) => match[1] === explicitKey).length;
+    if (count > (owns ? 1 : 0))
+      throw new Error(
+        "Citation key already exists without unambiguous ownership.",
+      );
+  }
+  const key =
+    explicitKey ??
+    (append ? resolveBibliographyCitekey(content, entry) : buildCitekey(entry));
   const identity = entry.identity;
   let found = false;
   let output = content.replace(

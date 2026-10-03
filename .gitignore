@@ -17,6 +17,7 @@ main.js
 
 # obsidian
 data.json
+citation-resources.json
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store

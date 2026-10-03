@@ -38,6 +38,11 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  citationStyle: string;
+  citationLanguage: string;
+  citationStyles: Record<string, string>;
+  citationStyleTitles?: Record<string, string>;
+  citationLocales: Record<string, string>;
   collectionCatalogs: CollectionCatalogs;
   notesFolder: string;
   filenameFormat: LiteratureNoteFilenameFormat;
@@ -47,6 +52,7 @@ export interface StratumSettings {
   zoteroDataDir: string;
   pendingAuth: PendingAuthState | null;
   accountEmail: string | null;
+  accountId?: string | null;
   accountLinkedAt: string | null;
   authSessionExpiresAt: number | null;
   lastKnownZoteroUserId: string | null;
@@ -62,6 +68,10 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  citationStyle: "apa",
+  citationLanguage: "en-US",
+  citationStyles: {},
+  citationLocales: {},
   collectionCatalogs: {},
   notesFolder: DEFAULT_NOTE_FOLDER,
   filenameFormat: "readable",

@@ -18,8 +18,7 @@ import {
   buildLiteratureNoteEntries,
   LiteratureNoteSearchModal,
 } from "./library-search-modal";
-import { ensureBibEntry } from "./bibtex";
-import { formatPandocCitation } from "./bibtex-format";
+import { openCitationComposer } from "./citation-composer";
 import { buildLiteratureNoteWikiLink } from "./literature-note-links";
 import {
   requireZoteroItemDetailForNoteSync,
@@ -204,24 +203,11 @@ export function insertPandocCitation(
   plugin: StratumPlugin,
   editor: Editor,
 ): void {
-  const entries = buildLiteratureNoteEntries(plugin);
-  if (entries.length === 0) {
+  void openCitationComposer(plugin, editor).catch((error: unknown) => {
     new Notice(
-      `${PLUGIN_NAME}: No literature notes found. Use the side panel to create some first.`,
+      error instanceof Error
+        ? error.message
+        : "Could not open citation composer.",
     );
-    return;
-  }
-
-  new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
-    const target = getActiveEditor(plugin) ?? editor;
-    void ensureBibEntry(plugin.app, entry)
-      .then((citekey) => {
-        target.replaceSelection(formatPandocCitation(citekey));
-      })
-      .catch((error: unknown) => {
-        new Notice(
-          `${PLUGIN_NAME}: ${error instanceof Error ? error.message : "Could not save the bibliography entry."}`,
-        );
-      });
-  }).open();
+  });
 }

@@ -73,6 +73,8 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
       if (plugin.isUnloaded) return;
       const nextEmail = user?.email ?? null;
       const previousEmail = plugin.settings.accountEmail;
+      const previousId = plugin.settings.accountId;
+      const nextId = user?.id;
       let changed = false;
 
       if (previousEmail !== nextEmail) {
@@ -82,16 +84,16 @@ export function createBackendClient(plugin: StratumPlugin): BackendClient {
 
       const shouldClearZoteroSnapshot =
         nextEmail === null ||
-        (previousEmail !== null &&
-          nextEmail !== null &&
-          previousEmail !== nextEmail);
-
-      if (
-        plugin.settings.pendingAuth &&
-        (nextEmail === null || nextEmail !== previousEmail)
-      ) {
-        plugin.settings.pendingAuth = null;
-        changed = true;
+        (previousId && nextId
+          ? previousId !== nextId
+          : previousEmail !== null &&
+            nextEmail !== null &&
+            previousEmail !== nextEmail);
+      if (!user || nextId) {
+        if (plugin.settings.accountId !== (nextId ?? null)) {
+          plugin.settings.accountId = nextId ?? null;
+          changed = true;
+        }
       }
 
       if (shouldClearZoteroSnapshot) {
@@ -378,7 +380,6 @@ export async function handleAuthProtocol(
     return;
   }
 
-  plugin.settings.pendingAuth = null;
   if (accessToken && refreshToken) {
     const expiresAt = expiresAtParam ? Number(expiresAtParam) : null;
     await plugin.backend.setSession({
@@ -391,6 +392,7 @@ export async function handleAuthProtocol(
     plugin.settings.accountEmail = email;
     plugin.settings.accountLinkedAt = new Date().toISOString();
   }
+  plugin.settings.pendingAuth = null;
   await plugin.saveSettings();
   plugin.refreshViews();
   plugin.refreshSettingTab();

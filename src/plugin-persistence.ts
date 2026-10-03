@@ -1,3 +1,8 @@
+import {
+  loadCitationResources,
+  saveCitationResources,
+  settingsWithoutResources,
+} from "./citation-resources";
 import { readCollectionCatalogs } from "./collection-catalog";
 import {
   AUTH_ACCESS_TOKEN_SECRET_ID,
@@ -35,6 +40,7 @@ type StoredSettingsData = Partial<
     | "zoteroDataDir"
     | "pendingAuth"
     | "accountEmail"
+    | "accountId"
     | "accountLinkedAt"
     | "authSessionExpiresAt"
     | "lastKnownZoteroUserId"
@@ -376,6 +382,31 @@ function readStoredSettings(value: unknown): Omit<
     legacyBulkLibrarySync: readBulkLibrarySyncState(value.bulkLibrarySync),
   };
 
+  if (
+    typeof value.citationStyle === "string" &&
+    /^[a-z0-9-]+$/.test(value.citationStyle)
+  )
+    nextSettings.citationStyle = value.citationStyle;
+  if (
+    typeof value.citationLanguage === "string" &&
+    /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(value.citationLanguage)
+  )
+    nextSettings.citationLanguage = value.citationLanguage;
+  for (const key of [
+    "citationStyles",
+    "citationLocales",
+    "citationStyleTitles",
+  ] as const) {
+    if (isRecord(value[key]))
+      nextSettings[key] = Object.fromEntries(
+        Object.entries(value[key]).filter(
+          (pair): pair is [string, string] =>
+            /^[a-zA-Z0-9-]+$/.test(pair[0]) &&
+            typeof pair[1] === "string" &&
+            pair[1].length < 2000000,
+        ),
+      );
+  }
   if (typeof value.notesFolder === "string") {
     nextSettings.notesFolder = value.notesFolder;
   }
@@ -407,6 +438,8 @@ function readStoredSettings(value: unknown): Omit<
         : null,
     );
   }
+  if (typeof value.accountId === "string" || value.accountId === null)
+    nextSettings.accountId = value.accountId;
   if (typeof value.accountEmail === "string" || value.accountEmail === null) {
     nextSettings.accountEmail = value.accountEmail;
   }
@@ -553,7 +586,18 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
     activeBulkSyncLibrary: persistedSettings.activeBulkSyncLibrary ?? null,
   };
 
+  let migratedResources = false;
+  try {
+    await loadCitationResources(plugin);
+    await saveCitationResources(plugin);
+    migratedResources =
+      !Object.hasOwn(settingsWithoutResources(plugin), "citationStyles") &&
+      Object.hasOwn(rawData ?? {}, "citationStyles");
+  } catch (error) {
+    console.error("stratum: citation resources could not be loaded", error);
+  }
   let shouldPersist =
+    migratedResources ||
     hasLegacyPendingAuth ||
     hasLegacySettingKeys ||
     hasLegacyOpenAlexKeys ||
@@ -648,7 +692,7 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
 }
 
 export async function savePluginSettings(plugin: StratumPlugin): Promise<void> {
-  await plugin.saveData(plugin.settings);
+  await plugin.saveData(settingsWithoutResources(plugin));
 }
 
 export function persistAuthSessionSecrets(

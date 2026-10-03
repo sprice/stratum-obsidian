@@ -1,3 +1,4 @@
+import { renderSourceHealth, sourceNeedsAttention } from "./view-source-health";
 import { Component, SearchComponent, setIcon } from "obsidian";
 import type { SourcesController } from "./sources-controller";
 import type { SourceRow } from "./document-sources";
@@ -13,6 +14,11 @@ export class SourcesPanel extends Component {
   private documentButton!: HTMLButtonElement;
   private pin!: HTMLButtonElement;
   private summary!: HTMLElement;
+  private citationStatus!: HTMLElement;
+  private citationRevision = 0;
+  private recovering = new Set<string>();
+  private recoveryErrors = new Map<string, string>();
+  private active = false;
   constructor(
     private container: HTMLElement,
     private sources: SourcesController,
@@ -21,6 +27,7 @@ export class SourcesPanel extends Component {
     super();
   }
   onload(): void {
+    this.active = true;
     this.container.addClass("stratum-sources");
     const header = this.container.createDiv({ cls: "stratum-sources-header" });
     header.createEl("h3", { text: "Sources" });
@@ -35,6 +42,14 @@ export class SourcesPanel extends Component {
     this.documentButton.addEventListener("click", () => {
       void this.sources.returnToDocument();
     });
+    this.citationStatus = this.container.createDiv({
+      cls: "stratum-citation-status",
+    });
+    this.register(
+      this.sources.subscribeCitationChanges(() => {
+        void this.renderCitationStatus();
+      }),
+    );
     this.summary = this.container.createDiv({ cls: "stratum-sources-summary" });
     this.summary.setAttr("role", "status");
     const tools = this.container.createDiv({ cls: "stratum-sources-tools" });
@@ -67,7 +82,43 @@ export class SourcesPanel extends Component {
     this.register(this.sources.subscribe(() => this.renderRows()));
     this.renderRows();
   }
+  onunload(): void {
+    this.active = false;
+    this.citationRevision++;
+  }
+  private async renderCitationStatus(): Promise<void> {
+    const revision = ++this.citationRevision;
+    try {
+      const label = await this.sources.citationStatus();
+      if (
+        revision !== this.citationRevision ||
+        !this.citationStatus.isConnected
+      )
+        return;
+      this.citationStatus.empty();
+      if (!label) return;
+      const button = this.citationStatus.createEl("button", { text: label });
+      button.title = "Change citation style for this paper";
+      button.addEventListener("click", () => {
+        void this.sources.changeCitationStyle();
+      });
+    } catch (error) {
+      if (revision !== this.citationRevision) return;
+      this.citationStatus.setText(
+        error instanceof Error
+          ? error.message
+          : "Citation preview unavailable.",
+      );
+      const button = this.citationStatus.createEl("button", {
+        text: "Change citation style",
+      });
+      button.addEventListener("click", () => {
+        void this.sources.changeCitationStyle();
+      });
+    }
+  }
   private renderRows(): void {
+    void this.renderCitationStatus();
     const active = this.container.doc.activeElement;
     const focus =
       active instanceof HTMLElement && this.list.contains(active)
@@ -94,9 +145,17 @@ export class SourcesPanel extends Component {
       ? "Unpin sources from this note"
       : "Pin sources to this note";
     const rows = this.sources.rows;
-    const problems = rows.filter((row) => row.issue).length;
+    for (const row of rows)
+      if (row.health?.reference && !row.health.problem)
+        this.recoveryErrors.delete(row.id);
+    const problems = rows.filter(sourceNeedsAttention).length;
     this.summary.textContent = `${rows.length} ${rows.length === 1 ? "source" : "sources"}${problems ? ` · ${problems} ${problems === 1 ? "needs" : "need"} attention` : ""}${this.sources.pinned ? " · Pinned" : ""}`;
     this.list.empty();
+    if (this.sources.referenceError)
+      this.list.createEl("p", {
+        cls: "stratum-sources-issue",
+        text: `Citation data could not be read: ${this.sources.referenceError} No reference files have been replaced.`,
+      });
     if (!file || this.sources.error || !rows.length) {
       this.list.createEl("p", {
         cls: "stratum-sources-empty",
@@ -144,6 +203,26 @@ export class SourcesPanel extends Component {
             element.focus({ preventScroll: true });
         });
   }
+  private async recover(row: SourceRow): Promise<void> {
+    if (!this.active || this.recovering.has(row.id)) return;
+    this.recovering.add(row.id);
+    this.recoveryErrors.delete(row.id);
+    this.renderRows();
+    try {
+      await this.sources.recoverSource(row);
+    } catch (error) {
+      if (this.active)
+        this.recoveryErrors.set(
+          row.id,
+          error instanceof Error
+            ? error.message
+            : "Could not fetch citation data. Check Zotero and retry.",
+        );
+    } finally {
+      this.recovering.delete(row.id);
+      if (this.active) this.renderRows();
+    }
+  }
   private renderRow(list: HTMLElement, row: SourceRow): void {
     const item = list.createEl("li");
     const entry = row.entry;
@@ -172,18 +251,21 @@ export class SourcesPanel extends Component {
         text: `@${key}`,
       });
     }
-    if (row.issue)
-      item.createEl("p", {
-        cls: "stratum-sources-issue",
-        text: {
-          unresolved:
-            "Citation key not found. Check the key or import its source.",
-          ambiguous:
-            "This key matches multiple sources or notes. Resolve the duplicate before opening it.",
-          "missing-note":
-            "Source recognized, but its literature note is missing. Sync its library to restore the note.",
-        }[row.issue],
-      });
+    renderSourceHealth(item, row, {
+      busy: this.recovering.has(row.id),
+      error: this.recoveryErrors.get(row.id),
+      repair: () => {
+        void this.sources.repairSource(row);
+      },
+      recover: () => {
+        void this.recover(row);
+      },
+      show: () => {
+        void this.sources.returnToDocument(
+          row.occurrences.find((o) => o.kind === "citation"),
+        );
+      },
+    });
     const citations = row.occurrences.filter(
       (o) => o.kind === "citation",
     ).length;

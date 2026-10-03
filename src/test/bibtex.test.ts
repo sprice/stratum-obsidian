@@ -137,6 +137,7 @@ test("simultaneous citations serialize bibliography creation and refresh never c
   const app = {
     vault: {
       getAbstractFileByPath: () => file,
+      read: () => Promise.resolve(contents),
       create: async (_path: string, value: string) => {
         await Promise.resolve();
         creates++;
@@ -211,6 +212,7 @@ test("bibliography writes return the actual stored key and respect cancellation 
   const app = {
     vault: {
       getAbstractFileByPath: () => file,
+      read: () => Promise.resolve(contents),
       process: async (_file: File, transform: (text: string) => string) => {
         await Promise.resolve();
         if (cancelBeforeWrite) active = false;
@@ -265,75 +267,50 @@ test("inline unmarked bibliography entries also block conflicting citation keys"
   );
 });
 
-test("citation command surfaces write failures and inserts only the stored bibliography key", async () => {
-  for (const fail of [false, true]) {
-    let choose: ((value: LiteratureNoteEntry) => void) | undefined;
-    let resolveDone: () => void = () => {};
-    const done = new Promise<void>((resolve) => {
-      resolveDone = resolve;
-    });
-    const notices: string[] = [];
-    const inserted: string[] = [];
-    class File {}
-    const file = new File();
-    const runtime = loadRuntime<typeof import("../plugin-note-actions")>(
-      "plugin-note-actions.ts",
-      {
-        TFile: File,
-        Modal: class {},
-        FuzzySuggestModal: class {
-          setPlaceholder() {}
-          open() {
-            choose = (
-              this as unknown as {
-                onChooseItem: (value: LiteratureNoteEntry) => void;
-              }
-            ).onChooseItem.bind(this);
-          }
-        },
-        Notice: class {
-          constructor(message: string) {
-            notices.push(message);
-            resolveDone();
-          }
-        },
+test("group bibliography writes are atomic and preserve established keys", async () => {
+  class File {}
+  const file = new File();
+  const runtime = loadRuntime<typeof import("../bibtex")>("bibtex.ts", {
+    TFile: File,
+  });
+  let content = updateManagedBibliography("", entry, true);
+  const app = {
+    vault: {
+      getAbstractFileByPath: () => file,
+      process: async (_file: File, transform: (text: string) => string) => {
+        content = transform(content);
+        await Promise.resolve();
       },
-      { Error },
-    );
-    let contents = updateManagedBibliography("", entry, true);
-    const editor = {
-      replaceSelection: (text: string) => {
-        inserted.push(text);
-        resolveDone();
-      },
-    };
-    const plugin = {
-      app: {
-        workspace: { activeEditor: { editor } },
-        metadataCache: {
-          getFileCache: () => ({
-            frontmatter: { stratum_note_type: "literature-note" },
-          }),
-        },
-        vault: {
-          getMarkdownFiles: () => [entry.file],
-          getAbstractFileByPath: () => file,
-          process: async (_file: File, transform: (text: string) => string) => {
-            await Promise.resolve();
-            if (fail) throw new Error("Disk is full");
-            contents = transform(contents);
-          },
-        },
-      },
-    };
-    runtime.insertPandocCitation(plugin as never, editor as never);
-    assert.ok(choose);
-    choose({ ...entry, citationKey: "NewKey" });
-    await done;
-    assert.deepEqual(inserted, fail ? [] : ["[@Linden2023]"]);
-    assert.equal(notices.length, fail ? 1 : 0);
-    if (fail) assert.match(notices[0], /Disk is full/);
-  }
+    },
+  };
+  assert.deepEqual(
+    Array.from(
+      await runtime.ensureBibEntries(
+        app as never,
+        [{ ...entry, citationKey: "NewKey" }],
+        () => true,
+      ),
+    ),
+    ["Linden2023"],
+  );
+  const before = content;
+  await assert.rejects(
+    runtime.ensureBibEntries(
+      app as never,
+      [
+        { ...entry, identity: "user/1/SECOND", citationKey: "second" },
+        { ...entry, identity: "user/1/THIRD" },
+      ],
+      () => true,
+    ),
+    /ownership|belongs/,
+  );
+  assert.equal(content, before);
+  await assert.rejects(
+    runtime.ensureBibEntries(app as never, [entry], () => false),
+    /changed/,
+  );
+  assert.equal(content, before);
 });
 
 test("citation keys cannot escape Pandoc citation delimiters", () => {
@@ -350,4 +327,33 @@ test("Pandoc insertion preserves punctuation-heavy bibliography keys", () => {
   assert.equal(formatPandocCitation("example."), "[@{example.}]");
   assert.equal(formatPandocCitation("-example"), "[@{-example}]");
   assert.throws(() => formatPandocCitation("invalid key"));
+});
+
+test("unchanged managed bibliography refresh avoids a vault write", async () => {
+  class File {}
+  const runtime = loadRuntime<typeof import("../bibtex")>("bibtex.ts", {
+    TFile: File,
+  });
+  const file = new File();
+  let content = updateManagedBibliography("", entry, true);
+  let writes = 0;
+  const app = {
+    vault: {
+      getAbstractFileByPath: () => file,
+      read: () => Promise.resolve(content),
+      process: async (_file: File, transform: (text: string) => string) => {
+        writes++;
+        content = transform(content);
+        await Promise.resolve();
+      },
+    },
+  };
+  await runtime.refreshManagedBibEntry(app as never, entry);
+  assert.equal(writes, 0);
+  await runtime.refreshManagedBibEntry(app as never, {
+    ...entry,
+    title: "Changed title",
+  });
+  assert.equal(writes, 1);
+  assert.match(content, /Changed title/);
 });

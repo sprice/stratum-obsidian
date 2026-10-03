@@ -142,14 +142,15 @@ test("identical supplied keys in different libraries are ambiguous", () => {
   assert.equal(rows[0].entry, undefined);
 });
 
-test("a historical key conflicting with a current key is not guessed", () => {
+test("established ownership survives a different source claiming its key", () => {
   const rows = collectDocumentSources(
     "[@example2024]",
     [entry()],
     [{ key: "example2024", identity: "group/2/EXAMPLE1" }],
     () => null,
   );
-  assert.equal(rows[0].issue, "ambiguous");
+  assert.equal(rows[0].id, "group/2/EXAMPLE1");
+  assert.equal(rows[0].issue, "missing-note");
 });
 
 test("missing notes and unknown keys have different states", () => {

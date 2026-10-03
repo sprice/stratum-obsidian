@@ -91,6 +91,18 @@ export async function createOrUpdateLiteratureNote(params: {
     const filenameStem =
       getStoredFilenameStem(frontmatter) ?? existingFile.basename;
 
+    const candidate = buildLiteratureNoteContent({
+      detail: params.detail,
+      stratumVersion: params.stratumVersion,
+      filenameStem,
+      existingContent,
+      parseYaml,
+      stringifyYaml,
+      htmlToMarkdown,
+      ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
+    });
+    if (candidate === existingContent)
+      return { created: false, changed: false, file, summary };
     let changed = false;
     await params.app.vault.process(file, (currentContent) => {
       assertActive();

@@ -32,6 +32,10 @@ function createMockPlugin(params?: {
   const enabledLibraries = params?.enabledLibraries ?? [personalLibrary];
   const settingsOverrides = params?.settings ?? {};
   const settings: StratumSettings = {
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+    citationStyles: {},
+    citationLocales: {},
     collectionCatalogs: {},
     notesFolder: "Notes/Literature Notes",
     filenameFormat: "readable",

@@ -1,0 +1,34 @@
+{
+  "assets": [
+    {
+      "name": "apa",
+      "url": "https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl",
+      "sha256": "3917def5fc951b104d64216c3373096042368b9704ba269ca83c14ebaba889fc"
+    },
+    {
+      "name": "ieee",
+      "url": "https://raw.githubusercontent.com/citation-style-language/styles/master/ieee.csl",
+      "sha256": "b4c7619fc16c45a31e4cc3271eab94ffe83192d3b4c7fc729470a3b459448de3"
+    },
+    {
+      "name": "en-US",
+      "url": "https://raw.githubusercontent.com/citation-style-language/locales/master/locales-en-US.xml",
+      "sha256": "ac864c7c21166b4390d82c31792cdc509400727fa0060b43d8aa17e07f9cb079"
+    },
+    {
+      "name": "en-GB",
+      "url": "https://raw.githubusercontent.com/citation-style-language/locales/master/locales-en-GB.xml",
+      "sha256": "e4a1fed9cec04b5fed5e9027b4055925cd4d8f7c9fe233eb0ceca6d4be3999f6"
+    },
+    {
+      "name": "fr-FR",
+      "url": "https://raw.githubusercontent.com/citation-style-language/locales/master/locales-fr-FR.xml",
+      "sha256": "bd6820660e6a4dab73bfd48df7348320708263b413c06fdd2e5445bcdf788bfb"
+    },
+    {
+      "name": "chicago-notes-bibliography",
+      "url": "https://www.zotero.org/styles/chicago-notes-bibliography",
+      "sha256": "0a2f19c3aa56f5ac04b442f2e9b97e611896756283dc5ed430ce77f09f4d7a06"
+    }
+  ]
+}

@@ -32,6 +32,7 @@ class View {
   }
 }
 class HostComponent {
+  register() {}
   registerEvent() {}
 }
 class Emitter {
@@ -312,4 +313,13 @@ test("Document context follows navigation and remains visible when pinned", asyn
   assert.equal(changes.at(-1), false);
   f.controller.document = null;
   assert.equal(f.controller.showDocumentLink, false);
+});
+
+test("Reading view uses saved content instead of its stale editor buffer", async () => {
+  const f = fixture();
+  await f.flush();
+  f.draftLeaf.view.mode = "preview";
+  f.vaultEvents.emit("modify", f.manuscript);
+  await f.flush();
+  assert.equal(f.controller.rows[0].keys[0], "saved2025");
 });
