@@ -19,14 +19,7 @@ Use synthetic examples in tests and shared artifacts.
   the path to a complete local log. Read that log selectively when needed;
   remove retained logs after debugging. Use `STRATUM_VERBOSE=1 pnpm --silent check`
   to stream all nested output. Individual tools also have `:verbose` scripts.
-- Keep development/watch commands interactive. Never suppress stdout from
-  commands that return data, or suppress errors with `|| true`.
-- Start with `rg`/`rg --files`, then read the relevant symbol or line range.
-  Avoid repeatedly dumping whole files or successful logs. Batch independent
-  reads and checks, and do not repeat checks unless changes or failures justify it.
-- Keep task handoffs concise: decisions, changed paths, completed validation,
-  remaining work. Do not paste prior logs. Load skills and external documentation
-  only when relevant; do not change a user's global tool configuration.
+- Development/watch and data-producing commands retain their output contracts.
 
 ## Compatibility and Obsidian APIs
 
