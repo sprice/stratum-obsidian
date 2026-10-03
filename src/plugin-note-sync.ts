@@ -1,4 +1,8 @@
 import { importAnnotationImages } from "./plugin-annotation-images";
+import {
+  findExistingLiteratureNote,
+  toIdentity,
+} from "./literature-note-helpers";
 import { saveReference } from "./citation-reference-store";
 import { assertSupportedZoteroItem } from "./zotero-item-support";
 import { parseYaml } from "obsidian";
@@ -194,6 +198,52 @@ export async function writeLiteratureNoteFromDetail(
   params: WriteLiteratureNoteFromDetailParams,
 ): Promise<LiteratureNoteWriteResult> {
   assertSupportedZoteroItem(params.detail);
+  const accountId = plugin.settings.accountId;
+  let writes = noteWrites.get(plugin);
+  if (!writes) {
+    writes = new Map();
+    noteWrites.set(plugin, writes);
+  }
+  const key = `${params.detail.library.type}/${params.detail.library.id}/${params.detail.item.key}`;
+  const previous = writes.get(key);
+  const operation = (async () => {
+    const earlier = await previous?.catch(() => null);
+    if (plugin.settings.accountId !== accountId)
+      throw new Error("Note sync was cancelled.");
+    const earlierFile =
+      earlier &&
+      plugin.app.vault.getAbstractFileByPath(earlier.file.path) === earlier.file
+        ? earlier.file
+        : null;
+    return writeLiteratureNoteFromDetailNow(plugin, {
+      ...params,
+      existingFile: params.existingFile ?? earlierFile,
+    });
+  })();
+  writes.set(key, operation);
+  try {
+    return await operation;
+  } finally {
+    if (writes.get(key) === operation) writes.delete(key);
+  }
+}
+
+// Keep an image's ownership write and its note update together. Otherwise a
+// second sync can mistake the first sync's new PNG for an unrelated collision.
+const noteWrites = new WeakMap<
+  StratumPlugin,
+  Map<string, Promise<LiteratureNoteWriteResult>>
+>();
+
+async function writeLiteratureNoteFromDetailNow(
+  plugin: StratumPlugin,
+  params: WriteLiteratureNoteFromDetailParams,
+): Promise<LiteratureNoteWriteResult> {
+  assertSupportedZoteroItem(params.detail);
+  const accountId = plugin.settings.accountId;
+  const canWrite = () =>
+    plugin.settings.accountId === accountId &&
+    canSyncLibrary(plugin, params.detail.library);
   // Hierarchy is optional browser metadata; its network latency must not hold
   // up writing a paper (or the rest of a bulk import).
   void ensureCollectionCatalog(plugin, params.detail);
@@ -208,10 +258,20 @@ export async function writeLiteratureNoteFromDetail(
     });
   }
 
+  if (!canWrite()) throw new Error("Note sync was cancelled.");
+  const existingFile =
+    params.existingFile ??
+    (params.detail.annotations.some((annotation) => annotation.type === "image")
+      ? findExistingLiteratureNote(
+          plugin.app,
+          toIdentity(params.detail),
+          plugin.settings.notesFolder,
+        )
+      : null);
   const imageDetail = await importAnnotationImages(
     plugin,
     params.detail,
-    params.existingFile,
+    existingFile,
   );
   const writeResult = await createOrUpdateLiteratureNote({
     stratumVersion: plugin.manifest.version,
@@ -219,14 +279,12 @@ export async function writeLiteratureNoteFromDetail(
     notesFolder: plugin.settings.notesFolder,
     filenameFormat: plugin.settings.filenameFormat,
     detail: imageDetail,
-    existingFile: params.existingFile,
-    canWrite: () => canSyncLibrary(plugin, params.detail.library),
+    existingFile,
+    canWrite,
     enrichment,
   });
   try {
-    await saveReference(plugin.app, params.detail, () =>
-      canSyncLibrary(plugin, params.detail.library),
-    );
+    await saveReference(plugin.app, params.detail, canWrite);
   } catch (error) {
     console.error(
       "stratum: citation cache could not be updated; literature note sync succeeded",
@@ -241,7 +299,7 @@ export async function writeLiteratureNoteFromDetail(
       await refreshManagedBibEntry(
         plugin.app,
         literatureNoteEntryFromFrontmatter(writeResult.file, frontmatter),
-        () => canSyncLibrary(plugin, params.detail.library),
+        canWrite,
       );
     } catch (error) {
       console.error(

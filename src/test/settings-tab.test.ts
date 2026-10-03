@@ -173,6 +173,7 @@ test("search indexing exposes settings without rendering controls or doing I/O",
   assert.ok(names.includes("Literature notes folder"));
   assert.ok(names.includes("Literature note filename format"));
   assert.ok(!names.includes("Bulk sync"));
+  assert.ok(!names.includes("Zotero data directory"));
   assert.equal(Row.rendered.length, 0);
 });
 
@@ -188,7 +189,9 @@ test("desktop-only and group settings reflect current connection state", () => {
   );
   assert.ok(names.includes("Research group"));
   assert.ok(names.includes("Bulk sync"));
-  assert.ok(!names.includes("Zotero data directory"));
+  // Area images need this path even when bulk sync is disabled.
+  assert.ok(names.includes("Zotero data directory"));
+  assert.ok(names.includes("Reset Zotero data directory"));
   plugin.settings.bulkSyncEnabled = true;
   names = Array.from(tab.getSettingDefinitions()).flatMap((s) =>
     Array.from(s.items, (item) => item.name),

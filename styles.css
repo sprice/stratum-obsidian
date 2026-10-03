@@ -573,7 +573,6 @@
 	display: none;
 }
 
-.metadata-property[data-property-key="stratum_citation_style"],
 .metadata-property[data-property-key="stratum_citation_language"],
 .metadata-property[data-property-key="stratum_version"],
 .metadata-property[data-property-key="zotero_status"],
@@ -696,7 +695,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   margin-inline-start: -2em;
 }
 
-.stratum-formatted-citation .stratum-citation-evidence {
+.stratum-formatted-citation .stratum-citation-evidence,
+.stratum-citation-notes .stratum-citation-evidence {
   display: inline-flex;
   padding: 0 0.2em;
   margin-inline-start: 0.15em;
@@ -708,6 +708,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   font-size: 0.8em;
 }
 .stratum-formatted-citation .stratum-citation-evidence:hover,
-.stratum-formatted-citation .stratum-citation-evidence:focus-visible {
+.stratum-formatted-citation .stratum-citation-evidence:focus-visible,
+.stratum-citation-notes .stratum-citation-evidence:hover,
+.stratum-citation-notes .stratum-citation-evidence:focus-visible {
   color: var(--interactive-accent);
 }

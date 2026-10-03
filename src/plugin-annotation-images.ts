@@ -6,13 +6,13 @@ import {
   BetterBibtexItemError,
 } from "./better-bibtex-images";
 import { readAnnotationPng } from "./annotation-image-file";
-import {
-  annotationImageName,
-  validAnnotationImagePath,
-} from "./annotation-image-paths";
+import { validAnnotationImagePath } from "./annotation-image-paths";
+import { annotationImageDestination } from "./annotation-image-destination";
 import { ensureFolder } from "./literature-note-files";
 import { splitFrontmatterContent } from "./literature-note-content";
 import { loadLocalZoteroLibraries } from "./zotero-local";
+import { withAnnotationImageTimeout } from "./annotation-image-timeout";
+import { getLiteratureNoteMatchPriority } from "./literature-note-matching";
 
 const states = new WeakMap<
   StratumPlugin,
@@ -65,19 +65,35 @@ export async function importAnnotationImages(
 ): Promise<ZoteroItemDetail> {
   const images = detail.annotations.filter((a) => a.type === "image");
   if (!images.length) return detail;
+  const { notesFolder, zoteroDataDir, zoteroLocalApiPort, accountId } =
+    plugin.settings;
   const state = stateFor(plugin);
-  const stored = existingFile
+  const frontmatter = existingFile
     ? splitFrontmatterContent(
         await plugin.app.vault.read(existingFile),
         parseYaml,
-      ).frontmatter.stratum_annotation_images
+      ).frontmatter
     : null;
+  if (
+    existingFile &&
+    getLiteratureNoteMatchPriority(frontmatter, {
+      libraryType: detail.library.type,
+      libraryId: detail.library.id,
+      itemKey: detail.item.key,
+    }) === null
+  )
+    throw new Error("The note no longer matches this Zotero item.");
+  const stored = frontmatter?.stratum_annotation_images;
   const owned =
     stored && typeof stored === "object" && !Array.isArray(stored)
       ? (stored as Record<string, unknown>)
       : {};
   const active = () =>
     !plugin.isUnloaded &&
+    plugin.settings.accountId === accountId &&
+    plugin.settings.notesFolder === notesFolder &&
+    plugin.settings.zoteroDataDir === zoteroDataDir &&
+    plugin.settings.zoteroLocalApiPort === zoteroLocalApiPort &&
     plugin.backend.hasSession() &&
     plugin.settings.enabledLibraries.some(
       (l) => l.type === detail.library.type && l.id === detail.library.id,
@@ -91,7 +107,9 @@ export async function importAnnotationImages(
     try {
       if (Date.now() - state.checkedAt > 60_000) {
         state.userId = (
-          await loadLocalZoteroLibraries({ port: state.port })
+          await withAnnotationImageTimeout(
+            loadLocalZoteroLibraries({ port: state.port }),
+          )
         ).userId;
         state.checkedAt = Date.now();
       }
@@ -118,34 +136,59 @@ export async function importAnnotationImages(
     const identity = `${detail.library.type}/${detail.library.id}/${detail.item.key}/${annotation.key}`;
     let imported = false;
     try {
+      const folder = normalizePath(notesFolder.trim()).replace(/\/+$/, "");
+      const destination = annotationImageDestination({
+        plugin,
+        detail,
+        key: annotation.key,
+        prior,
+        folder,
+      });
       const sourcePath = sources.get(annotation.key);
       if (sourcePath && Platform.isDesktopApp && active()) {
         const bytes = await readAnnotationPng({
-          dataDir: plugin.settings.zoteroDataDir,
+          dataDir: zoteroDataDir,
           sourcePath,
           libraryType: detail.library.type,
           libraryId: detail.library.id,
           key: annotation.key,
         });
-        const folder = normalizePath(
-          plugin.settings.notesFolder.trim(),
-        ).replace(/\/+$/, "");
-        const destination = `${folder ? `${folder}/` : ""}Attachments/${annotationImageName(detail, annotation.key)}`;
         if (!validAnnotationImagePath(detail, annotation.key, destination))
           throw new Error("Invalid attachment destination.");
         if (!active()) throw new Error("Image sync cancelled.");
         const current = plugin.app.vault.getAbstractFileByPath(destination);
         if (current instanceof TFile) {
-          const existing = new Uint8Array(
-            await plugin.app.vault.readBinary(current),
-          );
+          if (prior !== destination)
+            throw new Error("Attachment filename is already in use.");
           const next = new Uint8Array(bytes);
+          // Only read files as small as our bounded source image. A colliding
+          // user file can be arbitrarily large and must never exhaust memory.
+          const existing =
+            current.stat.size === next.length
+              ? new Uint8Array(await plugin.app.vault.readBinary(current))
+              : null;
           const same =
-            existing.length === next.length &&
+            existing?.length === next.length &&
             existing.every((byte, index) => byte === next[index]);
           if (!same) {
-            if (prior !== destination)
-              throw new Error("Attachment filename is already in use.");
+            // An async lookup/read must not retain permission from a note that
+            // has since changed its identity or relinquished image ownership.
+            if (!existingFile) throw new Error("Missing image ownership.");
+            const latest = splitFrontmatterContent(
+              await plugin.app.vault.read(existingFile),
+              parseYaml,
+            ).frontmatter;
+            const latestPaths = latest.stratum_annotation_images as
+              Record<string, unknown> | undefined;
+            if (
+              getLiteratureNoteMatchPriority(latest, {
+                libraryType: detail.library.type,
+                libraryId: detail.library.id,
+                itemKey: detail.item.key,
+              }) === null ||
+              latestPaths?.[annotation.key] !== destination
+            )
+              throw new Error("Image ownership changed during sync.");
             if (!active()) throw new Error("Image sync cancelled.");
             await plugin.app.vault.modifyBinary(current, bytes);
           }

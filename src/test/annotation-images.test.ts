@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import {
+  setTimeout as scheduleTimeout,
+  clearTimeout as cancelTimeout,
+} from "node:timers";
 import { join } from "node:path";
 import type * as Bbt from "../better-bibtex-images";
 import type * as Files from "../annotation-image-file";
@@ -145,10 +149,10 @@ test("BBT failures are recoverable and missing citekeys never send fallback gues
     0,
   );
 });
-test("stable image paths isolate libraries and reject traversal", () => {
+test("image paths validate the clipping key and reject traversal", () => {
   const detail = fixture();
   const name = annotationImageName(detail, "IMGD1234");
-  assert.equal(name, "stratum-user-1-ABCD1234-IMGD1234.png");
+  assert.equal(name, "example-study-area-imgd1234.png");
   assert.equal(
     validAnnotationImagePath(
       detail,
@@ -210,6 +214,7 @@ test("PNG reads are constrained to the expected cache file and reject symlinks a
 });
 
 class FakeFile {
+  stat = { size: 1 };
   constructor(public path: string) {}
 }
 function importer(
@@ -218,6 +223,12 @@ function importer(
     owned?: boolean;
     collision?: boolean;
     mobile?: boolean;
+    wrongIdentity?: boolean;
+    identityHangs?: boolean;
+    changeSettings?: boolean;
+    oversizedCollision?: boolean;
+    changeAccount?: boolean;
+    revokeOwnership?: boolean;
   } = {},
 ) {
   const files = new Map<string, FakeFile>();
@@ -225,18 +236,27 @@ function importer(
   const detail = fixture();
   const destination = `Literature Notes/Attachments/${annotationImageName(detail, "IMGD1234")}`;
   if (options.owned || options.collision) {
-    files.set(destination, new FakeFile(destination));
+    const file = new FakeFile(destination);
+    if (options.oversizedCollision) file.stat.size = 1024 * 1024 * 1024;
+    files.set(destination, file);
     bytes.set(destination, new Uint8Array([9]).buffer);
   }
-  const old = options.owned
-    ? { stratum_annotation_images: { IMGD1234: destination } }
+  const old: Record<string, unknown> = options.owned
+    ? {
+        zotero_item_identity: options.wrongIdentity
+          ? "user/1/OTHER123"
+          : "user/1/ABCD1234",
+        stratum_annotation_images: { IMGD1234: destination },
+      }
     : {};
   let requests = 0,
     folders = 0,
-    writes = 0;
+    writes = 0,
+    reads = 0;
   const plugin = {
     settings: {
       zoteroLocalApiPort: 23119,
+      accountId: "synthetic-account",
       zoteroDataDir: "/synthetic",
       notesFolder: "Literature Notes",
       enabledLibraries: [{ type: "user", id: "1" }],
@@ -248,14 +268,20 @@ function importer(
       vault: {
         read: async () => `---\n${JSON.stringify(old)}\n---\n`,
         getAbstractFileByPath: (p: string) => files.get(p),
-        readBinary: async (file: FakeFile) => bytes.get(file.path),
+        readBinary: async (file: FakeFile) => {
+          reads++;
+          return bytes.get(file.path);
+        },
         createBinary: async (p: string, data: ArrayBuffer) => {
           writes++;
-          files.set(p, new FakeFile(p));
+          const file = new FakeFile(p);
+          file.stat.size = data.byteLength;
+          files.set(p, file);
           bytes.set(p, data);
         },
         modifyBinary: async (file: FakeFile, data: ArrayBuffer) => {
           writes++;
+          file.stat.size = data.byteLength;
           bytes.set(file.path, data);
         },
       },
@@ -270,7 +296,12 @@ function importer(
       normalizePath: (value: string) => value,
       parseYaml: JSON.parse,
     },
-    {},
+    {
+      window: {
+        setTimeout: (callback: () => void) => scheduleTimeout(callback, 5),
+        clearTimeout: cancelTimeout,
+      },
+    },
     "node",
     {
       "./better-bibtex-images": {
@@ -278,11 +309,18 @@ function importer(
         loadBetterBibtexImagePaths: async () => {
           requests++;
           if (options.unavailable) throw new Error("Missing BBT");
+          if (options.changeSettings) plugin.settings.notesFolder = "Changed";
+          if (options.changeAccount)
+            plugin.settings.accountId = "another-account";
           return new Map([["IMGD1234", "/synthetic"]]);
         },
       },
       "./annotation-image-file": {
-        readAnnotationPng: async () => new Uint8Array([1, 2, 3]).buffer,
+        readAnnotationPng: async () => {
+          if (options.revokeOwnership)
+            old.zotero_item_identity = "user/1/OTHER123";
+          return new Uint8Array([1, 2, 3]).buffer;
+        },
       },
       "./literature-note-files": {
         ensureFolder: async () => {
@@ -290,7 +328,8 @@ function importer(
         },
       },
       "./zotero-local": {
-        loadLocalZoteroLibraries: async () => ({ userId: "1" }),
+        loadLocalZoteroLibraries: async () =>
+          options.identityHangs ? new Promise(() => {}) : { userId: "1" },
       },
     },
   );
@@ -298,7 +337,11 @@ function importer(
     detail,
     runtime,
     plugin: plugin as never,
-    existing: options.owned ? (new FakeFile("note.md") as never) : null,
+    existing: new FakeFile("note.md") as never,
+    rememberImage() {
+      old.zotero_item_identity = "user/1/ABCD1234";
+      old.stratum_annotation_images = { IMGD1234: destination };
+    },
     destination,
     get requests() {
       return requests;
@@ -308,6 +351,12 @@ function importer(
     },
     get writes() {
       return writes;
+    },
+    get reads() {
+      return reads;
+    },
+    get originalBytes() {
+      return bytes.get(destination);
     },
     removeImage() {
       files.delete(destination);
@@ -323,9 +372,113 @@ test("image import creates the folder lazily and repeated sync does not rewrite 
     null,
   );
   assert.equal(first.annotations[0].imagePath, f.destination);
-  await f.runtime.importAnnotationImages(f.plugin, f.detail, null);
+  f.rememberImage();
+  await f.runtime.importAnnotationImages(f.plugin, f.detail, f.existing);
   assert.equal(f.writes, 1);
   assert.equal(f.folders, 1);
+});
+
+test("a stalled local identity check falls back without blocking text sync", async () => {
+  const f = importer({ identityHangs: true });
+  const result = await f.runtime.importAnnotationImages(
+    f.plugin,
+    f.detail,
+    null,
+  );
+  assert.equal(result.annotations[0].imageMissing, true);
+  assert.equal(result.annotations[0].comment, "A sample table");
+  assert.equal(f.requests, 0);
+  assert.equal(f.writes, 0);
+});
+
+test("changed settings cancel image writes", async () => {
+  for (const options of [{ changeSettings: true }]) {
+    const f = importer(options);
+    const result = await f.runtime.importAnnotationImages(
+      f.plugin,
+      f.detail,
+      null,
+    );
+    assert.equal(result.annotations[0].imageMissing, true);
+    assert.equal(f.writes, 0);
+    assert.equal(f.reads, 0);
+  }
+});
+
+test("a stale note identity cannot authorize overwriting an image", async () => {
+  const f = importer({ owned: true, wrongIdentity: true });
+  await assert.rejects(
+    f.runtime.importAnnotationImages(f.plugin, f.detail, f.existing),
+    /no longer matches/,
+  );
+  assert.equal(f.requests, 0);
+  assert.equal(f.writes, 0);
+});
+
+test("an account switch cancels image writes even when the same library remains enabled", async () => {
+  const f = importer({ changeAccount: true });
+  const result = await f.runtime.importAnnotationImages(
+    f.plugin,
+    f.detail,
+    null,
+  );
+  assert.equal(result.annotations[0].imageMissing, true);
+  assert.equal(f.writes, 0);
+});
+
+test("ownership is checked again after reading the source PNG", async () => {
+  const f = importer({ owned: true, revokeOwnership: true });
+  await f.runtime.importAnnotationImages(f.plugin, f.detail, f.existing);
+  assert.equal(f.writes, 0);
+  assert.deepEqual(new Uint8Array(f.originalBytes!), new Uint8Array([9]));
+});
+
+test("short title slugs use the clipping key without account identifiers", () => {
+  const detail = fixture();
+  detail.item.title = "The significance of stellar motion.";
+  assert.equal(
+    annotationImageName(detail, "IMGD1234"),
+    "stellar-motion-area-imgd1234.png",
+  );
+  detail.item.title = "Étoiles: An introduction to Étude céleste";
+  assert.equal(
+    annotationImageName(detail, "IMGD1234"),
+    "etude-celeste-area-imgd1234.png",
+  );
+  detail.item.title = "!!!";
+  assert.equal(
+    annotationImageName(detail, "IMGD1234"),
+    "image-area-imgd1234.png",
+  );
+});
+
+test("unowned collision files stay untouched and receive a safe numbered alternative", async () => {
+  const f = importer({ collision: true, oversizedCollision: true });
+  const result = await f.runtime.importAnnotationImages(
+    f.plugin,
+    f.detail,
+    null,
+  );
+  assert.equal(
+    result.annotations[0].imagePath,
+    f.destination.replace(/\.png$/, "-2.png"),
+  );
+  assert.equal(f.reads, 0);
+  assert.equal(f.writes, 1);
+  assert.deepEqual(new Uint8Array(f.originalBytes!), new Uint8Array([9]));
+});
+
+test("assigned names survive title changes and recreation of a deleted image", async () => {
+  const f = importer({ owned: true });
+  f.detail.item.title = "A completely revised heading";
+  f.removeImage();
+  const result = await f.runtime.importAnnotationImages(
+    f.plugin,
+    f.detail,
+    f.existing,
+  );
+  assert.equal(result.annotations[0].imagePath, f.destination);
+  assert.equal(f.writes, 1);
 });
 test("missing BBT preserves old images, caches failure, and aggregates a single summary", async () => {
   const f = importer({ unavailable: true, owned: true });
@@ -344,8 +497,8 @@ test("missing BBT preserves old images, caches failure, and aggregates a single 
   assert.match(f.runtime.annotationImageSyncSummary(f.plugin), /1 area image/);
   assert.equal(f.runtime.annotationImageSyncSummary(f.plugin), "");
 });
-test("mobile and unrelated attachment collisions fall back without disk writes", async () => {
-  for (const options of [{ mobile: true }, { collision: true }]) {
+test("mobile falls back without disk writes", async () => {
+  for (const options of [{ mobile: true }]) {
     const f = importer(options);
     const result = await f.runtime.importAnnotationImages(
       f.plugin,

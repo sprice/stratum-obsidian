@@ -409,48 +409,46 @@ export class StratumSettingTab extends PluginSettingTab {
           });
       });
 
-      if (this.plugin.settings.bulkSyncEnabled) {
-        this.defineSetting(syncSection, "Zotero data directory", (setting) => {
-          setting
-            .setName("Zotero data directory")
-            .setDesc(
-              "Used for desktop live sync and reading area annotation images from Zotero’s cache.",
-            )
-            .addText((text) => {
-              text
-                .setPlaceholder(defaultZoteroDataDir)
-                .setValue(this.plugin.settings.zoteroDataDir);
+      this.defineSetting(syncSection, "Zotero data directory", (setting) => {
+        setting
+          .setName("Zotero data directory")
+          .setDesc(
+            "Used for desktop live sync and reading area annotation images from Zotero’s cache.",
+          )
+          .addText((text) => {
+            text
+              .setPlaceholder(defaultZoteroDataDir)
+              .setValue(this.plugin.settings.zoteroDataDir);
 
-              text.inputEl.setAttr("aria-label", "Zotero data directory");
-              text.inputEl.addEventListener("change", () => {
-                void (async () => {
-                  this.plugin.settings.zoteroDataDir =
-                    text.inputEl.value.trim() || defaultZoteroDataDir;
-                  await this.plugin.saveSettings();
-                  await this.plugin.reconcileLocalLiveSync();
-                  this.refresh();
-                })();
-              });
+            text.inputEl.setAttr("aria-label", "Zotero data directory");
+            text.inputEl.addEventListener("change", () => {
+              void (async () => {
+                this.plugin.settings.zoteroDataDir =
+                  text.inputEl.value.trim() || defaultZoteroDataDir;
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+                this.refresh();
+              })();
             });
-        });
+          });
+      });
 
-        this.defineSetting(
-          syncSection,
-          "Reset Zotero data directory",
-          (setting) => {
-            setting.addButton((button) =>
-              button
-                .setButtonText("Reset to default location")
-                .onClick(async () => {
-                  this.plugin.settings.zoteroDataDir = defaultZoteroDataDir;
-                  await this.plugin.saveSettings();
-                  await this.plugin.reconcileLocalLiveSync();
-                  this.refresh();
-                }),
-            );
-          },
-        );
-      }
+      this.defineSetting(
+        syncSection,
+        "Reset Zotero data directory",
+        (setting) => {
+          setting.addButton((button) =>
+            button
+              .setButtonText("Reset to default location")
+              .onClick(async () => {
+                this.plugin.settings.zoteroDataDir = defaultZoteroDataDir;
+                await this.plugin.saveSettings();
+                await this.plugin.reconcileLocalLiveSync();
+                this.refresh();
+              }),
+          );
+        },
+      );
     }
 
     const citations = this.createSection(sections, "Citations");
