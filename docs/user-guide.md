@@ -46,9 +46,21 @@ If Stratum cannot reach Zotero, check that the app is running and that its local
 
 ## Browse your literature notes
 
-Select **Browse literature notes** in the Stratum sidebar or run **Stratum: Browse papers by collection**. Search for a collection by name, library, or parent path. This browser opens notes you have already imported; it does not import sources or create collection pages.
+Select **Browse literature notes** in the Stratum sidebar or run **Stratum: Browse papers by collection**. The browser opens directly, returning to the existing view if it is already open. A new browser starts with all imported papers. This browser opens notes you have already imported; it does not import sources or create collection pages.
 
-Use the collection button to switch collections and the search field to filter by title, author, or year. Subcollections are included by default; collections with children offer an **Include subcollections** toggle. **All imported papers** and **Unfiled papers** are also available.
+Use the **Collection** menu at the top to switch collections and the search field to filter by title, author, or year. Subcollections are included by default; collections with children offer an **Include subcollections** toggle. **All imported papers** and **Unfiled papers** are also available.
+
+Choose **Table** in the layout menu to compare all imported papers or the selected
+collection in the main pane. **Columns** selects up to eight bibliographic or
+research properties alongside clickable source titles. Select a heading to sort;
+select it again to reverse the order. Missing values stay last, and sorting applies
+to the entire filtered collection before pagination. Choose **List** to return
+to the title list. The browser saves its layout, columns, and sorting independently
+of the Sources sidebar, including when switching collections or reopening Obsidian.
+
+Research columns read properties recorded in your literature notes, using the same
+options as the [Sources table](#compare-sources-in-a-table). Browsing and sorting
+leave your notes unchanged; no working note or Dataview installation is needed.
 
 Normal Obsidian link modifiers open notes in new tabs. The browser remembers the collection, query, and scroll position through workspace view state. Large results load in batches of 100.
 
@@ -189,6 +201,42 @@ Obsidian wikilinks, embeds, and Markdown links count when they resolve to a
 Stratum literature note. Ordinary links do not count. Embedded notes are not
 recursively scanned. The current note's footnote text is included; frontmatter,
 comments, and code are excluded. The Sources list is for navigation; style-based formatting appears in Reading view.
+
+### Compare sources in a table
+
+In **Sources**, choose **Table** from the layout menu. The table follows the
+current writing note's citations and literature-note links, just like the list.
+Pin Sources to keep comparing that note's sources while opening other notes.
+Your document stays unchanged, and Dataview is not required.
+
+Select **Columns** to choose up to eight properties alongside the source title.
+Authors, year, and type are shown initially. Publication and collections are
+also available. Select a column heading to sort; select it again to reverse
+the order. Sources with missing values stay at the end. The original sort menu
+returns to first appearance, author, or title order.
+
+Research columns such as method, findings, and limitations read properties you
+record in your literature notes. **Other properties** accepts comma-separated
+property names, including spaces and hyphens. For example, a literature note
+could have these user-owned properties:
+
+```yaml
+method: Interviews
+findings:
+  - Participants described different expectations across settings.
+limitations: A single setting; transfer to other contexts needs checking.
+research_status: Needs synthesis
+```
+
+Stratum preserves properties outside its managed set during sync. The table
+displays scalar and list values; empty values appear as a dash. It does not
+extract assessments from prose, read Dataview inline fields, or edit properties.
+Keep judgments specific to one essay in that essay's working notes.
+
+Source navigation, occurrence excerpts, and source-health actions remain in the
+first column, including unresolved citations. Scroll horizontally in a narrow
+sidebar to reach additional columns. Layout, columns, and column sorting are
+saved with the Obsidian workspace while the Stratum view remains in its layout.
 
 ### Source health and recovery
 

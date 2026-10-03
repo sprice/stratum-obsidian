@@ -43,6 +43,12 @@ export class SourcesController extends Component {
     super();
   }
 
+  properties(row: SourceRow): Record<string, unknown> | undefined {
+    return row.entry
+      ? this.plugin.app.metadataCache.getFileCache(row.entry.file)?.frontmatter
+      : undefined;
+  }
+
   async citationStatus(): Promise<string | null> {
     if (!this.document || !this.plugin.citations) return null;
     const document = this.document;

@@ -1,3 +1,4 @@
+import { readSourceTableState, type SourceTableState } from "./source-table";
 import type { CollectionCatalogs } from "./collection-catalog";
 import { collectionPath, collectionScope } from "./collection-catalog";
 
@@ -11,6 +12,7 @@ export interface CollectionPaper {
   year: string | null;
   keys: string[] | null;
   collectionNames: string[];
+  properties?: Record<string, unknown>;
 }
 export interface CollectionChoice {
   id: string;
@@ -19,24 +21,28 @@ export interface CollectionChoice {
   libraryIdentity?: string;
   key?: string;
 }
-export interface CollectionBrowserState {
+export interface CollectionBrowserState extends SourceTableState {
   collection: string;
   query: string;
   includeSubcollections: boolean;
   scrollTop: number;
+  scrollLeft: number;
   visibleCount: number;
 }
 export const DEFAULT_BROWSER_STATE: CollectionBrowserState = {
+  ...readSourceTableState(undefined),
   collection: "all",
   query: "",
   includeSubcollections: true,
   scrollTop: 0,
+  scrollLeft: 0,
   visibleCount: 100,
 };
 export function readBrowserState(raw: unknown): CollectionBrowserState {
   const value =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return {
+    ...readSourceTableState(value),
     collection: typeof value.collection === "string" ? value.collection : "all",
     query: typeof value.query === "string" ? value.query : "",
     includeSubcollections:
@@ -51,6 +57,10 @@ export function readBrowserState(raw: unknown): CollectionBrowserState {
     scrollTop:
       typeof value.scrollTop === "number" && Number.isFinite(value.scrollTop)
         ? Math.max(0, value.scrollTop)
+        : 0,
+    scrollLeft:
+      typeof value.scrollLeft === "number" && Number.isFinite(value.scrollLeft)
+        ? Math.max(0, value.scrollLeft)
         : 0,
   };
 }
@@ -92,7 +102,7 @@ export function buildCollectionChoices(
         choices.set(id, {
           id,
           name: paper.collectionNames[i] ?? key,
-          context: `${paper.libraryName} · hierarchy unavailable`,
+          context: `${paper.libraryName} › ${paper.collectionNames[i] ?? key} · hierarchy unavailable`,
           libraryIdentity: paper.libraryIdentity,
           key,
         });

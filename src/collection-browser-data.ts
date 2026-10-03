@@ -40,6 +40,7 @@ export function getCollectionPapers(plugin: StratumPlugin): CollectionPaper[] {
       continue;
     const names: unknown = fm.collections;
     papers.set(identity, {
+      properties: fm,
       path: entry.file.path,
       identity,
       libraryIdentity: `${type}:${id}`,

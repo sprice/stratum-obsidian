@@ -193,6 +193,7 @@ test("persisted state and offline catalogs validate data without losing stable i
       visibleCount: 100,
     }),
     {
+      ...DEFAULT_BROWSER_STATE,
       collection: "unfiled",
       query: "abc",
       includeSubcollections: false,

@@ -1,5 +1,6 @@
 import { hasWritingPosition, returnToWriting } from "./citation-evidence";
 import { SourcesPanel, type SourcesViewState } from "./view-sources";
+import { readSourceTableState } from "./source-table";
 import { browseCollections } from "./collection-browser";
 import {
   Component,
@@ -12,6 +13,7 @@ import {
   TFile,
   WorkspaceLeaf,
   type EventRef,
+  type ViewStateResult,
   parseLinktext,
 } from "obsidian";
 import { PLUGIN_NAME, VIEW_TYPE_STRATUM } from "./constants";
@@ -100,10 +102,12 @@ export class StratumView extends ItemView {
   plugin: StratumPlugin;
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
+    ...readSourceTableState(undefined),
     query: "",
     sort: "appearance",
     expanded: new Set(),
     scroll: 0,
+    scrollLeft: 0,
   };
   private paperSuggest: LibraryPaperInputSuggest | null = null;
   private readerSuggest: ReaderLiteratureNoteInputSuggest | null = null;
@@ -139,6 +143,25 @@ export class StratumView extends ItemView {
 
   getIcon(): string {
     return "book-open-text";
+  }
+
+  getState(): Record<string, unknown> {
+    const { layout, columns, columnSort, descending } = this.sourcesState;
+    return {
+      sourcesTable: { layout, columns: [...columns], columnSort, descending },
+    };
+  }
+
+  async setState(state: unknown, result: ViewStateResult): Promise<void> {
+    const saved =
+      state && typeof state === "object"
+        ? (state as Record<string, unknown>).sourcesTable
+        : undefined;
+    if (saved !== undefined) {
+      Object.assign(this.sourcesState, readSourceTableState(saved));
+    }
+    await super.setState(state, result);
+    this.render();
   }
 
   onOpen(): Promise<void> {
@@ -429,7 +452,13 @@ export class StratumView extends ItemView {
         this.renderSyncTab(panel);
       } else if (tab.id === "sources") {
         this.sourcesPanel = this.addChild(
-          new SourcesPanel(panel, this.plugin.sources, this.sourcesState),
+          new SourcesPanel(
+            panel,
+            this.plugin.sources,
+            this.sourcesState,
+            this.app,
+            () => this.app.workspace.requestSaveLayout(),
+          ),
         );
       } else {
         this.renderReaderTab(panel);
