@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { SourceRow } from "../document-sources";
 import {
+  compareSourceValues,
   readSourceColumns,
   readSourceTableState,
   sourceColumnLabel,
@@ -181,4 +182,25 @@ test("numeric sorting includes scientific notation and fractional numeric string
     ),
     ["C", "B", "A", "D"],
   );
+});
+
+test("mixed numeric and text properties sort consistently regardless of row order", () => {
+  const permutations = [
+    ["0.5", "1 item", "1e-7"],
+    ["0.5", "1e-7", "1 item"],
+    ["1 item", "0.5", "1e-7"],
+    ["1 item", "1e-7", "0.5"],
+    ["1e-7", "0.5", "1 item"],
+    ["1e-7", "1 item", "0.5"],
+  ];
+  for (const values of permutations) {
+    assert.deepEqual(
+      [...values].sort((a, b) => compareSourceValues(a, b, false)),
+      ["1e-7", "0.5", "1 item"],
+    );
+    assert.deepEqual(
+      [...values].sort((a, b) => compareSourceValues(a, b, true)),
+      ["1 item", "0.5", "1e-7"],
+    );
+  }
 });

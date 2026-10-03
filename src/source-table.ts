@@ -125,11 +125,14 @@ export function compareSourceValues(
 ): number {
   if (!left || !right) return !left && !right ? 0 : !left ? 1 : -1;
   const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+  const leftNumeric = numeric.test(left) && Number.isFinite(Number(left));
+  const rightNumeric = numeric.test(right) && Number.isFinite(Number(right));
+  // Keep numbers and text in separate groups so mixed columns have a
+  // transitive ordering, including when numbers use scientific notation.
+  if (leftNumeric !== rightNumeric)
+    return (leftNumeric ? -1 : 1) * (descending ? -1 : 1);
   const comparison =
-    numeric.test(left) &&
-    numeric.test(right) &&
-    Number.isFinite(Number(left)) &&
-    Number.isFinite(Number(right))
+    leftNumeric && rightNumeric
       ? Number(left) - Number(right)
       : left.localeCompare(right, undefined, {
           numeric: true,
