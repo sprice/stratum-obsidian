@@ -46,9 +46,9 @@ If Stratum cannot reach Zotero, check that the app is running and that its local
 
 ## Browse your literature notes
 
-Select **Browse literature notes** in the Stratum sidebar or run **Stratum: Browse papers by collection**. Search for a collection by name, library, or parent path. This browser opens notes you have already imported; it does not import sources or create collection pages.
+Select **Browse literature notes** in the Stratum sidebar or run **Stratum: Browse papers by collection**. The browser opens directly, returning to the existing view if it is already open. A new browser starts with all imported papers. This browser opens notes you have already imported; it does not import sources or create collection pages.
 
-Use the collection button to switch collections and the search field to filter by title, author, or year. Subcollections are included by default; collections with children offer an **Include subcollections** toggle. **All imported papers** and **Unfiled papers** are also available.
+Use the **Collection** menu at the top to switch collections and the search field to filter by title, author, or year. Subcollections are included by default; collections with children offer an **Include subcollections** toggle. **All imported papers** and **Unfiled papers** are also available.
 
 Choose **Table** in the layout menu to compare all imported papers or the selected
 collection in the main pane. **Columns** selects up to eight bibliographic or

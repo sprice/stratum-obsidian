@@ -19,35 +19,25 @@ import {
   type CollectionBrowserState,
   type CollectionPaper,
 } from "./collection-browser-model";
-import { CollectionPicker } from "./collection-picker";
 import { onCollectionCatalogChange } from "./collection-catalog-store";
 
 export const COLLECTION_BROWSER_VIEW = "stratum-collection-browser";
 
 export function browseCollections(plugin: StratumPlugin): void {
-  const choices = buildCollectionChoices(
-    getCollectionPapers(plugin),
-    plugin.settings.collectionCatalogs,
-  );
-  new CollectionPicker(plugin.app, choices, (choice) => {
-    void (async () => {
-      const leaf =
-        plugin.app.workspace.getLeavesOfType(COLLECTION_BROWSER_VIEW)[0] ??
-        plugin.app.workspace.getLeaf("tab");
+  void (async () => {
+    const existing = plugin.app.workspace.getLeavesOfType(
+      COLLECTION_BROWSER_VIEW,
+    )[0];
+    const leaf = existing ?? plugin.app.workspace.getLeaf("tab");
+    if (!existing) {
       await leaf.setViewState({
         type: COLLECTION_BROWSER_VIEW,
-        state: {
-          ...leaf.getViewState().state,
-          collection: choice.id,
-          query: "",
-          scrollTop: 0,
-          visibleCount: 100,
-        },
+        state: { ...readBrowserState(DEFAULT_BROWSER_STATE) },
         active: true,
       });
-      await plugin.app.workspace.revealLeaf(leaf);
-    })();
-  }).open();
+    }
+    await plugin.app.workspace.revealLeaf(leaf);
+  })();
 }
 
 export class CollectionBrowserView extends ItemView {
@@ -129,31 +119,43 @@ export class CollectionBrowserView extends ItemView {
     const header = this.contentEl.createDiv({
       cls: "stratum-collection-header",
     });
-    const switcher = header.createEl("button", {
-      text: `${choice?.name ?? "Collection unavailable"} ▾`,
+    const collectionLabel = header.createEl("label", {
+      text: "Collection",
+      cls: "stratum-collection-select",
+    });
+    const switcher = collectionLabel.createEl("select", {
       attr: { "aria-label": "Choose collection" },
     });
-    switcher.addEventListener("click", () =>
-      new CollectionPicker(
-        this.app,
-        buildCollectionChoices(
-          getCollectionPapers(this.plugin),
-          this.plugin.settings.collectionCatalogs,
-        ),
-        (next) => {
-          this.state = {
-            ...this.state,
-            collection: next.id,
-            query: "",
-            scrollTop: 0,
-            visibleCount: 100,
-          };
-          this.saveState();
-          this.render();
-          this.contentEl.querySelector<HTMLButtonElement>("button")?.focus();
-        },
-      ).open(),
-    );
+    if (!choice) {
+      const unavailable = switcher.createEl("option", {
+        value: this.state.collection,
+        text: "Collection unavailable",
+      });
+      unavailable.disabled = true;
+    }
+    for (const option of choices) {
+      switcher.createEl("option", {
+        value: option.id,
+        text: option.key ? `${option.name} — ${option.context}` : option.name,
+      });
+    }
+    switcher.value = this.state.collection;
+    switcher.addEventListener("change", () => {
+      this.state = {
+        ...this.state,
+        collection: switcher.value,
+        query: "",
+        scrollTop: 0,
+        visibleCount: 100,
+      };
+      this.saveState();
+      this.render();
+      this.contentEl
+        .querySelector<HTMLSelectElement>(
+          'select[aria-label="Choose collection"]',
+        )
+        ?.focus();
+    });
     header.createDiv({
       cls: "stratum-collection-context",
       text: choice?.context ?? "Choose another collection to continue.",
