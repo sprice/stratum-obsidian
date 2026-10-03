@@ -38,7 +38,7 @@ Examples (synthetic):
 without creating a formal citation. The composer currently searches imported
 notes; direct citation of unsynced Zotero items is not included.
 
-The composer previews portable Pandoc Markdown. The document views format those
+The composer previews portable Pandoc Markdown. Reading view formats those
 citations using your selected style. Stratum does not modify Zotero data.
 
 ## Citation styles and previews
@@ -55,15 +55,26 @@ in Sources, creates an explicit override. **Use default style** removes it.
 Overrides use `stratum_citation_style` and `stratum_citation_language` frontmatter.
 Changing styles never rewrites citation keys, locators, or manuscript prose.
 
-Live Preview and Reading view format supported Pandoc citations using the whole
-paper's citation order. Put the cursor inside a citation to edit its Markdown,
-or select a formatted citation in Live Preview and choose **Edit citation**.
-Source mode always shows the underlying Markdown.
+Live Preview always shows stable citation keys, locators, and affixes in the theme's
+link color, independent of the publication style. Select a citation to edit its
+Markdown directly, or click it and choose **Edit citation**. It needs no downloaded
+style or cached source data to display these authoring labels. Ordinary explanatory
+footnotes retain Obsidian's native editing behavior.
 
-Run **Insert bibliography** to add a heading and `<div id="refs"></div>` at the
-cursor. Keep this marker on its own line. Its preview contains only formally
-cited sources and updates as citations change; literature-note links do not add
-references. The formatted text is a view, not content written into the note.
+Reading view formats supported Pandoc citations using the whole paper's citation
+order and the selected style. Source mode shows unmodified Markdown. Generated
+citation notes and reference lists appear only in Reading view.
+
+Reading view automatically adds a reference list after the paper when the selected
+style supplies one. It includes only formally cited sources and updates with the
+style and citation order. No heading, marker, or formatted references are written
+to the Markdown. In-text styles use the heading **References**; note-based styles
+use **Bibliography**, after their generated Notes section.
+
+An existing `<div id="refs"></div>` marker still controls explicit placement and
+suppresses the automatic list. **Insert bibliography** remains available for this
+optional placement, but formatting stays in Reading view. Live Preview does not generate a reference
+list or citation notes.
 
 Note-based styles generate a numbered Notes section. Ordinary `[^note]`
 explanatory footnotes share its sequence and may contain citations. Their

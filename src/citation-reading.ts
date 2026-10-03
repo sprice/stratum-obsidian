@@ -10,6 +10,7 @@ import {
   citationScope,
   noteId,
 } from "./citation-display";
+import { citationFooter } from "./citation-footer";
 import { renderCsl, renderDocumentNotes } from "./citation-render";
 /** Reading view can render blocks out of order. All blocks use a full-document result. */
 export function registerCitationReading(service: CitationService): void {
@@ -141,14 +142,8 @@ class ReadingCitations extends MarkdownRenderChild {
           footnotes.hidden = wasHidden;
         });
       }
-      const body = text.split("");
-      for (const note of result.model.notes)
-        for (let i = note.from; i < note.to; i++)
-          if (body[i] !== "\n") body[i] = " ";
-      const contentLines = body.join("").split("\n");
-      let finalLine = contentLines.length - 1;
-      while (finalLine > 0 && !contentLines[finalLine].trim()) finalLine--;
-      if (info.lineStart <= finalLine && info.lineEnd >= finalLine) {
+      const footer = citationFooter(text, result);
+      if (info.lineStart <= footer.line && info.lineEnd >= footer.line) {
         const output = (footnotes?.parentElement ?? this.containerEl).createDiv(
           {
             cls: "stratum-reference-output",
@@ -166,6 +161,11 @@ class ReadingCitations extends MarkdownRenderChild {
           owner,
           scope,
         );
+        if (generation !== this.generation || !this.active) return;
+        if (footer.bibliography) {
+          output.createEl("h2", { text: footer.heading });
+          renderCsl(output, footer.bibliography);
+        }
       }
     } catch (error) {
       if (generation !== this.generation) return;

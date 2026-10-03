@@ -1,3 +1,4 @@
+import { citationFooter } from "../citation-footer";
 import assert from "node:assert/strict";
 import test from "node:test";
 import assets from "../csl/assets.json";
@@ -251,4 +252,56 @@ test("structured references retain non-article types, editors, and corporate nam
   assert.match(result.bibliography, /Example Research Institute/);
   assert.match(result.bibliography, /Example v\. Sample/);
   assert.match(result.bibliography, /2021/);
+});
+
+test("Reading footer follows the selected style without a source marker", () => {
+  const source = "A claim [@smith2024]. Another [@jones2023].";
+  for (const style of ["apa", "ieee", "chicago-notes-bibliography"]) {
+    const result = format(source, style);
+    const footer = citationFooter(source, result);
+    assert.equal(footer.line, 0);
+    assert.equal(footer.bibliography, result.bibliography);
+    assert.match(footer.bibliography, /Example research/i);
+    assert.equal(
+      footer.heading,
+      result.noteStyle ? "Bibliography" : "References",
+    );
+  }
+  assert.equal(source, "A claim [@smith2024]. Another [@jones2023].");
+});
+
+test("automatic references respect explicit placement and absent bibliographies", () => {
+  const source = 'A claim [@smith2024].\n\n<div id="refs"></div>';
+  assert.equal(citationFooter(source, format(source)).bibliography, "");
+  assert.equal(
+    citationFooter("Just prose.", format("Just prose.")).bibliography,
+    "",
+  );
+  const notesOnly = styles["chicago-notes-bibliography"].replace(
+    /<bibliography\b[\s\S]*?<\/bibliography>/,
+    "",
+  );
+  const result = formatCitationDocument(
+    "A claim [@smith2024].",
+    notesOnly,
+    "en-US",
+    styles,
+    references,
+  );
+  assert.equal(
+    citationFooter("A claim [@smith2024].", result).bibliography,
+    "",
+  );
+  assert.equal(result.model.citations[0].generatedNote, true);
+});
+
+test("Reading footer ignores trailing definitions and comments but follows code blocks", () => {
+  const source =
+    "A claim [@smith2024]. A note[^one].\n\n[^one]: Explanation.\n\n[link]: https://example.test\n\n<!-- hidden -->\n\n%% private comment %%\n";
+  assert.equal(citationFooter(source, format(source)).line, 0);
+  const code = source + "\n```text\nA final example\n```\n";
+  assert.equal(
+    citationFooter(code, format(code)).line,
+    code.trimEnd().split("\n").length - 1,
+  );
 });

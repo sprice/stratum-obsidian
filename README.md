@@ -20,7 +20,7 @@ Stratum works two ways. When the Zotero app is open on your desktop, Stratum can
 - Rewrite only Stratum's managed section and preserve everything below the `[!stratum]` boundary callout.
 - Mark notes as deleted if the source item disappears from Zotero instead of deleting the file from your vault.
 - Insert and edit grouped Pandoc citations, with citekeys, locators, and inline suggestions.
-- Choose CSL styles for Live Preview, Reading view, bibliography, and citation notes. See [Writing with citations](docs/citation-writing.md).
+- Write with stable, theme-colored citekeys in Live Preview; choose CSL styles for Reading view, automatic references, and citation notes. See [Writing with citations](docs/citation-writing.md).
 - Retain reference data locally in `stratum.bib` and `stratum-references.json`.
 - Enrich notes with citation counts, impact metrics, open access links, topics, keywords, funder data, and more via OpenAlex.
 
