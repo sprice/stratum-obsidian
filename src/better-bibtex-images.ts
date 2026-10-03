@@ -1,5 +1,6 @@
 import { Platform } from "obsidian";
 import type { ZoteroItemDetail } from "./backend-types";
+import type { AnnotationHttp } from "./annotation-node-api";
 
 export class BetterBibtexItemError extends Error {}
 
@@ -22,8 +23,8 @@ export async function requestBetterBibtex(
   )
     throw new Error("Invalid Better BibTeX endpoint.");
   if (Platform.isDesktop) {
-    const { request } = await import("node:http");
-    const { Buffer } = await import("node:buffer");
+    const { request } =
+      (await import("node:http")) as unknown as AnnotationHttp;
     return new Promise((resolve, reject) => {
       const req = request(
         url,
@@ -31,7 +32,13 @@ export async function requestBetterBibtex(
         (response) => {
           const chunks: Uint8Array[] = [];
           let size = 0;
-          response.on("data", (chunk: Uint8Array) => {
+          response.on("data", (chunk: unknown) => {
+            if (!(chunk instanceof Uint8Array)) {
+              req.destroy(
+                new Error("Unexpected Better BibTeX response chunk."),
+              );
+              return;
+            }
             size += chunk.byteLength;
             if (size > MAX_RESPONSE_BYTES) {
               req.destroy(new Error("Better BibTeX response is too large."));
@@ -44,9 +51,13 @@ export async function requestBetterBibtex(
             try {
               if (response.statusCode !== 200)
                 throw new Error("Better BibTeX is unavailable.");
-              resolve(
-                JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown,
-              );
+              const bytes = new Uint8Array(size);
+              let offset = 0;
+              for (const chunk of chunks) {
+                bytes.set(chunk, offset);
+                offset += chunk.byteLength;
+              }
+              resolve(JSON.parse(new TextDecoder().decode(bytes)) as unknown);
             } catch {
               reject(new Error("Better BibTeX is unavailable."));
             }

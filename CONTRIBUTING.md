@@ -21,9 +21,15 @@ Edit TypeScript in `src/` and styles in `styles.css`. `pnpm dev` rebuilds
 Tests live in `src/test/`.
 
 Run `pnpm check` before opening a focused pull request. It checks formatting,
-Obsidian lint, tests, types, and the production build. Run `pnpm format` to fix
-source formatting. Test the affected workflow in Obsidian and describe your
-changes and validation in the PR.
+Obsidian lint, scorecard type compatibility, tests, types, and the production
+build. Run `pnpm format` to fix source formatting. Test the affected workflow in
+Obsidian and describe your changes and validation in the PR.
+
+`pnpm lint:scorecard` also checks production source without ambient Node type
+definitions, catching unsafe types that local lint can miss. Both Node CI jobs
+run it, and releases require those jobs to pass. This approximates one scanner
+limitation; it does not predict the full scorecard. Capability notices such as
+filesystem access still require reviewing the feature's behavior and disclosures.
 
 Preserve existing note links and user-written content. Use synthetic examples;
 never commit personal vault data, credentials, or generated build files.

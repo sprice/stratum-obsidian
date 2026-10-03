@@ -22,7 +22,78 @@ import { loadRuntime } from "./runtime-harness";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as buffer from "node:buffer";
+import * as http from "node:http";
+import { EventEmitter } from "node:events";
+import type {
+  AnnotationFileSystem,
+  AnnotationPath,
+  AnnotationHttp,
+} from "../annotation-node-api";
 import type { ZoteroItemDetail } from "../backend-types";
+
+// Compile against real Node declarations so the independent contracts cannot drift.
+const desktopApis: {
+  fs: AnnotationFileSystem;
+  path: AnnotationPath;
+  http: AnnotationHttp;
+} = { fs, path, http };
+
+test("desktop host contracts match Node and decode split UTF-8 HTTP chunks", async () => {
+  assert.equal(desktopApis.fs, fs);
+  assert.equal(desktopApis.path, path);
+  assert.equal(desktopApis.http, http);
+  const bytes = new TextEncoder().encode(JSON.stringify({ title: "Étoiles" }));
+  let cleared = false;
+  const runtime = loadRuntime<typeof Bbt>(
+    "better-bibtex-images.ts",
+    { Platform: { isDesktop: true } },
+    {
+      Uint8Array,
+      TextDecoder,
+      window: {
+        setTimeout: () => 1,
+        clearTimeout: () => {
+          cleared = true;
+        },
+      },
+    },
+    "node",
+    {
+      "node:http": {
+        request: (
+          _url: string,
+          _options: unknown,
+          respond: (response: unknown) => void,
+        ) => {
+          const request = Object.assign(new EventEmitter(), {
+            destroy: () => {},
+            setTimeout: () => {},
+            end: () => {
+              queueMicrotask(() => {
+                const response = Object.assign(new EventEmitter(), {
+                  statusCode: 200,
+                });
+                respond(response);
+                // Split inside the multibyte accented character.
+                response.emit("data", bytes.subarray(0, 11));
+                response.emit("data", bytes.subarray(11));
+                response.emit("end");
+                request.emit("close");
+              });
+            },
+          });
+          return request;
+        },
+      },
+    },
+  );
+  const result = await runtime.requestBetterBibtex(
+    "http://127.0.0.1:23119/better-bibtex/json-rpc",
+    "{}",
+  );
+  assert.equal((result as { title: string }).title, "Étoiles");
+  assert.equal(cleared, true);
+});
 
 function fixture(): ZoteroItemDetail {
   return normalizeZoteroItemDetail({
