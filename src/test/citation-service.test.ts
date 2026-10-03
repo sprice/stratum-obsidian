@@ -110,3 +110,75 @@ test("renaming reference files away invalidates previously cached citations", ()
   assert.equal(invalidations, 2);
   service.onunload();
 });
+
+test("formatting and diagnostics share cached ownership even without literature notes", async () => {
+  const { CitationService } = loadRuntime<typeof Service>(
+    "citation-service.ts",
+    {
+      Component: class {},
+      TFile: File,
+      MarkdownView: View,
+      FuzzySuggestModal: class {},
+    },
+    { document: { createElement: () => ({}) } },
+    "browser",
+  );
+  let title = "Synthetic reference";
+  const service = new CitationService({
+    isUnloaded: false,
+    settings: {
+      citationStyle: "ieee",
+      citationLanguage: "en-US",
+      citationStyles: {},
+      citationLocales: {},
+    },
+    app: {
+      metadataCache: { getFileCache: () => ({}) },
+      vault: {
+        getMarkdownFiles: () => [],
+        getAbstractFileByPath: (path: string) => new File(path),
+        read: (file: File) =>
+          Promise.resolve(
+            file.path === "stratum.bib"
+              ? "% stratum:begin user%2F1%2FA oldKey baseline\n@book{oldKey,\n title={Synthetic reference}\n}\n% stratum:end"
+              : JSON.stringify({
+                  version: 1,
+                  items: [
+                    {
+                      id: "user/1/A",
+                      type: "book",
+                      title,
+                      author: [{ family: "Example" }],
+                    },
+                  ],
+                }),
+          ),
+      },
+    },
+  } as never);
+  const [health] = await service.diagnose(["oldKey"]);
+  assert.equal(health.problem, undefined);
+  assert.equal(health.notes.length, 0);
+  const output = await service.format(
+    "A claim [@oldKey].",
+    "Papers/Example.md",
+  );
+  assert.equal(output.citations[0], "[1]");
+  assert.match(output.bibliography, /Synthetic reference/);
+  const unused = await service.format(
+    "A claim [@oldKey].\n\n[^unused]: [@unknown]",
+    "Papers/Example.md",
+  );
+  assert.equal(unused.citations.length, 1);
+  title = "Updated reference";
+  service.invalidate();
+  const updated = await service.format(
+    "A claim [@oldKey].",
+    "Papers/Example.md",
+  );
+  assert.match(updated.bibliography, /Updated reference/);
+  await assert.rejects(
+    service.format("[@unknown]", "Papers/Example.md"),
+    /Citation key not found/,
+  );
+});

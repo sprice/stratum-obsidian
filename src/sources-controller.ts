@@ -1,3 +1,4 @@
+import { fetchCitationData } from "./citation-refresh";
 import {
   Component,
   MarkdownView,
@@ -18,13 +19,17 @@ import {
   type BibliographyBinding,
 } from "./document-sources";
 import { shouldFollowSourceDocument } from "./sources-context";
-import type { SourceOccurrence } from "./source-occurrences";
+import {
+  parseSourceOccurrences,
+  type SourceOccurrence,
+} from "./source-occurrences";
 
 export class SourcesController extends Component {
   document: TFile | null = null;
   pinned = false;
   rows: SourceRow[] = [];
   error: string | null = null;
+  referenceError: string | null = null;
   private leaf: WorkspaceLeaf | null = null;
   private text = "";
   private timer: number | null = null;
@@ -44,7 +49,15 @@ export class SourcesController extends Component {
     const text = this.text;
     const { styleTitle } = await import("./citation-styles");
     const { style } = this.plugin.citations.preferences(document.path, text);
-    await this.plugin.citations.format(text, document.path);
+    const keys = parseSourceOccurrences(text)
+      .filter((o) => o.kind === "citation")
+      .map((o) => o.target);
+    if (keys.length) {
+      const health = await this.plugin.citations.diagnose(keys);
+      // Source-level problems belong beside their source, not in place of the style.
+      if (!health.some((source) => source.problem))
+        await this.plugin.citations.format(text, document.path);
+    }
     return styleTitle(this.plugin, style);
   }
   async changeCitationStyle(): Promise<void> {
@@ -57,7 +70,23 @@ export class SourcesController extends Component {
   subscribeCitationChanges(callback: () => void): () => void {
     return this.plugin.citations?.subscribe(callback) ?? (() => {});
   }
+  async recoverSource(row: SourceRow): Promise<void> {
+    const key = row.keys[0];
+    if (!key || !row.health?.identity)
+      throw new Error("This source needs its identity resolved first.");
+    const [current] = await this.plugin.citations.diagnose([key]);
+    if (
+      current.identity !== row.health.identity ||
+      current.problem === "conflicting-key"
+    )
+      throw new Error(
+        "Source ownership changed. Review the updated Sources list before retrying.",
+      );
+    await fetchCitationData(this.plugin, current.identity);
+    this.schedule();
+  }
   onload(): void {
+    this.register(this.subscribeCitationChanges(() => this.schedule()));
     this.registerEvent(
       this.plugin.app.workspace.on("active-leaf-change", (leaf) =>
         this.follow(leaf),
@@ -187,6 +216,7 @@ export class SourcesController extends Component {
     if (this.document !== file) {
       this.rows = [];
       this.error = null;
+      this.referenceError = null;
     }
     this.document = file;
     this.leaf = leaf;
@@ -265,7 +295,7 @@ export class SourcesController extends Component {
       this.bindings = bindings;
       const entries = this.entries ?? buildLiteratureNoteEntries(this.plugin);
       this.entries = entries;
-      this.rows = collectDocumentSources(
+      const rows = collectDocumentSources(
         text,
         entries,
         bindings,
@@ -285,6 +315,28 @@ export class SourcesController extends Component {
           );
         },
       );
+      let referenceError: string | null = null;
+      try {
+        const cited = rows.filter((row) =>
+          row.occurrences.some((o) => o.kind === "citation"),
+        );
+        if (cited.length) {
+          const health = await this.plugin.citations.diagnose(
+            cited.map((row) => row.keys[0]),
+          );
+          cited.forEach((row, i) => {
+            row.health = health[i];
+          });
+        }
+      } catch (error) {
+        referenceError =
+          error instanceof Error
+            ? error.message
+            : "Could not read citation data.";
+      }
+      if (revision !== this.revision) return;
+      this.rows = rows;
+      this.referenceError = referenceError;
       this.text = text;
       this.error = null;
       this.emit();

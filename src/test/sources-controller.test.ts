@@ -32,6 +32,7 @@ class View {
   }
 }
 class HostComponent {
+  register() {}
   registerEvent() {}
 }
 class Emitter {

@@ -31,6 +31,7 @@ export interface LiteratureNoteEntry {
   referenceType: string | null;
   itemType?: string | null;
   identity?: string | null;
+  sourceUnavailable?: boolean;
   creatorDetails?: ZoteroCreator[];
   sourceFields?: Record<string, string>;
   url?: string | null;
@@ -151,6 +152,7 @@ export function literatureNoteEntryFromFrontmatter(
     creatorDetails,
     sourceFields,
     identity: str(fm.zotero_item_identity),
+    sourceUnavailable: fm.zotero_status === "deleted",
     url: str(fm.source),
   };
 }

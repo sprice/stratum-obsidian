@@ -1,3 +1,7 @@
+import {
+  citationResolver,
+  type CitationResolution,
+} from "./citation-resolution";
 import { buildCitekey } from "./bibtex-format";
 import type { LiteratureNoteEntry } from "./library-search-modal";
 import {
@@ -11,6 +15,7 @@ export interface SourceRow {
   keys: string[];
   issue?: "unresolved" | "ambiguous" | "missing-note";
   occurrences: SourceOccurrence[];
+  health?: CitationResolution;
 }
 export interface BibliographyBinding {
   key: string;
@@ -60,21 +65,7 @@ export function collectDocumentSources(
     format?: SourceOccurrence["linkFormat"],
   ) => string | null,
 ): SourceRow[] {
-  const byIdentity = new Map<string, LiteratureNoteEntry[]>();
-  const byKey = new Map<string, Set<string>>();
-  const addKey = (key: string, identity: string) => {
-    const identities = byKey.get(key) ?? new Set<string>();
-    identities.add(identity);
-    byKey.set(key, identities);
-  };
-  for (const entry of entries) {
-    const identity = sourceIdentity(entry);
-    const notes = byIdentity.get(identity) ?? [];
-    notes.push(entry);
-    byIdentity.set(identity, notes);
-    addKey(buildCitekey(entry), identity);
-  }
-  for (const binding of bindings) addKey(binding.key, binding.identity);
+  const resolve = citationResolver(entries, bindings);
   const rows = new Map<string, SourceRow>();
   for (const occurrence of parseSourceOccurrences(text)) {
     let identity: string;
@@ -86,19 +77,16 @@ export function collectDocumentSources(
       if (!entry) continue; // Ordinary links are not literature references.
       identity = sourceIdentity(entry);
     } else {
-      const candidates = [...(byKey.get(occurrence.target) ?? [])];
-      identity =
-        candidates.length === 1 ? candidates[0] : `key:${occurrence.target}`;
-      const notes = byIdentity.get(identity) ?? [];
+      const resolution = resolve(occurrence.target);
+      identity = resolution.identity ?? `key:${occurrence.target}`;
       if (
-        candidates.length > 1 ||
-        notes.length > 1 ||
-        identity.startsWith("ambiguous:")
+        resolution.problem === "conflicting-key" ||
+        resolution.notes.length > 1
       )
         issue = "ambiguous";
-      else if (!candidates.length) issue = "unresolved";
-      else if (!notes.length) issue = "missing-note";
-      else entry = notes[0];
+      else if (resolution.problem === "unknown-key") issue = "unresolved";
+      else if (!resolution.notes.length) issue = "missing-note";
+      else entry = resolution.notes[0];
     }
     const row = rows.get(identity) ?? {
       id: identity,

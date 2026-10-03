@@ -1,4 +1,8 @@
 import {
+  citationResolver,
+  type CitationResolution,
+} from "./citation-resolution";
+import {
   Component,
   MarkdownView,
   TFile,
@@ -7,7 +11,7 @@ import {
 } from "obsidian";
 import type StratumPlugin from "./plugin";
 import { buildLiteratureNoteEntries } from "./library-search-modal";
-import { buildCitekey } from "./bibtex-format";
+import { citationDocument } from "./citation-document";
 import { readBibliographyBindings } from "./document-sources";
 import { loadReferenceStore, REFERENCE_FILE } from "./citation-reference-store";
 import { cachedLocales, cachedStyle } from "./citation-styles";
@@ -22,7 +26,7 @@ export class CitationService extends Component {
   private revision = 0;
   private formatters = new Map<string, (text: string) => FormattedDocument>();
   private managed = new Set<string>();
-  private refs: Promise<Map<string, CslItem>> | null = null;
+  private refs: Promise<(key: string) => CitationResolution> | null = null;
   private results = new Map<
     string,
     { text: string; revision: number; result: Promise<FormattedDocument> }
@@ -147,7 +151,7 @@ export class CitationService extends Component {
           : this.plugin.settings.citationLanguage,
     };
   }
-  private async references(): Promise<Map<string, CslItem>> {
+  private async references(): Promise<(key: string) => CitationResolution> {
     const data = await loadReferenceStore(this.plugin.app);
     const entries = buildLiteratureNoteEntries(this.plugin);
     this.managed = new Set(entries.map((entry) => entry.file.path));
@@ -155,24 +159,16 @@ export class CitationService extends Component {
     const bindings = readBibliographyBindings(
       file instanceof TFile ? await this.plugin.app.vault.read(file) : "",
     );
-    const owners = new Map<string, Set<string>>();
-    const add = (key: string, id: string) => {
-      const ids = owners.get(key) ?? new Set<string>();
-      ids.add(id);
-      owners.set(key, ids);
-    };
-    for (const binding of bindings) add(binding.key, binding.identity);
-    for (const entry of entries)
-      if (entry.identity) add(buildCitekey(entry), entry.identity);
-    const byIdentity = new Map(data.map((item) => [item.id, item]));
-    const result = new Map<string, CslItem>();
-    for (const [key, ids] of owners)
-      if (ids.size === 1) {
-        const item = byIdentity.get([...ids][0]);
-        if (item) result.set(key, item);
-      }
-    return result;
+    return citationResolver(entries, bindings, data);
   }
+  async diagnose(keys: string[]): Promise<CitationResolution[]> {
+    if (this.plugin.isUnloaded) throw new Error("Stratum is unloaded.");
+    const revision = this.revision;
+    const resolve = await (this.refs ??= this.references());
+    if (revision !== this.revision) return this.diagnose(keys);
+    return keys.map(resolve);
+  }
+
   async format(text: string, path: string): Promise<FormattedDocument> {
     if (this.plugin.isUnloaded) throw new Error("Stratum is unloaded.");
     const revision = this.revision;
@@ -180,13 +176,34 @@ export class CitationService extends Component {
     if (old?.text === text && old.revision === this.revision) return old.result;
     const { style, language } = this.preferences(path, text);
     const xml = cachedStyle(this.plugin, style);
-    const result = (this.refs ??= this.references()).then((refs) => {
+    const keys = [
+      ...new Set(
+        citationDocument(text, false).citations.flatMap((citation) =>
+          citation.draft.items.map((item) => item.key),
+        ),
+      ),
+    ];
+    const result = this.diagnose(keys).then((resolutions) => {
       if (revision !== this.revision) return this.format(text, path);
       if (!xml)
         throw new Error(
           "This citation style is not available locally. Select it in Stratum settings to download it.",
         );
-      const key = JSON.stringify([style, language]);
+      const refs = new Map<string, CslItem>();
+      for (const resolution of resolutions) {
+        if (resolution.problem) {
+          const reason = {
+            "unknown-key": "Citation key not found",
+            "conflicting-key": "Citation key has conflicting ownership",
+            "missing-data": "Citation data is missing",
+          }[resolution.problem];
+          throw new Error(
+            `${reason} for @${resolution.key}. Open Sources for recovery actions.`,
+          );
+        }
+        refs.set(resolution.key, resolution.reference!);
+      }
+      const key = JSON.stringify([style, language, keys]);
       let formatter = this.formatters.get(key);
       if (!formatter) {
         formatter = createCitationFormatter(

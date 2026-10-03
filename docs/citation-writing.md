@@ -83,6 +83,29 @@ switching styles. Nested explanatory footnotes and inline `^[note text]` notes
 are not supported for citation formatting; use named `[^note]` definitions.
 Unsupported notes keep the original Reading output and show a formatting error.
 
+## Source health and recovery
+
+Sources reports problems beside the affected citation while keeping the style
+control available. **Show citation in paper** returns to the exact occurrence.
+
+- **Citation data missing:** choose **Fetch citation data** to retrieve the known
+  source through the existing Zotero connection. This updates cached reference
+  data only; it does not edit the paper or create a literature note. Disabled
+  libraries and connection failures show guidance and a retry action.
+- **Unknown key:** check the citation or import its source. Stratum does not guess
+  which Zotero item you intended.
+- **Conflicting ownership:** expand **Review matching sources** to inspect the
+  candidates. This list makes no ownership or manuscript changes.
+- **Missing literature note:** cached reference data can still format a known
+  citation. Sync the library to restore navigation to its note.
+- **Duplicate notes for one source:** inspect the duplicates; they do not make
+  the source's citation identity ambiguous or block formatting when data exists.
+
+Previously recorded Zotero unavailability is shown without deleting cached data.
+A failed network request is not treated as proof that a source was deleted.
+Unreadable reference files and style/syntax failures remain document-level errors;
+recovery never replaces an unreadable reference file with an empty one.
+
 ## Reference data and offline use
 
 Sync now requests Zotero's structured CSL data, preserving source types, creator
