@@ -118,11 +118,15 @@ export class BackendClient {
     return this.state.session;
   }
 
-  async setSession(params: {
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: number | null;
-  }): Promise<boolean> {
+  async setSession(
+    params: {
+      accessToken: string;
+      refreshToken: string;
+      expiresAt: number | null;
+    },
+    isCurrent: () => boolean = () => true,
+  ): Promise<boolean> {
+    if (!isCurrent()) return false;
     const generation = ++this.sessionChangeGeneration;
     // Verify the new account before replacing the session or reusing cached data.
     const response = await requestUrl({
@@ -133,7 +137,8 @@ export class BackendClient {
       },
       throw: false,
     });
-    if (generation !== this.sessionChangeGeneration) return false;
+    if (generation !== this.sessionChangeGeneration || !isCurrent())
+      return false;
     if (!this.isOk(response)) {
       throw new Error("Could not verify the account. Try signing in again.");
     }
@@ -154,14 +159,11 @@ export class BackendClient {
     };
 
     const session = this.state.session;
-    // Clear a previous account's state before persistence yields to other work.
-    await this.onUserChange(user);
-    if (
-      generation !== this.sessionChangeGeneration ||
-      this.state.session !== session
-    )
-      return false;
-    await this.onSessionChange(session);
+    // Both callbacks perform their immediate updates before either is awaited:
+    // clear the previous account's cache, then persist the verified tokens.
+    const userChange = this.onUserChange(user);
+    const sessionChange = this.onSessionChange(session);
+    await Promise.all([userChange, sessionChange]);
     return (
       generation === this.sessionChangeGeneration &&
       this.state.session === session

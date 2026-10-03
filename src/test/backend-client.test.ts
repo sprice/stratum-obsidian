@@ -344,3 +344,50 @@ test("a network failure during sign-in leaves the active account intact", async 
   assert.deepEqual(users, []);
   assert.deepEqual(sessions, []);
 });
+
+test("an expired or replaced handoff cannot install its verified session", async () => {
+  const pending = deferred();
+  let current = true;
+  const { client, users, sessions } = setup(
+    () => pending.promise,
+    () => pending.promise,
+  );
+  const signIn = client.setSession(fresh, () => current);
+  current = false;
+  pending.resolve(
+    response(200, { id: "account-two", email: "new@example.test" }),
+  );
+  assert.equal(await signIn, false);
+  assert.equal(client.getSession(), expired);
+  assert.deepEqual(users, []);
+  assert.deepEqual(sessions, []);
+});
+
+test("verified tokens are persisted while account reconciliation is still pending", async () => {
+  const { BackendClient: Client } = loadRuntime<{
+    BackendClient: typeof BackendClient;
+  }>("backend-client.ts", {
+    requestUrl: () => Promise.resolve(response(200, { id: "account-one" })),
+  });
+  const pending = deferred();
+  const sessions: unknown[] = [];
+  const client = new Client({
+    initialSession: expired,
+    onUserChange: async () => {
+      await pending.promise;
+    },
+    onSessionChange: (session) => {
+      sessions.push(session);
+      return Promise.resolve();
+    },
+  });
+  const signIn = client.setSession(fresh);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(sessions.length, 1);
+  assert.equal(
+    (sessions[0] as { accessToken: string }).accessToken,
+    fresh.accessToken,
+  );
+  pending.resolve(response(200, {}));
+  assert.equal(await signIn, true);
+});
