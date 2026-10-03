@@ -344,6 +344,15 @@ export function renderFrontmatterContent(
     ...(filenameStem ? { stratum_filename_stem: filenameStem } : {}),
     stratum_note_type: "literature-note",
     stratum_version: stratumVersion,
+    ...(detail.annotations.some((a) => a.imagePath)
+      ? {
+          stratum_annotation_images: Object.fromEntries(
+            detail.annotations
+              .filter((a) => a.imagePath)
+              .map((a) => [a.key, a.imagePath]),
+          ),
+        }
+      : {}),
     zotero_status: zoteroStatus,
     zotero_item_identity: getItemIdentity(detail),
     zotero_item_key: detail.item.key,

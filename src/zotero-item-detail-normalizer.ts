@@ -92,6 +92,10 @@ export interface ZoteroItemDetail {
     comment: string | null;
     dateModified: string | null;
     zoteroOpenPdfUri: string | null;
+    /** Local-only vault image metadata; never returned by the cloud API. */
+    imagePath?: string;
+    imageMissing?: boolean;
+    imageUnavailable?: string;
   }>;
 }
 

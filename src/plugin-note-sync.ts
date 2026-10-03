@@ -1,3 +1,4 @@
+import { importAnnotationImages } from "./plugin-annotation-images";
 import { saveReference } from "./citation-reference-store";
 import { assertSupportedZoteroItem } from "./zotero-item-support";
 import { parseYaml } from "obsidian";
@@ -207,12 +208,17 @@ export async function writeLiteratureNoteFromDetail(
     });
   }
 
+  const imageDetail = await importAnnotationImages(
+    plugin,
+    params.detail,
+    params.existingFile,
+  );
   const writeResult = await createOrUpdateLiteratureNote({
     stratumVersion: plugin.manifest.version,
     app: plugin.app,
     notesFolder: plugin.settings.notesFolder,
     filenameFormat: plugin.settings.filenameFormat,
-    detail: params.detail,
+    detail: imageDetail,
     existingFile: params.existingFile,
     canWrite: () => canSyncLibrary(plugin, params.detail.library),
     enrichment,

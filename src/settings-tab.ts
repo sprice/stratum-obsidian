@@ -414,7 +414,7 @@ export class StratumSettingTab extends PluginSettingTab {
           setting
             .setName("Zotero data directory")
             .setDesc(
-              "Used for desktop live sync when Zotero changes while Obsidian is open.",
+              "Used for desktop live sync and reading area annotation images from Zotero’s cache.",
             )
             .addText((text) => {
               text
