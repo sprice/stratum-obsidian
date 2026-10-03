@@ -36,24 +36,6 @@ import type {
 } from "./backend-types";
 import type { PersistedAuthSession } from "./settings";
 
-// Used only to separate cached account state; authentication remains server-side.
-function sessionSubject(token: string): string | undefined {
-  try {
-    const part = token.split(".")[1];
-    const payload: unknown = JSON.parse(
-      atob(part.replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    const subject =
-      payload && typeof payload === "object" && "sub" in payload
-        ? payload.sub
-        : null;
-    return typeof subject === "string" && subject.length > 0
-      ? subject
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
 const REFRESH_BUFFER_SECONDS = 60;
 const AUTH_ERROR_STATUSES = new Set([401, 403]);
 
@@ -97,6 +79,7 @@ export {
 
 export class BackendClient {
   private state: BackendAuthState;
+  private sessionChangeGeneration = 0;
   private pendingRefresh: {
     session: PersistedAuthSession;
     promise: Promise<PersistedAuthSession | null>;
@@ -121,6 +104,7 @@ export class BackendClient {
   }
 
   invalidatePendingRequests(): void {
+    this.sessionChangeGeneration += 1;
     // Detach in-flight responses without logging out or deleting saved tokens.
     this.state.session = this.state.session ? { ...this.state.session } : null;
     this.pendingRefresh = null;
@@ -138,8 +122,31 @@ export class BackendClient {
     accessToken: string;
     refreshToken: string;
     expiresAt: number | null;
-    email?: string | null;
-  }): Promise<void> {
+  }): Promise<boolean> {
+    const generation = ++this.sessionChangeGeneration;
+    // Verify the new account before replacing the session or reusing cached data.
+    const response = await requestUrl({
+      url: `${PLUGIN_SUPABASE_URL}/auth/v1/user`,
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        apikey: PLUGIN_SUPABASE_PUBLISHABLE_KEY,
+      },
+      throw: false,
+    });
+    if (generation !== this.sessionChangeGeneration) return false;
+    if (!this.isOk(response)) {
+      throw new Error("Could not verify the account. Try signing in again.");
+    }
+    const payload = this.readJson<AuthenticatedUserResponse>(response);
+    if (
+      !payload ||
+      typeof payload.id !== "string" ||
+      !payload.id.trim() ||
+      (payload.email != null && typeof payload.email !== "string")
+    ) {
+      throw new Error("The app returned an invalid account response.");
+    }
+    const user = { id: payload.id, email: payload.email ?? null };
     this.state.session = {
       accessToken: params.accessToken,
       refreshToken: params.refreshToken,
@@ -147,17 +154,22 @@ export class BackendClient {
     };
 
     const session = this.state.session;
+    // Clear a previous account's state before persistence yields to other work.
+    await this.onUserChange(user);
+    if (
+      generation !== this.sessionChangeGeneration ||
+      this.state.session !== session
+    )
+      return false;
     await this.onSessionChange(session);
-    if (this.state.session !== session) return;
-    await this.onUserChange({
-      email: params.email ?? null,
-      ...(sessionSubject(params.accessToken)
-        ? { id: sessionSubject(params.accessToken) }
-        : {}),
-    });
+    return (
+      generation === this.sessionChangeGeneration &&
+      this.state.session === session
+    );
   }
 
   async clearSession(): Promise<void> {
+    this.sessionChangeGeneration += 1;
     this.state.session = null;
     await this.onSessionChange(null);
     if (this.state.session !== null) return;

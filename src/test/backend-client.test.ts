@@ -26,10 +26,30 @@ const refreshed = {
 };
 function setup(
   requestUrl: (params: RequestUrlParam) => Promise<RequestUrlResponse>,
+  userRequest: (params: RequestUrlParam) => Promise<RequestUrlResponse> = ({
+    headers,
+  }) =>
+    Promise.resolve(
+      response(200, {
+        id:
+          headers?.Authorization === "Bearer other-account"
+            ? "account-two"
+            : "account-one",
+        email:
+          headers?.Authorization === "Bearer other-account"
+            ? "new@example.test"
+            : "first@example.test",
+      }),
+    ),
 ) {
   const { BackendClient: Client } = loadRuntime<{
     BackendClient: typeof BackendClient;
-  }>("backend-client.ts", { requestUrl });
+  }>("backend-client.ts", {
+    requestUrl: (params: RequestUrlParam) =>
+      params.url.endsWith("/auth/v1/user")
+        ? userRequest(params)
+        : requestUrl(params),
+  });
   const sessions: unknown[] = [];
   const users: unknown[] = [];
   const client = new Client({
@@ -39,7 +59,7 @@ function setup(
       return Promise.resolve();
     },
     onUserChange: (user) => {
-      users.push(user);
+      users.push(user ? { ...user } : null);
       return Promise.resolve();
     },
   });
@@ -114,14 +134,29 @@ for (const status of [200, 401]) {
 
 test("a stale validation response cannot change the active user's email", async () => {
   const pending = deferred();
-  const { client, users } = setup(() => pending.promise);
+  let first = true;
+  const { client, users } = setup(
+    () => pending.promise,
+    ({ headers }) => {
+      if (headers?.Authorization === "Bearer other-account")
+        return Promise.resolve(
+          response(200, { id: "account-two", email: "new@example.test" }),
+        );
+      if (first) {
+        first = false;
+        return Promise.resolve(
+          response(200, { id: "account-one", email: "first@example.test" }),
+        );
+      }
+      return pending.promise;
+    },
+  );
   await client.setSession(fresh);
   const validation = client.validateSession();
   await Promise.resolve();
   await client.setSession({
     ...fresh,
     accessToken: "other-account",
-    email: "new@example.test",
   });
   pending.resolve(response(200, { email: "old@example.test" }));
   assert.equal(await validation, null);
@@ -191,4 +226,121 @@ test("repeated access rejection stops after one refresh and retains the rotated 
   assert.equal((await client.authedFetch("/one")).status, 401);
   assert.equal(calls, 3);
   assert.equal(client.getSession()?.refreshToken, "rotated");
+});
+
+test("sign-in uses the verified server identity even for opaque tokens and matching emails", async () => {
+  const calls: RequestUrlParam[] = [];
+  const { client, users } = setup(
+    () => Promise.resolve(response(200, {})),
+    (params) => {
+      calls.push(params);
+      return Promise.resolve(
+        response(200, {
+          id:
+            params.headers?.Authorization === "Bearer new"
+              ? "account-one"
+              : "account-two",
+          email: "same@example.test",
+        }),
+      );
+    },
+  );
+  assert.equal(await client.setSession(fresh), true);
+  assert.equal(
+    await client.setSession({ ...fresh, accessToken: "other-account" }),
+    true,
+  );
+  assert.deepEqual(users, [
+    { id: "account-one", email: "same@example.test" },
+    { id: "account-two", email: "same@example.test" },
+  ]);
+  assert.equal(calls.length, 2);
+});
+
+for (const [status, payload] of [
+  [401, {}],
+  [503, {}],
+  [200, {}],
+  [200, { id: 1 }],
+  [200, { id: "account-two", email: 42 }],
+] as const) {
+  test(`unverified sign-in (${status}, ${JSON.stringify(payload)}) preserves the existing account`, async () => {
+    const { client, users, sessions } = setup(
+      () => Promise.resolve(response(200, {})),
+      () => Promise.resolve(response(status, payload)),
+    );
+    await assert.rejects(client.setSession(fresh), /verify|invalid account/);
+    assert.equal(client.getSession(), expired);
+    assert.deepEqual(users, []);
+    assert.deepEqual(sessions, []);
+  });
+}
+
+test("sign-out prevents a pending sign-in from restoring authentication", async () => {
+  const pending = deferred();
+  const { client, users, sessions } = setup(
+    () => pending.promise,
+    () => pending.promise,
+  );
+  const signIn = client.setSession(fresh);
+  await client.clearSession();
+  pending.resolve(
+    response(200, { id: "account-one", email: "first@example.test" }),
+  );
+  assert.equal(await signIn, false);
+  assert.equal(client.getSession(), null);
+  assert.deepEqual(users, [null]);
+  assert.deepEqual(sessions, [null]);
+});
+
+test("a late sign-in cannot replace a newer account", async () => {
+  const pending = deferred();
+  const { client, users } = setup(
+    () => pending.promise,
+    ({ headers }) =>
+      headers?.Authorization === "Bearer new"
+        ? pending.promise
+        : Promise.resolve(
+            response(200, { id: "account-two", email: "new@example.test" }),
+          ),
+  );
+  const first = client.setSession(fresh);
+  assert.equal(
+    await client.setSession({ ...fresh, accessToken: "other-account" }),
+    true,
+  );
+  pending.resolve(
+    response(200, { id: "account-one", email: "first@example.test" }),
+  );
+  assert.equal(await first, false);
+  assert.equal(client.getSession()?.accessToken, "other-account");
+  assert.deepEqual(users, [{ id: "account-two", email: "new@example.test" }]);
+});
+
+test("unload invalidates a pending sign-in without replacing stored tokens", async () => {
+  const pending = deferred();
+  const { client, users, sessions } = setup(
+    () => pending.promise,
+    () => pending.promise,
+  );
+  const signIn = client.setSession(fresh);
+  client.invalidatePendingRequests();
+  pending.resolve(
+    response(200, { id: "account-one", email: "first@example.test" }),
+  );
+  assert.equal(await signIn, false);
+  assert.equal(client.getSession()?.accessToken, expired.accessToken);
+  assert.deepEqual(users, []);
+  assert.deepEqual(sessions, []);
+});
+
+test("a network failure during sign-in leaves the active account intact", async () => {
+  const { client, users, sessions } = setup(
+    () => Promise.resolve(response(200, {})),
+    () => Promise.reject(new Error("Offline")),
+  );
+  await assert.rejects(client.setSession(fresh), /Offline/);
+  assert.equal(client.getSession(), expired);
+  assert.deepEqual(users, []);
+  assert.deepEqual(sessions, []);
 });

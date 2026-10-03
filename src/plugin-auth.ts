@@ -382,12 +382,20 @@ export async function handleAuthProtocol(
 
   if (accessToken && refreshToken) {
     const expiresAt = expiresAtParam ? Number(expiresAtParam) : null;
-    await plugin.backend.setSession({
-      accessToken,
-      refreshToken,
-      expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
-      email,
-    });
+    try {
+      const accepted = await plugin.backend.setSession({
+        accessToken,
+        refreshToken,
+        expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
+      });
+      if (!accepted) return;
+    } catch {
+      new Notice(
+        `${PLUGIN_NAME}: could not verify sign-in. Try signing in again.`,
+      );
+      return;
+    }
+    if (plugin.isUnloaded) return;
   } else if (email) {
     plugin.settings.accountEmail = email;
     plugin.settings.accountLinkedAt = new Date().toISOString();
