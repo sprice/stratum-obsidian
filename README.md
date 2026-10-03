@@ -1,159 +1,76 @@
 # Stratum
 
-Stratum creates structured literature notes in Obsidian from your Zotero library. No custom templates, no manual API key setup, no setup project before you can take notes. It generates readable markdown and keeps managed sections in sync while leaving your own writing alone.
+**Bring your Zotero library into Obsidian. Read, take notes, search, and write with citations in one place.**
 
-> **Requires a Stratum account**
->
-> Stratum is an open-source plugin paired with a [Stratum](https://stratumnotes.com) account. You need an account and internet access, but the core workflow is free to start. Sign-in, Zotero auth, sync, and enrichment all run through Stratum's service.
+Stratum turns your Zotero sources, notes, and highlights into structured literature notes in your vault. View your literature notes next to your essays and papers, follow citations back to your sources, and change citation styles without rewriting your paper.
 
-Stratum works two ways. When the Zotero app is open on your desktop, Stratum can import your whole library at once and refresh your open notes the moment you highlight or annotate something in Zotero. When the Zotero app is closed, or when you're on mobile, Stratum keeps your notes fresh through its cloud service instead. You don't need to pick a mode. Stratum uses whichever one is available.
+No templates to configure. No API keys to manage. Sign in, connect Zotero, and start with a single source or import a whole library.
 
-## Features
+## From your library to your next essay or paper
 
-- Search your Zotero library inside Obsidian.
-- Create literature notes with readable filenames, aliases, and useful frontmatter.
-- Sync personal and group Zotero libraries.
-- Pull in all your Zotero notes and annotations.
-- Group highlights by color, with deep links back to Zotero.
-- Import a whole Zotero library, or a single collection, in one pass straight from the Zotero app.
-- Refresh your open literature notes in the background the moment you highlight or annotate in Zotero.
-- Rewrite only Stratum's managed section and preserve everything below the `[!stratum]` boundary callout.
-- Mark notes as deleted if the source item disappears from Zotero instead of deleting the file from your vault.
-- Insert and edit grouped Pandoc citations, with citekeys, locators, and inline suggestions.
-- Write with stable, theme-colored citekeys in Live Preview; choose CSL styles for Reading view, automatic references, and citation notes. See [Writing with citations](docs/citation-writing.md).
-- Retain reference data locally in `stratum.bib` and `stratum-references.json`.
-- Enrich notes with citation counts, impact metrics, open access links, topics, keywords, funder data, and more via OpenAlex.
+### Your research, ready to work with
+
+Search Zotero by title, author, or year and create a literature note inside Obsidian. Import personal and group libraries, including books, articles, reports, and other supported Zotero source types. Your notes include source details, abstracts, Zotero notes, and highlights grouped by color, with links back to Zotero.
+
+Browse your imported notes by Zotero collection, including subcollections. A source has one literature note even when it belongs to several collections.
+
+### Fresh highlights. Your own notes preserved.
+
+When desktop bulk sync is enabled and Zotero is running, Stratum watches for changes and refreshes your open literature notes. Cloud refresh keeps tracked notes current when Zotero is closed or you're on mobile.
+
+Add your thoughts in **My Notes**. Sync updates the imported material while preserving your writing below that boundary. If a source disappears from Zotero, Stratum marks its note as deleted instead of removing the file from your vault.
+
+### Write with sources within reach
+
+Insert and edit citations with multiple sources, page numbers, and other locators. Live Preview shows stable citation keys; Reading view formats citations and generates references or citation notes using your chosen style.
+
+Choose APA, IEEE, Chicago Notes, or another CSL style. Switch styles without changing your document’s citation text. The **Sources** sidebar brings together the sources cited in your draft, flags citation problems, and lets you open a literature note in the sidebar Reader while keeping your paper in its main tab.
+
+Citation formatting runs locally once the required reference data and style are available. Publishing and PDF/Word export are not included yet.
+
+### More context for each source
+
+For sources with a DOI, Stratum can add [OpenAlex](https://openalex.org/) data: citation counts, open access links, research topics, author affiliations, funding information, and retraction flags, when available. Structured properties also make your literature notes useful for Obsidian searches and tables.
 
 ## Install
 
-Stratum requires Obsidian `1.11.4` or newer.
+Requires **Obsidian 1.11.4 or newer**.
 
-While we wait on Community Plugin approval, install Stratum with [BRAT](https://tfthacker.com/BRAT):
+1. Open **Settings → Community plugins** and turn on community plugins if prompted.
+2. Select **Browse** and search for **Stratum** by Shawn Price.
+3. Select **Install**, then **Enable**.
 
-1. Install the [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) plugin from Obsidian's **Community plugins** browser.
-2. Open **BRAT** settings and choose **Add Beta plugin**.
-3. Enter `https://github.com/sprice/stratum-obsidian` as the plugin repository.
-4. Let BRAT install the plugin, then enable **Stratum** in **Settings -> Community plugins**.
-5. Use BRAT to pull future Stratum updates.
+[Open Stratum in Obsidian](https://obsidian.md/plugins?id=stratum)
 
-## Setup
+Update through **Settings → Community plugins → Check for updates**.
 
-1. Open **Settings -> Stratum**.
-2. Click **Sign in** and finish the browser-based email code flow.
-3. Click **Connect Zotero** and approve Zotero access in the browser.
-4. Open the Stratum library view.
-5. Search by title, author, or year and create a literature note.
+## Get started
 
-After that, Stratum keeps tracked notes fresh automatically. When you open a literature note, Stratum quietly refreshes it so metadata, highlights, and annotations stay current.
+1. Open **Settings → Stratum**, select **Sign in**, and enter the email code in your browser.
+2. Select **Connect Zotero** and approve access to your Zotero account.
+3. Run **Stratum: Open library view** from the command palette, search for a source, and create your first literature note.
 
-### Import your whole library
+To import a whole library or collection on desktop, keep Zotero open, enable **Bulk sync** in Stratum settings, and start a sync from the sidebar's **Sync** tab.
 
-If you have the Zotero app installed on your desktop, you can skip searching and import everything at once.
+**[Read the user guide](docs/user-guide.md)** for sync, collection browsing, citation workflows, commands, and privacy details.
 
-1. Make sure the Zotero app is open.
-2. In **Settings -> Stratum**, turn on **Bulk sync**.
-3. Pick the library, and optionally a single collection, you want to import.
-4. Open the **Sync** tab in the Stratum side panel and start a sync.
+## Recommended Zotero plugins
 
-With bulk sync on, Stratum also watches the Zotero app for changes. Highlight or annotate a paper in Zotero and the matching note in Obsidian refreshes on its own, even while you're reading it.
+These optional plugins complement Stratum. Install them in Zotero:
 
-## Note format
+- **[Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases)** — Generate and manage citation keys for Markdown and other writing workflows.
+- **[ZotMeta](https://github.com/RoadToDream/ZotMeta/releases)** — Refresh article and book metadata using identifiers such as DOI, ISBN, and arXiv IDs. Better source metadata helps produce more complete literature notes and citations.
 
-Each generated note has a managed section and a user section separated by a `[!stratum]` boundary callout.
+## Account and privacy
 
-- The managed section includes a reference block, abstract, imported Zotero notes, grouped highlights, and Zotero deep links.
-- The user section starts below the `[!stratum]` boundary callout.
-- Sync rewrites the managed section only.
-- Your writing below the boundary callout is preserved across updates.
+Stratum is open source and requires a [Stratum account](https://stratumnotes.com) and internet access for sign-in, Zotero authorization, and imports. Desktop bulk sync requires the Zotero app; existing literature notes remain ordinary Markdown files in your vault.
 
-## Commands
+Your Obsidian drafts and writing in **My Notes** are not uploaded. Cloud imports fetch Zotero metadata, notes, and annotations through Stratum's service; search metadata and enrichment responses may be cached. The plugin has no telemetry or analytics. Citation formatting runs on your device.
 
-Use the side panel to discover papers, read existing literature notes, and import your whole library. Use keyboard commands to reference literature notes while writing.
+Read [Privacy and connections](docs/user-guide.md#privacy-and-connections) for network access, credential storage, and web-service diagnostics.
 
-| Command                              | Description                                                 |
-| ------------------------------------ | ----------------------------------------------------------- |
-| Open library view                    | Open the Stratum side panel on the Search tab               |
-| Open literature note                 | Search your literature notes and open one in the editor     |
-| Open literature note in Reader panel | Search your literature notes and open one on the Reader tab |
-| Insert literature note link          | Insert a `[[wikilink]]` to a literature note at the cursor  |
-| Insert or edit citation | Compose or edit grouped Pandoc citations with locators |
-| Change citation style for this paper | Override the default style and language for the current note |
-| Refresh citation data | Fetch missing CSL reference data for imported notes |
-| Insert bibliography | Optionally choose where Reading view places references |
-| Show sources for current note | Inspect citations, source health, and recovery actions |
+## Contribute
 
-Assign hotkeys in **Settings -> Hotkeys** by searching for "Stratum".
-
-## Enrichment
-
-When a paper has a DOI, Stratum automatically enriches the note with data from [OpenAlex](https://openalex.org/):
-
-- **Impact**: citation count, citation percentile, field-weighted citation impact (FWCI), 5-year citation trend.
-- **Open access**: OA status and direct PDF link when available.
-- **Topics and keywords**: top research topics with field/subfield hierarchy and relevance-scored keywords, wiki-linked for backlinks.
-- **Authorship**: author names with ORCID links and institutional affiliations.
-- **Funding**: funder names and award IDs.
-- **Integrity**: retraction status flagged with a warning banner.
-
-Enrichment data appears in both the note frontmatter (for Dataview queries) and the managed body content.
-
-## Current scope
-
-Stratum is deliberately opinionated. It isn't trying to be every Zotero plugin at once.
-
-- One-way sync from Zotero into Obsidian.
-- Personal and group Zotero libraries.
-- No template language to learn, no manual API key setup.
-- Not a zero-network or offline-only plugin.
-
-## Why it requires an account
-
-The account-backed design lets Stratum skip the usual Zotero plugin setup burden and add features that pure client-side plugins cannot offer.
-
-- Sign-in happens in the browser instead of inside Obsidian.
-- Zotero authentication uses OAuth instead of asking you for a manually managed API key.
-- The backend handles Zotero API access, rate limiting, and cache-backed search.
-- The backend enriches literature notes with data from [OpenAlex](https://openalex.org/). When a paper has a DOI, Stratum adds citation counts, field-weighted citation impact, citation percentile, open access links, topics, keywords, funder data, and more. Only the DOI is sent. The server never stores your notes or note content.
-
-## Privacy
-
-- Cloud sync and session requests use the Stratum app's `/api/stratum` endpoint, which proxies authentication and functions to Supabase. Desktop sync connects directly to Zotero on localhost. DOI and OpenAlex links in generated notes open the corresponding academic websites when selected.
-- No telemetry, no analytics, no ad tech, no third-party tracking SDKs in the plugin.
-- The Stratum web app uses cookie-free analytics (Umami) to track anonymous usage metrics. No personally identifiable information is collected.
-- The managed service uses Sentry for error tracking. When something goes wrong, Sentry captures technical details about the error and your account ID to help us diagnose issues. Sentry does not receive your email, Zotero credentials, or note contents.
-- Your notes never leave your device. Stratum writes markdown files into your vault locally. Your Obsidian manuscript and personal writing are not sent to the server. Everything you write below the boundary callout stays on your machine.
-- The server fetches source metadata, Zotero notes, and annotations to deliver imports. Search metadata, including abstracts, and enrichment responses can be cached. Your Obsidian manuscript text and personal writing below the managed boundary are not sent to the server.
-- Enrichment uses only DOIs. To look up citation counts, topics, and other academic metadata, the server sends the paper's DOI to [OpenAlex](https://openalex.org/). No vault content, filenames, annotations, or personal information is shared.
-- The plugin stores session tokens in Obsidian's platform-native `secretStorage` to stay signed in across restarts. It doesn't store your Zotero OAuth secret locally.
-- Zotero OAuth secrets live server-side, encrypted at rest with AES-256 encryption.
-- Server-side database access is scoped per authenticated user.
-- The plugin writes diagnostic logs (sync timing, API response codes) to the browser console at the `debug` level. These logs stay local and are not sent anywhere.
-
-## License
+Found a bug or have a suggestion? [Open an issue](https://github.com/sprice/stratum-obsidian/issues). To work on the plugin, see [Contributing](CONTRIBUTING.md).
 
 Released under the [MIT License](LICENSE).
-
-## Browse literature notes by collection
-
-Run **Stratum: Browse papers by collection** from the command palette, or select
-**Browse literature notes** in the Stratum panel. Search for a collection by name,
-library, or parent path. The browser opens existing literature notes; it does not
-import papers or create collection pages.
-
-Use the collection button to switch collections and the search field to filter
-by title, author, or year. Subcollections are included by default; collections
-with children show an **Include subcollections** toggle. **All imported papers**
-and **Unfiled papers** are also available. Normal Obsidian link modifiers open
-papers in new tabs, and the browser remembers its collection, query, and scroll
-position through workspace view state. Large results load in batches of 100.
-
-Browsing works offline and without signing in. Sync saves collection keys in
-note frontmatter and caches library hierarchy locally. Notes from earlier
-versions need a sync or refresh before they appear in collection-specific views;
-until then they remain visible in **All imported papers** and are not assumed
-to be unfiled. If hierarchy is unavailable, direct memberships remain browsable
-and the view explains that a sync is needed. Membership reflects the last sync.
-
-One Zotero item has one canonical note even when it belongs to multiple
-collections. Personal and group libraries are kept distinct. This feature does
-not move notes, change filenames, or alter the protection for **My Notes**.

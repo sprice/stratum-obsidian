@@ -8,13 +8,15 @@
 
 ## Literature note compatibility contract
 
-Read [the literature note link stability contract](docs/literature-note-link-contract.md)
-before changing filenames, paths, aliases, identity matching, sync, folder
-enumeration, or settings persistence. Links from other vault notes must keep
+In the Stratum workspace, read the root app’s
+`docs/literature-note-link-contract.md` before changing filenames, paths, aliases,
+identity matching, sync, folder enumeration, or settings persistence. Links from other vault notes must keep
 resolving to the same Zotero item, including after the Literature Notes folder
 is deleted and fully synced again. Treat naming changes as compatibility
 changes. The document records current implementation gaps; do not assume the
 live-file cache or deterministic filename formatting alone fulfills the contract.
+If working in a standalone plugin checkout, request that contract from the
+maintainer before making compatibility changes.
 
 ## Environment & tooling
 

@@ -98,36 +98,6 @@ export class StratumSettingTab extends PluginSettingTab {
 
   getSettingDefinitions(): SettingsSection[] {
     const sections: SettingsSection[] = [];
-    const citations = this.createSection(sections, "Citations");
-    this.defineSetting(citations, "Default citation style", (setting) => {
-      setting
-        .setDesc(
-          "Format citations and bibliographies in every paper without an override.",
-        )
-        .addButton((button) =>
-          button.setButtonText("Choose style").onClick(async () => {
-            const { CitationPreferences } = await import("./citation-controls");
-            new CitationPreferences(this.plugin).open();
-          }),
-        );
-    });
-    this.defineSetting(citations, "Citation reference data", (setting) => {
-      setting
-        .setDesc(
-          "Fill missing reference data for previously imported notes. Requires your Zotero connection.",
-        )
-        .addButton((button) =>
-          button.setButtonText("Refresh citation data").onClick(async () => {
-            const { refreshCitationData } = await import("./citation-refresh");
-            await refreshCitationData(this.plugin).catch(
-              () =>
-                new Notice(
-                  "Could not refresh citation data. Check your Zotero connection.",
-                ),
-            );
-          }),
-        );
-    });
     const accountEmail = this.plugin.backend.hasSession()
       ? this.plugin.settings.accountEmail
       : null;
@@ -483,6 +453,37 @@ export class StratumSettingTab extends PluginSettingTab {
       }
     }
 
+    const citations = this.createSection(sections, "Citations");
+    this.defineSetting(citations, "Default citation style", (setting) => {
+      setting
+        .setDesc(
+          "Format citations and bibliographies in every paper without an override.",
+        )
+        .addButton((button) =>
+          button.setButtonText("Choose style").onClick(async () => {
+            const { CitationPreferences } = await import("./citation-controls");
+            new CitationPreferences(this.plugin).open();
+          }),
+        );
+    });
+    this.defineSetting(citations, "Citation reference data", (setting) => {
+      setting
+        .setDesc(
+          "Fill missing reference data for previously imported notes. Requires your Zotero connection.",
+        )
+        .addButton((button) =>
+          button.setButtonText("Refresh citation data").onClick(async () => {
+            const { refreshCitationData } = await import("./citation-refresh");
+            await refreshCitationData(this.plugin).catch(
+              () =>
+                new Notice(
+                  "Could not refresh citation data. Check your Zotero connection.",
+                ),
+            );
+          }),
+        );
+    });
+
     const defaultsSection = this.createSection(sections, "Workspace defaults");
 
     this.defineSetting(
@@ -523,7 +524,7 @@ export class StratumSettingTab extends PluginSettingTab {
         setting
           .setName("Literature note filename format")
           .setDesc(
-            "Controls how new literature notes are named. Existing notes are not bulk-renamed when this changes. The citation key format currently uses a generated fallback until richer citekey support is wired in.",
+            "Choose how new literature notes are named. Existing filenames stay unchanged. Citation key filenames are generated from author, year, and title.",
           )
           .addDropdown((dropdown) =>
             dropdown
