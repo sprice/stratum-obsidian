@@ -1,7 +1,9 @@
+import { hasWritingPosition, returnToWriting } from "./citation-evidence";
 import { SourcesPanel, type SourcesViewState } from "./view-sources";
 import { browseCollections } from "./collection-browser";
 import {
   Component,
+  Notice,
   ItemView,
   MarkdownRenderer,
   MarkdownView,
@@ -1245,6 +1247,15 @@ export class StratumView extends ItemView {
 
     const header = readerTab.createDiv({ cls: "stratum-reader-header" });
     const actions = header.createDiv({ cls: "stratum-reader-actions" });
+    if (hasWritingPosition(this.plugin)) {
+      const back = actions.createEl("button", { text: "Return to writing" });
+      back.type = "button";
+      back.addEventListener("click", () => {
+        void returnToWriting(this.plugin).catch(
+          () => new Notice("Could not return to the writing tab."),
+        );
+      });
+    }
     const openButton = actions.createEl("button", {
       text: "Open in editor",
     });

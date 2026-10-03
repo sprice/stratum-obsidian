@@ -124,6 +124,33 @@ class ReadingCitations extends MarkdownRenderChild {
           span.className = "stratum-formatted-citation";
           span.title = text.slice(edit.from, edit.to);
           renderCsl(span, edit.html);
+          const citation = result.model.citations.find(
+            (c) => c.from >= edit.from && c.to <= edit.to,
+          );
+          if (citation) {
+            const button = span.createEl("button", {
+              text: "↗",
+              cls: "stratum-citation-evidence",
+              attr: {
+                "aria-label": "Open cited source in reader",
+                title: "Open cited source in reader",
+              },
+            });
+            button.type = "button";
+            button.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void import("./citation-evidence").then(
+                ({ openCitationEvidence }) =>
+                  openCitationEvidence(
+                    this.service.plugin,
+                    citation.draft.items.map((item) => item.key),
+                    file.path,
+                    text,
+                  ),
+              );
+            });
+          }
           range.deleteContents();
           range.insertNode(span);
           this.undo.push(() => span.replaceWith(needle));
@@ -211,6 +238,13 @@ class ReadingCitations extends MarkdownRenderChild {
         const error = target.createDiv({
           cls: "stratum-reference-output",
           text: "References unavailable. Refresh citation data or check sources.",
+        });
+        const button = error.createEl("button", { text: "Review sources" });
+        button.type = "button";
+        button.addEventListener("click", () => {
+          this.service.plugin.sources.showCurrent();
+          this.service.plugin.activeViewTab = "sources";
+          void this.service.plugin.activateView();
         });
         this.undo.push(() => error.remove());
       }

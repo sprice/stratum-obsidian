@@ -615,6 +615,8 @@
 
 .stratum-reader-actions {
 	display: flex;
+	flex-wrap: wrap;
+	min-width: 0;
 	flex: 0 0 auto;
 	gap: 0.5rem;
 	align-items: center;
@@ -851,4 +853,20 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-reference-output .stratum-csl-hanging .csl-entry {
   padding-inline-start: 2em;
   text-indent: -2em;
+}
+
+.stratum-formatted-citation .stratum-citation-evidence {
+  display: inline-flex;
+  padding: 0 0.2em;
+  margin-inline-start: 0.15em;
+  height: auto;
+  color: var(--text-muted);
+  background: transparent;
+  box-shadow: none;
+  vertical-align: baseline;
+  font-size: 0.8em;
+}
+.stratum-formatted-citation .stratum-citation-evidence:hover,
+.stratum-formatted-citation .stratum-citation-evidence:focus-visible {
+  color: var(--interactive-accent);
 }

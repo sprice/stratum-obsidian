@@ -58,7 +58,7 @@ test("conflict repair appends a safe alias without altering manual entries or ol
     bib,
     "all",
   );
-  assert.ok(plan.bibliography.startsWith(bib.trimEnd()));
+  assert.ok(plan.bibliography.startsWith(bib));
   assert.notEqual(plan.key, "example");
   const resolve = citationResolver(
     [a, b],
@@ -86,6 +86,11 @@ test("historical keys remain usable after metadata and filename changes", () => 
     0,
   );
   assert.equal(plan.key, "example");
+  assert.equal(
+    plan.bibliography,
+    bib,
+    "Repair must not refresh shared metadata",
+  );
   assert.equal(
     resolveBibliographyCitekey(plan.bibliography, changed),
     "example",
@@ -127,5 +132,16 @@ test("explicit keys cannot overwrite or adopt manual bibliography entries", () =
         "manual",
       ),
     /ownership/,
+  );
+});
+
+test("adding a repair alias preserves trailing whitespace and manual content byte-for-byte", () => {
+  const a = note();
+  const bib = "@book{manual, title={Keep exactly}}\n\n  \n";
+  const plan = planCitationRepair("[@typo]", "typo", a, [a], bib, 0);
+  assert.ok(plan.bibliography.startsWith(bib));
+  assert.equal(
+    readBibliographyBindings(plan.bibliography)[0].identity,
+    a.identity,
   );
 });

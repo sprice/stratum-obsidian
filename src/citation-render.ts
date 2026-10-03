@@ -58,5 +58,27 @@ export async function renderDocumentNotes(
         owner,
       );
     }
+    const citations = result.model.citations.filter(
+      (citation) => citation.noteIndex === item.number,
+    );
+    if (citations.length) {
+      const button = li.createEl("button", {
+        text: "Open in reader",
+        cls: "stratum-citation-evidence",
+      });
+      button.type = "button";
+      button.addEventListener("click", () => {
+        void import("./citation-evidence").then(({ openCitationEvidence }) =>
+          openCitationEvidence(
+            service.plugin,
+            citations.flatMap((citation) =>
+              citation.draft.items.map((item) => item.key),
+            ),
+            path,
+            text,
+          ),
+        );
+      });
+    }
   }
 }

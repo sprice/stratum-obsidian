@@ -48,6 +48,25 @@ class InlineCitation extends WidgetType {
         }),
       );
       menu.addItem((item) =>
+        item.setTitle("Open in reader").onClick(() => {
+          const file = info.file;
+          if (!file) return;
+          const text = editor.getValue();
+          const citation = citationDocument(text, false).citations.find(
+            (c) => c.from === this.offset,
+          );
+          if (!citation) return;
+          void import("./citation-evidence").then(({ openCitationEvidence }) =>
+            openCitationEvidence(
+              this.service.plugin,
+              citation.draft.items.map((item) => item.key),
+              file.path,
+              text,
+            ),
+          );
+        }),
+      );
+      menu.addItem((item) =>
         item.setTitle("Show sources").onClick(() => {
           this.service.plugin.sources.showCurrent();
           this.service.plugin.activeViewTab = "sources";

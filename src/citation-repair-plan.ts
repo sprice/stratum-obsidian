@@ -73,6 +73,13 @@ export function planCitationRepair(
   return {
     key,
     edits,
-    bibliography: updateManagedBibliography(bibliography, entry, true, key),
+    // Reusing a key is not permission to refresh shared reference metadata.
+    bibliography: bindings.some(
+      (binding) => binding.key === key && binding.identity === entry.identity,
+    )
+      ? bibliography
+      : bibliography +
+        (bibliography ? "\n" : "") +
+        updateManagedBibliography("", entry, true, key),
   };
 }

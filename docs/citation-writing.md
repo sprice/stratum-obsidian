@@ -157,3 +157,24 @@ Cancellation or a failed reference write leaves the manuscript unchanged. An
 interruption after a completed reference write, or undoing the manuscript edit,
 may leave an unused bibliography entry; it is safe to keep. Repairs do not create
 literature notes, rename files, or fetch missing citation data automatically.
+
+## Reading the evidence while writing
+
+In Live Preview, click a citation and choose **Open in reader**. Reading view
+provides an arrow beside formatted citations and **Open in reader** beside
+citation notes. Footnote numbers still navigate to their notes.
+
+A single resolved source opens its literature note in the sidebar Reader. A group
+or multiple notes for one source opens a searchable chooser; choose the exact
+source or note. Unknown keys, conflicting ownership, and missing notes lead to
+Sources for recovery instead of opening a guessed match.
+
+The manuscript stays in its main tab. **Return to writing** returns to that tab
+and restores its selection and scroll when the text and view mode still match.
+If the text changed, Stratum focuses the editor without restoring stale offsets.
+If the original tab was closed or changed to another file, it explains why it
+cannot return. This navigation state lasts until the plugin unloads.
+
+Desktop keyboard and narrow-sidebar interactions have been checked. Mobile
+interaction remains untested. Representative CSL checks do not guarantee every
+custom style or every Pandoc syntax extension.
