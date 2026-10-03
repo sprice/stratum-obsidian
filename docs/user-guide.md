@@ -190,6 +190,42 @@ Stratum literature note. Ordinary links do not count. Embedded notes are not
 recursively scanned. The current note's footnote text is included; frontmatter,
 comments, and code are excluded. The Sources list is for navigation; style-based formatting appears in Reading view.
 
+### Compare sources in a table
+
+In **Sources**, choose **Table** from the layout menu. The table follows the
+current writing note's citations and literature-note links, just like the list.
+Pin Sources to keep comparing that note's sources while opening other notes.
+Your document stays unchanged, and Dataview is not required.
+
+Select **Columns** to choose up to eight properties alongside the source title.
+Authors, year, and type are shown initially. Publication and collections are
+also available. Select a column heading to sort; select it again to reverse
+the order. Sources with missing values stay at the end. The original sort menu
+returns to first appearance, author, or title order.
+
+Research columns such as method, findings, and limitations read properties you
+record in your literature notes. **Other properties** accepts comma-separated
+property names, including spaces and hyphens. For example, a literature note
+could have these user-owned properties:
+
+```yaml
+method: Interviews
+findings:
+  - Participants described different expectations across settings.
+limitations: A single setting; transfer to other contexts needs checking.
+research_status: Needs synthesis
+```
+
+Stratum preserves properties outside its managed set during sync. The table
+displays scalar and list values; empty values appear as a dash. It does not
+extract assessments from prose, read Dataview inline fields, or edit properties.
+Keep judgments specific to one essay in that essay's working notes.
+
+Source navigation, occurrence excerpts, and source-health actions remain in the
+first column, including unresolved citations. Scroll horizontally in a narrow
+sidebar to reach additional columns. Layout, columns, and column sorting are
+saved with the Obsidian workspace while the Stratum view remains in its layout.
+
 ### Source health and recovery
 
 Sources reports problems beside the affected citation while keeping the style

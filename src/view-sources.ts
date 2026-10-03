@@ -2,8 +2,16 @@ import { renderSourceHealth, sourceNeedsAttention } from "./view-source-health";
 import { Component, SearchComponent, setIcon } from "obsidian";
 import type { SourcesController } from "./sources-controller";
 import type { SourceRow } from "./document-sources";
+import { SourceColumnsModal } from "./source-columns-modal";
+import {
+  sourceColumnLabel,
+  sourceColumnValue,
+  sortSourceTable,
+  type SourceTableState,
+} from "./source-table";
+import type { App } from "obsidian";
 
-export interface SourcesViewState {
+export interface SourcesViewState extends SourceTableState {
   query: string;
   sort: string;
   expanded: Set<string>;
@@ -19,10 +27,13 @@ export class SourcesPanel extends Component {
   private recovering = new Set<string>();
   private recoveryErrors = new Map<string, string>();
   private active = false;
+  private columnsModal: SourceColumnsModal | null = null;
   constructor(
     private container: HTMLElement,
     private sources: SourcesController,
     private state: SourcesViewState,
+    private app: App,
+    private saveState: () => void,
   ) {
     super();
   }
@@ -73,9 +84,51 @@ export class SourcesPanel extends Component {
     sort.value = this.state.sort;
     sort.addEventListener("change", () => {
       this.state.sort = sort.value;
+      this.state.columnSort = null;
+      this.saveState();
+      this.renderRows();
+    });
+    const layout = tools.createEl("select");
+    layout.setAttr("aria-label", "Sources layout");
+    layout.createEl("option", { value: "list", text: "List" });
+    layout.createEl("option", { value: "table", text: "Table" });
+    layout.value = this.state.layout;
+    const columns = tools.createEl("button", { text: "Columns" });
+    columns.type = "button";
+    columns.hidden = this.state.layout !== "table";
+    columns.addEventListener("click", () => {
+      this.columnsModal?.close();
+      this.columnsModal = new SourceColumnsModal(
+        this.app,
+        this.state.columns,
+        (selected) => {
+          if (!this.active) return;
+          this.state.columns = selected;
+          if (
+            this.state.columnSort !== "source" &&
+            !selected.includes(this.state.columnSort ?? "")
+          )
+            this.state.columnSort = null;
+          this.saveState();
+          this.renderRows();
+        },
+      );
+      this.columnsModal.open();
+    });
+    layout.addEventListener("change", () => {
+      this.state.layout = layout.value === "table" ? "table" : "list";
+      this.state.columnSort = null;
+      this.state.scroll = 0;
+      columns.hidden = this.state.layout !== "table";
+      this.saveState();
       this.renderRows();
     });
     this.list = this.container.createDiv({ cls: "stratum-sources-results" });
+    this.list.tabIndex = 0;
+    this.list.setAttr(
+      "aria-label",
+      "Source results; scroll to see additional columns",
+    );
     this.list.addEventListener("scroll", () => {
       this.state.scroll = this.list.scrollTop;
     });
@@ -84,6 +137,7 @@ export class SourcesPanel extends Component {
   }
   onunload(): void {
     this.active = false;
+    this.columnsModal?.close();
     this.citationRevision++;
   }
   private async renderCitationStatus(): Promise<void> {
@@ -187,8 +241,11 @@ export class SourcesPanel extends Component {
             : (row.entry?.title ?? row.keys[0]);
         return (value(a) ?? "").localeCompare(value(b) ?? "");
       });
-    const list = this.list.createEl("ul", { cls: "stratum-sources-list" });
-    for (const row of filtered) this.renderRow(list, row);
+    if (this.state.layout === "table") this.renderTable(filtered);
+    else {
+      const list = this.list.createEl("ul", { cls: "stratum-sources-list" });
+      for (const row of filtered) this.renderRow(list, row);
+    }
     if (!filtered.length)
       this.list.createEl("p", {
         text: "No matching sources.",
@@ -202,6 +259,52 @@ export class SourcesPanel extends Component {
           if (element.dataset.sourceAction === focus)
             element.focus({ preventScroll: true });
         });
+  }
+  private renderTable(rows: SourceRow[]): void {
+    const table = this.list.createEl("table", { cls: "stratum-source-table" });
+    table.createEl("caption", { text: "Sources for this note" });
+    const header = table.createEl("thead").createEl("tr");
+    for (const key of ["source", ...this.state.columns]) {
+      const cell = header.createEl("th", { attr: { scope: "col" } });
+      cell.setAttr(
+        "aria-sort",
+        this.state.columnSort === key
+          ? this.state.descending
+            ? "descending"
+            : "ascending"
+          : "none",
+      );
+      const label = key === "source" ? "Source" : sourceColumnLabel(key);
+      const button = cell.createEl("button", { text: label });
+      button.type = "button";
+      button.dataset.sourceAction = `sort:${key}`;
+      button.title = `Sort by ${label.toLocaleLowerCase()}`;
+      button.addEventListener("click", () => {
+        this.state.descending =
+          this.state.columnSort === key ? !this.state.descending : false;
+        this.state.columnSort = key;
+        this.saveState();
+        this.renderRows();
+        this.list
+          .querySelectorAll<HTMLElement>("[data-source-action]")
+          .forEach((element) => {
+            if (element.dataset.sourceAction === `sort:${key}`)
+              element.focus({ preventScroll: true });
+          });
+      });
+    }
+    const body = table.createEl("tbody");
+    for (const row of sortSourceTable(rows, this.state, (source) =>
+      this.sources.properties(source),
+    )) {
+      const tr = body.createEl("tr");
+      this.renderRow(tr.createEl("td"), row, true);
+      const properties = this.sources.properties(row);
+      for (const key of this.state.columns)
+        tr.createEl("td", {
+          text: sourceColumnValue(row, key, properties) || "—",
+        });
+    }
   }
   private async recover(row: SourceRow): Promise<void> {
     if (!this.active || this.recovering.has(row.id)) return;
@@ -223,16 +326,17 @@ export class SourcesPanel extends Component {
       if (this.active) this.renderRows();
     }
   }
-  private renderRow(list: HTMLElement, row: SourceRow): void {
-    const item = list.createEl("li");
+  private renderRow(list: HTMLElement, row: SourceRow, compact = false): void {
+    const item = list.createEl(compact ? "div" : "li");
     const entry = row.entry;
     if (entry) {
-      item.createDiv({
-        cls: "stratum-sources-meta",
-        text: [entry.authors.join(", ") || "Unknown author", entry.year]
-          .filter(Boolean)
-          .join(" · "),
-      });
+      if (!compact)
+        item.createDiv({
+          cls: "stratum-sources-meta",
+          text: [entry.authors.join(", ") || "Unknown author", entry.year]
+            .filter(Boolean)
+            .join(" · "),
+        });
       const title = item.createEl("button", {
         cls: "stratum-sources-title",
         text: entry.title,
