@@ -20,10 +20,18 @@ Edit TypeScript in `src/` and styles in `styles.css`. `pnpm dev` rebuilds
 `main.js` as you edit; disable and re-enable the plugin to load changes.
 Tests live in `src/test/`.
 
-Run `pnpm check` before opening a focused pull request. It checks formatting,
+Run `pnpm --silent check` before opening a focused pull request. It checks formatting,
 Obsidian lint, scorecard type compatibility, tests, types, and the production
 build. Run `pnpm format` to fix source formatting. Test the affected workflow in
 Obsidian and describe your changes and validation in the PR.
+
+Finite checks print one success line. On failure, they preserve the exit status,
+show bounded diagnostics, and report a full local log. Successful logs are
+deleted; remove retained failure logs after debugging. Use
+`STRATUM_VERBOSE=1 pnpm --silent check` to stream all nested output, or use an
+individual tool's `:verbose` script. Extra arguments are forwarded. Development
+and watch commands keep their live output.
+CI prints full failure diagnostics so they remain available in the job output.
 
 `pnpm lint:scorecard` also checks production source without ambient Node type
 definitions, catching unsafe types that local lint can miss. Both Node CI jobs
