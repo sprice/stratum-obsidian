@@ -32,7 +32,8 @@
     "format": "node scripts/run-quiet.mjs pnpm run format:verbose",
     "format:verbose": "prettier --write src/",
     "test:tooling": "node scripts/run-quiet.mjs pnpm run test:tooling:verbose",
-    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs"
+    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs",
+    "quiet": "node scripts/run-quiet.mjs"
   },
   "keywords": [],
   "license": "MIT",

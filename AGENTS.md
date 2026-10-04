@@ -19,6 +19,11 @@ Use synthetic examples in tests and shared artifacts.
   the path to a complete local log. Read that log selectively when needed;
   remove retained logs after debugging. Use `STRATUM_VERBOSE=1 pnpm --silent check`
   to stream all nested output. Individual tools also have `:verbose` scripts.
+- For targeted tests or direct tools, use `pnpm --silent quiet pnpm exec node
+  --test --import tsx src/test/example.test.ts` (with the actual test path).
+  `pnpm --silent exec` alone still prints tool output. Resolve focused test,
+  lint, and type errors before the full `check`; rerun broader checks when later
+  changes affect their coverage.
 - Development/watch and data-producing commands retain their output contracts.
 
 ## Compatibility and Obsidian APIs

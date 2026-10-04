@@ -197,3 +197,40 @@ test("CI keeps complete failure diagnostics in the job output", () => {
     rmSync(dirname(log), { recursive: true, force: true });
   }
 });
+
+test("direct test runners suppress TAP on success and retain failure diagnostics", () => {
+  const folder = mkdtempSync(join(tmpdir(), "quiet-direct-test-"));
+  const fixture = join(folder, "synthetic.test.mjs");
+  try {
+    writeFileSync(
+      fixture,
+      'import test from "node:test"; test("synthetic", () => {});',
+    );
+    const childEnv = { ...env };
+    delete childEnv.NODE_TEST_CONTEXT;
+    const invoke = () =>
+      spawnSync(
+        process.execPath,
+        [runner, process.execPath, "--test", fixture],
+        { env: childEnv, encoding: "utf8" },
+      );
+    const success = invoke();
+    assert.equal(success.status, 0);
+    assert.equal(success.stdout, "PASS fixture\n");
+    assert.equal(success.stderr, "");
+    writeFileSync(
+      fixture,
+      'import test from "node:test"; test("synthetic", () => { throw new Error("synthetic failure"); });',
+    );
+    const failure = invoke();
+    const log = retainedLog(failure);
+    try {
+      assert.equal(failure.status, 1);
+      assert.match(readFileSync(log, "utf8"), /synthetic failure/);
+    } finally {
+      rmSync(dirname(log), { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
