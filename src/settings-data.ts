@@ -1,3 +1,4 @@
+import { readEnabledTabs, type EnabledTabs } from "./stratum-tabs";
 import type { CollectionCatalogs } from "./collection-catalog";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
@@ -38,6 +39,7 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  enabledTabs: EnabledTabs;
   citationStyle: string;
   citationLanguage: string;
   citationStyles: Record<string, string>;
@@ -68,6 +70,7 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  enabledTabs: readEnabledTabs(undefined),
   citationStyle: "apa",
   citationLanguage: "en-US",
   citationStyles: {},

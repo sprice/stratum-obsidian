@@ -1,3 +1,4 @@
+import { selectStratumTab } from "./plugin-tabs";
 import {
   Prec,
   StateEffect,
@@ -101,8 +102,8 @@ class InlineCitation extends WidgetType {
       menu.addItem((item) =>
         item.setTitle("Show sources").onClick(() => {
           if (!current()) return;
+          if (!selectStratumTab(this.service.plugin, "sources")) return;
           this.service.plugin.sources.showCurrent();
-          this.service.plugin.activeViewTab = "sources";
           void this.service.plugin.activateView();
         }),
       );

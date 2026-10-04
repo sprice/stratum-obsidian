@@ -1,3 +1,4 @@
+import { selectStratumTab } from "./plugin-tabs";
 import {
   MarkdownView,
   Notice,
@@ -176,15 +177,15 @@ export async function openCitationEvidence(
         latest.identity !== choice.entry.identity ||
         !latest.notes.some((note) => note.file === choice.entry!.file)
       ) {
+        if (!selectStratumTab(plugin, "sources")) return;
         plugin.sources.showCurrent();
-        plugin.activeViewTab = "sources";
         await plugin.activateView();
         return;
       }
+      if (!selectStratumTab(plugin, "reader")) return;
       positions.set(plugin, saved);
       registerEvidence(plugin);
       plugin.readerNoteFile = choice.entry.file;
-      plugin.activeViewTab = "reader";
       await plugin.activateView();
       plugin.refreshViews();
     };

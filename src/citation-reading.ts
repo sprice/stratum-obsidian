@@ -1,3 +1,4 @@
+import { selectStratumTab } from "./plugin-tabs";
 import { nativeFootnoteReference } from "./citation-footnotes";
 import {
   Component,
@@ -269,8 +270,8 @@ class ReadingCitations extends MarkdownRenderChild {
         const button = error.createEl("button", { text: "Review sources" });
         button.type = "button";
         button.addEventListener("click", () => {
+          if (!selectStratumTab(this.service.plugin, "sources")) return;
           this.service.plugin.sources.showCurrent();
-          this.service.plugin.activeViewTab = "sources";
           void this.service.plugin.activateView();
         });
         this.undo.push(() => error.remove());

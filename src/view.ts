@@ -1,3 +1,10 @@
+import {
+  getVisibleTabs,
+  readEnabledTabs,
+  resolveActiveTab,
+  type StratumTab,
+} from "./stratum-tabs";
+import { selectStratumTab } from "./plugin-tabs";
 import { hasWritingPosition, returnToWriting } from "./citation-evidence";
 import { SourcesPanel, type SourcesViewState } from "./view-sources";
 import { readSourceTableState } from "./source-table";
@@ -47,7 +54,6 @@ import {
   getSelectedSyncLibrary,
   isLocalSyncSupported,
 } from "./plugin-local-sync";
-import { shouldShowSyncTab } from "./local-sync-rules";
 import {
   ABSTRACT_TEASER_LENGTH,
   getAbstractTeaser,
@@ -267,12 +273,10 @@ export class StratumView extends ItemView {
     });
   }
 
-  private setActiveTab(
-    tab: "browse" | "search" | "sync" | "reader" | "sources",
-    preserveTabFocus = false,
-  ): void {
+  private setActiveTab(tab: StratumTab, preserveTabFocus = false): void {
+    const previous = this.plugin.activeViewTab;
+    if (!selectStratumTab(this.plugin, tab)) return;
     if (tab === "browse") {
-      this.plugin.activeViewTab = tab;
       this.plugin.refreshViews();
       void browseCollections(this.plugin).then(() => {
         if (preserveTabFocus && this.plugin.activeViewTab === tab)
@@ -280,11 +284,10 @@ export class StratumView extends ItemView {
       });
       return;
     }
-    if (this.plugin.activeViewTab === tab) {
+    if (previous === tab) {
       return;
     }
 
-    this.plugin.activeViewTab = tab;
     this.plugin.refreshViews();
   }
 
@@ -302,9 +305,7 @@ export class StratumView extends ItemView {
     return entry?.title ?? file.basename;
   }
 
-  private focusTab(
-    tab: "browse" | "search" | "sync" | "reader" | "sources",
-  ): void {
+  private focusTab(tab: StratumTab): void {
     const tabId = `${this.tabIdPrefix}-tab-${tab}`;
     window.requestAnimationFrame(() => {
       this.contentEl.querySelector<HTMLElement>(`#${tabId}`)?.focus();
@@ -432,6 +433,13 @@ export class StratumView extends ItemView {
     this.readerSuggest = null;
     this.clearReaderMarkdownComponent();
 
+    const enabledTabs = readEnabledTabs(this.plugin.settings.enabledTabs);
+    this.plugin.activeViewTab = resolveActiveTab(
+      this.plugin.activeViewTab,
+      enabledTabs,
+      isLocalSyncSupported(),
+    );
+
     if (this.plugin.activeViewTab !== "reader") {
       this.clearReaderFileWatcher();
       this.clearReaderRefreshTimer();
@@ -443,22 +451,15 @@ export class StratumView extends ItemView {
     contentEl.addClass("stratum-view");
 
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
-    const showSyncTab = shouldShowSyncTab({
-      isDesktopApp: isLocalSyncSupported(),
-      hasSession: this.plugin.backend.hasSession(),
-    });
-    const visibleTabs: Array<{
-      id: "browse" | "search" | "sync" | "reader" | "sources";
-      label: string;
-    }> = [
-      { id: "browse", label: "Browse" },
-      { id: "search", label: "Search" },
-      ...(showSyncTab ? [{ id: "sync" as const, label: "Sync" }] : []),
-      { id: "reader", label: "Reader" },
-      { id: "sources", label: "Sources" },
-    ];
-    if (!visibleTabs.some((tab) => tab.id === this.plugin.activeViewTab)) {
-      this.plugin.activeViewTab = "search";
+    const visibleTabs = getVisibleTabs(enabledTabs, isLocalSyncSupported());
+    if (visibleTabs.length === 0) {
+      const empty = shell.createDiv({ cls: "stratum-empty-state" });
+      empty.createEl("h2", { text: `No ${PLUGIN_NAME} tabs enabled` });
+      empty.createEl("p", {
+        text: `All tabs available on this device are disabled. Enable a tab in ${PLUGIN_NAME} settings to show it here.`,
+      });
+      this.renderSettingsButton(empty);
+      return;
     }
 
     this.renderTabBar(shell, visibleTabs);
@@ -506,8 +507,14 @@ export class StratumView extends ItemView {
         this.renderReaderTab(panel);
       }
     }
-    if (focusedTabId)
-      this.contentEl.querySelector<HTMLElement>(`#${focusedTabId}`)?.focus();
+    if (focusedTabId) {
+      const target =
+        this.contentEl.querySelector<HTMLElement>(`#${focusedTabId}`) ??
+        this.contentEl.querySelector<HTMLElement>(
+          `#${this.tabIdPrefix}-tab-${this.plugin.activeViewTab}`,
+        );
+      target?.focus();
+    }
     if (browseSelection) {
       const search = this.contentEl.querySelector<HTMLInputElement>(
         'input[aria-label="Search imported papers"]',
@@ -520,11 +527,15 @@ export class StratumView extends ItemView {
   private renderTabBar(
     container: HTMLElement,
     tabs: Array<{
-      id: "browse" | "search" | "sync" | "reader" | "sources";
+      id: StratumTab;
       label: string;
     }>,
   ): void {
     const tabBar = container.createDiv({ cls: "stratum-tab-bar" });
+    tabBar.setCssProps({
+      "--stratum-tab-count": String(tabs.length),
+      "--stratum-compact-tab-count": String(Math.min(2, tabs.length)),
+    });
     tabBar.setAttr("role", "tablist");
     tabBar.setAttr("aria-label", `${PLUGIN_NAME} panels`);
 
@@ -569,6 +580,18 @@ export class StratumView extends ItemView {
     });
   }
 
+  private renderSettingsButton(container: HTMLElement): void {
+    const button = container.createEl("button", {
+      text: `Open ${PLUGIN_NAME} settings`,
+    });
+    button.type = "button";
+    button.addEventListener("click", () => {
+      const settings = getSettingsManager(this.app);
+      settings?.open();
+      settings?.openTabById(this.plugin.manifest.id);
+    });
+  }
+
   private renderBrowseTab(container: HTMLElement): void {
     const section = container.createDiv({ cls: "stratum-search-section" });
     section.createEl("h3", { text: "Browse your literature notes" });
@@ -599,15 +622,6 @@ export class StratumView extends ItemView {
     const isReadyForSearch = isAppConnected && isZoteroConnected;
     const selectedSearchLibrary = getSelectedSearchLibrary(this.plugin);
     const selectedSearchCollection = getSelectedSearchCollection(this.plugin);
-    const openSettings = () => {
-      const settingsManager = getSettingsManager(this.app);
-      if (!settingsManager) {
-        return;
-      }
-
-      settingsManager.open();
-      settingsManager.openTabById(this.plugin.manifest.id);
-    };
 
     if (!isReadyForSearch) {
       const emptyState = searchTab.createDiv({
@@ -628,10 +642,7 @@ export class StratumView extends ItemView {
             ? `Reconnect Zotero in settings to keep searching and syncing your library. Last connected as ${lastKnownZoteroUsername}.`
             : "Connect Zotero in settings to search your library and create literature notes.",
       });
-      const settingsButton = emptyState.createEl("button", {
-        text: "Open plugin settings",
-      });
-      settingsButton.addEventListener("click", openSettings);
+      this.renderSettingsButton(emptyState);
       return;
     }
 
@@ -980,17 +991,9 @@ export class StratumView extends ItemView {
   }
 
   private renderSyncTab(container: HTMLElement): void {
+    if (!isLocalSyncSupported()) return;
     const syncTab = container;
     const zoteroConnected = Boolean(this.plugin.zoteroConnection?.connected);
-    const openSettings = () => {
-      const settingsManager = getSettingsManager(this.app);
-      if (!settingsManager) {
-        return;
-      }
-
-      settingsManager.open();
-      settingsManager.openTabById(this.plugin.manifest.id);
-    };
 
     if (!this.plugin.backend.hasSession() || !zoteroConnected) {
       const emptyState = syncTab.createDiv({
@@ -1001,16 +1004,15 @@ export class StratumView extends ItemView {
         text: PLUGIN_NAME,
       });
       emptyState.createEl("h2", {
-        text: "Finish Zotero setup in plugin settings.",
+        text: `Finish sync setup in ${PLUGIN_NAME} settings.`,
       });
       emptyState.createEl("p", {
         cls: "stratum-meta",
-        text: "Connect Zotero in plugin settings to use desktop bulk sync with your local Zotero app.",
+        text: !this.plugin.backend.hasSession()
+          ? "Sign in to Stratum, then connect Zotero in settings to sync from your local Zotero app."
+          : "Connect Zotero in settings to sync from your local Zotero app.",
       });
-      const settingsButton = emptyState.createEl("button", {
-        text: "Open plugin settings",
-      });
-      settingsButton.addEventListener("click", openSettings);
+      this.renderSettingsButton(emptyState);
       return;
     }
 
@@ -1055,10 +1057,7 @@ export class StratumView extends ItemView {
         cls: "stratum-meta",
         text: this.plugin.localSyncLibrariesError,
       });
-      const settingsButton = emptyState.createEl("button", {
-        text: "Open plugin settings",
-      });
-      settingsButton.addEventListener("click", openSettings);
+      this.renderSettingsButton(emptyState);
       return;
     }
 
@@ -1096,10 +1095,7 @@ export class StratumView extends ItemView {
         cls: "stratum-meta",
         text: "Local Zotero is ready on this desktop. Turn on bulk sync in plugin settings to sync a full library or collection.",
       });
-      const settingsButton = emptyState.createEl("button", {
-        text: "Open plugin settings",
-      });
-      settingsButton.addEventListener("click", openSettings);
+      this.renderSettingsButton(emptyState);
       return;
     }
 

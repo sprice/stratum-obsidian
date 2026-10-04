@@ -71,6 +71,7 @@ function fixture() {
   );
   const plugin = {
     isUnloaded: false,
+    settings: { enabledTabs: { reader: true, sources: true } },
     activeViewTab: "sources",
     readerNoteFile: null as unknown,
     register: (fn: () => void) => cleanup.push(fn),
@@ -269,3 +270,17 @@ test("return does not apply Reading state after switching into editing during a 
   await f.runtime.returnToWriting(f.plugin as never);
   assert.equal(f.counts().restored, 0);
 });
+
+for (const target of ["reader", "sources"] as const) {
+  test(`citation evidence cannot open hidden ${target}`, async () => {
+    const f = fixture();
+    f.plugin.activeViewTab = "search";
+    f.plugin.settings.enabledTabs[target] = false;
+    await f.open(target === "reader" ? ["a"] : ["missing"]);
+    assert.equal(f.plugin.activeViewTab, "search");
+    assert.equal(f.plugin.readerNoteFile, null);
+    assert.equal(f.counts().followed, 0);
+    assert.equal(f.runtime.hasWritingPosition(f.plugin as never), false);
+    assert.ok(f.notices.some((message) => message.includes("is hidden")));
+  });
+}
