@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/require-await -- Async stubs model the host APIs. */
 import { buildLiteratureNoteContent } from "../literature-note-content";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -214,19 +213,19 @@ test("BBT retrieves a native citekey and accepts only matching attachment annota
   const paths = await bbt.loadBetterBibtexImagePaths(
     fixture(),
     23119,
-    async (url, body) => {
+    (url, body) => {
       assert.equal(url, "http://127.0.0.1:23119/better-bibtex/json-rpc");
       assert.deepEqual((JSON.parse(body) as { params: unknown }).params, [
         "exampleStudy2020",
       ]);
-      return response();
+      return Promise.resolve(response());
     },
   );
   assert.equal(paths.size, 1);
   assert.equal(
     (
-      await bbt.loadBetterBibtexImagePaths(fixture(), 23119, async () =>
-        response("zotero://open-pdf/groups/2/items/PDFD1234"),
+      await bbt.loadBetterBibtexImagePaths(fixture(), 23119, () =>
+        Promise.resolve(response("zotero://open-pdf/groups/2/items/PDFD1234")),
       )
     ).size,
     0,
@@ -234,8 +233,11 @@ test("BBT retrieves a native citekey and accepts only matching attachment annota
   const wrong = response();
   wrong.result[0].annotations[0].parentItem = "OTHER123";
   assert.equal(
-    (await bbt.loadBetterBibtexImagePaths(fixture(), 23119, async () => wrong))
-      .size,
+    (
+      await bbt.loadBetterBibtexImagePaths(fixture(), 23119, () =>
+        Promise.resolve(wrong),
+      )
+    ).size,
     0,
   );
 });
@@ -247,14 +249,16 @@ test("BBT failures are recoverable and missing citekeys never send fallback gues
     { id: "stratum-images", result: {} },
   ]) {
     await assert.rejects(
-      bbt.loadBetterBibtexImagePaths(fixture(), 23119, async () => result),
+      bbt.loadBetterBibtexImagePaths(fixture(), 23119, () =>
+        Promise.resolve(result),
+      ),
     );
   }
   const detail = fixture();
   detail.item.citationKey = null;
   assert.equal(
     (
-      await bbt.loadBetterBibtexImagePaths(detail, 23119, async () => {
+      await bbt.loadBetterBibtexImagePaths(detail, 23119, () => {
         assert.fail("No request expected");
       })
     ).size,
@@ -378,23 +382,25 @@ function importer(
     bulkLibrarySyncRunPromise: {},
     app: {
       vault: {
-        read: async () => `---\n${JSON.stringify(old)}\n---\n`,
+        read: () => Promise.resolve(`---\n${JSON.stringify(old)}\n---\n`),
         getAbstractFileByPath: (p: string) => files.get(p),
-        readBinary: async (file: FakeFile) => {
+        readBinary: (file: FakeFile) => {
           reads++;
-          return bytes.get(file.path);
+          return Promise.resolve(bytes.get(file.path));
         },
-        createBinary: async (p: string, data: ArrayBuffer) => {
+        createBinary: (p: string, data: ArrayBuffer) => {
           writes++;
           const file = new FakeFile(p);
           file.stat.size = data.byteLength;
           files.set(p, file);
           bytes.set(p, data);
+          return Promise.resolve();
         },
-        modifyBinary: async (file: FakeFile, data: ArrayBuffer) => {
+        modifyBinary: (file: FakeFile, data: ArrayBuffer) => {
           writes++;
           file.stat.size = data.byteLength;
           bytes.set(file.path, data);
+          return Promise.resolve();
         },
       },
     },
@@ -418,30 +424,34 @@ function importer(
     {
       "./better-bibtex-images": {
         BetterBibtexItemError: class extends Error {},
-        loadBetterBibtexImagePaths: async () => {
+        loadBetterBibtexImagePaths: () => {
           requests++;
-          if (options.unavailable) throw new Error("Missing BBT");
+          if (options.unavailable)
+            return Promise.reject(new Error("Missing BBT"));
           if (options.changeSettings) plugin.settings.notesFolder = "Changed";
           if (options.changeAccount)
             plugin.settings.accountId = "another-account";
-          return new Map([["IMGD1234", "/synthetic"]]);
+          return Promise.resolve(new Map([["IMGD1234", "/synthetic"]]));
         },
       },
       "./annotation-image-file": {
-        readAnnotationPng: async () => {
+        readAnnotationPng: () => {
           if (options.revokeOwnership)
             old.zotero_item_identity = "user/1/OTHER123";
-          return new Uint8Array([1, 2, 3]).buffer;
+          return Promise.resolve(new Uint8Array([1, 2, 3]).buffer);
         },
       },
       "./literature-note-files": {
-        ensureFolder: async () => {
+        ensureFolder: () => {
           folders++;
+          return Promise.resolve();
         },
       },
       "./zotero-local": {
-        loadLocalZoteroLibraries: async () =>
-          options.identityHangs ? new Promise(() => {}) : { userId: "1" },
+        loadLocalZoteroLibraries: () =>
+          options.identityHangs
+            ? new Promise(() => {})
+            : Promise.resolve({ userId: "1" }),
       },
     },
   );
@@ -638,16 +648,16 @@ test("owned images can update and group libraries cannot use personal attachment
   detail.library.id = "2";
   assert.equal(
     (
-      await bbt.loadBetterBibtexImagePaths(detail, 23119, async () =>
-        response(),
+      await bbt.loadBetterBibtexImagePaths(detail, 23119, () =>
+        Promise.resolve(response()),
       )
     ).size,
     0,
   );
   assert.equal(
     (
-      await bbt.loadBetterBibtexImagePaths(detail, 23119, async () =>
-        response("zotero://open-pdf/groups/2/items/PDFD1234"),
+      await bbt.loadBetterBibtexImagePaths(detail, 23119, () =>
+        Promise.resolve(response("zotero://open-pdf/groups/2/items/PDFD1234")),
       )
     ).size,
     1,
@@ -718,5 +728,3 @@ test("manual sync resets the missing-plugin cache and deleted vault images are r
   assert.equal(f.folders, 1);
   assert.equal(f.writes, 1);
 });
-
-/* eslint-enable @typescript-eslint/require-await -- End of asynchronous host stubs. */
