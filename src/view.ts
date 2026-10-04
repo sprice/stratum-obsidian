@@ -532,6 +532,10 @@ export class StratumView extends ItemView {
     }>,
   ): void {
     const tabBar = container.createDiv({ cls: "stratum-tab-bar" });
+    tabBar.setCssProps({
+      "--stratum-tab-count": String(tabs.length),
+      "--stratum-compact-tab-count": String(Math.min(2, tabs.length)),
+    });
     tabBar.setAttr("role", "tablist");
     tabBar.setAttr("aria-label", `${PLUGIN_NAME} panels`);
 

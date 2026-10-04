@@ -89,6 +89,10 @@ test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
 class Element {
   children: Element[] = [];
   attrs: Record<string, string> = {};
+  cssProps: Record<string, string> = {};
+  setCssProps(props: Record<string, string>) {
+    Object.assign(this.cssProps, props);
+  }
   listeners = new Map<
     string,
     (event: { key: string; preventDefault(): void }) => void
@@ -256,3 +260,18 @@ test("disabling Reader cleans up its watcher and keyboard navigation skips hidde
   assert.equal(f.plugin.activeViewTab, "search");
   assert.equal(f.content.doc.activeElement?.text, "Search");
 });
+
+for (const desktop of [true, false]) {
+  test(`tab layout fills available columns as tabs are hidden, desktop=${desktop}`, () => {
+    const f = viewFixture(desktop);
+    f.view.render();
+    const bar = () =>
+      f.content.all().find((el) => el.attrs.role === "tablist")!;
+    assert.equal(bar().cssProps["--stratum-tab-count"], desktop ? "5" : "4");
+    assert.equal(bar().cssProps["--stratum-compact-tab-count"], "2");
+    f.plugin.settings.enabledTabs = { ...allOff(), reader: true };
+    f.view.render();
+    assert.equal(bar().cssProps["--stratum-tab-count"], "1");
+    assert.equal(bar().cssProps["--stratum-compact-tab-count"], "1");
+  });
+}

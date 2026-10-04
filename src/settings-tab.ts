@@ -499,8 +499,8 @@ export class StratumSettingTab extends PluginSettingTab {
                   ...readEnabledTabs(this.plugin.settings.enabledTabs),
                   [tab.id]: enabled,
                 };
-                await this.plugin.saveSettings();
                 this.plugin.refreshViews();
+                await this.plugin.saveSettings();
               }),
           );
       });

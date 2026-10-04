@@ -333,3 +333,30 @@ for (const desktop of [true, false]) {
     assert.equal(f.plugin.settings.enabledTabs.reader, false);
   });
 }
+
+test("tab visibility updates before a slow settings save completes", async () => {
+  const f = fixture(true);
+  let release!: () => void;
+  f.plugin.saveSettings = () =>
+    new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  const browse = f.tab
+    .getSettingDefinitions()
+    .find((section) => section.heading === "Stratum tabs")!
+    .items.find((item) => item.name === "Browse")!;
+  const row = new Row();
+  browse.render(row as never);
+  const saving = row.control!.change!(false);
+  try {
+    assert.equal(f.plugin.settings.enabledTabs.browse, false);
+    assert.equal(
+      f.updates,
+      1,
+      "Do not leave a disabled tab visible while saveData is pending",
+    );
+  } finally {
+    release();
+    await saving;
+  }
+});
