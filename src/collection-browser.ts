@@ -50,6 +50,7 @@ export function getCollectionBrowserView(
 }
 
 export function browseCollections(plugin: StratumPlugin): Promise<void> {
+  if (plugin.isUnloaded) return Promise.resolve();
   plugin.activeViewTab = "browse";
   const pending = pendingBrowse.get(plugin);
   if (pending) return pending;
@@ -57,6 +58,7 @@ export function browseCollections(plugin: StratumPlugin): Promise<void> {
   const browser = getCollectionBrowserView(plugin);
   const request = (async () => {
     await plugin.activateView();
+    if (plugin.isUnloaded) return;
     const leaves = plugin.app.workspace.getLeavesOfType(
       COLLECTION_BROWSER_VIEW,
     );
@@ -69,7 +71,9 @@ export function browseCollections(plugin: StratumPlugin): Promise<void> {
         active: true,
       });
     }
+    if (plugin.isUnloaded) return;
     await plugin.app.workspace.revealLeaf(leaf);
+    if (plugin.isUnloaded) return;
     if (leaf.view instanceof CollectionBrowserView && leaf.view.isReady())
       browserTargets.set(plugin, leaf.view);
     plugin.refreshViews();

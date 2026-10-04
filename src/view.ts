@@ -172,11 +172,10 @@ export class StratumView extends ItemView {
   onOpen(): Promise<void> {
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
-        if (
-          this.plugin.activeViewTab === "browse" &&
-          leaf?.view instanceof CollectionBrowserView
-        )
-          this.render();
+        if (!(leaf?.view instanceof CollectionBrowserView)) return;
+        // Track the main-pane target even while another sidebar panel is open.
+        getCollectionBrowserView(this.plugin);
+        if (this.plugin.activeViewTab === "browse") this.render();
       }),
     );
     this.render();
