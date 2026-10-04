@@ -157,7 +157,7 @@ export default class StratumPlugin extends Plugin {
   activeNoteActionKey: string | null = null;
   sources!: SourcesController;
   citations!: CitationService;
-  activeViewTab: "search" | "sync" | "reader" | "sources" = "search";
+  activeViewTab: "browse" | "search" | "sync" | "reader" | "sources" = "search";
   readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
   librarySearchDebounceTimer: number | null = null;
@@ -297,7 +297,9 @@ export default class StratumPlugin extends Plugin {
     this.addCommand({
       id: "browse-papers-by-collection",
       name: "Browse papers by collection",
-      callback: () => browseCollections(this),
+      callback: () => {
+        void browseCollections(this);
+      },
     });
 
     this.addCommand({
@@ -495,6 +497,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   async activateView(): Promise<void> {
+    if (this.isUnloaded) return;
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_STRATUM);
     const leaf = existing[0] ?? this.app.workspace.getRightLeaf(false);
     if (!leaf) {
@@ -506,6 +509,7 @@ export default class StratumPlugin extends Plugin {
       active: true,
     });
 
+    if (this.isUnloaded) return;
     await this.app.workspace.revealLeaf(leaf);
   }
 
