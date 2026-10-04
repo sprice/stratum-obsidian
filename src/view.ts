@@ -1,7 +1,11 @@
 import { hasWritingPosition, returnToWriting } from "./citation-evidence";
 import { SourcesPanel, type SourcesViewState } from "./view-sources";
 import { readSourceTableState } from "./source-table";
-import { browseCollections } from "./collection-browser";
+import {
+  browseCollections,
+  CollectionBrowserView,
+  getCollectionBrowserView,
+} from "./collection-browser";
 import {
   Component,
   Notice,
@@ -100,6 +104,7 @@ function getBulkSyncCompletionFadeState(
 
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
+  private unmountBrowseControls: (() => void) | null = null;
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
     ...readSourceTableState(undefined),
@@ -165,11 +170,22 @@ export class StratumView extends ItemView {
   }
 
   onOpen(): Promise<void> {
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (
+          this.plugin.activeViewTab === "browse" &&
+          leaf?.view instanceof CollectionBrowserView
+        )
+          this.render();
+      }),
+    );
     this.render();
     return Promise.resolve();
   }
 
   onClose(): Promise<void> {
+    this.unmountBrowseControls?.();
+    this.unmountBrowseControls = null;
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
       this.sourcesPanel = null;
@@ -252,7 +268,19 @@ export class StratumView extends ItemView {
     });
   }
 
-  private setActiveTab(tab: "search" | "sync" | "reader" | "sources"): void {
+  private setActiveTab(
+    tab: "browse" | "search" | "sync" | "reader" | "sources",
+    preserveTabFocus = false,
+  ): void {
+    if (tab === "browse") {
+      this.plugin.activeViewTab = tab;
+      this.plugin.refreshViews();
+      void browseCollections(this.plugin).then(() => {
+        if (preserveTabFocus && this.plugin.activeViewTab === tab)
+          this.focusTab(tab);
+      });
+      return;
+    }
     if (this.plugin.activeViewTab === tab) {
       return;
     }
@@ -275,7 +303,9 @@ export class StratumView extends ItemView {
     return entry?.title ?? file.basename;
   }
 
-  private focusTab(tab: "search" | "sync" | "reader" | "sources"): void {
+  private focusTab(
+    tab: "browse" | "search" | "sync" | "reader" | "sources",
+  ): void {
     const tabId = `${this.tabIdPrefix}-tab-${tab}`;
     window.requestAnimationFrame(() => {
       this.contentEl.querySelector<HTMLElement>(`#${tabId}`)?.focus();
@@ -379,6 +409,19 @@ export class StratumView extends ItemView {
   }
 
   render(): void {
+    const focused = this.contentEl.doc.activeElement;
+    const focusedTabId = focused?.id.startsWith(`${this.tabIdPrefix}-tab-`)
+      ? focused.id
+      : null;
+    const browseSearch = this.contentEl.querySelector<HTMLInputElement>(
+      'input[aria-label="Search imported papers"]',
+    );
+    const browseSelection =
+      browseSearch && focused === browseSearch
+        ? ([browseSearch.selectionStart, browseSearch.selectionEnd] as const)
+        : null;
+    this.unmountBrowseControls?.();
+    this.unmountBrowseControls = null;
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
       this.sourcesPanel = null;
@@ -401,19 +444,15 @@ export class StratumView extends ItemView {
     contentEl.addClass("stratum-view");
 
     const shell = contentEl.createDiv({ cls: "stratum-shell" });
-    const browse = shell.createEl("button", {
-      text: "Browse literature notes",
-      cls: "stratum-browse-collections",
-    });
-    browse.addEventListener("click", () => browseCollections(this.plugin));
     const showSyncTab = shouldShowSyncTab({
       isDesktopApp: isLocalSyncSupported(),
       hasSession: this.plugin.backend.hasSession(),
     });
     const visibleTabs: Array<{
-      id: "search" | "sync" | "reader" | "sources";
+      id: "browse" | "search" | "sync" | "reader" | "sources";
       label: string;
     }> = [
+      { id: "browse", label: "Browse" },
       { id: "search", label: "Search" },
       ...(showSyncTab ? [{ id: "sync" as const, label: "Sync" }] : []),
       { id: "reader", label: "Reader" },
@@ -429,13 +468,15 @@ export class StratumView extends ItemView {
     for (const tab of visibleTabs) {
       const panel = tabContent.createDiv({
         cls:
-          tab.id === "sources"
-            ? "stratum-sources-tab"
-            : tab.id === "reader"
-              ? "stratum-reader-tab"
-              : tab.id === "sync"
-                ? "stratum-sync-tab"
-                : "stratum-search-tab",
+          tab.id === "browse"
+            ? "stratum-browse-tab"
+            : tab.id === "sources"
+              ? "stratum-sources-tab"
+              : tab.id === "reader"
+                ? "stratum-reader-tab"
+                : tab.id === "sync"
+                  ? "stratum-sync-tab"
+                  : "stratum-search-tab",
       });
       panel.id = `${this.tabIdPrefix}-panel-${tab.id}`;
       panel.setAttr("role", "tabpanel");
@@ -446,7 +487,9 @@ export class StratumView extends ItemView {
         continue;
       }
 
-      if (tab.id === "search") {
+      if (tab.id === "browse") {
+        this.renderBrowseTab(panel);
+      } else if (tab.id === "search") {
         this.renderSearchTab(panel);
       } else if (tab.id === "sync") {
         this.renderSyncTab(panel);
@@ -464,12 +507,21 @@ export class StratumView extends ItemView {
         this.renderReaderTab(panel);
       }
     }
+    if (focusedTabId)
+      this.contentEl.querySelector<HTMLElement>(`#${focusedTabId}`)?.focus();
+    if (browseSelection) {
+      const search = this.contentEl.querySelector<HTMLInputElement>(
+        'input[aria-label="Search imported papers"]',
+      );
+      search?.focus();
+      search?.setSelectionRange(...browseSelection);
+    }
   }
 
   private renderTabBar(
     container: HTMLElement,
     tabs: Array<{
-      id: "search" | "sync" | "reader" | "sources";
+      id: "browse" | "search" | "sync" | "reader" | "sources";
       label: string;
     }>,
   ): void {
@@ -499,22 +551,41 @@ export class StratumView extends ItemView {
           event.preventDefault();
           const direction = event.key === "ArrowRight" ? 1 : -1;
           const nextIndex = (index + direction + tabs.length) % tabs.length;
-          this.setActiveTab(tabs[nextIndex].id);
+          this.setActiveTab(tabs[nextIndex].id, true);
           this.focusTab(tabs[nextIndex].id);
           return;
         }
         if (event.key === "Home") {
           event.preventDefault();
-          this.setActiveTab(tabs[0].id);
+          this.setActiveTab(tabs[0].id, true);
           this.focusTab(tabs[0].id);
           return;
         }
         if (event.key === "End") {
           event.preventDefault();
-          this.setActiveTab(tabs[tabs.length - 1].id);
+          this.setActiveTab(tabs[tabs.length - 1].id, true);
           this.focusTab(tabs[tabs.length - 1].id);
         }
       });
+    });
+  }
+
+  private renderBrowseTab(container: HTMLElement): void {
+    const section = container.createDiv({ cls: "stratum-search-section" });
+    section.createEl("h3", { text: "Browse your literature notes" });
+    section.createEl("p", {
+      cls: "stratum-placeholder",
+      text: "Find and open literature notes already in your vault. Filter by collection or search by title, author, or year.",
+    });
+    const controls = section.createDiv();
+    const browser = getCollectionBrowserView(this.plugin);
+    if (browser) {
+      this.unmountBrowseControls = browser.mountControls(controls);
+      return;
+    }
+    const open = controls.createEl("button", { text: "Open collections" });
+    open.addEventListener("click", () => {
+      void browseCollections(this.plugin);
     });
   }
 
@@ -570,10 +641,10 @@ export class StratumView extends ItemView {
     const searchSection = searchTab.createDiv({
       cls: "stratum-search-section",
     });
-    searchSection.createEl("h3", { text: "Find a paper" });
+    searchSection.createEl("h3", { text: "Search your Zotero library" });
     searchSection.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Search your Zotero library by title, author, or year, then choose a paper to create or update its literature note.",
+      text: "Search by title, author, or year, then select an item to create or update its literature note.",
     });
 
     if (
@@ -684,7 +755,7 @@ export class StratumView extends ItemView {
     });
     const searchId = "stratum-paper-search";
     const searchComponent = new SearchComponent(searchBox);
-    searchComponent.setPlaceholder("Type a paper title, author, or year");
+    searchComponent.setPlaceholder("Title, author, or year");
     searchComponent.setValue(this.plugin.librarySearchQuery);
     searchComponent.inputEl.id = searchId;
     searchLabel.setAttr("for", searchId);
@@ -1051,7 +1122,7 @@ export class StratumView extends ItemView {
     const syncSection = syncTab.createDiv({
       cls: "stratum-search-section",
     });
-    syncSection.createEl("h3", { text: "Bulk sync" });
+    syncSection.createEl("h3", { text: "Sync your Zotero library" });
     const unsupported = scopedBulkSyncState.unsupportedItems ?? [];
     if (unsupported.length) {
       const report = syncSection.createEl("details");
@@ -1078,7 +1149,7 @@ export class StratumView extends ItemView {
 
     syncSection.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Choose a local Zotero library and collection, then sync all matching papers from your local Zotero app.",
+      text: "Create or update literature notes from your local Zotero library. Choose a collection or sync the whole library.",
     });
 
     if (this.plugin.localSyncLibraries.length > 1) {
@@ -1428,7 +1499,7 @@ export class StratumView extends ItemView {
     picker.createEl("h3", { text: "Read a literature note" });
     picker.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Search your local literature notes by title, author, year, or citation key.",
+      text: "Find a literature note by title, author, year, or citation key, then open it here to read alongside your writing.",
     });
 
     const searchBox = picker.createDiv({

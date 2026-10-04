@@ -44,11 +44,15 @@ export class SourcesPanel extends Component {
     this.active = true;
     this.container.addClass("stratum-sources");
     const header = this.container.createDiv({ cls: "stratum-sources-header" });
-    header.createEl("h3", { text: "Sources" });
+    header.createEl("h3", { text: "Review sources for your note" });
     this.pin = header.createEl("button", { cls: "clickable-icon" });
     this.pin.type = "button";
     setIcon(this.pin, "pin");
     this.pin.addEventListener("click", () => this.sources.togglePin());
+    this.container.createEl("p", {
+      cls: "stratum-placeholder",
+      text: "See the works cited or linked in your writing note, open their literature notes, and resolve citation issues.",
+    });
     this.documentButton = this.container.createEl("button", {
       cls: "stratum-sources-document",
     });

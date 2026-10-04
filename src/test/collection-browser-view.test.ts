@@ -6,11 +6,18 @@ class Element {
   children: Element[] = [];
   dataset: Record<string, string> = {};
   attrs: Record<string, string> = {};
-  listeners = new Map<string, () => void>();
+  listeners = new Map<
+    string,
+    (event?: { key: string; preventDefault: () => void }) => void
+  >();
   doc: { activeElement: Element | null } = { activeElement: null };
   scrollTop = 0;
   scrollLeft = 0;
+  id = "";
   value = "";
+  text = "";
+  hidden = false;
+  change: ((value: string) => void) | null = null;
   selectionStart = 0;
   selectionEnd = 0;
   constructor(public tag = "div") {}
@@ -18,24 +25,30 @@ class Element {
   empty() {
     this.children = [];
   }
-  setText() {}
+  setText(text: string) {
+    this.text = text;
+  }
   setAttr(key: string, value: string) {
     this.attrs[key] = value;
   }
   setAttribute(key: string, value: string) {
     this.setAttr(key, value);
   }
-  setSelectionRange() {}
+  setSelectionRange(start: number, end: number) {
+    this.selectionStart = start;
+    this.selectionEnd = end;
+  }
   focus() {
     this.doc.activeElement = this;
   }
   createEl(
     tag: string,
-    options?: { value?: string; attr?: Record<string, string> },
+    options?: { value?: string; text?: string; attr?: Record<string, string> },
   ) {
     const child = new Element(tag);
     child.doc = this.doc;
     child.value = options?.value ?? "";
+    child.text = options?.text ?? "";
     child.attrs = options?.attr ?? {};
     this.children.push(child);
     return child;
@@ -57,6 +70,8 @@ class Element {
     return this.querySelectorAll(selector)[0] ?? null;
   }
   querySelectorAll(selector: string) {
+    if (selector.startsWith("#"))
+      return this.all().filter((el) => el.id === selector.slice(1));
     if (selector === "[data-collection-sort]")
       return this.all().filter((el) => el.dataset.collectionSort);
     const attr = selector.match(/^(\w+)\[aria-label="([^"]+)"\]$/);
@@ -68,10 +83,13 @@ class Element {
   }
 }
 
-test("browser live refresh retains horizontal position and direct browsing preserves the existing view", async () => {
+test("sidebar controls filter main-pane results and preserve state through refresh and remount", async () => {
   const root = new Element();
+  const sidebar = new Element();
   const events = new Map<string, () => void>();
   let revealed = 0;
+  let activeBrowser: unknown = null;
+  let extraLeaf: { view: unknown } | null = null;
   const app = {
     metadataCache: {
       on: (event: string, callback: () => void) => {
@@ -81,7 +99,8 @@ test("browser live refresh retains horizontal position and direct browsing prese
     vault: { on() {} },
     workspace: {
       requestSaveLayout() {},
-      getLeavesOfType: () => [leaf],
+      getLeavesOfType: () => (extraLeaf ? [leaf, extraLeaf] : [leaf]),
+      getActiveViewOfType: () => activeBrowser,
       revealLeaf: () => {
         revealed++;
         return Promise.resolve();
@@ -91,65 +110,73 @@ test("browser live refresh retains horizontal position and direct browsing prese
       },
     },
   };
-  const leaf = { app };
-  const { CollectionBrowserView, browseCollections } = loadRuntime<
-    typeof import("../collection-browser")
-  >(
-    "collection-browser.ts",
-    {
-      ItemView: class {
-        app = app;
-        contentEl = root;
-        register() {}
-        registerEvent() {}
-        setState() {
-          return Promise.resolve();
-        }
+  const leaf = { app, view: undefined as unknown };
+  const { CollectionBrowserView, browseCollections, getCollectionBrowserView } =
+    loadRuntime<typeof import("../collection-browser")>(
+      "collection-browser.ts",
+      {
+        ItemView: class {
+          app = app;
+          contentEl = root;
+          register() {}
+          registerEvent() {}
+          setState() {
+            return Promise.resolve();
+          }
+        },
+        Modal: class {},
+        SearchComponent: class {
+          inputEl: Element;
+          constructor(header: Element) {
+            this.inputEl = header.createEl("input");
+          }
+          setPlaceholder() {
+            return this;
+          }
+          setValue(value: string) {
+            this.inputEl.value = value;
+            return this;
+          }
+          onChange(callback: (value: string) => void) {
+            this.inputEl.change = callback;
+            return this;
+          }
+        },
+        debounce: (callback: () => void) =>
+          Object.assign(callback, { cancel() {} }),
       },
-      Modal: class {},
-      SearchComponent: class {
-        inputEl: Element;
-        constructor(header: Element) {
-          this.inputEl = header.createEl("input");
-        }
-        setPlaceholder() {
-          return this;
-        }
-        setValue() {
-          return this;
-        }
-        onChange() {
-          return this;
-        }
+      { HTMLElement: Element },
+      "node",
+      {
+        "./collection-browser-data": {
+          getCollectionPapers: () => [
+            {
+              path: "Synthetic.md",
+              identity: "user/1/A",
+              libraryIdentity: "user:1",
+              libraryName: "Synthetic library",
+              title: "Synthetic study",
+              authors: ["Synthetic author"],
+              year: "2026",
+              keys: [],
+              collectionNames: [],
+            },
+          ],
+        },
+        "./collection-catalog-store": {
+          onCollectionCatalogChange: () => () => {},
+        },
       },
-      debounce: (callback: () => void) =>
-        Object.assign(callback, { cancel() {} }),
-    },
-    { HTMLElement: Element },
-    "node",
-    {
-      "./collection-browser-data": {
-        getCollectionPapers: () => [
-          {
-            path: "Synthetic.md",
-            identity: "user/1/A",
-            libraryIdentity: "user:1",
-            libraryName: "Synthetic library",
-            title: "Synthetic study",
-            authors: ["Synthetic author"],
-            year: "2026",
-            keys: [],
-            collectionNames: [],
-          },
-        ],
-      },
-      "./collection-catalog-store": {
-        onCollectionCatalogChange: () => () => {},
-      },
-    },
-  );
-  const plugin = { app, settings: { collectionCatalogs: {} } };
+    );
+  const plugin = {
+    app,
+    settings: { collectionCatalogs: {} },
+    activeViewTab: "search",
+    activateView: () => Promise.resolve(),
+    refreshViews() {},
+  };
   const view = new CollectionBrowserView(leaf as never, plugin as never);
+  leaf.view = view;
   await view.onOpen();
   await view.setState(
     {
@@ -161,6 +188,32 @@ test("browser live refresh retains horizontal position and direct browsing prese
     },
     {} as never,
   );
+  const peerSidebar = new Element();
+  const unmountPeer = view.mountControls(peerSidebar as never);
+  const unmount = view.mountControls(sidebar as never);
+  assert.equal(root.querySelector("select"), null);
+  assert.equal(root.querySelector("input"), null);
+  assert.equal(
+    sidebar.querySelector('select[aria-label="Literature browser layout"]')
+      ?.value,
+    "table",
+  );
+  assert.equal(
+    sidebar.querySelector('input[aria-label="Search imported papers"]')?.value,
+    "synthetic",
+  );
+  assert.ok(sidebar.all().some((el) => el.text === "1 imported paper"));
+  const input = sidebar.querySelector(
+    'input[aria-label="Search imported papers"]',
+  );
+  input.change!("no match");
+  assert.equal(peerSidebar.querySelector("input").value, "no match");
+  assert.equal(sidebar.querySelector("input"), input);
+  assert.equal(root.querySelectorAll("a").length, 0);
+  assert.ok(sidebar.all().some((el) => el.text === "0 imported papers"));
+  input.change!("synthetic");
+  input.value = "synthetic";
+  input.focus();
   const results = root
     .all()
     .find((el) => el.attrs["aria-label"] === "Imported papers")!;
@@ -171,11 +224,249 @@ test("browser live refresh retains horizontal position and direct browsing prese
     .all()
     .find((el) => el.attrs["aria-label"] === "Imported papers")!;
   assert.notEqual(refreshed, results);
+  const refreshedInput = sidebar.querySelector(
+    'input[aria-label="Search imported papers"]',
+  );
+  assert.equal(refreshedInput.value, "synthetic");
+  assert.equal(sidebar.doc.activeElement, refreshedInput);
   assert.equal(refreshed.scrollLeft, 420);
   const snapshot = JSON.stringify(view.getState());
-  browseCollections(plugin as never);
-  await Promise.resolve();
+  await browseCollections(plugin as never);
   assert.equal(revealed, 1);
+  assert.equal(plugin.activeViewTab, "browse");
   assert.equal(JSON.stringify(view.getState()), snapshot);
+  const layout = sidebar.querySelector(
+    'select[aria-label="Literature browser layout"]',
+  );
+  layout.value = "list";
+  layout.listeners.get("change")!();
+  assert.equal(view.getState().layout, "list");
+  assert.equal(
+    peerSidebar.querySelector('select[aria-label="Literature browser layout"]')
+      .value,
+    "list",
+  );
+  assert.equal(root.querySelector("table"), null);
+  assert.equal(root.querySelectorAll("a").length, 1);
+  const switcher = sidebar.querySelector(
+    'select[aria-label="Choose collection"]',
+  );
+  switcher.value = "unfiled";
+  switcher.listeners.get("change")!();
+  assert.equal(view.getState().collection, "unfiled");
+  assert.equal(view.getState().query, "");
+  assert.equal(root.querySelectorAll("a").length, 1);
+  unmount();
+  const detachedInput = sidebar.querySelector("input");
+  events.get("changed")!();
+  assert.equal(sidebar.querySelector("input"), detachedInput);
+  const remount = view.mountControls(sidebar as never);
+  assert.equal(
+    sidebar.querySelector('select[aria-label="Choose collection"]')?.value,
+    "unfiled",
+  );
+  remount();
+  unmountPeer();
+  const second = new CollectionBrowserView(leaf as never, plugin as never);
+  extraLeaf = { view: second };
+  await second.onOpen();
+  activeBrowser = second;
+  assert.equal(getCollectionBrowserView(plugin as never), second);
+  activeBrowser = null;
+  assert.equal(getCollectionBrowserView(plugin as never), second);
+  await second.onClose();
+  assert.equal(getCollectionBrowserView(plugin as never), view);
   await view.onClose();
+  assert.equal(getCollectionBrowserView(plugin as never), null);
+  assert.equal(view.isReady(), false);
+});
+
+test("browsing creates a main-pane tab and selects the sidebar Browse panel", async () => {
+  let activated = 0;
+  let refreshed = 0;
+  let revealed = 0;
+  let saved: Record<string, unknown> | undefined;
+  const leaf = {
+    setViewState: (state: Record<string, unknown>) => {
+      saved = state;
+      return Promise.resolve();
+    },
+  };
+  const plugin = {
+    activeViewTab: "search",
+    activateView: () => {
+      activated++;
+      return Promise.resolve();
+    },
+    refreshViews: () => {
+      refreshed++;
+    },
+    app: {
+      workspace: {
+        getLeavesOfType: () => [],
+        getActiveViewOfType: () => null,
+        getLeaf: (mode: string) => {
+          assert.equal(mode, "tab");
+          return leaf;
+        },
+        revealLeaf: (target: unknown) => {
+          assert.equal(target, leaf);
+          revealed++;
+          return Promise.resolve();
+        },
+      },
+    },
+  };
+  const { browseCollections, COLLECTION_BROWSER_VIEW } = loadRuntime<
+    typeof import("../collection-browser")
+  >(
+    "collection-browser.ts",
+    { ItemView: class {}, Modal: class {} },
+    {},
+    "node",
+    {
+      "./collection-browser-data": {},
+      "./collection-catalog-store": {},
+    },
+  );
+  await Promise.all([
+    browseCollections(plugin as never),
+    browseCollections(plugin as never),
+  ]);
+  assert.equal(plugin.activeViewTab, "browse");
+  assert.equal(activated, 1);
+  assert.equal(refreshed, 1);
+  assert.equal(revealed, 1);
+  assert.equal(saved?.type, COLLECTION_BROWSER_VIEW);
+  assert.equal(saved?.active, true);
+  assert.equal((saved?.state as Record<string, unknown>).collection, "all");
+});
+
+test("Browse joins sidebar tabs and switching panels detaches controls without closing results", async () => {
+  const root = new Element();
+  let mounted = 0;
+  let unmounted = 0;
+  let opened = 0;
+  let leafChanged: ((leaf: { view: unknown }) => void) | undefined;
+  class Browser {
+    isReady() {
+      return true;
+    }
+    mountControls(container: Element) {
+      mounted++;
+      container.createEl("input", {
+        attr: { "aria-label": "Search imported papers" },
+      });
+      return () => {
+        unmounted++;
+      };
+    }
+  }
+  const browser = new Browser();
+  let selectedBrowser = browser;
+  const app = {
+    workspace: {
+      getLeavesOfType: () => [{ view: browser }],
+      requestSaveLayout() {},
+      on(_event: string, callback: (leaf: { view: unknown }) => void) {
+        leafChanged = callback;
+      },
+    },
+  };
+  const { StratumView } = loadRuntime<typeof import("../view")>(
+    "view.ts",
+    {
+      ItemView: class {
+        app = app;
+        contentEl = root;
+        register() {}
+        registerEvent() {}
+        addChild<T>(child: T) {
+          return child;
+        }
+        removeChild() {}
+      },
+    },
+    {
+      HTMLElement: Element,
+      crypto: { randomUUID: () => "synthetic" },
+      window: { requestAnimationFrame: (callback: () => void) => callback() },
+    },
+    "node",
+    {
+      "./citation-evidence": {},
+      "./view-sources": { SourcesPanel: class {} },
+      "./collection-browser": {
+        CollectionBrowserView: Browser,
+        getCollectionBrowserView: () => selectedBrowser,
+        browseCollections: () => {
+          opened++;
+          return Promise.resolve().then(() => {
+            root.doc.activeElement = null;
+          });
+        },
+      },
+      "./library-search-modal": {},
+      "./view-reader-input-suggest": {},
+      "./plugin-libraries": {},
+      "./plugin-collections": {},
+      "./plugin-local-sync": { isLocalSyncSupported: () => true },
+      "./view-helpers": {},
+      "./view-library-input-suggest": {},
+      "./plugin-note-refresh": {},
+    },
+  );
+  const plugin = {
+    activeViewTab: "browse",
+    backend: { hasSession: () => true },
+    sources: {},
+    refreshViews: () => view.render(),
+  };
+  const view = new StratumView({ app } as never, plugin as never);
+  await view.onOpen();
+  const tabs = root.all().filter((el) => el.attrs.role === "tab");
+  assert.deepEqual(
+    tabs.map((el) => el.text),
+    ["Browse", "Search", "Sync", "Reader", "Sources"],
+  );
+  assert.equal(tabs[0].attrs["aria-selected"], "true");
+  assert.ok(root.querySelector('input[aria-label="Search imported papers"]'));
+  assert.equal(mounted, 1);
+  const focusedInput = root.querySelector("input");
+  focusedInput.focus();
+  focusedInput.setSelectionRange(2, 4);
+  view.render();
+  assert.equal(root.doc.activeElement, root.querySelector("input"));
+  assert.equal(root.querySelector("input").selectionStart, 2);
+  assert.equal(root.querySelector("input").selectionEnd, 4);
+  const currentTabs = root.all().filter((el) => el.attrs.role === "tab");
+  currentTabs[4].listeners.get("click")!();
+  assert.equal(plugin.activeViewTab, "sources");
+  assert.equal(unmounted, 2);
+  assert.equal(root.querySelector("input"), null);
+  root
+    .all()
+    .find((el) => el.text === "Browse")!
+    .listeners.get("click")!();
+  assert.equal(plugin.activeViewTab, "browse");
+  assert.equal(opened, 1);
+  assert.equal(mounted, 3);
+  for (let i = 0; i < 3; i++) await Promise.resolve();
+  root
+    .all()
+    .find((el) => el.text === "Sources")!
+    .listeners.get("click")!();
+  root
+    .all()
+    .find((el) => el.text === "Sources")!
+    .listeners.get("keydown")!({ key: "Home", preventDefault() {} });
+  for (let i = 0; i < 3; i++) await Promise.resolve();
+  assert.equal(root.doc.activeElement?.text, "Browse");
+  assert.equal(plugin.activeViewTab, "browse");
+  assert.equal(opened, 2);
+  selectedBrowser = new Browser();
+  leafChanged!({ view: selectedBrowser });
+  assert.equal(mounted, 5);
+  await view.onClose();
+  assert.equal(unmounted, 5);
 });

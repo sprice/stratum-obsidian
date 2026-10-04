@@ -23,11 +23,44 @@ import { onCollectionCatalogChange } from "./collection-catalog-store";
 
 export const COLLECTION_BROWSER_VIEW = "stratum-collection-browser";
 
-export function browseCollections(plugin: StratumPlugin): void {
-  void (async () => {
-    const existing = plugin.app.workspace.getLeavesOfType(
+const browserTargets = new WeakMap<StratumPlugin, CollectionBrowserView>();
+const pendingBrowse = new WeakMap<StratumPlugin, Promise<void>>();
+
+export function getCollectionBrowserView(
+  plugin: StratumPlugin,
+): CollectionBrowserView | null {
+  const leaves = plugin.app.workspace.getLeavesOfType(COLLECTION_BROWSER_VIEW);
+  const active = plugin.app.workspace.getActiveViewOfType(
+    CollectionBrowserView,
+  );
+  const previous = browserTargets.get(plugin);
+  const browser = active?.isReady()
+    ? active
+    : previous?.isReady() && leaves.some((leaf) => leaf.view === previous)
+      ? previous
+      : leaves
+          .map((leaf) => leaf.view)
+          .find(
+            (view): view is CollectionBrowserView =>
+              view instanceof CollectionBrowserView && view.isReady(),
+          );
+  if (browser) browserTargets.set(plugin, browser);
+  else browserTargets.delete(plugin);
+  return browser ?? null;
+}
+
+export function browseCollections(plugin: StratumPlugin): Promise<void> {
+  plugin.activeViewTab = "browse";
+  const pending = pendingBrowse.get(plugin);
+  if (pending) return pending;
+  // Remember the main-pane browser before activating its sidebar controls.
+  const browser = getCollectionBrowserView(plugin);
+  const request = (async () => {
+    await plugin.activateView();
+    const leaves = plugin.app.workspace.getLeavesOfType(
       COLLECTION_BROWSER_VIEW,
-    )[0];
+    );
+    const existing = leaves.find((leaf) => leaf.view === browser) ?? leaves[0];
     const leaf = existing ?? plugin.app.workspace.getLeaf("tab");
     if (!existing) {
       await leaf.setViewState({
@@ -37,7 +70,14 @@ export function browseCollections(plugin: StratumPlugin): void {
       });
     }
     await plugin.app.workspace.revealLeaf(leaf);
-  })();
+    if (leaf.view instanceof CollectionBrowserView && leaf.view.isReady())
+      browserTargets.set(plugin, leaf.view);
+    plugin.refreshViews();
+  })().finally(() => {
+    pendingBrowse.delete(plugin);
+  });
+  pendingBrowse.set(plugin, request);
+  return request;
 }
 
 export class CollectionBrowserView extends ItemView {
@@ -47,9 +87,15 @@ export class CollectionBrowserView extends ItemView {
   );
   private columnsModal: SourceColumnsModal | null = null;
   private papers: CollectionPaper[] = [];
+  private resultCount = 0;
+  private statusMessage = "";
   private results!: HTMLElement;
-  private count!: HTMLElement;
-  private message!: HTMLElement;
+  private controls = new Set<{
+    container: HTMLElement;
+    render: () => void;
+    count?: HTMLElement;
+    message?: HTMLElement;
+  }>();
   private contentReady = false;
   constructor(
     leaf: WorkspaceLeaf,
@@ -84,11 +130,14 @@ export class CollectionBrowserView extends ItemView {
     this.registerEvent(this.app.vault.on("delete", refresh));
     this.register(() => refresh.cancel());
     this.render();
+    if (this.plugin.activeViewTab === "browse") this.plugin.refreshViews();
     return Promise.resolve();
   }
   onClose(): Promise<void> {
     this.contentReady = false;
     this.columnsModal?.close();
+    this.controls.clear();
+    if (this.plugin.activeViewTab === "browse") this.plugin.refreshViews();
     return Promise.resolve();
   }
   private saveState(): void {
@@ -97,26 +146,87 @@ export class CollectionBrowserView extends ItemView {
   private render(): void {
     if (!this.contentReady) return;
     const focused = this.contentEl.doc.activeElement;
-    const searchInput = this.contentEl.querySelector<HTMLInputElement>(
-      'input[aria-label="Search imported papers"]',
-    );
     const sortFocus =
       focused instanceof HTMLElement
         ? focused.dataset.collectionSort
         : undefined;
+    this.papers = getCollectionPapers(this.plugin);
+    this.contentEl.empty();
+    this.contentEl.addClass("stratum-collection-browser");
+    this.results = this.contentEl.createDiv({
+      cls: "stratum-collection-results",
+      attr: { "aria-label": "Imported papers" },
+    });
+    this.results.tabIndex = 0;
+    this.results.addEventListener("scroll", () => {
+      this.state.scrollTop = this.results.scrollTop;
+      this.state.scrollLeft = this.results.scrollLeft;
+      this.saveState();
+    });
+    this.results.addEventListener("keydown", (event) => {
+      const links = Array.from(
+        this.results.querySelectorAll<HTMLAnchorElement>("a"),
+      );
+      const index = links.indexOf(
+        this.contentEl.doc.activeElement as HTMLAnchorElement,
+      );
+      if (index < 0) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        links[
+          Math.max(
+            0,
+            Math.min(
+              links.length - 1,
+              index + (event.key === "ArrowDown" ? 1 : -1),
+            ),
+          )
+        ]?.focus();
+      }
+    });
+    this.renderResults();
+    for (const controls of this.controls) controls.render();
+    if (sortFocus) this.focusSort(sortFocus);
+  }
+  isReady(): boolean {
+    return this.contentReady;
+  }
+  mountControls(container: HTMLElement): () => void {
+    const controls: {
+      container: HTMLElement;
+      render: () => void;
+      count?: HTMLElement;
+      message?: HTMLElement;
+    } = { container, render: () => this.renderControls(container, controls) };
+    this.controls.add(controls);
+    controls.render();
+    return () => {
+      this.controls.delete(controls);
+    };
+  }
+  private refreshOtherControls(source: HTMLElement): void {
+    for (const controls of this.controls)
+      if (controls.container !== source) controls.render();
+  }
+  private renderControls(
+    container: HTMLElement,
+    controls: { count?: HTMLElement; message?: HTMLElement },
+  ): void {
+    const focused = container.doc.activeElement;
+    const searchInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Search imported papers"]',
+    );
     const hadSearchFocus = focused === searchInput && searchInput !== null;
     const selection = hadSearchFocus
       ? ([searchInput.selectionStart, searchInput.selectionEnd] as const)
       : null;
-    this.papers = getCollectionPapers(this.plugin);
     const choices = buildCollectionChoices(
       this.papers,
       this.plugin.settings.collectionCatalogs,
     );
     const choice = choices.find((entry) => entry.id === this.state.collection);
-    this.contentEl.empty();
-    this.contentEl.addClass("stratum-collection-browser");
-    const header = this.contentEl.createDiv({
+    container.empty();
+    const header = container.createDiv({
       cls: "stratum-collection-header",
     });
     const collectionLabel = header.createEl("label", {
@@ -150,8 +260,9 @@ export class CollectionBrowserView extends ItemView {
         visibleCount: 100,
       };
       this.saveState();
-      this.render();
-      this.contentEl
+      this.renderResults();
+      for (const controls of this.controls) controls.render();
+      container
         .querySelector<HTMLSelectElement>(
           'select[aria-label="Choose collection"]',
         )
@@ -180,6 +291,7 @@ export class CollectionBrowserView extends ItemView {
           this.state.scrollTop = 0;
           this.saveState();
           this.renderResults();
+          this.refreshOtherControls(container);
         });
     }
     const search = new SearchComponent(header)
@@ -192,6 +304,7 @@ export class CollectionBrowserView extends ItemView {
         this.state.scrollLeft = 0;
         this.saveState();
         this.renderResults();
+        this.refreshOtherControls(container);
       });
     search.inputEl.setAttribute("aria-label", "Search imported papers");
     if (hadSearchFocus) {
@@ -233,51 +346,28 @@ export class CollectionBrowserView extends ItemView {
       columns.hidden = this.state.layout !== "table";
       this.saveState();
       this.renderResults();
+      this.refreshOtherControls(container);
     });
-    this.count = header.createDiv({
+    controls.count = header.createDiv({
       cls: "stratum-collection-count",
       attr: { "aria-live": "polite", role: "status" },
     });
-    this.message = header.createDiv({ cls: "stratum-collection-context" });
-    this.results = this.contentEl.createDiv({
-      cls: "stratum-collection-results",
-      attr: { "aria-label": "Imported papers" },
-    });
-    this.results.tabIndex = 0;
-    this.results.addEventListener("scroll", () => {
-      this.state.scrollTop = this.results.scrollTop;
-      this.state.scrollLeft = this.results.scrollLeft;
-      this.saveState();
-    });
+    controls.message = header.createDiv({ cls: "stratum-collection-context" });
     search.inputEl.addEventListener("keydown", (event) => {
       if (event.key === "ArrowDown") {
         event.preventDefault();
         this.results.querySelector<HTMLAnchorElement>("a")?.focus();
       }
     });
-    this.results.addEventListener("keydown", (event) => {
-      const links = Array.from(
-        this.results.querySelectorAll<HTMLAnchorElement>("a"),
+    this.updateControlStatus();
+  }
+  private updateControlStatus(): void {
+    for (const controls of this.controls) {
+      controls.count?.setText(
+        `${this.resultCount} imported ${this.resultCount === 1 ? "paper" : "papers"}`,
       );
-      const index = links.indexOf(
-        this.contentEl.doc.activeElement as HTMLAnchorElement,
-      );
-      if (index < 0) return;
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        links[
-          Math.max(
-            0,
-            Math.min(
-              links.length - 1,
-              index + (event.key === "ArrowDown" ? 1 : -1),
-            ),
-          )
-        ]?.focus();
-      }
-    });
-    this.renderResults();
-    if (sortFocus) this.focusSort(sortFocus);
+      controls.message?.setText(this.statusMessage);
+    }
   }
   private focusSort(key: string): void {
     this.results
@@ -302,20 +392,17 @@ export class CollectionBrowserView extends ItemView {
       this.state.layout === "table"
         ? sortCollectionTable(filtered, this.state)
         : filtered;
-    this.count.setText(
-      `${papers.length} imported ${papers.length === 1 ? "paper" : "papers"}`,
-    );
+    this.resultCount = papers.length;
     const unknown = this.papers.filter((p) => p.keys === null).length;
-    this.message.setText(
-      unknown
-        ? `${unknown} older ${unknown === 1 ? "note needs" : "notes need"} a sync to appear in collections. All imported papers includes these notes.`
-        : choice?.key &&
-            !catalogs[choice.libraryIdentity!]?.collections.some(
-              (c) => c.key === choice.key,
-            )
-          ? "Collection hierarchy unavailable. Sync to refresh collection information."
-          : "",
-    );
+    this.statusMessage = unknown
+      ? `${unknown} older ${unknown === 1 ? "note needs" : "notes need"} a sync to appear in collections. All imported papers includes these notes.`
+      : choice?.key &&
+          !catalogs[choice.libraryIdentity!]?.collections.some(
+            (c) => c.key === choice.key,
+          )
+        ? "Collection hierarchy unavailable. Sync to refresh collection information."
+        : "";
+    this.updateControlStatus();
     this.results.empty();
     if (!papers.length)
       this.results.createEl("p", {
