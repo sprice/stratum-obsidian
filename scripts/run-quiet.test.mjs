@@ -18,6 +18,7 @@ const runner = fileURLToPath(new URL("./run-quiet.mjs", import.meta.url));
 const env = {
   ...process.env,
   npm_lifecycle_event: "fixture",
+  npm_package_name: "",
   STRATUM_VERBOSE: "0",
   CI: "",
 };
@@ -46,7 +47,7 @@ test("successful checks suppress noisy stdout/stderr and delete their logs", () 
       { TMPDIR: folder, TMP: folder, TEMP: folder },
     );
     assert.equal(result.status, 0);
-    assert.equal(result.stdout, "PASS fixture\n");
+    assert.match(result.stdout, /^PASS fixture \(\d+\.\d{2}s\)\n$/);
     assert.equal(result.stderr, "");
     // A success must leave no raw logs behind.
     assert.equal(existsSync(folder), true);
@@ -216,7 +217,10 @@ test("direct test runners suppress TAP on success and retain failure diagnostics
       );
     const success = invoke();
     assert.equal(success.status, 0);
-    assert.equal(success.stdout, "PASS fixture\n");
+    assert.match(
+      success.stdout,
+      /^PASS fixture — 1 passed, 0 failed, 0 skipped \(\d+\.\d{2}s\)\n$/,
+    );
     assert.equal(success.stderr, "");
     writeFileSync(
       fixture,
@@ -233,4 +237,46 @@ test("direct test runners suppress TAP on success and retain failure diagnostics
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
+});
+
+test("aggregate checks preserve nested package results without raw output", () => {
+  const code = `
+    const { spawnSync } = require("node:child_process");
+    const result = spawnSync(process.execPath, [process.argv[1], process.execPath, "-e",
+      'console.log("noise"); console.log("apps/synthetic typecheck: PASS synthetic-web / typecheck");'],
+      { env: { ...process.env, npm_package_name: "synthetic-plugin", npm_lifecycle_event: "check" }, stdio: "inherit" });
+    process.exitCode = result.status;
+  `;
+  const result = run(code, [runner], {
+    npm_package_name: "synthetic-workspace",
+    npm_lifecycle_event: "check",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    result.stdout.replace(/ \(\d+\.\d{2}s\)/g, ""),
+    "PASS synthetic-web / typecheck\nPASS synthetic-plugin / check\nPASS synthetic-workspace / check\n",
+  );
+  assert.equal(result.stderr, "");
+});
+
+test("Node and Deno totals are summarized without per-test output", () => {
+  const output =
+    "# pass 3\n# fail 0\n# skipped 1\n# cancelled 0\n# todo 0\nok | 4 passed (2 steps) | 0 failed | 2 ignored (1s)\nindividual noisy test output";
+  const result = run(`console.log(${JSON.stringify(output)})`);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(
+    result.stdout,
+    /^PASS fixture — 7 passed, 0 failed, 3 skipped; 2 steps \(\d+\.\d{2}s\)\n$/,
+  );
+});
+
+test("Biome and Deno file counts and warnings stay concise", () => {
+  const output =
+    "\x1b[32mChecked 12 files in 20ms. No fixes applied.\x1b[0m\nFound 2 warnings.\nCheck file:///synthetic/one.ts\nCheck file:///synthetic/two.ts\nwarning details";
+  const result = run(`console.log(${JSON.stringify(output)})`);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(
+    result.stdout,
+    /^PASS fixture — 12 files checked; 2 files typechecked; 2 warnings \(\d+\.\d{2}s\)\n$/,
+  );
 });

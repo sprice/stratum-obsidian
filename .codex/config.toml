@@ -1,0 +1,27 @@
+# Project overrides; everything else inherits ~/.codex/config.toml.
+# Reference: https://learn.chatgpt.com/docs/config-file/config-reference
+# Defaults: https://learn.chatgpt.com/docs/config-file/config-sample
+
+# Limit each tool output retained in history, not total session tokens.
+# Default: unset; uses the model/preset budget. No universal numeric default
+# is documented (12000 in the sample is an example, not a stated default).
+tool_output_token_limit = 6000
+
+# Compact long sessions around 200000 active-context tokens.
+# This measures current context, not cumulative usage across requests.
+# Default: unset; uses the selected model's threshold, not a universal value.
+model_auto_compact_token_limit = 200000
+
+# Count the full active context toward that threshold, including carried prefixes.
+# Default: "total". Alternative: "body_after_prefix" counts only subsequent growth.
+model_auto_compact_token_limit_scope = "total"
+
+[skills]
+# Keep the available-skills catalog smaller; this does not cap loaded skill bodies.
+# Default: 2% of the model context window. Explicit budgets are capped at 10000.
+max_context_tokens = 2000
+
+[mcp_servers.node_repl]
+# Disable the inherited Node REPL MCP server for repository coding sessions.
+# Default: true for a configured MCP server; the shared config defines this server.
+enabled = false

@@ -1,85 +1,73 @@
 # Stratum Obsidian plugin
 
-This is the independent public plugin repository, also used as the
-`packages/stratum-obsidian/` submodule in the Stratum workspace. Run Git commands
-from the repository that owns the files. Preserve unrelated work and never
-commit generated `main.js`, `node_modules/`, credentials, or private vault data.
-Use synthetic examples in tests and shared artifacts.
+This repository supports standalone plugin development. Users authenticate with
+Stratum’s hosted service; plugin contributors do not need the web-app checkout.
 
-## Development and validation
+## Development
 
-- Use pnpm (pinned in `package.json`), Node 22 or newer, TypeScript, and esbuild.
-  The minimum build version is Node 20.12.0.
-- Install with `pnpm install`; develop with `pnpm dev`; build with
-  `pnpm --silent build`. Source lives in `src/`, with `src/main.ts` kept focused
-  on lifecycle registration. Bundle all runtime dependencies into `main.js`.
-- Run `pnpm --silent check` for formatting, review lint, scorecard compatibility
-  lint, tests, type checking, build, and tooling regression tests.
-- Finite checks print one success line. Failures print bounded diagnostics and
-  the path to a complete local log. Read that log selectively when needed;
-  remove retained logs after debugging. Use `STRATUM_VERBOSE=1 pnpm --silent check`
-  to stream all nested output. Individual tools also have `:verbose` scripts.
-- For targeted tests or direct tools, use `pnpm --silent quiet pnpm exec node
-  --test --import tsx src/test/example.test.ts` (with the actual test path).
-  `pnpm --silent exec` alone still prints tool output. Resolve focused test,
-  lint, and type errors before the full `check`; rerun broader checks when later
-  changes affect their coverage.
-- Development/watch and data-producing commands retain their output contracts.
+- Use Node 22+ and the pinned pnpm version. `pnpm dev` watches.
+- `src/main.ts` is the esbuild entry point. Keep lifecycle wiring there;
+  feature logic belongs in `src/` modules. Bundle runtime dependencies into `main.js`.
+- Release artifacts are `main.js`, `manifest.json`, and `styles.css`.
+  Do not commit generated output or dependencies. Keep the manifest ID stable
+  and set `minAppVersion` to the APIs actually required.
 
-## Compatibility and Obsidian APIs
+## Validation
 
-In the Stratum workspace, read `docs/literature-note-link-contract.md` in the
-root repository before changing filenames, paths, aliases, identity matching,
-sync, folder enumeration, or settings persistence. Links must keep resolving to
-the same Zotero item after refresh and full literature-folder recreation.
-The contract records implementation gaps; do not assume the live-file cache
-or deterministic filenames fulfill it. In a standalone checkout, request
-that contract before making these compatibility changes.
+Assume full checks passed in the starting checkout. Run the affected tests and
+checks for the files/packages you changed. Do not run `pnpm check` or
+`check:plugin` by default. Broaden to related tests when shared behavior, dependencies, or a failure warrants it;
+run a full suite only for a concrete cross-cutting risk or an explicit request.
+Do not repeat successful checks unless subsequent edits affect them.
 
-- Preserve user-written content and properties outside the managed note set.
-- Keep user-facing command IDs and the manifest `id` stable. Register commands
-  with `addCommand`; persist settings with `loadData`/`saveData` and provide a
-  settings tab when configuration is needed.
-- Use Obsidian APIs and register cleanup for listeners, timers, and children.
-  Keep startup light, defer heavy work, debounce expensive event work, and avoid
-  unnecessary vault scans. Handle async errors and unload races.
-- Keep modules focused; consider splitting files beyond 200–300 lines. Use
-  strict types and browser-compatible dependencies. Avoid Node/Electron APIs
-  in plugin runtime code unless the platform contract supports them.
-- Test on mobile where feasible; do not assume desktop behavior unless
-  `isDesktopOnly` is true. Be mindful of memory and storage constraints.
-- Use native/theme-aware UI, sentence case, short actionable labels, and
-  **Settings → Community plugins** notation in instructions.
+Run commands from this plugin directory. `<test-files>` means explicit file
+paths; select a related set by listing its files, not the entire test glob.
 
-## Privacy and security
+| Purpose | Command |
+| --- | --- |
+| One test file or selected related test files | `pnpm --silent quiet pnpm exec node --test --import tsx <test-files>` |
+| Full source test suite (only when warranted) | `pnpm --silent test` |
+| Tooling tests (script changes) | `pnpm --silent test:tooling` |
+| TypeScript across the plugin | `pnpm --silent typecheck` |
+| Formatting check on changed files | `pnpm --silent quiet pnpm exec prettier --check <changed-files>` |
+| Format changed files | `pnpm --silent quiet pnpm exec prettier --write <changed-files>` |
+| Obsidian ESLint checks on changed TS/manifest/license files | `OBSIDIAN_REVIEW=1 pnpm --silent quiet pnpm exec eslint --max-warnings=0 <changed-files>` |
+| Lint scorecard (lint-policy changes) | `pnpm --silent lint:scorecard` |
+| Production bundle plus TypeScript (bundling changes) | `pnpm --silent build` |
 
-Follow Obsidian's developer policies and plugin guidelines. Default to local
-operation; introduce network calls only for an explicit user-facing purpose.
-Disclose external services, transmitted data, and risks. Telemetry requires
-explicit opt-in. Never execute remote code, fetch/eval scripts, self-update
-outside Obsidian releases, or introduce deceptive UI or unsolicited ads.
-Read/write only necessary vault content; runtime code must not access files
-outside the vault. Never expose private notes, filenames, annotations, or
-library organization in tests, docs, logs, commits, or PRs.
+Quiet commands report package-qualified results, elapsed time, and available
+test/file counts. Aggregate checks include nested results. Failures preserve
+exit status and a complete log; read that log if terminal diagnostics are
+truncated. Keep watch and data-producing commands visible.
 
-## Git and releases
+## Compatibility
 
-- In the workspace, follow the root `AGENTS.md` and use its commit skill for
-  every commit. Plugin and workspace staging/history are separate. Commit and
-  push coordinated plugin changes before the root pointer that references them.
-- New branches in either repository use only `feature/`, `fix/`, `chore/`,
-  `docs/`, `refactor/`, `test/`, `perf/`, `ci/`, or `hotfix/`, followed by a
-  short lowercase hyphenated name. Do not rename existing branches unasked.
-- Create PRs only when explicitly requested. Merging, marking ready, publishing
-  releases, and production deployment require explicit authorization.
-- When authorized to release, update `manifest.json` and `versions.json`.
-  Keep `minAppVersion` accurate. The release tag must exactly match the manifest
-  version, with no `v` prefix; attach `main.js`, `manifest.json`, and `styles.css`
-  as individual assets. New plugins must follow community-catalog submission rules.
-- For manual testing, install those artifacts in
-  `<Vault>/.obsidian/plugins/<plugin-id>/`, reload Obsidian, and enable the plugin.
-  Follow root vault-fixture placement and cleanup rules when in the workspace.
+- Before changing note filenames, aliases, item identity, sync, folder enumeration,
+  or settings persistence, read [the link stability contract](docs/literature-note-link-contract.md)
+  in this repository. Preserve existing item links after refresh and folder recreation.
+- Preserve mobile support. Guard desktop-only Node/Electron functionality so it
+  cannot load or execute on mobile; desktop features must not disable the whole plugin.
+- Add commands with `this.addCommand()` and stable IDs; persist settings through
+  `loadData()` / `saveData()`. Register listeners and timers for unload cleanup.
+- Keep startup light: defer expensive work, debounce frequent events, and avoid
+  repeated vault-wide scans. Reloading must not duplicate listeners or intervals.
+- For Obsidian API and platform behavior, consult `https://docs.obsidian.md`
+  and the installed `obsidian` types; keep vault operations on Obsidian APIs.
 
-Reference APIs and policies as needed: https://docs.obsidian.md,
-https://github.com/obsidianmd/obsidian-api, and
-https://docs.obsidian.md/community-directory/developer-policies.
+## User experience and privacy
+
+- Use sentence case and concise labels; show settings paths with `→`.
+- Keep vault access scoped to the feature. External services must have a disclosed
+  purpose; do not transmit vault content without consent or add hidden telemetry.
+- Do not execute downloaded code or implement plugin auto-updates.
+
+## Delivery
+
+- Follow the root workspace's commit skill and Git workflow when in Stratum.
+  The plugin has its own staging area and history; commit and push it before
+  recording its pointer in the workspace.
+- Use only `feature/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`, `perf/`,
+  `ci/`, or `hotfix/` branch prefixes. Create PRs only on explicit request.
+- Merging, releasing, and deployment require explicit authorization. For a
+  release, update `manifest.json` and `versions.json`, tag the exact manifest
+  version without a `v`, and attach the three release artifacts individually.

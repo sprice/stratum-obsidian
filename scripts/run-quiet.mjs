@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { createInterface } from "node:readline";
 
 // Only use for finite checks. Interactive commands and data-producing commands
 // must retain their stdout and stdin contracts.
@@ -18,7 +19,10 @@ if (!command) {
   console.error("Usage: run-quiet.mjs <command> [arguments...]");
   process.exit(1);
 }
+const started = performance.now();
 const label = process.env.npm_lifecycle_event ?? basename(command);
+const packageName = process.env.npm_package_name;
+const summary = `PASS ${packageName ? `${packageName} / ` : ""}${label}`;
 const verbose = process.env.STRATUM_VERBOSE === "1";
 const folder = verbose ? null : mkdtempSync(join(tmpdir(), "stratum-check-"));
 const log = folder && join(folder, "output.log");
@@ -54,7 +58,7 @@ child.once("error", (error) => {
   spawnFailed = true;
   console.error(`Could not start ${basename(command)}: ${error.message}`);
 });
-child.once("close", (code, signal) => {
+child.once("close", async (code, signal) => {
   process.off("SIGINT", onInterrupt);
   process.off("SIGTERM", onTerminate);
   const termination = interrupted ?? signal;
@@ -65,8 +69,81 @@ child.once("close", (code, signal) => {
       : (code ?? 1);
   process.exitCode = status;
   if (status === 0) {
+    const totals = { passed: 0, failed: 0, skipped: 0, cancelled: 0, todo: 0 };
+    let hasTests = false;
+    let steps = 0;
+    let checkedFiles = 0;
+    let hasCheckedFiles = false;
+    let typecheckedFiles = 0;
+    let warnings = 0;
+    const testKeys = {
+      pass: "passed",
+      fail: "failed",
+      skipped: "skipped",
+      cancelled: "cancelled",
+      todo: "todo",
+    };
+    if (log) {
+      try {
+        const lines = createInterface({
+          input: createReadStream(log),
+          crlfDelay: Infinity,
+        });
+        for await (const rawLine of lines) {
+          const line = rawLine
+            .replace(/\x1b\[[0-9;]*m/g, "")
+            .replace(/^\S+ \S+: /, "");
+          // Nested summaries already contain their own counts and timing.
+          if (/^PASS /.test(line)) console.log(line);
+          const node = line.match(
+            /^(?:#|ℹ) (pass|fail|skipped|cancelled|todo) (\d+)$/,
+          );
+          if (node) {
+            hasTests = true;
+            totals[testKeys[node[1]]] += Number(node[2]);
+          }
+          const deno = line.match(
+            /^ok \| (\d+) passed(?: \((\d+) steps?\))? \| (\d+) failed(?: \| (\d+) ignored)?/,
+          );
+          if (deno) {
+            hasTests = true;
+            totals.passed += Number(deno[1]);
+            steps += Number(deno[2] ?? 0);
+            totals.failed += Number(deno[3]);
+            totals.skipped += Number(deno[4] ?? 0);
+          }
+          const files = line.match(/^Checked (\d+) files?\b/);
+          if (files) {
+            hasCheckedFiles = true;
+            checkedFiles += Number(files[1]);
+          }
+          if (/^Check (?:file:|https?:)/.test(line)) typecheckedFiles++;
+          const warning = line.match(/^Found (\d+) warnings?\./);
+          if (warning) warnings += Number(warning[1]);
+        }
+      } catch (error) {
+        process.exitCode = 1;
+        console.error(`Could not read ${log}: ${error.message}`);
+        return;
+      }
+    }
+    const details = [];
+    if (hasTests) {
+      details.push(
+        `${totals.passed} passed, ${totals.failed} failed, ${totals.skipped} skipped`,
+      );
+      if (steps) details.push(`${steps} steps`);
+      if (totals.cancelled) details.push(`${totals.cancelled} cancelled`);
+      if (totals.todo) details.push(`${totals.todo} todo`);
+    }
+    if (hasCheckedFiles) details.push(`${checkedFiles} files checked`);
+    if (typecheckedFiles) details.push(`${typecheckedFiles} files typechecked`);
+    if (warnings) details.push(`${warnings} warnings`);
     if (folder) rmSync(folder, { recursive: true, force: true });
-    if (!verbose) console.log(`PASS ${label}`);
+    if (!verbose)
+      console.log(
+        `${summary}${details.length ? ` — ${details.join("; ")}` : ""} (${((performance.now() - started) / 1000).toFixed(2)}s)`,
+      );
     return;
   }
   console.error(`FAIL ${label} (${termination ?? `exit ${status}`})`);
