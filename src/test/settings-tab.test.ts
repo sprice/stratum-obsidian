@@ -130,6 +130,9 @@ function fixture(desktop = false, modern = true) {
       rebuilds++;
       return Promise.resolve();
     },
+    refreshViews: () => {
+      updates++;
+    },
     isBulkLibrarySyncRunning: () => false,
     isZoteroAutoSyncRunning: () => false,
   };
@@ -298,5 +301,35 @@ for (const modern of [false, true]) {
     folder?.control?.inputEl.blur();
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(f.plugin.settings.notesFolder, DEFAULT_SETTINGS.notesFolder);
+  });
+}
+
+for (const desktop of [true, false]) {
+  test(`tab settings persist and refresh with desktop=${desktop}`, async () => {
+    const f = fixture(desktop);
+    const sections = f.tab.getSettingDefinitions();
+    const index = sections.findIndex(
+      (section) => section.heading === "Stratum tabs",
+    );
+    assert.equal(sections[index - 1].heading, "Citations");
+    assert.equal(sections[index + 1].heading, "Workspace defaults");
+    Row.rendered = [];
+    for (const item of sections[index].items)
+      item.render(new Row().setName(item.name) as never);
+    const toggles = Row.rendered.filter((row) => row.control);
+    assert.deepEqual(
+      toggles.map((row) => row.name),
+      desktop
+        ? ["Browse", "Search", "Sync", "Reader", "Sources"]
+        : ["Browse", "Search", "Reader", "Sources"],
+    );
+    for (const row of toggles) {
+      assert.equal(row.control!.value, true);
+      await row.control!.change!(false);
+    }
+    assert.equal(f.saves, toggles.length);
+    assert.equal(f.updates, toggles.length);
+    assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
+    assert.equal(f.plugin.settings.enabledTabs.reader, false);
   });
 }

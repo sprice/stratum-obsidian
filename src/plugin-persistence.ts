@@ -1,3 +1,4 @@
+import { readEnabledTabs } from "./stratum-tabs";
 import {
   loadCitationResources,
   saveCitationResources,
@@ -32,6 +33,7 @@ import {
 type StoredSettingsData = Partial<
   Pick<
     StratumSettings,
+    | "enabledTabs"
     | "notesFolder"
     | "filenameFormat"
     | "bulkSyncEnabled"
@@ -374,6 +376,7 @@ function readStoredSettings(value: unknown): Omit<
     legacyZoteroAutoSync: Partial<ZoteroAutoSyncState>;
     legacyBulkLibrarySync: Partial<BulkLibrarySyncState>;
   } = {
+    enabledTabs: readEnabledTabs(value.enabledTabs),
     collectionCatalogs: readCollectionCatalogs(value.collectionCatalogs),
     itemFileMap: readItemFileMap(value.itemFileMap),
     libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),
@@ -575,6 +578,7 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   plugin.settings = {
     ...DEFAULT_SETTINGS,
     ...persistedSettings,
+    enabledTabs: readEnabledTabs(persistedSettings.enabledTabs),
     itemFileMap: {
       ...DEFAULT_SETTINGS.itemFileMap,
       ...(persistedSettings.itemFileMap ?? {}),

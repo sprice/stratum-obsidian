@@ -1,3 +1,4 @@
+import { STRATUM_TABS, readEnabledTabs } from "./stratum-tabs";
 import {
   Notice,
   Platform,
@@ -481,6 +482,36 @@ export class StratumSettingTab extends PluginSettingTab {
           }),
         );
     });
+
+    const tabsSection = this.createSection(sections, "Stratum tabs");
+    for (const tab of STRATUM_TABS) {
+      if (tab.id === "sync" && !Platform.isDesktopApp) continue;
+      this.defineSetting(tabsSection, tab.label, (setting) => {
+        setting
+          .setDesc(`Show the ${tab.label} tab in the Stratum panel.`)
+          .addToggle((toggle) =>
+            toggle
+              .setValue(
+                readEnabledTabs(this.plugin.settings.enabledTabs)[tab.id],
+              )
+              .onChange(async (enabled) => {
+                this.plugin.settings.enabledTabs = {
+                  ...readEnabledTabs(this.plugin.settings.enabledTabs),
+                  [tab.id]: enabled,
+                };
+                await this.plugin.saveSettings();
+                this.plugin.refreshViews();
+              }),
+          );
+      });
+    }
+    if (!Platform.isDesktopApp) {
+      this.defineSetting(tabsSection, "Desktop sync", (setting) => {
+        setting.setDesc(
+          "Local Zotero sync requires desktop and is unavailable on mobile.",
+        );
+      });
+    }
 
     const defaultsSection = this.createSection(sections, "Workspace defaults");
 

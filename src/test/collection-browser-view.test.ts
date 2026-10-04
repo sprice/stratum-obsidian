@@ -1,3 +1,4 @@
+import { readEnabledTabs } from "../stratum-tabs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
@@ -174,7 +175,10 @@ test("sidebar controls filter main-pane results and preserve state through refre
     );
   const plugin = {
     app,
-    settings: { collectionCatalogs: {} },
+    settings: {
+      collectionCatalogs: {},
+      enabledTabs: readEnabledTabs(undefined),
+    },
     activeViewTab: "search",
     activateView: () => Promise.resolve(),
     refreshViews() {},
@@ -298,6 +302,10 @@ test("browsing creates a main-pane tab and selects the sidebar Browse panel", as
     },
   };
   const plugin = {
+    settings: {
+      collectionCatalogs: {},
+      enabledTabs: readEnabledTabs(undefined),
+    },
     activeViewTab: "search",
     activateView: () => {
       activated++;
@@ -426,6 +434,10 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     },
   );
   const plugin = {
+    settings: {
+      collectionCatalogs: {},
+      enabledTabs: readEnabledTabs(undefined),
+    },
     activeViewTab: "browse",
     backend: { hasSession: () => true },
     sources: {},
@@ -481,6 +493,19 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   selectedBrowser = new Browser();
   leafChanged!({ view: selectedBrowser });
   assert.equal(mounted, 5);
+  plugin.settings.enabledTabs.browse = false;
+  plugin.activeViewTab = "sources";
+  view.render();
+  assert.equal(
+    root.all().some((el) => el.text === "Browse"),
+    false,
+  );
+  assert.equal(app.workspace.getLeavesOfType()[0].view, browser);
+  assert.equal(
+    opened,
+    2,
+    "Hiding Browse does not open or replace its workspace pane",
+  );
   await view.onClose();
   assert.equal(unmounted, 5);
 });
@@ -507,6 +532,10 @@ for (const stage of ["sidebar", "browser", "reveal"] as const) {
     };
     const plugin = {
       isUnloaded: false,
+      settings: {
+        collectionCatalogs: {},
+        enabledTabs: readEnabledTabs(undefined),
+      },
       activeViewTab: "search",
       activateView: () => (stage === "sidebar" ? pause() : Promise.resolve()),
       refreshViews: () => {
@@ -565,6 +594,10 @@ for (const stage of ["sidebar", "browser"] as const) {
     let revealed = 0;
     let refreshed = 0;
     const plugin = {
+      settings: {
+        collectionCatalogs: {},
+        enabledTabs: readEnabledTabs(undefined),
+      },
       activeViewTab: "search",
       activateView: () => (stage === "sidebar" ? pause() : Promise.resolve()),
       refreshViews: () => {
@@ -608,3 +641,41 @@ for (const stage of ["sidebar", "browser"] as const) {
     assert.equal(plugin.activeViewTab, "sources");
   });
 }
+
+test("hidden Browse cannot create or reveal a workspace pane", async () => {
+  let notices = 0;
+  const { browseCollections } = loadRuntime<
+    typeof import("../collection-browser")
+  >(
+    "collection-browser.ts",
+    {
+      ItemView: class {},
+      Modal: class {},
+      Notice: class {
+        constructor() {
+          notices++;
+        }
+      },
+    },
+    {},
+    "node",
+    { "./collection-browser-data": {}, "./collection-catalog-store": {} },
+  );
+  const plugin = {
+    settings: { enabledTabs: { browse: false } },
+    activeViewTab: "search",
+    activateView: () => {
+      throw new Error("Must not open sidebar");
+    },
+    app: {
+      workspace: {
+        getLeavesOfType: () => {
+          throw new Error("Must not touch existing panes");
+        },
+      },
+    },
+  };
+  await browseCollections(plugin as never);
+  assert.equal(plugin.activeViewTab, "search");
+  assert.equal(notices, 1);
+});

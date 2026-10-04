@@ -1,3 +1,4 @@
+import { canOpenStratumTab, selectStratumTab } from "./plugin-tabs";
 import { Notice, type Editor } from "obsidian";
 import { getLiteratureNoteSummary } from "./literature-note";
 import { promptExistingLiteratureNote } from "./literature-note-update-modal";
@@ -151,6 +152,7 @@ export function openLiteratureNoteFromModal(plugin: StratumPlugin): void {
 }
 
 export function openLiteratureNoteInPanel(plugin: StratumPlugin): void {
+  if (!canOpenStratumTab(plugin, "reader")) return;
   const entries = buildLiteratureNoteEntries(plugin);
   if (entries.length === 0) {
     new Notice(
@@ -160,7 +162,7 @@ export function openLiteratureNoteInPanel(plugin: StratumPlugin): void {
   }
 
   new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
-    plugin.activeViewTab = "reader";
+    if (!selectStratumTab(plugin, "reader")) return;
     plugin.readerNoteFile = entry.file;
     void plugin
       .activateView()

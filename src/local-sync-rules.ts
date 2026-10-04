@@ -1,10 +1,3 @@
-export function shouldShowSyncTab(params: {
-  isDesktopApp: boolean;
-  hasSession: boolean;
-}): boolean {
-  return params.isDesktopApp && params.hasSession;
-}
-
 export function shouldRefreshLocalSyncAfterCloudConnection(params: {
   isDesktopApp: boolean;
   hasSession: boolean;
