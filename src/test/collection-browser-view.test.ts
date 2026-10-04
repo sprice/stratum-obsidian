@@ -90,6 +90,7 @@ test("sidebar controls filter main-pane results and preserve state through refre
   let revealed = 0;
   let activeBrowser: unknown = null;
   let extraLeaf: { view: unknown } | null = null;
+  const leafListeners: ((leaf: { view: unknown }) => void)[] = [];
   const app = {
     metadataCache: {
       on: (event: string, callback: () => void) => {
@@ -98,6 +99,9 @@ test("sidebar controls filter main-pane results and preserve state through refre
     },
     vault: { on() {} },
     workspace: {
+      on(_event: string, callback: (leaf: { view: unknown }) => void) {
+        leafListeners.push(callback);
+      },
       requestSaveLayout() {},
       getLeavesOfType: () => (extraLeaf ? [leaf, extraLeaf] : [leaf]),
       getActiveViewOfType: () => activeBrowser,
@@ -271,7 +275,8 @@ test("sidebar controls filter main-pane results and preserve state through refre
   extraLeaf = { view: second };
   await second.onOpen();
   activeBrowser = second;
-  assert.equal(getCollectionBrowserView(plugin as never), second);
+  // The sidebar can be closed while the user activates another Collections tab.
+  for (const listener of leafListeners) listener(extraLeaf);
   activeBrowser = null;
   assert.equal(getCollectionBrowserView(plugin as never), second);
   await second.onClose();
@@ -539,5 +544,67 @@ for (const stage of ["sidebar", "browser", "reveal"] as const) {
     assert.equal(created, stage === "sidebar" ? 0 : 1);
     assert.equal(revealed, stage === "reveal" ? 1 : 0);
     assert.equal(refreshed, 0);
+  });
+}
+
+for (const stage of ["sidebar", "browser"] as const) {
+  test(`Browse stops when another panel is selected during ${stage}`, async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const reached = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const pause = () => {
+      started();
+      return gate;
+    };
+    let created = 0;
+    let revealed = 0;
+    let refreshed = 0;
+    const plugin = {
+      activeViewTab: "search",
+      activateView: () => (stage === "sidebar" ? pause() : Promise.resolve()),
+      refreshViews: () => {
+        refreshed++;
+      },
+      app: {
+        workspace: {
+          getLeavesOfType: () => [],
+          getActiveViewOfType: () => null,
+          getLeaf: () => {
+            created++;
+            return {
+              setViewState: () =>
+                stage === "browser" ? pause() : Promise.resolve(),
+            };
+          },
+          revealLeaf: () => {
+            revealed++;
+            return Promise.resolve();
+          },
+        },
+      },
+    };
+    const { browseCollections } = loadRuntime<
+      typeof import("../collection-browser")
+    >(
+      "collection-browser.ts",
+      { ItemView: class {}, Modal: class {} },
+      {},
+      "node",
+      { "./collection-browser-data": {}, "./collection-catalog-store": {} },
+    );
+    const request = browseCollections(plugin as never);
+    await reached;
+    plugin.activeViewTab = "sources";
+    release();
+    await request;
+    assert.equal(created, stage === "sidebar" ? 0 : 1);
+    assert.equal(revealed, 0);
+    assert.equal(refreshed, 0);
+    assert.equal(plugin.activeViewTab, "sources");
   });
 }

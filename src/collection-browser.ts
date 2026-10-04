@@ -56,9 +56,11 @@ export function browseCollections(plugin: StratumPlugin): Promise<void> {
   if (pending) return pending;
   // Remember the main-pane browser before activating its sidebar controls.
   const browser = getCollectionBrowserView(plugin);
+  const cancelled = () =>
+    plugin.isUnloaded || plugin.activeViewTab !== "browse";
   const request = (async () => {
     await plugin.activateView();
-    if (plugin.isUnloaded) return;
+    if (cancelled()) return;
     const leaves = plugin.app.workspace.getLeavesOfType(
       COLLECTION_BROWSER_VIEW,
     );
@@ -71,9 +73,9 @@ export function browseCollections(plugin: StratumPlugin): Promise<void> {
         active: true,
       });
     }
-    if (plugin.isUnloaded) return;
+    if (cancelled()) return;
     await plugin.app.workspace.revealLeaf(leaf);
-    if (plugin.isUnloaded) return;
+    if (cancelled()) return;
     if (leaf.view instanceof CollectionBrowserView && leaf.view.isReady())
       browserTargets.set(plugin, leaf.view);
     plugin.refreshViews();
@@ -126,6 +128,13 @@ export class CollectionBrowserView extends ItemView {
   }
   onOpen(): Promise<void> {
     this.contentReady = true;
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        // Track activation even when no Stratum sidebar is open.
+        if (this.contentReady && leaf?.view === this)
+          browserTargets.set(this.plugin, this);
+      }),
+    );
     const refresh = debounce(() => this.render(), 200, true);
     this.register(onCollectionCatalogChange(this.plugin, refresh));
     this.registerEvent(this.app.metadataCache.on("changed", refresh));

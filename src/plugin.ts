@@ -497,6 +497,7 @@ export default class StratumPlugin extends Plugin {
   }
 
   async activateView(): Promise<void> {
+    if (this.isUnloaded) return;
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_STRATUM);
     const leaf = existing[0] ?? this.app.workspace.getRightLeaf(false);
     if (!leaf) {
@@ -508,6 +509,7 @@ export default class StratumPlugin extends Plugin {
       active: true,
     });
 
+    if (this.isUnloaded) return;
     await this.app.workspace.revealLeaf(leaf);
   }
 
