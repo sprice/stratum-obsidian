@@ -3,9 +3,13 @@ import { selectStratumTab } from "./plugin-tabs";
 import { SourceColumnsModal } from "./source-columns-modal";
 import { renderCollectionTable, sortCollectionTable } from "./collection-table";
 import {
+  createStratumButton,
+  createStratumSearch,
+  createStratumSelect,
+} from "./ui-controls";
+import {
   ItemView,
   Keymap,
-  SearchComponent,
   ToggleComponent,
   debounce,
   type ViewStateResult,
@@ -105,6 +109,8 @@ export class CollectionBrowserView extends ItemView {
     render: () => void;
     count?: HTMLElement;
     message?: HTMLElement;
+    showResults?: HTMLButtonElement;
+    collectionDetails?: HTMLElement;
   }>();
   private contentReady = false;
   constructor(
@@ -137,6 +143,12 @@ export class CollectionBrowserView extends ItemView {
         // Track activation even when no Stratum sidebar is open.
         if (this.contentReady && leaf?.view === this)
           browserTargets.set(this.plugin, this);
+        this.updateShowResultsVisibility();
+      }),
+    );
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        this.updateShowResultsVisibility();
       }),
     );
     const refresh = debounce(() => this.render(), 200, true);
@@ -172,7 +184,6 @@ export class CollectionBrowserView extends ItemView {
     this.contentEl.addClass("stratum-collection-browser");
     this.results = this.contentEl.createDiv({
       cls: "stratum-collection-results",
-      attr: { "aria-label": "Imported papers" },
     });
     this.results.tabIndex = 0;
     this.results.addEventListener("scroll", () => {
@@ -214,6 +225,8 @@ export class CollectionBrowserView extends ItemView {
       render: () => void;
       count?: HTMLElement;
       message?: HTMLElement;
+      showResults?: HTMLButtonElement;
+      collectionDetails?: HTMLElement;
     } = { container, render: () => this.renderControls(container, controls) };
     this.controls.add(controls);
     controls.render();
@@ -225,70 +238,42 @@ export class CollectionBrowserView extends ItemView {
     for (const controls of this.controls)
       if (controls.container !== source) controls.render();
   }
-  private renderControls(
-    container: HTMLElement,
-    controls: { count?: HTMLElement; message?: HTMLElement },
-  ): void {
-    const focused = container.doc.activeElement;
-    const searchInput = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Search imported papers"]',
-    );
-    const hadSearchFocus = focused === searchInput && searchInput !== null;
-    const selection = hadSearchFocus
-      ? ([searchInput.selectionStart, searchInput.selectionEnd] as const)
-      : null;
-    const choices = buildCollectionChoices(
+  private refreshCollectionControls(): void {
+    const choice = buildCollectionChoices(
       this.papers,
       this.plugin.settings.collectionCatalogs,
-    );
-    const choice = choices.find((entry) => entry.id === this.state.collection);
-    container.empty();
-    const header = container.createDiv({
-      cls: "stratum-collection-header",
-    });
-    const collectionLabel = header.createEl("label", {
-      text: "Collection",
-      cls: "stratum-collection-select",
-    });
-    const switcher = collectionLabel.createEl("select", {
-      attr: { "aria-label": "Choose collection" },
-    });
-    if (!choice) {
-      const unavailable = switcher.createEl("option", {
-        value: this.state.collection,
-        text: "Collection unavailable",
-      });
-      unavailable.disabled = true;
+    ).find((entry) => entry.id === this.state.collection);
+    for (const controls of this.controls) {
+      const switcher = controls.container.querySelector<HTMLSelectElement>(
+        'select[aria-label="Choose collection"]',
+      );
+      if (switcher) {
+        if (choice) switcher.querySelector("option:disabled")?.remove();
+        switcher.value = this.state.collection;
+      }
+      const search = controls.container.querySelector<HTMLInputElement>(
+        'input[aria-label="Search literature notes"]',
+      );
+      if (search) search.value = this.state.query;
+      if (controls.collectionDetails)
+        this.renderCollectionDetails(
+          controls.collectionDetails,
+          choice,
+          controls.container,
+        );
     }
-    for (const option of choices) {
-      switcher.createEl("option", {
-        value: option.id,
-        text: option.key ? option.context : option.name,
+  }
+  private renderCollectionDetails(
+    details: HTMLElement,
+    choice: ReturnType<typeof buildCollectionChoices>[number] | undefined,
+    container: HTMLElement,
+  ): void {
+    details.empty();
+    if (!choice)
+      details.createDiv({
+        cls: "stratum-collection-context",
+        text: "Choose another collection to continue.",
       });
-    }
-    switcher.value = this.state.collection;
-    switcher.addEventListener("change", () => {
-      this.state = {
-        ...this.state,
-        collection: switcher.value,
-        query: "",
-        scrollTop: 0,
-        scrollLeft: 0,
-        visibleCount: 100,
-      };
-      this.saveState();
-      this.renderResults();
-      for (const controls of this.controls) controls.render();
-      container
-        .querySelector<HTMLSelectElement>(
-          'select[aria-label="Choose collection"]',
-        )
-        ?.focus();
-    });
-    header.createDiv({
-      cls: "stratum-collection-context",
-      text: choice?.context ?? "Choose another collection to continue.",
-    });
     const catalog = choice?.libraryIdentity
       ? this.plugin.settings.collectionCatalogs[choice.libraryIdentity]
       : null;
@@ -296,7 +281,7 @@ export class CollectionBrowserView extends ItemView {
       choice?.key &&
       catalog?.collections.some((c) => c.parentCollectionKey === choice.key)
     ) {
-      const label = header.createEl("label", {
+      const label = details.createEl("label", {
         cls: "stratum-collection-toggle",
       });
       label.createSpan({ text: "Include subcollections" });
@@ -311,10 +296,78 @@ export class CollectionBrowserView extends ItemView {
           this.refreshOtherControls(container);
         });
     }
-    const search = new SearchComponent(header)
-      .setPlaceholder("Search papers…")
-      .setValue(this.state.query)
-      .onChange((query) => {
+  }
+  private renderControls(
+    container: HTMLElement,
+    controls: {
+      count?: HTMLElement;
+      message?: HTMLElement;
+      showResults?: HTMLButtonElement;
+      collectionDetails?: HTMLElement;
+    },
+  ): void {
+    const focused = container.doc.activeElement;
+    const searchInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Search literature notes"]',
+    );
+    const hadSearchFocus = focused === searchInput && searchInput !== null;
+    const selection = hadSearchFocus
+      ? ([searchInput.selectionStart, searchInput.selectionEnd] as const)
+      : null;
+    const choices = buildCollectionChoices(
+      this.papers,
+      this.plugin.settings.collectionCatalogs,
+    );
+    const choice = choices.find((entry) => entry.id === this.state.collection);
+    container.empty();
+    const header = container.createDiv({
+      cls: "stratum-collection-header",
+    });
+    const filters = header.createDiv({ cls: "stratum-collection-filters" });
+    const switcher = createStratumSelect(filters, {
+      label: "Collection",
+      ariaLabel: "Choose collection",
+      value: this.state.collection,
+      choices: [
+        ...(!choice
+          ? [
+              {
+                value: this.state.collection,
+                label: "Collection unavailable",
+                disabled: true,
+              },
+            ]
+          : []),
+        ...choices.map((option) => ({
+          value: option.id,
+          label: option.key ? option.context : option.name,
+        })),
+      ],
+    });
+    const tools = filters.createDiv({ cls: "stratum-collection-tools" });
+    switcher.addEventListener("change", () => {
+      this.state = {
+        ...this.state,
+        collection: switcher.value,
+        query: "",
+        scrollTop: 0,
+        scrollLeft: 0,
+        visibleCount: 100,
+      };
+      this.saveState();
+      this.renderResults();
+      this.refreshCollectionControls();
+    });
+    controls.collectionDetails = header.createDiv({
+      cls: "stratum-collection-details",
+    });
+    this.renderCollectionDetails(controls.collectionDetails, choice, container);
+    const search = createStratumSearch(header, {
+      label: "Search",
+      ariaLabel: "Search literature notes",
+      placeholder: "Title, author, year, or more",
+      value: this.state.query,
+      onChange: (query) => {
         this.state.query = query;
         this.state.visibleCount = 100;
         this.state.scrollTop = 0;
@@ -322,21 +375,25 @@ export class CollectionBrowserView extends ItemView {
         this.saveState();
         this.renderResults();
         this.refreshOtherControls(container);
-      });
-    search.inputEl.setAttribute("aria-label", "Search imported papers");
+      },
+    });
     if (hadSearchFocus) {
       search.inputEl.focus();
       if (selection) search.inputEl.setSelectionRange(...selection);
     }
-    const tools = header.createDiv({ cls: "stratum-collection-tools" });
-    const layout = tools.createEl("select", {
-      attr: { "aria-label": "Literature browser layout" },
+    const layout = createStratumSelect(tools, {
+      label: "View",
+      ariaLabel: "Choose layout",
+      value: this.state.layout,
+      choices: [
+        { value: "list", label: "List" },
+        { value: "table", label: "Table" },
+      ],
     });
-    layout.createEl("option", { value: "list", text: "List" });
-    layout.createEl("option", { value: "table", text: "Table" });
-    layout.value = this.state.layout;
-    const columns = tools.createEl("button", { text: "Columns" });
-    columns.type = "button";
+    const columns = createStratumButton(tools, {
+      text: "Columns",
+      tooltip: "Choose table columns",
+    });
     columns.hidden = this.state.layout !== "table";
     columns.addEventListener("click", () => {
       this.columnsModal?.close();
@@ -365,9 +422,22 @@ export class CollectionBrowserView extends ItemView {
       this.renderResults();
       this.refreshOtherControls(container);
     });
-    controls.count = header.createDiv({
+    const summary = header.createDiv({ cls: "stratum-collection-summary" });
+    controls.count = summary.createDiv({
       cls: "stratum-collection-count",
       attr: { "aria-live": "polite", role: "status" },
+    });
+    const showResults = createStratumButton(summary, {
+      text: "Show items",
+      tooltip: "Show items in the main area",
+      primary: true,
+      className: "stratum-collection-show-items",
+    });
+    controls.showResults = showResults;
+    showResults.addEventListener("click", () => {
+      void this.app.workspace.revealLeaf(this.leaf).then(() => {
+        this.updateShowResultsVisibility();
+      });
     });
     controls.message = header.createDiv({ cls: "stratum-collection-context" });
     search.inputEl.addEventListener("keydown", (event) => {
@@ -381,10 +451,16 @@ export class CollectionBrowserView extends ItemView {
   private updateControlStatus(): void {
     for (const controls of this.controls) {
       controls.count?.setText(
-        `${this.resultCount} imported ${this.resultCount === 1 ? "paper" : "papers"}`,
+        `${this.resultCount} ${this.resultCount === 1 ? "item" : "items"}`,
       );
       controls.message?.setText(this.statusMessage);
     }
+    this.updateShowResultsVisibility();
+  }
+  private updateShowResultsVisibility(): void {
+    const visible = this.contentReady && this.contentEl.isShown();
+    for (const controls of this.controls)
+      if (controls.showResults) controls.showResults.hidden = visible;
   }
   private focusSort(key: string): void {
     this.results

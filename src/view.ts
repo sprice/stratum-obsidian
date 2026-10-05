@@ -14,6 +14,7 @@ import {
   CollectionBrowserView,
   getCollectionBrowserView,
 } from "./collection-browser";
+import { createStratumButton } from "./ui-controls";
 import {
   Component,
   Notice,
@@ -112,6 +113,7 @@ function getBulkSyncCompletionFadeState(
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
   private unmountBrowseControls: (() => void) | null = null;
+  private browseBrowser: CollectionBrowserView | null = null;
   private publishPanel: PublishPanel | null = null;
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
@@ -182,8 +184,12 @@ export class StratumView extends ItemView {
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (!(leaf?.view instanceof CollectionBrowserView)) return;
         // Track the main-pane target even while another sidebar panel is open.
-        getCollectionBrowserView(this.plugin);
-        if (this.plugin.activeViewTab === "browse") this.render();
+        const browser = getCollectionBrowserView(this.plugin);
+        if (
+          this.plugin.activeViewTab === "browse" &&
+          browser !== this.browseBrowser
+        )
+          this.render();
       }),
     );
     this.render();
@@ -193,6 +199,7 @@ export class StratumView extends ItemView {
   onClose(): Promise<void> {
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
+    this.browseBrowser = null;
     if (this.publishPanel) {
       this.removeChild(this.publishPanel);
       this.publishPanel = null;
@@ -420,7 +427,7 @@ export class StratumView extends ItemView {
       ? focused.id
       : null;
     const browseSearch = this.contentEl.querySelector<HTMLInputElement>(
-      'input[aria-label="Search imported papers"]',
+      'input[aria-label="Search literature notes"]',
     );
     const browseSelection =
       browseSearch && focused === browseSearch
@@ -428,6 +435,7 @@ export class StratumView extends ItemView {
         : null;
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
+    this.browseBrowser = null;
     if (this.publishPanel) {
       this.removeChild(this.publishPanel);
       this.publishPanel = null;
@@ -535,7 +543,7 @@ export class StratumView extends ItemView {
     }
     if (browseSelection) {
       const search = this.contentEl.querySelector<HTMLInputElement>(
-        'input[aria-label="Search imported papers"]',
+        'input[aria-label="Search literature notes"]',
       );
       search?.focus();
       search?.setSelectionRange(...browseSelection);
@@ -612,18 +620,23 @@ export class StratumView extends ItemView {
 
   private renderBrowseTab(container: HTMLElement): void {
     const section = container.createDiv({ cls: "stratum-search-section" });
-    section.createEl("h3", { text: "Browse your literature notes" });
+    section.createEl("h3", { text: "Browse notes" });
     section.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Find and open literature notes already in your vault. Filter by collection or search by title, author, or year.",
+      text: "Browse literature notes in your vault",
     });
     const controls = section.createDiv();
     const browser = getCollectionBrowserView(this.plugin);
     if (browser) {
+      this.browseBrowser = browser;
       this.unmountBrowseControls = browser.mountControls(controls);
       return;
     }
-    const open = controls.createEl("button", { text: "Open collections" });
+    const open = createStratumButton(controls, {
+      text: "Show items",
+      primary: true,
+      className: "stratum-collection-show-items",
+    });
     open.addEventListener("click", () => {
       void browseCollections(this.plugin);
     });

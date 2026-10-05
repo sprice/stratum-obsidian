@@ -19,16 +19,30 @@ class Element {
   scrollTop = 0;
   scrollLeft = 0;
   id = "";
+  className = "";
   value = "";
+  placeholder = "";
   text = "";
   hidden = false;
+  disabled = false;
+  parent: Element | null = null;
+  shown = false;
   change: ((value: string) => void) | null = null;
   selectionStart = 0;
   selectionEnd = 0;
   constructor(public tag = "div") {}
-  addClass() {}
+  addClass(...classes: string[]) {
+    this.className = [this.className, ...classes].filter(Boolean).join(" ");
+  }
   empty() {
     this.children = [];
+  }
+  remove() {
+    if (this.parent)
+      this.parent.children = this.parent.children.filter(
+        (child) => child !== this,
+      );
+    this.parent = null;
   }
   setText(text: string) {
     this.text = text;
@@ -46,22 +60,40 @@ class Element {
   focus() {
     this.doc.activeElement = this;
   }
+  isShown() {
+    return this.shown;
+  }
   createEl(
     tag: string,
-    options?: { value?: string; text?: string; attr?: Record<string, string> },
+    options?: {
+      value?: string;
+      text?: string;
+      cls?: string;
+      attr?: Record<string, string>;
+    },
   ) {
     const child = new Element(tag);
+    child.parent = this;
     child.doc = this.doc;
     child.value = options?.value ?? "";
     child.text = options?.text ?? "";
+    child.className = options?.cls ?? "";
     child.attrs = options?.attr ?? {};
     this.children.push(child);
     return child;
   }
-  createDiv(options?: { attr?: Record<string, string> }) {
+  createDiv(options?: { cls?: string; attr?: Record<string, string> }) {
     const child = new Element();
     child.doc = this.doc;
+    child.className = options?.cls ?? "";
     child.attrs = options?.attr ?? {};
+    this.children.push(child);
+    return child;
+  }
+  createSpan(options?: { text?: string }) {
+    const child = new Element("span");
+    child.doc = this.doc;
+    child.text = options?.text ?? "";
     this.children.push(child);
     return child;
   }
@@ -75,6 +107,8 @@ class Element {
     return this.querySelectorAll(selector)[0] ?? null;
   }
   querySelectorAll(selector: string) {
+    if (selector === "option:disabled")
+      return this.all().filter((el) => el.tag === "option" && el.disabled);
     if (selector.startsWith("#"))
       return this.all().filter((el) => el.id === selector.slice(1));
     if (selector === "[data-collection-sort]")
@@ -110,8 +144,11 @@ test("sidebar controls filter main-pane results and preserve state through refre
       requestSaveLayout() {},
       getLeavesOfType: () => (extraLeaf ? [leaf, extraLeaf] : [leaf]),
       getActiveViewOfType: () => activeBrowser,
-      revealLeaf: () => {
+      revealLeaf: (target: unknown) => {
+        assert.equal(target, leaf);
         revealed++;
+        root.shown = true;
+        for (const listener of leafListeners) listener(leaf);
         return Promise.resolve();
       },
       getLeaf: () => {
@@ -125,6 +162,7 @@ test("sidebar controls filter main-pane results and preserve state through refre
       "collection-browser.ts",
       {
         ItemView: class {
+          constructor(public leaf: unknown) {}
           app = app;
           contentEl = root;
           register() {}
@@ -139,7 +177,8 @@ test("sidebar controls filter main-pane results and preserve state through refre
           constructor(header: Element) {
             this.inputEl = header.createEl("input");
           }
-          setPlaceholder() {
+          setPlaceholder(value: string) {
+            this.inputEl.placeholder = value;
             return this;
           }
           setValue(value: string) {
@@ -148,6 +187,30 @@ test("sidebar controls filter main-pane results and preserve state through refre
           }
           onChange(callback: (value: string) => void) {
             this.inputEl.change = callback;
+            return this;
+          }
+        },
+        DropdownComponent: class {
+          selectEl: Element;
+          constructor(container: Element) {
+            this.selectEl = container.createEl("select");
+          }
+        },
+        ButtonComponent: class {
+          buttonEl: Element;
+          constructor(container: Element) {
+            this.buttonEl = container.createEl("button");
+          }
+          setButtonText(text: string) {
+            this.buttonEl.text = text;
+            return this;
+          }
+          setTooltip(text: string) {
+            this.buttonEl.attrs.title = text;
+            return this;
+          }
+          setCta() {
+            this.buttonEl.addClass("mod-cta");
             return this;
           }
         },
@@ -206,56 +269,83 @@ test("sidebar controls filter main-pane results and preserve state through refre
   assert.equal(root.querySelector("select"), null);
   assert.equal(root.querySelector("input"), null);
   assert.equal(
-    sidebar.querySelector('select[aria-label="Literature browser layout"]')
-      ?.value,
+    sidebar.querySelector('select[aria-label="Choose layout"]')?.value,
     "table",
   );
+  assert.ok(
+    sidebar
+      .querySelector('select[aria-label="Choose layout"]')
+      ?.className.includes("stratum-control-select"),
+  );
   assert.equal(
-    sidebar.querySelector('input[aria-label="Search imported papers"]')?.value,
+    sidebar.querySelector('input[aria-label="Search literature notes"]')?.value,
     "synthetic",
   );
-  assert.ok(sidebar.all().some((el) => el.text === "1 imported paper"));
+  assert.equal(
+    sidebar.querySelector('input[aria-label="Search literature notes"]')
+      ?.placeholder,
+    "Title, author, year, or more",
+  );
+  assert.ok(sidebar.all().some((el) => el.text === "1 item"));
+  assert.equal(
+    sidebar.all().some((el) => el.text === "All libraries"),
+    false,
+  );
+  assert.ok(sidebar.all().some((el) => el.text === "View"));
+  assert.ok(sidebar.all().some((el) => el.text === "Search"));
+  assert.equal(
+    sidebar.all().find((el) => el.text === "Columns")?.attrs.title,
+    "Choose table columns",
+  );
+  const showItems = sidebar.all().find((el) => el.text === "Show items")!;
+  assert.ok(showItems.className.includes("mod-cta"));
+  assert.equal(showItems.hidden, false);
+  showItems.listeners.get("click")!();
+  await Promise.resolve();
+  assert.equal(revealed, 1, "Show items reveals the existing browser");
+  assert.equal(showItems.hidden, true);
+  root.shown = false;
+  for (const listener of leafListeners) listener({ view: null });
+  assert.equal(showItems.hidden, false);
   const input = sidebar.querySelector(
-    'input[aria-label="Search imported papers"]',
+    'input[aria-label="Search literature notes"]',
   );
   input.change!("no match");
   assert.equal(peerSidebar.querySelector("input").value, "no match");
   assert.equal(sidebar.querySelector("input"), input);
   assert.equal(root.querySelectorAll("a").length, 0);
-  assert.ok(sidebar.all().some((el) => el.text === "0 imported papers"));
+  assert.ok(sidebar.all().some((el) => el.text === "0 items"));
   input.change!("synthetic");
   input.value = "synthetic";
   input.focus();
   const results = root
     .all()
-    .find((el) => el.attrs["aria-label"] === "Imported papers")!;
+    .find((el) => el.className === "stratum-collection-results")!;
+  assert.equal(results.attrs["aria-label"], undefined);
   results.scrollLeft = 420;
   results.listeners.get("scroll")!();
   events.get("changed")!();
   const refreshed = root
     .all()
-    .find((el) => el.attrs["aria-label"] === "Imported papers")!;
+    .find((el) => el.className === "stratum-collection-results")!;
   assert.notEqual(refreshed, results);
   const refreshedInput = sidebar.querySelector(
-    'input[aria-label="Search imported papers"]',
+    'input[aria-label="Search literature notes"]',
   );
   assert.equal(refreshedInput.value, "synthetic");
   assert.equal(sidebar.doc.activeElement, refreshedInput);
   assert.equal(refreshed.scrollLeft, 420);
   const snapshot = JSON.stringify(view.getState());
   await browseCollections(plugin as never);
-  assert.equal(revealed, 1);
+  assert.equal(revealed, 2);
   assert.equal(plugin.activeViewTab, "browse");
   assert.equal(JSON.stringify(view.getState()), snapshot);
-  const layout = sidebar.querySelector(
-    'select[aria-label="Literature browser layout"]',
-  );
+  const layout = sidebar.querySelector('select[aria-label="Choose layout"]');
   layout.value = "list";
   layout.listeners.get("change")!();
   assert.equal(view.getState().layout, "list");
   assert.equal(
-    peerSidebar.querySelector('select[aria-label="Literature browser layout"]')
-      .value,
+    peerSidebar.querySelector('select[aria-label="Choose layout"]').value,
     "list",
   );
   assert.equal(root.querySelector("table"), null);
@@ -263,11 +353,57 @@ test("sidebar controls filter main-pane results and preserve state through refre
   const switcher = sidebar.querySelector(
     'select[aria-label="Choose collection"]',
   );
+  const viewSelect = sidebar.querySelector(
+    'select[aria-label="Choose layout"]',
+  );
+  const peerViewSelect = peerSidebar.querySelector(
+    'select[aria-label="Choose layout"]',
+  );
   switcher.value = "unfiled";
   switcher.listeners.get("change")!();
   assert.equal(view.getState().collection, "unfiled");
   assert.equal(view.getState().query, "");
+  assert.equal(
+    sidebar.querySelector('select[aria-label="Choose layout"]'),
+    viewSelect,
+  );
+  assert.equal(
+    peerSidebar.querySelector('select[aria-label="Choose layout"]'),
+    peerViewSelect,
+  );
+  assert.equal(
+    peerSidebar.querySelector('select[aria-label="Choose collection"]')?.value,
+    "unfiled",
+  );
+  assert.equal(
+    sidebar.querySelector('input[aria-label="Search literature notes"]')?.value,
+    "",
+  );
   assert.equal(root.querySelectorAll("a").length, 1);
+  await view.setState(
+    { ...view.getState(), collection: "missing-collection" },
+    {} as never,
+  );
+  const unavailableSwitcher = sidebar.querySelector(
+    'select[aria-label="Choose collection"]',
+  );
+  assert.ok(unavailableSwitcher.querySelector("option:disabled"));
+  const layoutBeforeRecovery = sidebar.querySelector(
+    'select[aria-label="Choose layout"]',
+  );
+  unavailableSwitcher.value = "unfiled";
+  unavailableSwitcher.listeners.get("change")!();
+  assert.equal(unavailableSwitcher.querySelector("option:disabled"), null);
+  assert.equal(
+    peerSidebar
+      .querySelector('select[aria-label="Choose collection"]')
+      .querySelector("option:disabled"),
+    null,
+  );
+  assert.equal(
+    sidebar.querySelector('select[aria-label="Choose layout"]'),
+    layoutBeforeRecovery,
+  );
   unmount();
   const detachedInput = sidebar.querySelector("input");
   events.get("changed")!();
@@ -280,8 +416,28 @@ test("sidebar controls filter main-pane results and preserve state through refre
   remount();
   unmountPeer();
   const second = new CollectionBrowserView(leaf as never, plugin as never);
+  const secondRoot = new Element();
+  secondRoot.shown = true;
+  Object.assign(second, { contentEl: secondRoot });
   extraLeaf = { view: second };
   await second.onOpen();
+  root.shown = false;
+  const visibilitySidebar = new Element();
+  const unmountVisibility = view.mountControls(visibilitySidebar as never);
+  const revealTarget = visibilitySidebar
+    .all()
+    .find((el) => el.text === "Show items")!;
+  for (const listener of leafListeners) listener({ view: null });
+  assert.equal(getCollectionBrowserView(plugin as never), view);
+  assert.equal(
+    revealTarget.hidden,
+    false,
+    "a visible browser in another pane must not hide the action for this hidden target",
+  );
+  root.shown = true;
+  for (const listener of leafListeners) listener({ view: null });
+  assert.equal(revealTarget.hidden, true);
+  unmountVisibility();
   activeBrowser = second;
   // The sidebar can be closed while the user activates another Collections tab.
   for (const listener of leafListeners) listener(extraLeaf);
@@ -372,7 +528,7 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     mountControls(container: Element) {
       mounted++;
       container.createEl("input", {
-        attr: { "aria-label": "Search imported papers" },
+        attr: { "aria-label": "Search literature notes" },
       });
       return () => {
         unmounted++;
@@ -460,8 +616,12 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     ["Browse", "Search", "Sync", "Reader", "Citations", "Publish"],
   );
   assert.equal(tabs[0].attrs["aria-selected"], "true");
-  assert.ok(root.querySelector('input[aria-label="Search imported papers"]'));
+  assert.ok(root.querySelector('input[aria-label="Search literature notes"]'));
   assert.equal(mounted, 1);
+  const inputBeforeReveal = root.querySelector("input");
+  leafChanged!({ view: browser });
+  assert.equal(mounted, 1, "revealing the same browser preserves its controls");
+  assert.equal(root.querySelector("input"), inputBeforeReveal);
   const focusedInput = root.querySelector("input");
   focusedInput.focus();
   focusedInput.setSelectionRange(2, 4);

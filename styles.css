@@ -628,13 +628,31 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 	--callout-color: rgb(var(--stratum-callout-rgb));
 }
 
+/* Shared Stratum controls keep Obsidian's native input and button styling. */
+.stratum-control-field { display: flex; flex-direction: column; gap: var(--size-4-1); color: var(--text-muted); font-size: var(--font-ui-small); }
+.stratum-control-select { width: 100%; min-width: 0; color: var(--text-normal); }
+.stratum-control-select, .stratum-control-button { outline: 1px solid transparent; outline-offset: -1px; transition: outline-color 150ms ease; }
+@media (hover: hover) {
+  .stratum-control-select:hover:not(:disabled),
+  .stratum-control-button:hover:not(:disabled) {
+    outline-color: var(--background-modifier-border-hover);
+  }
+}
+.stratum-control-select:focus-visible, .stratum-control-button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+
 /* Collection browsing uses native colors and adapts to sidebars and mobile. */
 .stratum-collection-browser { display: flex; flex-direction: column; gap: var(--size-4-4); padding: var(--size-4-4); overflow: hidden; }
-.stratum-collection-header { display: flex; flex-direction: column; gap: var(--size-4-2); }
-.stratum-collection-select { display: flex; flex-direction: column; gap: var(--size-4-1); color: var(--text-muted); font-size: var(--font-ui-small); }
-.stratum-collection-select select { align-self: flex-start; max-width: 100%; color: var(--text-normal); }
-.stratum-collection-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
+.stratum-collection-header { display: flex; flex-direction: column; gap: var(--size-4-3); }
+.stratum-collection-details { display: contents; }
+.stratum-collection-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr); align-items: end; gap: var(--size-4-3); }
+.stratum-collection-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--size-4-2); }
+.stratum-collection-tools select, .stratum-collection-tools button { width: 100%; min-width: 0; }
+.stratum-collection-tools button { height: auto; min-height: var(--input-height); white-space: normal; }
 .stratum-collection-tools button[hidden] { display: none; }
+@container stratum-sidebar (max-width: 28rem) { .stratum-collection-filters { grid-template-columns: minmax(0, 1fr); } }
+.stratum-collection-summary { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); }
+.stratum-collection-show-items { min-width: 11rem; max-width: 100%; justify-content: center; }
+.stratum-collection-summary button[hidden] { display: none; }
 .stratum-collection-results:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
 .stratum-collection-context, .stratum-collection-meta { color: var(--text-muted); font-size: var(--font-smaller); overflow-wrap: anywhere; }
 .stratum-collection-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); font-size: var(--font-ui-small); }
@@ -644,7 +662,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-collection-list > li { padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
 .stratum-collection-title { display: block; overflow-wrap: anywhere; margin-bottom: var(--size-4-1); }
 .stratum-collection-title:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
-.stratum-browse-tab { overflow-y: auto; height: 100%; }
+.stratum-browse-tab { overflow-y: auto; height: 100%; padding-inline: var(--size-4-2); }
 
 /* Document sources stay compact and usable in narrow Obsidian sidebars. */
 .stratum-sources { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; min-height: 0; }
