@@ -1,4 +1,5 @@
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
@@ -151,7 +152,7 @@ test(
   { skip: !hasPandoc },
   async () => {
     const text =
-      "# Example manuscript\n\nA claim [@example2024]. Explanation[^note]. Again [@example2024].\n\n[^note]: A **native** note.\n\n| Heading | Value |\n| --- | --- |\n| First | Second |\n\n[External](https://example.com)";
+      "# Example manuscript\n\nA claim [@example2024]. Explanation[^note]. Again [@example2024].\n\n[^note]: A **native** note. See [the footnote source][footnote-source].\n\n[footnote-source]: https://example.com/footnote-source\n\n| Heading | Value |\n| --- | --- |\n| First | Second |\n\n[External](https://example.com)";
     const styles = assets as Record<string, string>;
     const result = formatCitationDocument(
       text,
@@ -206,6 +207,10 @@ test(
       assert.match(notes, /Alex Example/);
       assert.match(notes, /native/);
       assert.match(
+        readZip("word/_rels/footnotes.xml.rels"),
+        /https:\/\/example.com\/footnote-source/,
+      );
+      assert.match(
         readZip("word/_rels/document.xml.rels"),
         /https:\/\/example.com/,
       );
@@ -241,5 +246,58 @@ test(
     const result = await runtime().checkPublishing(pandoc, tectonic, true);
     assert.equal(result.word, true, result.wordError);
     assert.equal(result.pdf, true, result.pdfError);
+  },
+);
+
+test(
+  "cancellation terminates descendants even when the parent exits first",
+  { skip: process.platform === "win32" },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "stratum-cancel-test-"));
+    const pidFile = join(directory, "child.pid");
+    const aborter = new AbortController();
+    let pid = 0;
+    const child =
+      "process.on('SIGTERM',()=>{});process.send('ready');setInterval(()=>{},1000)";
+    const parent = `const {spawn}=require('node:child_process');const fs=require('node:fs');const child=spawn(process.execPath,['-e',process.argv[2]],{stdio:['ignore','ignore','ignore','ipc']});child.on('message',()=>fs.writeFileSync(process.argv[1],String(child.pid)));setInterval(()=>{},1000);`;
+    const completion = runtime().runPublishTool(
+      process.execPath,
+      ["-e", parent, pidFile, child],
+      { signal: aborter.signal, timeout: 5000 },
+    );
+    const outcome = completion.then(
+      () => "completed",
+      (error: Error) => error.message,
+    );
+    try {
+      for (let i = 0; i < 200 && !pid; i++) {
+        pid = Number(await readFile(pidFile, "utf8").catch(() => ""));
+        if (!pid) await delay(10);
+      }
+      assert.ok(pid, "Synthetic child started");
+      aborter.abort();
+      assert.match(await outcome, /cancelled/);
+      let alive = true;
+      for (let i = 0; i < 100 && alive; i++) {
+        try {
+          process.kill(pid, 0);
+        } catch {
+          alive = false;
+        }
+        if (alive) await delay(10);
+      }
+      assert.equal(alive, false, "The cancelled child must not keep running");
+    } finally {
+      aborter.abort();
+      await outcome;
+      if (pid) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          /* Already stopped. */
+        }
+      }
+      await rm(directory, { recursive: true, force: true });
+    }
   },
 );

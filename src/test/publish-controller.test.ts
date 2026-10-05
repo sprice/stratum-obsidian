@@ -39,6 +39,10 @@ function setup() {
       return Promise.resolve();
     },
     rename: (from, to) => {
+      if (files.has(to))
+        return Promise.reject(new Error("Destination file already exists!"));
+      if (!files.has(from))
+        return Promise.reject(new Error("Source file missing"));
       files.set(to, files.get(from)!);
       files.delete(from);
       return Promise.resolve();
@@ -98,6 +102,7 @@ function setup() {
     second = new File("Second.md");
   const leaf = { view: new View(first, "Unsaved first note") },
     other = { view: new View(second, "Second note") };
+  const roots = [leaf, other];
   const plugin = {
     settings: { citationStyle: "apa", citationLanguage: "en-US" },
     citations: {
@@ -115,10 +120,9 @@ function setup() {
       },
       workspace: {
         rootSplit: {},
-        getMostRecentLeaf: () => leaf,
+        getMostRecentLeaf: () => roots[0] ?? null,
         iterateRootLeaves: (callback: (leaf: object) => void) => {
-          callback(leaf);
-          callback(other);
+          roots.forEach(callback);
         },
         on: (event: string, callback: (...args: never[]) => void) => {
           events.set(event, callback);
@@ -137,7 +141,7 @@ function setup() {
     pandoc: { path: "pandoc", version: "3" },
     tectonic: { path: "", version: "" },
   };
-  return { controller, leaf, other, rendered, release, events };
+  return { controller, leaf, other, rendered, release, events, roots };
 }
 
 test("switching notes during publication preserves the click-time document and ignores duplicate clicks", async () => {
@@ -176,4 +180,21 @@ test("unload cancels conversion before a document is added", async () => {
   await pending;
   assert.equal((await controller.store.list()).documents.length, 0);
   assert.equal(controller.busy, false);
+});
+
+test("switching to a non-Markdown main pane clears the publication source", () => {
+  const { controller, events, other } = setup();
+  Object.assign(other, { view: {} });
+  events.get("active-leaf-change")!(other as never);
+  assert.equal(controller.document, null);
+  assert.equal(controller.canCreate(), false);
+});
+
+test("closing the selected note clears stale editor state", () => {
+  const { controller, events, roots } = setup();
+  roots.splice(0);
+  events.get("layout-change")!();
+  assert.equal(controller.document, null);
+  assert.equal(controller.leaf, null);
+  assert.equal(controller.canCreate(), false);
 });

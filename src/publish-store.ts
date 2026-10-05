@@ -33,9 +33,27 @@ export class PublishStore {
   }
   private async load(): Promise<PublishCatalog> {
     const path = `${this.directory}/catalog.json`;
-    return (await this.adapter.exists(path))
+    const backup = `${this.directory}/catalog.backup.json`;
+    // A crash between the two renames must not turn existing history into an empty catalog.
+    if (
+      !(await this.adapter.exists(path)) &&
+      (await this.adapter.exists(backup))
+    )
+      await this.adapter.rename(backup, path);
+    const catalog = (await this.adapter.exists(path))
       ? readCatalog(await this.adapter.read(path))
       : emptyCatalog();
+    // A referenced tombstone means deletion stopped before the catalog commit.
+    for (const document of catalog.documents) {
+      const original = this.path(document);
+      const pendingDelete = `${original}.deleting`;
+      if (
+        !(await this.adapter.exists(original)) &&
+        (await this.adapter.exists(pendingDelete))
+      )
+        await this.adapter.rename(pendingDelete, original);
+    }
+    return catalog;
   }
   private async ensureDirectory(): Promise<void> {
     const parts = this.directory.split("/");
@@ -46,12 +64,30 @@ export class PublishStore {
   }
   private async save(catalog: PublishCatalog): Promise<void> {
     await this.ensureDirectory();
+    const path = `${this.directory}/catalog.json`;
+    const backup = `${this.directory}/catalog.backup.json`;
     const temp = `${this.directory}/catalog-${crypto.randomUUID()}.tmp`;
+    let backedUp = false;
     try {
       await this.adapter.write(temp, JSON.stringify(catalog, null, 2));
-      await this.adapter.rename(temp, `${this.directory}/catalog.json`);
+      // Obsidian's adapter refuses to rename over an existing destination.
+      if (await this.adapter.exists(path)) {
+        if (await this.adapter.exists(backup))
+          await this.adapter.remove(backup);
+        await this.adapter.rename(path, backup);
+        backedUp = true;
+      }
+      try {
+        await this.adapter.rename(temp, path);
+      } catch (error) {
+        if (backedUp) await this.adapter.rename(backup, path);
+        throw error;
+      }
+      // The new catalog is committed. Cleanup failures must not make add() delete
+      // a document that the committed catalog now references.
+      if (backedUp) await this.adapter.remove(backup).catch(() => {});
     } finally {
-      if (await this.adapter.exists(temp)) await this.adapter.remove(temp);
+      await this.adapter.remove(temp).catch(() => {});
     }
   }
   list(): Promise<PublishCatalog> {

@@ -60,6 +60,20 @@ export class PublishController extends Component {
       this.plugin.app.workspace.on("file-open", () => this.followRecent()),
     );
     this.registerEvent(
+      this.plugin.app.workspace.on("layout-change", () => {
+        let selectedIsOpen = false;
+        this.plugin.app.workspace.iterateRootLeaves((leaf) => {
+          if (leaf === this.leaf) selectedIsOpen = true;
+        });
+        if (!selectedIsOpen) {
+          this.document = null;
+          this.leaf = null;
+          this.followRecent();
+          this.emit();
+        }
+      }),
+    );
+    this.registerEvent(
       this.plugin.app.vault.on("rename", (file, oldPath) => {
         void this.store
           .move(oldPath, file.path)
@@ -101,11 +115,10 @@ export class PublishController extends Component {
     this.plugin.app.workspace.iterateRootLeaves((candidate) => {
       if (candidate === leaf) root = true;
     });
-    if (!root || !(leaf?.view instanceof MarkdownView)) return;
-    const file = leaf.view.file;
-    if (!file || file.extension !== "md") return;
-    this.document = file;
-    this.leaf = leaf;
+    if (!root) return;
+    const file = leaf?.view instanceof MarkdownView ? leaf.view.file : null;
+    this.document = file?.extension === "md" ? file : null;
+    this.leaf = this.document ? leaf : null;
     this.emit();
   }
   subscribe(listener: () => void): () => void {

@@ -206,6 +206,9 @@ export function runPublishTool(
       );
     });
     task.once("close", (code) => {
+      // The parent can close its pipes before a child finishes handling SIGTERM.
+      // Do not clear the escalation timer while leaving that child alive.
+      if (failure && process.platform !== "win32") killTree(true);
       cleanup();
       if (failure) reject(failure);
       else if (code !== 0)

@@ -188,3 +188,29 @@ test("literal comment delimiters in code do not consume the next prose comment",
   const result = preparePublication("`%%literal` before %%private%% after");
   assert.equal(result.markdown, "`%%literal` before  after");
 });
+
+test("footnotes retain document-level link and image definitions", async () => {
+  const source =
+    "Body[^n].\n\n[^n]: See [the source][ref] and ![Figure][figure].\n\n[ref]: https://example.com/paper\n[figure]: Images/example.png";
+  const prepared = preparePublication(source);
+  const requested: string[] = [];
+  const linked = await preparePublishLinks(
+    prepared.notes[0].markdown,
+    (target) => {
+      requested.push(target);
+      return Promise.resolve("asset-0.png");
+    },
+  );
+  assert.deepEqual(requested, ["Images/example.png"]);
+  assert.match(linked, /\[ref\]: https:\/\/example.com\/paper/);
+});
+
+test("footnote comments do not resolve hidden image embeds", async () => {
+  const prepared = preparePublication(
+    "Body[^n].\n\n[^n]: Visible %%![hidden](https://example.com/private.png)%% text.",
+  );
+  const linked = await preparePublishLinks(prepared.notes[0].markdown, () => {
+    assert.fail("Commented images must not be resolved");
+  });
+  assert.equal(linked, "Visible  text.");
+});

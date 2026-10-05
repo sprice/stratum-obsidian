@@ -30,6 +30,24 @@ export function preparePublication(
     ? citationDisplayEdits(text, "publish", formatted)
     : [];
   const notes: PreparedPublication["notes"] = [];
+  // Each footnote is rendered separately, but Markdown reference definitions
+  // have document scope. Carry them into each explanatory note's render.
+  const definitionSource = stripPublishComments(text).replace(
+    /^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)(?:\r?\n|$)/,
+    "",
+  );
+  const definitions: string[] = [];
+  const collectDefinitions = (node: MarkdownNode) => {
+    if (node.type === "definition")
+      definitions.push(
+        definitionSource.slice(
+          node.position?.start.offset,
+          node.position?.end.offset,
+        ),
+      );
+    node.children?.forEach(collectDefinitions);
+  };
+  collectDefinitions(parser.parse(definitionSource) as MarkdownNode);
   if (formatted)
     model.citations.forEach((citation, index) => {
       if (!citation.generatedNote) return;
@@ -46,12 +64,15 @@ export function preparePublication(
     const id = `stratum-publish-note-${note.number}`;
     notes.push({
       id,
-      markdown: replaceRangeText(
-        text,
-        note.bodyFrom,
-        note.bodyTo,
-        edits,
-      ).replace(/\n {4}/g, "\n"),
+      markdown: [
+        stripPublishComments(
+          replaceRangeText(text, note.bodyFrom, note.bodyTo, edits).replace(
+            /\n {4}/g,
+            "\n",
+          ),
+        ),
+        ...definitions,
+      ].join("\n\n"),
     });
     edits.push({ from: note.from, to: note.to, html: "" });
     for (const reference of model.references.filter(
