@@ -1,11 +1,10 @@
+import {
+  availableCitationStyles,
+  changeCitationPreferences,
+} from "./citation-style-collection";
 import type { TFile } from "obsidian";
 import type StratumPlugin from "./plugin";
-import {
-  bundledStyles,
-  cachedStyle,
-  prepareStyle,
-  styleTitle,
-} from "./citation-styles";
+import { cachedStyle, prepareStyle, styleTitle } from "./citation-styles";
 
 export function noteCitationStyleChoices(
   plugin: StratumPlugin,
@@ -15,8 +14,7 @@ export function noteCitationStyleChoices(
   // Resolve the active style from live text, including unsaved note overrides.
   const { style } = plugin.citations.preferences(file.path, text);
   const ids = new Set([
-    ...bundledStyles.map(({ id }) => id),
-    ...Object.keys(plugin.settings.citationStyles),
+    ...availableCitationStyles(plugin).map(({ id }) => id),
     style,
   ]);
   return {
@@ -33,15 +31,33 @@ export async function setNoteCitationStyle(
   style: string,
   language: string,
 ): Promise<void> {
-  await prepareStyle(plugin, style, language);
-  if (plugin.isUnloaded) return;
-  await plugin.app.fileManager.processFrontMatter(
-    file,
-    (fm: Record<string, unknown>) => {
-      fm.stratum_citation_style = style;
-      // Changing style must preserve independent language overrides and all
-      // other user frontmatter. Language remains editable via the note command.
-    },
-  );
-  plugin.citations.invalidate();
+  await changeCitationPreferences(plugin, async () => {
+    await prepareStyle(plugin, style, language);
+    if (plugin.isUnloaded) return;
+    await plugin.app.fileManager.processFrontMatter(
+      file,
+      (fm: Record<string, unknown>) => {
+        fm.stratum_citation_style = style;
+        // Changing style must preserve independent language overrides and all
+        // other user frontmatter. Language remains editable via the note command.
+      },
+    );
+    plugin.citations.invalidate();
+  });
+}
+
+export function resetNoteCitationPreferences(
+  plugin: StratumPlugin,
+  file: TFile,
+): Promise<void> {
+  return changeCitationPreferences(plugin, async () => {
+    await plugin.app.fileManager.processFrontMatter(
+      file,
+      (fm: Record<string, unknown>) => {
+        delete fm.stratum_citation_style;
+        delete fm.stratum_citation_language;
+      },
+    );
+    plugin.citations.invalidate();
+  });
 }

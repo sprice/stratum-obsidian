@@ -10,7 +10,6 @@ Copyright (c) 2009–2019 Frank Bennett. Stratum uses citeproc-js under CPAL-1.0
 See [the full license and original notice](licenses/citeproc.txt).
 Unmodified source: https://registry.npmjs.org/citeproc/-/citeproc-2.4.63.tgz
 Project: https://github.com/Juris-M/citeproc-js
-Attribution is also displayed in the citation style dialog.
 
 ## Citation Style Language styles and locales — CC BY-SA 3.0
 

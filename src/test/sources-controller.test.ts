@@ -40,7 +40,11 @@ test("managing styles opens the plugin settings and global style dialog without 
   const calls: string[] = [];
   const { SourcesController } = loadRuntime<typeof Controller>(
     "sources-controller.ts",
-    { Component: HostComponent, FuzzySuggestModal: class {} },
+    {
+      Component: HostComponent,
+      MarkdownView: View,
+      FuzzySuggestModal: class {},
+    },
     {},
     "node",
     {
@@ -366,4 +370,84 @@ test("Reading view uses saved content instead of its stale editor buffer", async
   f.vaultEvents.emit("modify", f.manuscript);
   await f.flush();
   assert.equal(f.controller.rows[0].keys[0], "saved2025");
+});
+
+test("style selection uses the current editor rather than the previous source refresh", async () => {
+  const file = new File("Synthetic draft.md");
+  const view = new View(file);
+  view.text = "current style and language";
+  const calls: unknown[] = [];
+  const { SourcesController } = loadRuntime<typeof Controller>(
+    "sources-controller.ts",
+    {
+      Component: HostComponent,
+      MarkdownView: View,
+      FuzzySuggestModal: class {},
+    },
+    {},
+    "node",
+    {
+      "./citation-style-choice": {
+        noteCitationStyleChoices: (
+          _plugin: unknown,
+          target: File,
+          text: string,
+        ) => {
+          calls.push([target.path, text]);
+          return { selected: text };
+        },
+        setNoteCitationStyle: (
+          _plugin: unknown,
+          target: File,
+          style: string,
+          language: string,
+        ) => {
+          calls.push([target.path, style, language]);
+        },
+      },
+    },
+  );
+  const controller = new SourcesController({
+    citations: {
+      preferences: (_path: string, text: string) => ({ language: text }),
+    },
+    app: { workspace: { getLeavesOfType: () => [{ view }] } },
+  } as never);
+  Object.assign(controller, { document: file, text: "previous note" });
+  await controller.citationStyleChoices();
+  await controller.changeCitationStyle("ieee", file.path);
+  assert.deepEqual(calls, [
+    [file.path, view.text],
+    [file.path, "ieee", view.text],
+  ]);
+});
+
+test("a delayed style read is discarded after switching notes", async () => {
+  let finishRead!: (text: string) => void;
+  const read = new Promise<string>((resolve) => {
+    finishRead = resolve;
+  });
+  const { SourcesController } = loadRuntime<typeof Controller>(
+    "sources-controller.ts",
+    {
+      Component: HostComponent,
+      MarkdownView: View,
+      FuzzySuggestModal: class {},
+    },
+    {},
+    "node",
+    { "./citation-style-choice": {} },
+  );
+  const controller = new SourcesController({
+    citations: {},
+    app: {
+      workspace: { getLeavesOfType: () => [] },
+      vault: { cachedRead: () => read },
+    },
+  } as never);
+  controller.document = new File("First.md") as never;
+  const pending = controller.citationStyleChoices();
+  controller.document = new File("Second.md") as never;
+  finishRead("first note preferences");
+  assert.equal(await pending, null);
 });

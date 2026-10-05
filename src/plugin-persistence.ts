@@ -1,3 +1,4 @@
+import { readAvailableCitationStyles } from "./citation-style-defaults";
 import { readPublishReadinessCache } from "./publish-readiness";
 import { readEnabledTabs } from "./stratum-tabs";
 import {
@@ -391,6 +392,10 @@ function readStoredSettings(value: unknown): Omit<
     /^[a-z0-9-]+$/.test(value.citationStyle)
   )
     nextSettings.citationStyle = value.citationStyle;
+  nextSettings.availableCitationStyles = readAvailableCitationStyles(
+    value.availableCitationStyles,
+    nextSettings.citationStyle ?? DEFAULT_SETTINGS.citationStyle,
+  );
   if (
     typeof value.citationLanguage === "string" &&
     /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(value.citationLanguage)

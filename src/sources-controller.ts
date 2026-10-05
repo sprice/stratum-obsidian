@@ -50,17 +50,21 @@ export class SourcesController extends Component {
   async citationStyleChoices() {
     const file = this.document;
     if (!file || !this.plugin.citations) return null;
+    const text =
+      this.editorText() ?? (await this.plugin.app.vault.cachedRead(file));
     const { noteCitationStyleChoices } =
       await import("./citation-style-choice");
     if (this.document !== file || this.plugin.isUnloaded) return null;
-    return noteCitationStyleChoices(this.plugin, file, this.text);
+    return noteCitationStyleChoices(this.plugin, file, text);
   }
   async changeCitationStyle(style: string, path: string): Promise<void> {
     const file = this.document;
     if (!file || file.path !== path || this.plugin.isUnloaded) return;
+    const text =
+      this.editorText() ?? (await this.plugin.app.vault.cachedRead(file));
     const language = this.plugin.citations.preferences(
       file.path,
-      this.text,
+      text,
     ).language;
     const { setNoteCitationStyle } = await import("./citation-style-choice");
     if (!this.plugin.isUnloaded)

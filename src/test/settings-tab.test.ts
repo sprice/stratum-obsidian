@@ -10,7 +10,13 @@ class Element {
   isConnected = true;
   addClass() {}
   setAttr() {}
-  setAttribute() {}
+  attributes = new Map<string, string>();
+  setAttribute(name: string, value: string) {
+    this.attributes.set(name, value);
+  }
+  getAttribute(name: string) {
+    return this.attributes.get(name) ?? null;
+  }
   listeners = new Map<string, () => void>();
   addEventListener(name: string, callback: () => void) {
     this.listeners.set(name, callback);
@@ -119,9 +125,12 @@ function fixture(desktop = false, modern = true) {
     "node",
     {
       "./settings-tab-chooser": {
-        openTabChooser: (_anchor: unknown, options: typeof chooser) => {
+        openTabChooser: (anchor: Element, options: typeof chooser) => {
           chooser = options;
-          return () => {};
+          anchor.setAttribute("aria-expanded", "true");
+          return () => {
+            anchor.setAttribute("aria-expanded", "false");
+          };
         },
       },
     },
@@ -341,6 +350,11 @@ for (const desktop of [true, false]) {
     const row = Row.rendered.find((row) => row.name === "Visible tabs")!;
     assert.equal(row.description, "All tabs shown.");
     await row.control!.click!();
+    assert.equal(row.control!.buttonEl.getAttribute("aria-expanded"), "true");
+    await row.control!.click!();
+    assert.equal(row.control!.buttonEl.getAttribute("aria-expanded"), "false");
+    await row.control!.click!();
+    assert.equal(row.control!.buttonEl.getAttribute("aria-expanded"), "true");
     const choices = f.chooser.tabs;
     assert.deepEqual(
       Array.from(choices, (tab) => tab.label),
@@ -358,7 +372,7 @@ for (const desktop of [true, false]) {
     assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
     assert.equal(f.plugin.settings.enabledTabs.publish, !desktop);
     assert.equal(
-      sections.some((section) => section.heading === "Publishing"),
+      sections.some((section) => section.heading === "Stratum Publishing"),
       desktop,
     );
     assert.equal(f.plugin.settings.enabledTabs.reader, false);
@@ -391,4 +405,20 @@ test("tab visibility updates before a slow settings save completes", async () =>
     release();
     await saving;
   }
+});
+
+test("failed tab saves restore visibility and its summary", async () => {
+  const f = fixture(true);
+  f.plugin.saveSettings = () => Promise.reject(new Error("Disk full"));
+  const setting = f.tab
+    .getSettingDefinitions()
+    .find((section) => section.heading === "Stratum tabs")!
+    .items.find((item) => item.name === "Visible tabs")!;
+  const row = new Row();
+  setting.render(row as never);
+  await row.control!.click!();
+  await assert.rejects(f.chooser.onChange("browse", false), /Disk full/);
+  assert.equal(f.plugin.settings.enabledTabs.browse, true);
+  assert.equal(row.description, "All tabs shown.");
+  assert.equal(f.updates, 2);
 });

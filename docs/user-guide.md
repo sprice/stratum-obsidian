@@ -133,16 +133,23 @@ citations using your selected style. Stratum does not modify Zotero data.
 ### Citation styles and previews
 
 Choose the default style in **Settings → Stratum → Citations → Default citation style**.
-Without a selection, the default is Chicago Manual of Style 18th edition
-(notes and bibliography). Papers inherit the default until you choose a style
-for that note. APA, IEEE, and Chicago Notes are bundled; **Find more
-styles** searches Zotero's CSL repository. Selected styles and formatting
-languages are downloaded once and saved locally. You can also import a `.csl`
-file already in the vault. The dialog shows a synthetic citation and reference
-example for installed styles.
+The initial default is APA 7th edition. APA, MLA 9, Chicago 18 notes and
+bibliography, IEEE, and NLM/Vancouver are bundled and initially available offline.
+Papers inherit the default until you choose a style for that note.
+
+**Choose default style** opens a searchable picker of your available styles.
+Choosing a style saves the default immediately. **Choose available citation
+styles** opens a searchable checklist covering Zotero's style repository.
+Checking a style downloads and saves it immediately; unchecking hides it from
+future choices without removing resources or changing existing notes. The current
+default is marked **Default** and cannot be unchecked until you choose another.
+The checklist shows enabled styles first and keeps saved styles accessible if
+the catalog cannot load. Language changes are saved with **Apply language**.
+The dialog shows a synthetic citation and reference example.
 
 In the Citations tab, **Citation style for this note** switches immediately
-between bundled and installed styles and shows the style currently in use.
+between your available styles and shows the style currently in use.
+An existing note style stays visible even if it is hidden from future choices.
 Selecting a style saves it for that note, even if it matches the overall default.
 **Manage citation styles** opens the style management dialog
 directly over Stratum settings. The same dialog is available through
@@ -171,7 +178,7 @@ to the Markdown. In-text styles use the heading **References**; note-based style
 use **Bibliography**, after their generated Notes section.
 
 An existing `<div id="refs"></div>` marker still controls explicit placement and
-suppresses the automatic list. **Set bibliography location** remains available for this
+suppresses the automatic list. **Insert bibliography here** remains available for this
 optional placement, but formatting stays in Reading view. Live Preview does not generate a reference
 list or citation notes.
 
@@ -360,8 +367,8 @@ active note with its selected citation style. **Manage tools** in
 **Settings → Stratum → Publishing → Publishing tools** opens installation help
 and status checks for Pandoc and Tectonic. Created documents stay in hidden plugin storage
 and appear when you select their source note; each row offers open, save a copy,
-and confirmed delete actions. The tab is enabled by default and can be hidden in
-**Settings → Stratum → Publishing**.
+and confirmed delete actions. The tab is enabled by default. To hide it, open
+**Settings → Stratum → Stratum tabs → Choose visible tabs** and uncheck **Publish**.
 
 See [publishing documents](publishing.md) for setup, supported content, and storage
 details.
@@ -380,7 +387,7 @@ Open Obsidian's command palette and search for **Stratum**. Assign shortcuts und
 | Insert or edit citation              | Compose or edit Pandoc citations with groups and locators.  |
 | Change citation style for this paper | Override the current paper's style and language.            |
 | Refresh citation data                | Fetch missing CSL reference data for imported notes.        |
-| Set bibliography location            | Place an optional marker for Reading view's reference list. |
+| Insert bibliography here             | Place an optional marker for Reading view's reference list. |
 | Show citations for current note      | Inspect cited sources, source health, and recovery actions. |
 
 ## Enrichment

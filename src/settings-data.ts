@@ -1,3 +1,4 @@
+import { INITIAL_CITATION_STYLES } from "./citation-style-defaults";
 import { readEnabledTabs, type EnabledTabs } from "./stratum-tabs";
 import type { CollectionCatalogs } from "./collection-catalog";
 import type { PublishReadinessCache } from "./publish-readiness";
@@ -46,6 +47,7 @@ export interface StratumSettings {
   tectonicPath: string;
   enabledTabs: EnabledTabs;
   citationStyle: string;
+  availableCitationStyles?: string[];
   citationLanguage: string;
   citationStyles: Record<string, string>;
   citationStyleTitles?: Record<string, string>;
@@ -80,7 +82,8 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   pandocPath: "",
   tectonicPath: "",
   enabledTabs: readEnabledTabs(undefined),
-  citationStyle: "chicago-notes-bibliography",
+  citationStyle: "apa",
+  availableCitationStyles: [...INITIAL_CITATION_STYLES],
   citationLanguage: "en-US",
   citationStyles: {},
   citationLocales: {},

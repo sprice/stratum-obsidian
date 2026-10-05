@@ -4,7 +4,7 @@ import type * as Choice from "../citation-style-choice";
 import { loadRuntime } from "./runtime-harness";
 import { DEFAULT_SETTINGS } from "../settings-data";
 
-function fixture() {
+function fixture(prepareGate?: Promise<void>) {
   const frontmatter: Record<string, unknown> = {
     title: "Synthetic draft",
     stratum_citation_style: "apa",
@@ -45,7 +45,7 @@ function fixture() {
           prepares++;
           return failPrepare
             ? Promise.reject(new Error("Unavailable"))
-            : Promise.resolve();
+            : (prepareGate ?? Promise.resolve());
         },
       },
     },
@@ -55,6 +55,7 @@ function fixture() {
     settings: {
       citationStyle: DEFAULT_SETTINGS.citationStyle,
       citationStyles: { custom: "xml", apa: "xml" },
+      availableCitationStyles: ["apa", "ieee", "chicago-notes-bibliography"],
     },
     citations: {
       preferences: (_path: string, text: string) => ({
@@ -100,7 +101,7 @@ function fixture() {
   };
 }
 
-test("selector shows the effective style, initially Chicago, and includes installed styles once without a default option", () => {
+test("selector shows the effective style, initially APA, and includes installed styles once without a default option", () => {
   const f = fixture();
   const inherited = f.runtime.noteCitationStyleChoices(
     f.plugin as never,
@@ -112,11 +113,11 @@ test("selector shows the effective style, initially Chicago, and includes instal
     f.file as never,
     "---\nstratum_citation_style: apa\n---\nDraft text",
   );
-  assert.equal(inherited.selected, "chicago-notes-bibliography");
+  assert.equal(inherited.selected, "apa");
   assert.equal(explicit.selected, "apa");
   assert.deepEqual(
     Array.from(inherited.options, ({ id }) => id),
-    ["apa", "ieee", "chicago-notes-bibliography", "custom"],
+    ["apa", "ieee", "chicago-notes-bibliography"],
   );
   f.plugin.settings.citationStyle = "ieee";
   assert.equal(
@@ -150,7 +151,7 @@ test("selecting another style or the overall default saves the named style and p
   );
   assert.equal(f.frontmatter.stratum_citation_language, "en-GB");
   assert.equal(f.frontmatter.title, "Synthetic draft");
-  assert.equal(f.plugin.settings.citationStyle, "chicago-notes-bibliography");
+  assert.equal(f.plugin.settings.citationStyle, "apa");
   assert.equal(f.invalidations, 2);
 });
 
@@ -170,3 +171,46 @@ for (const failure of ["failPrepare", "failSave"] as const) {
     assert.equal(f.invalidations, 0);
   });
 }
+
+test("hidden styles stay visible only on notes already using them", () => {
+  const f = fixture();
+  f.plugin.settings.availableCitationStyles = ["ieee"];
+  f.plugin.settings.citationStyle = "ieee";
+  const choices = f.runtime.noteCitationStyleChoices(
+    f.plugin as never,
+    f.file as never,
+    "---\nstratum_citation_style: apa\n---\nDraft",
+  );
+  assert.deepEqual(
+    Array.from(choices.options, (option) => option.id),
+    ["ieee", "apa"],
+  );
+  assert.equal(choices.selected, "apa");
+});
+
+test("returning to the default waits for an earlier slow style selection", async () => {
+  let finish!: () => void;
+  const f = fixture(
+    new Promise<void>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const selection = f.runtime.setNoteCitationStyle(
+    f.plugin as never,
+    f.file as never,
+    "ieee",
+    "en-GB",
+  );
+  const reset = f.runtime.resetNoteCitationPreferences(
+    f.plugin as never,
+    f.file as never,
+  );
+  await Promise.resolve();
+  assert.equal(f.frontmatter.stratum_citation_style, "apa");
+  finish();
+  await Promise.all([selection, reset]);
+  assert.equal(f.frontmatter.stratum_citation_style, undefined);
+  assert.equal(f.frontmatter.stratum_citation_language, undefined);
+  assert.equal(f.frontmatter.title, "Synthetic draft");
+  assert.equal(f.invalidations, 2);
+});

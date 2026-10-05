@@ -114,22 +114,27 @@ for (const failSave of [false, true]) {
     );
     const changes: string[][] = [];
     let settingsOpened = 0;
+    let selected = "apa";
+    let finishSave!: () => void;
+    const pendingSave = new Promise<void>((resolve) => {
+      finishSave = resolve;
+    });
     const sources = {
       citationStyleChoices: () =>
         Promise.resolve({
           path: "Synthetic draft.md",
-          selected: "apa",
+          selected,
           unavailable: false,
           options: [
             { id: "apa", title: "APA" },
             { id: "ieee", title: "IEEE" },
           ],
         }),
-      changeCitationStyle: (value: string, path: string) => {
+      changeCitationStyle: async (value: string, path: string) => {
         changes.push([value, path]);
-        return failSave
-          ? Promise.reject(new Error("Save failed"))
-          : Promise.resolve();
+        await pendingSave;
+        if (failSave) throw new Error("Save failed");
+        selected = value;
       },
       manageCitationStyles: () => {
         settingsOpened++;
@@ -145,7 +150,7 @@ for (const failSave of [false, true]) {
       () => {},
     );
     const status = new Element();
-    Object.assign(panel, { citationStatus: status });
+    Object.assign(panel, { citationStatus: status, active: true });
     await (
       panel as unknown as { renderCitationStatus(): Promise<void> }
     ).renderCitationStatus();
@@ -158,7 +163,24 @@ for (const failSave of [false, true]) {
     control.setValue("ieee");
     const saving = control.change("ieee");
     assert.equal(control.disabled, true);
+    await (
+      panel as unknown as { renderCitationStatus(): Promise<void> }
+    ).renderCitationStatus();
+    const replacement = Dropdown.instances.at(-1)!;
+    assert.equal(
+      replacement.disabled,
+      true,
+      "Refresh must not allow overlapping saves",
+    );
+    await replacement.change("apa");
+    assert.equal(changes.length, 1);
+    finishSave();
     await saving;
+    assert.equal(Dropdown.instances.at(-1)!.disabled, false);
+    assert.equal(
+      Dropdown.instances.at(-1)!.selectEl.value,
+      failSave ? "apa" : "ieee",
+    );
     assert.deepEqual(changes, [["ieee", "Synthetic draft.md"]]);
     assert.equal(control.disabled, false);
     assert.equal(control.selectEl.value, failSave ? "apa" : "ieee");

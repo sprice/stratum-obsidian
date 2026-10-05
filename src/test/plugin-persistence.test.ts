@@ -328,3 +328,37 @@ test("tab preferences survive save/reload and legacy settings default on", async
   assert.equal(plugin.settings.enabledTabs.sync, false);
   assert.equal(plugin.settings.enabledTabs.browse, true);
 });
+
+test("available citation styles survive reload, retain the default, and reject malformed identifiers", async () => {
+  let data: unknown = {
+    citationStyle: "ieee",
+    availableCitationStyles: [
+      "modern-language-association",
+      "../invalid",
+      null,
+    ],
+  };
+  const plugin = {
+    settings: {} as import("../settings-data").StratumSettings,
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(plugin.settings.availableCitationStyles, [
+    "modern-language-association",
+    "ieee",
+  ]);
+  plugin.settings.availableCitationStyles = ["apa", "ieee"];
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(plugin.settings.availableCitationStyles, ["apa", "ieee"]);
+  assert.equal(plugin.settings.citationStyle, "ieee");
+  data = {};
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.citationStyle, "apa");
+  assert.equal(plugin.settings.availableCitationStyles?.length, 5);
+});

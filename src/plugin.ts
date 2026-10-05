@@ -1,3 +1,4 @@
+import { readAvailableCitationStyles } from "./citation-style-defaults";
 import type { PublishController } from "./publish-controller";
 import { selectStratumTab } from "./plugin-tabs";
 import {
@@ -372,7 +373,7 @@ export default class StratumPlugin extends Plugin {
     });
     this.addCommand({
       id: "insert-bibliography",
-      name: "Set bibliography location",
+      name: "Insert bibliography here",
       editorCallback: (editor) => {
         if (citationDocument(editor.getValue(), false).bibliographies.length) {
           new Notice("This paper already has a bibliography location.");
@@ -459,28 +460,52 @@ export default class StratumPlugin extends Plugin {
   }
 
   async onExternalSettingsChange(): Promise<void> {
-    const data = (await this.loadData()) as Record<string, unknown> | null;
-    if (this.isUnloaded || !data) return;
-    if (
-      typeof data.citationStyle === "string" &&
-      /^[a-z0-9-]+$/.test(data.citationStyle)
-    )
-      this.settings.citationStyle = data.citationStyle;
-    if (
-      typeof data.citationLanguage === "string" &&
-      /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(data.citationLanguage)
-    )
-      this.settings.citationLanguage = data.citationLanguage;
+    const { changeCitationPreferences } =
+      await import("./citation-style-collection");
+    if (this.isUnloaded) return;
     try {
-      const { loadCitationResources } = await import("./citation-resources");
-      await loadCitationResources(this);
-    } catch {
-      new Notice(
-        "Synced citation resources could not be loaded. Your current resources are retained.",
-      );
+      await changeCitationPreferences(this, async () => {
+        const data = (await this.loadData()) as Record<string, unknown> | null;
+        if (this.isUnloaded || !data) return;
+        if (
+          typeof data.citationStyle === "string" &&
+          /^[a-z0-9-]+$/.test(data.citationStyle)
+        )
+          this.settings.citationStyle = data.citationStyle;
+        this.settings.availableCitationStyles = readAvailableCitationStyles(
+          data.availableCitationStyles,
+          this.settings.citationStyle,
+        );
+        if (
+          typeof data.citationLanguage === "string" &&
+          /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(data.citationLanguage)
+        )
+          this.settings.citationLanguage = data.citationLanguage;
+        const titles = data.citationStyleTitles;
+        if (titles && typeof titles === "object" && !Array.isArray(titles))
+          this.settings.citationStyleTitles = Object.fromEntries(
+            Object.entries(titles).filter(
+              (pair): pair is [string, string] =>
+                /^[a-zA-Z0-9-]+$/.test(pair[0]) &&
+                typeof pair[1] === "string" &&
+                pair[1].length < 2000000,
+            ),
+          );
+        try {
+          const { loadCitationResources } =
+            await import("./citation-resources");
+          await loadCitationResources(this);
+        } catch {
+          new Notice(
+            "Synced citation resources could not be loaded. Your current resources are retained.",
+          );
+        }
+        this.citations?.invalidate();
+        this.refreshSettingTab();
+      });
+    } catch (error) {
+      if (!this.isUnloaded) throw error;
     }
-    this.citations?.invalidate();
-    this.refreshSettingTab();
   }
 
   onunload(): void {

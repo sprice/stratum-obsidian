@@ -31,6 +31,7 @@ export class SourcesPanel extends Component {
   private summary!: HTMLElement;
   private citationStatus!: HTMLElement;
   private citationRevision = 0;
+  private citationStyleSaving = false;
   private recovering = new Set<string>();
   private recoveryErrors = new Map<string, string>();
   private active = false;
@@ -185,7 +186,10 @@ export class SourcesPanel extends Component {
       for (const option of choices.options)
         dropdown.addOption(option.id, option.title);
       let selected = choices.selected;
+      dropdown.setDisabled(this.citationStyleSaving);
       dropdown.setValue(selected).onChange(async (value) => {
+        if (this.citationStyleSaving) return;
+        this.citationStyleSaving = true;
         dropdown.setDisabled(true);
         try {
           await this.sources.changeCitationStyle(value, choices.path);
@@ -194,7 +198,9 @@ export class SourcesPanel extends Component {
           if (dropdown.selectEl.isConnected) dropdown.setValue(selected);
           new Notice("Could not change citation style. Try again.");
         } finally {
+          this.citationStyleSaving = false;
           if (dropdown.selectEl.isConnected) dropdown.setDisabled(false);
+          if (this.active) await this.renderCitationStatus();
         }
       });
       if (choices.unavailable)

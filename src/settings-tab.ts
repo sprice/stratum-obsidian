@@ -228,7 +228,7 @@ export class StratumSettingTab extends PluginSettingTab {
         });
     });
 
-    const librariesSection = this.createSection(sections, "Libraries");
+    const librariesSection = this.createSection(sections, "Zotero Libraries");
     const personalLibrary = getPersonalLibrary(this.plugin);
     if (personalLibrary) {
       this.defineSetting(librariesSection, "Personal library", (setting) => {
@@ -290,7 +290,7 @@ export class StratumSettingTab extends PluginSettingTab {
     }
 
     if (Platform.isDesktopApp) {
-      const publishSection = this.createSection(sections, "Publishing");
+      const publishSection = this.createSection(sections, "Stratum Publishing");
       this.defineSetting(publishSection, "Publishing tools", (setting) => {
         setting
           .setDesc(
@@ -491,18 +491,21 @@ export class StratumSettingTab extends PluginSettingTab {
     this.defineSetting(citations, "Citation reference data", (setting) => {
       setting
         .setDesc(
-          "Fill missing reference data for previously imported notes. Requires your Zotero connection.",
+          "Get missing reference details from Zotero for imported notes.",
         )
         .addButton((button) =>
-          button.setButtonText("Refresh citation data").onClick(async () => {
-            const { refreshCitationData } = await import("./citation-refresh");
-            await refreshCitationData(this.plugin).catch(
-              () =>
-                new Notice(
-                  "Could not refresh citation data. Check your Zotero connection.",
-                ),
-            );
-          }),
+          button
+            .setButtonText("Fetch missing citation data")
+            .onClick(async () => {
+              const { refreshCitationData } =
+                await import("./citation-refresh");
+              await refreshCitationData(this.plugin).catch(
+                () =>
+                  new Notice(
+                    "Could not refresh citation data. Check your Zotero connection.",
+                  ),
+              );
+            }),
         );
     });
 
@@ -530,18 +533,33 @@ export class StratumSettingTab extends PluginSettingTab {
         button.buttonEl.setAttribute("aria-haspopup", "dialog");
         button.buttonEl.setAttribute("aria-expanded", "false");
         button.onClick(() => {
+          const wasOpen =
+            button.buttonEl.getAttribute("aria-expanded") === "true";
           this.closeTabChooser?.();
+          if (wasOpen) return;
           this.closeTabChooser = openTabChooser(button.buttonEl, {
             tabs,
+            keyboard: {
+              keymap: this.plugin.app.keymap,
+              parent: this.plugin.app.scope,
+            },
             enabled: readEnabledTabs(this.plugin.settings.enabledTabs),
             onChange: async (id, enabled) => {
+              const previous = this.plugin.settings.enabledTabs;
               this.plugin.settings.enabledTabs = {
                 ...readEnabledTabs(this.plugin.settings.enabledTabs),
                 [id]: enabled,
               };
               updateSummary();
               this.plugin.refreshViews();
-              await this.plugin.saveSettings();
+              try {
+                await this.plugin.saveSettings();
+              } catch (error) {
+                this.plugin.settings.enabledTabs = previous;
+                updateSummary();
+                this.plugin.refreshViews();
+                throw error;
+              }
             },
           });
         });
