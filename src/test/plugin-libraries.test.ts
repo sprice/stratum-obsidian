@@ -32,6 +32,10 @@ function createMockPlugin(params?: {
   const enabledLibraries = params?.enabledLibraries ?? [personalLibrary];
   const settingsOverrides = params?.settings ?? {};
   const settings: StratumSettings = {
+    publishEnabled: true,
+    publishPdfSetupComplete: false,
+    pandocPath: "",
+    tectonicPath: "",
     citationStyle: "apa",
     citationLanguage: "en-US",
     citationStyles: {},

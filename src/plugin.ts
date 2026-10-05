@@ -1,3 +1,4 @@
+import type { PublishController } from "./publish-controller";
 import type { CitationService } from "./citation-service";
 import { CitationSuggest } from "./citation-suggest";
 import { SourcesController } from "./sources-controller";
@@ -155,9 +156,11 @@ export default class StratumPlugin extends Plugin {
   selectedLibraryResult: ZoteroSearchResult | null = null;
   isSelectedLibraryAbstractExpanded = false;
   activeNoteActionKey: string | null = null;
+  publish: PublishController | null = null;
   sources!: SourcesController;
   citations!: CitationService;
-  activeViewTab: "browse" | "search" | "sync" | "reader" | "sources" = "search";
+  activeViewTab:
+    "browse" | "search" | "sync" | "reader" | "sources" | "publish" = "search";
   readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
   librarySearchDebounceTimer: number | null = null;
@@ -268,6 +271,11 @@ export default class StratumPlugin extends Plugin {
     registerCitationReading(this.citations);
 
     this.sources = this.addChild(new SourcesController(this));
+    if (Platform.isDesktopApp) {
+      const { PublishController } = await import("./publish-controller");
+      if (this.isUnloaded) return;
+      this.publish = this.addChild(new PublishController(this));
+    }
     this.settingTab = new StratumSettingTab(this);
     this.addSettingTab(this.settingTab);
     this.registerView(VIEW_TYPE_STRATUM, (leaf) => new StratumView(leaf, this));

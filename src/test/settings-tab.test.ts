@@ -130,6 +130,7 @@ function fixture(desktop = false, modern = true) {
       rebuilds++;
       return Promise.resolve();
     },
+    refreshViews: () => {},
     isBulkLibrarySyncRunning: () => false,
     isZoteroAutoSyncRunning: () => false,
   };
@@ -300,3 +301,21 @@ for (const modern of [false, true]) {
     assert.equal(f.plugin.settings.notesFolder, DEFAULT_SETTINGS.notesFolder);
   });
 }
+
+test("publishing settings are desktop-only and disabling the tab persists", async () => {
+  const mobile = fixture();
+  const mobileNames = Array.from(mobile.tab.getSettingDefinitions()).flatMap(
+    (section) => Array.from(section.items, (item) => item.name),
+  );
+  assert.ok(!mobileNames.includes("Show Publish tab"));
+  const desktop = fixture(true, false);
+  Row.rendered = [];
+  desktop.tab.refresh();
+  const toggle = Row.rendered.find(
+    (row) => row.name === "Show Publish tab",
+  )!.control!;
+  assert.equal(toggle.value, true);
+  await toggle.change!(false);
+  assert.equal(desktop.plugin.settings.publishEnabled, false);
+  assert.equal(desktop.saves, 1);
+});

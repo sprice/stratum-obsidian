@@ -220,3 +220,32 @@ test("unsupported item reports survive settings reload and discard malformed ent
     [item],
   );
 });
+
+test("publishing preferences migrate with defaults and preserve explicit desktop setup", async () => {
+  const create = (data: unknown) => ({
+    loadData: () => Promise.resolve(data),
+    saveData: () => Promise.resolve(),
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+    settings: {} as {
+      publishEnabled: boolean;
+      publishPdfSetupComplete: boolean;
+      pandocPath: string;
+      tectonicPath: string;
+    },
+  });
+  const legacy = create({});
+  await loadPluginSettings(legacy as never);
+  assert.equal(legacy.settings.publishEnabled, true);
+  assert.equal(legacy.settings.publishPdfSetupComplete, false);
+  const configured = create({
+    publishEnabled: false,
+    publishPdfSetupComplete: true,
+    pandocPath: " /example/pandoc ",
+    tectonicPath: "/example/tectonic",
+  });
+  await loadPluginSettings(configured as never);
+  assert.equal(configured.settings.publishEnabled, false);
+  assert.equal(configured.settings.publishPdfSetupComplete, true);
+  assert.equal(configured.settings.pandocPath, "/example/pandoc");
+  assert.equal(configured.settings.tectonicPath, "/example/tectonic");
+});

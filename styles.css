@@ -19,7 +19,7 @@
 
 .stratum-tab-bar {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(4rem, 1fr));
 	min-width: 0;
 	gap: var(--size-2-1);
 	padding: var(--size-2-1);
@@ -727,3 +727,25 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-citation-notes .stratum-citation-evidence:focus-visible {
   color: var(--interactive-accent);
 }
+
+.stratum-publish-tab { height: 100%; overflow-y: auto; }
+.stratum-publish-panel { display: flex; flex-direction: column; gap: var(--size-4-3); padding-bottom: var(--size-4-4); }
+.stratum-publish-panel h3, .stratum-publish-panel h4, .stratum-publish-panel p { margin: 0; }
+.stratum-publish-note { color: var(--text-muted); overflow-wrap: anywhere; }
+.stratum-publish-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--size-4-2); }
+.stratum-publish-controls select { width: 100%; }
+.stratum-publish-actions, .stratum-publish-row-actions { display: flex; align-items: center; gap: var(--size-4-2); flex-wrap: wrap; }
+.stratum-publish-status { font-size: var(--font-ui-small); color: var(--text-muted); overflow-wrap: anywhere; }
+.stratum-publish-status p + p { margin-top: var(--size-4-2); }
+.stratum-publish-error { color: var(--text-error); white-space: pre-wrap; max-height: 12rem; overflow: auto; }
+.stratum-publish-history { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex-wrap: wrap; margin-top: var(--size-4-4); }
+.stratum-publish-row { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.stratum-publish-document { min-width: 0; }
+.stratum-publish-filename { overflow-wrap: anywhere; font-size: var(--font-ui-small); }
+.stratum-publish-meta { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-top: var(--size-4-1); }
+.stratum-publish-row-actions { flex-shrink: 0; flex-wrap: nowrap; gap: var(--size-2-1); }
+.stratum-publish-step { border-top: 1px solid var(--background-modifier-border); padding: var(--size-4-3) 0; }
+.stratum-publish-setup details { margin: var(--size-4-3) 0; }
+.stratum-publish-setup summary { cursor: pointer; color: var(--text-muted); }
+.stratum-publish-setup code { display: block; margin-bottom: var(--size-4-2); }
+@container stratum-sidebar (max-width: 18rem) { .stratum-publish-controls { grid-template-columns: minmax(0, 1fr); } }

@@ -197,3 +197,65 @@ test("formatting and diagnostics share cached ownership even without literature 
   assert.match(missing.model.problems.join(" "), /Citation key not found/);
   assert.equal(missing.citations.length, 0);
 });
+
+test("publication captures citation settings before asynchronous reference resolution", async () => {
+  const { CitationService } = loadRuntime<typeof Service>(
+    "citation-service.ts",
+    {
+      Component: class {},
+      TFile: File,
+      MarkdownView: View,
+      FuzzySuggestModal: class {},
+    },
+    { document: { createElement: () => ({}) } },
+    "browser",
+  );
+  const settings = {
+    citationStyle: "ieee",
+    citationLanguage: "en-US",
+    citationStyles: {},
+    citationLocales: {},
+  };
+  const service = new CitationService({
+    isUnloaded: false,
+    settings,
+    app: { vault: { getAbstractFileByPath: () => null } },
+  } as never);
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  service.diagnose = async () => {
+    await waiting;
+    return [
+      {
+        key: "example2024",
+        candidates: [],
+        notes: [],
+        reference: {
+          id: "example2024",
+          type: "book",
+          title: "Synthetic reference",
+          author: [{ family: "Example" }],
+          issued: { "date-parts": [[2024]] },
+        },
+      },
+    ];
+  };
+  const pending = service.formatForPublication(
+    "A claim [@example2024].",
+    "Papers/Example.md",
+  );
+  settings.citationStyle = "apa";
+  release();
+  assert.equal((await pending).citations[0], "[1]");
+  assert.match(
+    (
+      await service.formatForPublication(
+        "A claim [@example2024].",
+        "Papers/Example.md",
+      )
+    ).citations[0],
+    /Example, 2024/,
+  );
+});

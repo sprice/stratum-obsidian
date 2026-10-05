@@ -281,6 +281,35 @@ export class StratumSettingTab extends PluginSettingTab {
       }
     }
 
+    if (Platform.isDesktopApp) {
+      const publishSection = this.createSection(sections, "Publishing");
+      this.defineSetting(publishSection, "Show Publish tab", (setting) => {
+        setting
+          .setDesc("Create and manage PDF and .docx documents in the sidebar.")
+          .addToggle((toggle) =>
+            toggle
+              .setValue(this.plugin.settings.publishEnabled)
+              .onChange(async (value) => {
+                this.plugin.settings.publishEnabled = value;
+                await this.plugin.saveSettings();
+                this.plugin.refreshViews();
+              }),
+          );
+      });
+      this.defineSetting(publishSection, "Publishing setup", (setting) => {
+        setting
+          .setDesc(
+            "Check publishing tools, get installation help, or choose their executable files.",
+          )
+          .addButton((button) =>
+            button.setButtonText("Set up publishing").onClick(async () => {
+              const { PublishSetupModal } = await import("./publish-setup");
+              new PublishSetupModal(this.plugin).open();
+            }),
+          );
+      });
+    }
+
     const syncSection = this.createSection(sections, "Sync");
 
     if (Platform.isDesktopApp) {

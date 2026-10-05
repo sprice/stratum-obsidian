@@ -19,6 +19,10 @@ function createSettings(params: {
   selectedSyncCollectionKey?: string | null;
 }): StratumSettings {
   return {
+    publishEnabled: true,
+    publishPdfSetupComplete: false,
+    pandocPath: "",
+    tectonicPath: "",
     citationStyle: "apa",
     citationLanguage: "en-US",
     citationStyles: {},

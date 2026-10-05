@@ -8,6 +8,7 @@ Bring Zotero sources into Obsidian, keep your literature notes current, and use 
 - [Browse your literature notes](#browse-your-literature-notes)
 - [Understand your literature notes](#understand-your-literature-notes)
 - [Write with citations](#write-with-citations)
+- [Publish documents](#publish-documents)
 - [Commands and hotkeys](#commands-and-hotkeys)
 - [Enrichment](#enrichment)
 - [Privacy and connections](#privacy-and-connections)
@@ -341,6 +342,18 @@ cannot return. This navigation state lasts until the plugin unloads.
 Desktop keyboard and narrow-sidebar interactions have been checked. Mobile
 interaction remains untested. Representative CSL checks do not guarantee every
 custom style or every Pandoc syntax extension.
+
+## Publish documents
+
+On desktop, use the **Publish** sidebar tab to create PDF or Word snapshots of the
+active note with its selected citation style. **Set up publishing** guides you
+through Pandoc and Tectonic setup. Created documents stay in hidden plugin storage
+and appear when you select their source note; each row offers open, save a copy,
+and confirmed delete actions. The tab is enabled by default and can be hidden in
+**Settings → Stratum → Publishing**.
+
+See [publishing documents](publishing.md) for setup, supported content, and storage
+details.
 
 ## Commands and hotkeys
 

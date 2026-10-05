@@ -407,6 +407,14 @@ function readStoredSettings(value: unknown): Omit<
         ),
       );
   }
+  if (typeof value.publishPdfSetupComplete === "boolean")
+    nextSettings.publishPdfSetupComplete = value.publishPdfSetupComplete;
+  if (typeof value.publishEnabled === "boolean")
+    nextSettings.publishEnabled = value.publishEnabled;
+  for (const key of ["pandocPath", "tectonicPath"] as const) {
+    if (typeof value[key] === "string" && !value[key].includes("\0"))
+      nextSettings[key] = value[key].trim();
+  }
   if (typeof value.notesFolder === "string") {
     nextSettings.notesFolder = value.notesFolder;
   }

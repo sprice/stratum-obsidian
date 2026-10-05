@@ -38,6 +38,10 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  publishEnabled: boolean;
+  publishPdfSetupComplete: boolean;
+  pandocPath: string;
+  tectonicPath: string;
   citationStyle: string;
   citationLanguage: string;
   citationStyles: Record<string, string>;
@@ -68,6 +72,10 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  publishEnabled: true,
+  publishPdfSetupComplete: false,
+  pandocPath: "",
+  tectonicPath: "",
   citationStyle: "apa",
   citationLanguage: "en-US",
   citationStyles: {},

@@ -1,0 +1,187 @@
+import type { FormattedDocument } from "./citation-format";
+import {
+  citationDisplayEdits,
+  escapeHtml,
+  replaceRangeText,
+  type DisplayEdit,
+} from "./citation-display";
+import { citationDocument } from "./citation-document";
+import { citationFooter } from "./citation-footer";
+import { parseSourceOccurrences } from "./source-occurrences";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
+
+export interface PreparedPublication {
+  markdown: string;
+  notes: { id: string; markdown: string }[];
+  bibliography: string;
+  heading: string;
+}
+const noteRef = (id: string) => `<a epub:type="noteref" href="#${id}">*</a>`;
+/** Use the same CSL result and punctuation as Reading view, with semantic footnotes for Pandoc. */
+export function preparePublication(
+  text: string,
+  formatted?: FormattedDocument,
+): PreparedPublication {
+  const model = formatted?.model ?? citationDocument(text, false);
+  if (model.problems.length) throw new Error(model.problems.join("\n"));
+  const edits: DisplayEdit[] = formatted
+    ? citationDisplayEdits(text, "publish", formatted)
+    : [];
+  const notes: PreparedPublication["notes"] = [];
+  if (formatted)
+    model.citations.forEach((citation, index) => {
+      if (!citation.generatedNote) return;
+      const edit = edits[index];
+      const punctuation = /^[.,;:!?]+/.exec(text.slice(citation.to))?.[0] ?? "";
+      const id = `stratum-publish-citation-${index}`;
+      edit.html =
+        (citation.draft.narrative ? formatted.narrativeAuthors[index] : "") +
+        escapeHtml(punctuation) +
+        noteRef(id);
+      notes.push({ id, markdown: formatted.citations[index] });
+    });
+  for (const note of model.notes) {
+    const id = `stratum-publish-note-${note.number}`;
+    notes.push({
+      id,
+      markdown: replaceRangeText(
+        text,
+        note.bodyFrom,
+        note.bodyTo,
+        edits,
+      ).replace(/\n {4}/g, "\n"),
+    });
+    edits.push({ from: note.from, to: note.to, html: "" });
+    for (const reference of model.references.filter(
+      (r) => r.identifier === note.identifier,
+    ))
+      edits.push({ from: reference.from, to: reference.to, html: noteRef(id) });
+  }
+  // Drop edits contained in removed definitions; their formatted content is in notes above.
+  const outerEdits = edits.filter(
+    (e) =>
+      !model.notes.some(
+        (n) =>
+          e.from >= n.from &&
+          e.to <= n.to &&
+          !(e.from === n.from && e.to === n.to),
+      ),
+  );
+  if (formatted)
+    for (const slot of model.bibliographies)
+      outerEdits.push({ ...slot, html: formatted.bibliography });
+  const markdown = replaceRangeText(text, 0, text.length, outerEdits).replace(
+    /^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)(?:\r?\n|$)/,
+    "",
+  );
+  const footer = formatted
+    ? citationFooter(text, formatted)
+    : { bibliography: "", heading: "" };
+  return {
+    markdown: stripPublishComments(markdown),
+    notes,
+    bibliography: footer.bibliography,
+    heading: footer.heading,
+  };
+}
+interface MarkdownNode {
+  type: string;
+  value?: string;
+  url?: string;
+  alt?: string;
+  identifier?: string;
+  children?: MarkdownNode[];
+  position?: { start: { offset?: number }; end: { offset?: number } };
+}
+const parser = unified().use(remarkParse).use(remarkGfm);
+export function stripPublishComments(markdown: string): string {
+  const protectedRanges: { from: number; to: number }[] = [];
+  const walk = (node: MarkdownNode) => {
+    if (node.type === "code" || node.type === "inlineCode")
+      protectedRanges.push({
+        from: node.position?.start.offset ?? 0,
+        to: node.position?.end.offset ?? 0,
+      });
+    node.children?.forEach(walk);
+  };
+  walk(parser.parse(markdown) as MarkdownNode);
+  const edits: DisplayEdit[] = [];
+  let cursor = 0;
+  while (cursor < markdown.length) {
+    const from = markdown.indexOf("%%", cursor);
+    if (from < 0) break;
+    const code = protectedRanges.find(
+      (range) => from >= range.from && from < range.to,
+    );
+    if (code) {
+      cursor = code.to;
+      continue;
+    }
+    const close = markdown.indexOf("%%", from + 2);
+    const to = close < 0 ? markdown.length : close + 2;
+    edits.push({ from, to, html: "" });
+    cursor = to;
+  }
+  return replaceRangeText(markdown, 0, markdown.length, edits);
+}
+export function hasUnsupportedHtmlMedia(markdown: string): boolean {
+  const walk = (node: MarkdownNode): boolean =>
+    (node.type === "html" &&
+      /<(?:img|iframe|video|audio|object|embed|script|style|link)\b/i.test(
+        node.value ?? "",
+      )) ||
+    (node.children ?? []).some(walk);
+  return walk(parser.parse(markdown) as MarkdownNode);
+}
+const imagePlaceholder = (name: string, alt: string) =>
+  `<span class="stratum-publish-image" data-publish-image="${escapeHtml(name)}" data-publish-alt="${escapeHtml(alt)}"></span>`;
+/** Resolve all image bytes before conversion and replace wiki links with their visible labels. */
+export async function preparePublishLinks(
+  markdown: string,
+  image: (target: string) => Promise<string>,
+): Promise<string> {
+  const edits: DisplayEdit[] = [];
+  const wiki = parseSourceOccurrences(markdown).filter(
+    (o) => o.linkFormat === "wiki",
+  );
+  for (const link of wiki) {
+    const raw = markdown.slice(link.from, link.to);
+    const label =
+      raw
+        .replace(/^!?\[\[|\]\]$/g, "")
+        .split(/(?<!\\)\|/)
+        .slice(1)
+        .join("|") || link.target;
+    const html = raw.startsWith("!")
+      ? imagePlaceholder(await image(link.target), label)
+      : escapeHtml(label);
+    edits.push({ from: link.from, to: link.to, html });
+  }
+  const tree = parser.parse(markdown) as MarkdownNode;
+  const definitions = new Map<string, string>();
+  const collect = (node: MarkdownNode) => {
+    if (node.type === "definition" && node.identifier && node.url)
+      definitions.set(node.identifier, node.url);
+    node.children?.forEach(collect);
+  };
+  collect(tree);
+  const walk = async (node: MarkdownNode): Promise<void> => {
+    if (node.type === "image" || node.type === "imageReference") {
+      const from = node.position?.start.offset ?? 0,
+        to = node.position?.end.offset ?? from;
+      if (wiki.some((w) => from >= w.from && to <= w.to)) return;
+      const target = node.url ?? definitions.get(node.identifier ?? "");
+      if (!target) throw new Error("An image reference could not be resolved.");
+      edits.push({
+        from,
+        to,
+        html: imagePlaceholder(await image(target), node.alt ?? ""),
+      });
+    }
+    for (const child of node.children ?? []) await walk(child);
+  };
+  await walk(tree);
+  return replaceRangeText(markdown, 0, markdown.length, edits);
+}

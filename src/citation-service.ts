@@ -272,13 +272,33 @@ export class CitationService extends Component {
     }
   }
 
-  async format(text: string, path: string): Promise<FormattedDocument> {
+  formatForPublication(text: string, path: string): Promise<FormattedDocument> {
+    const preferences = this.preferences(path, text);
+    const snapshot = {
+      ...preferences,
+      xml: cachedStyle(this.plugin, preferences.style),
+      locales: { ...cachedLocales(this.plugin) },
+    };
+    return this.format(text, path, snapshot);
+  }
+  async format(
+    text: string,
+    path: string,
+    snapshot?: {
+      style: string;
+      language: string;
+      xml: string | null | undefined;
+      locales: Record<string, string>;
+    },
+  ): Promise<FormattedDocument> {
     if (this.plugin.isUnloaded) throw new Error("Stratum is unloaded.");
     const revision = this.revision;
     const old = this.results.get(path);
-    if (old?.text === text && old.revision === this.revision) return old.result;
-    const { style, language } = this.preferences(path, text);
-    const xml = cachedStyle(this.plugin, style);
+    if (!snapshot && old?.text === text && old.revision === this.revision)
+      return old.result;
+    const { style, language } = snapshot ?? this.preferences(path, text);
+    const xml = snapshot ? snapshot.xml : cachedStyle(this.plugin, style);
+    const locales = snapshot?.locales ?? cachedLocales(this.plugin);
     const keys = [
       ...new Set(
         citationAuthoringDocument(text).citations.flatMap((citation) =>
@@ -309,21 +329,11 @@ export class CitationService extends Component {
         }
         refs.set(resolution.key, resolution.reference!);
       }
-      const key = JSON.stringify([
-        xml,
-        language,
-        cachedLocales(this.plugin),
-        [...refs],
-      ]);
+      const key = JSON.stringify([xml, language, locales, [...refs]]);
       let formatter = this.formatters.get(key);
       if (!formatter) {
         const { createCitationFormatter } = await import("./citation-format");
-        formatter = createCitationFormatter(
-          xml,
-          language,
-          cachedLocales(this.plugin),
-          refs,
-        );
+        formatter = createCitationFormatter(xml, language, locales, refs);
         if (this.formatters.size >= 3) this.formatters.clear();
         this.formatters.set(key, formatter);
       }
@@ -356,7 +366,8 @@ export class CitationService extends Component {
       }
     });
     if (this.results.size > 12) this.results.clear();
-    this.results.set(path, { text, revision: this.revision, result });
+    if (!snapshot)
+      this.results.set(path, { text, revision: this.revision, result });
     try {
       return await result;
     } catch (error) {

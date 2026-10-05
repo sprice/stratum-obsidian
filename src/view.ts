@@ -1,3 +1,4 @@
+import { PublishPanel } from "./view-publish";
 import { hasWritingPosition, returnToWriting } from "./citation-evidence";
 import { SourcesPanel, type SourcesViewState } from "./view-sources";
 import { readSourceTableState } from "./source-table";
@@ -105,6 +106,7 @@ function getBulkSyncCompletionFadeState(
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
   private unmountBrowseControls: (() => void) | null = null;
+  private publishPanel: PublishPanel | null = null;
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
     ...readSourceTableState(undefined),
@@ -185,6 +187,10 @@ export class StratumView extends ItemView {
   onClose(): Promise<void> {
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
+    if (this.publishPanel) {
+      this.removeChild(this.publishPanel);
+      this.publishPanel = null;
+    }
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
       this.sourcesPanel = null;
@@ -268,7 +274,7 @@ export class StratumView extends ItemView {
   }
 
   private setActiveTab(
-    tab: "browse" | "search" | "sync" | "reader" | "sources",
+    tab: "browse" | "search" | "sync" | "reader" | "sources" | "publish",
     preserveTabFocus = false,
   ): void {
     if (tab === "browse") {
@@ -303,7 +309,7 @@ export class StratumView extends ItemView {
   }
 
   private focusTab(
-    tab: "browse" | "search" | "sync" | "reader" | "sources",
+    tab: "browse" | "search" | "sync" | "reader" | "sources" | "publish",
   ): void {
     const tabId = `${this.tabIdPrefix}-tab-${tab}`;
     window.requestAnimationFrame(() => {
@@ -421,6 +427,10 @@ export class StratumView extends ItemView {
         : null;
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
+    if (this.publishPanel) {
+      this.removeChild(this.publishPanel);
+      this.publishPanel = null;
+    }
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
       this.sourcesPanel = null;
@@ -448,7 +458,7 @@ export class StratumView extends ItemView {
       hasSession: this.plugin.backend.hasSession(),
     });
     const visibleTabs: Array<{
-      id: "browse" | "search" | "sync" | "reader" | "sources";
+      id: "browse" | "search" | "sync" | "reader" | "sources" | "publish";
       label: string;
     }> = [
       { id: "browse", label: "Browse" },
@@ -456,6 +466,9 @@ export class StratumView extends ItemView {
       ...(showSyncTab ? [{ id: "sync" as const, label: "Sync" }] : []),
       { id: "reader", label: "Reader" },
       { id: "sources", label: "Sources" },
+      ...(this.plugin.publish && this.plugin.settings.publishEnabled
+        ? [{ id: "publish" as const, label: "Publish" }]
+        : []),
     ];
     if (!visibleTabs.some((tab) => tab.id === this.plugin.activeViewTab)) {
       this.plugin.activeViewTab = "search";
@@ -502,6 +515,11 @@ export class StratumView extends ItemView {
             () => this.app.workspace.requestSaveLayout(),
           ),
         );
+      } else if (tab.id === "publish" && this.plugin.publish) {
+        panel.addClass("stratum-publish-tab");
+        this.publishPanel = this.addChild(
+          new PublishPanel(panel, this.plugin.publish),
+        );
       } else {
         this.renderReaderTab(panel);
       }
@@ -520,7 +538,7 @@ export class StratumView extends ItemView {
   private renderTabBar(
     container: HTMLElement,
     tabs: Array<{
-      id: "browse" | "search" | "sync" | "reader" | "sources";
+      id: "browse" | "search" | "sync" | "reader" | "sources" | "publish";
       label: string;
     }>,
   ): void {
