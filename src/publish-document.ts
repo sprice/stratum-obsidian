@@ -148,14 +148,35 @@ export function stripPublishComments(markdown: string): string {
         from: node.position?.start.offset ?? 0,
         to: node.position?.end.offset ?? 0,
       });
+    if (node.type === "html") {
+      const tag = /^<(pre|code)\b[^>]*>/i.exec(node.value ?? "");
+      if (tag) {
+        const from = node.position?.start.offset ?? 0;
+        const contentFrom = from + tag[0].length;
+        const closing = new RegExp(`</${tag[1]}\\s*>`, "i").exec(
+          markdown.slice(contentFrom),
+        );
+        protectedRanges.push({
+          from,
+          to: closing
+            ? contentFrom + closing.index + closing[0].length
+            : markdown.length,
+        });
+      }
+    }
     node.children?.forEach(walk);
   };
   walk(parser.parse(markdown) as MarkdownNode);
   const edits: DisplayEdit[] = [];
   let cursor = 0;
   while (cursor < markdown.length) {
-    const from = markdown.indexOf("%%", cursor);
-    if (from < 0) break;
+    // Consume both comment forms in source order so a marker inside an HTML
+    // comment cannot start an Obsidian comment that swallows later prose.
+    const marker = /%%|<!--/g;
+    marker.lastIndex = cursor;
+    const match = marker.exec(markdown);
+    if (!match) break;
+    const from = match.index;
     const code = protectedRanges.find(
       (range) => from >= range.from && from < range.to,
     );
@@ -163,8 +184,16 @@ export function stripPublishComments(markdown: string): string {
       cursor = code.to;
       continue;
     }
-    const close = markdown.indexOf("%%", from + 2);
-    const to = close < 0 ? markdown.length : close + 2;
+    let slashes = 0;
+    for (let index = from - 1; index >= 0 && markdown[index] === "\\"; index--)
+      slashes++;
+    if (slashes % 2) {
+      cursor = from + match[0].length;
+      continue;
+    }
+    const delimiter = match[0] === "<!--" ? "-->" : "%%";
+    const close = markdown.indexOf(delimiter, from + match[0].length);
+    const to = close < 0 ? markdown.length : close + delimiter.length;
     edits.push({ from, to, html: "" });
     cursor = to;
   }

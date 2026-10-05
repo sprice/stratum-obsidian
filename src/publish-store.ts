@@ -165,16 +165,17 @@ export class PublishStore {
   ): Promise<void> {
     if (!catalog.notes.some((n) => n.id === document.noteId))
       throw new Error("The source note is no longer registered.");
+    if (catalog.documents.some((entry) => entry.id === document.id))
+      throw new Error("A document with this identity already exists.");
     const path = `${this.directory}/${document.filename}`;
     if (
       catalog.documents.some(
         (entry) =>
-          entry.id === document.id ||
           entry.filename.toLowerCase() === document.filename.toLowerCase(),
       ) ||
       (await this.adapter.exists(path))
     )
-      throw new Error(
+      throw new PublicationCollisionError(
         "A document with this filename already exists. Try publishing again.",
       );
     await this.ensureDirectory();

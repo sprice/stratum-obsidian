@@ -242,3 +242,37 @@ test("numbering continues beyond 100 copies and is separate for each format", as
   assert.equal(word.filename, "Example.docx");
   assert.equal((await store.list()).documents.length, 2);
 });
+
+test("a filename occupied during the final existence check uses the next number", async () => {
+  const m = memory();
+  const store = new PublishStore(m.adapter, ".config");
+  const note = await store.note("Example.md", "Example", 1);
+  const exists = m.adapter.exists.bind(m.adapter);
+  const path = `${store.directory}/Example.pdf`;
+  let checks = 0;
+  m.adapter.exists = async (candidate) => {
+    if (candidate === path && ++checks === 2)
+      m.files.set(path, new ArrayBuffer(9));
+    return exists(candidate);
+  };
+  const created = await store.create(
+    doc(note.id),
+    "Example",
+    new ArrayBuffer(1),
+  );
+  assert.equal(created.filename, "Example(2).pdf");
+  assert.equal((m.files.get(path) as ArrayBuffer).byteLength, 9);
+  assert.equal((await store.list()).documents.length, 1);
+});
+
+test("duplicate document identities fail without retrying filename allocation", async () => {
+  const m = memory();
+  const store = new PublishStore(m.adapter, ".config");
+  const note = await store.note("Example.md", "Example", 1);
+  await store.create(doc(note.id), "Example", new ArrayBuffer(1));
+  await assert.rejects(
+    store.create(doc(note.id), "Other title", new ArrayBuffer(2)),
+    /already exists/,
+  );
+  assert.equal((await store.list()).documents.length, 1);
+});

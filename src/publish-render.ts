@@ -81,6 +81,11 @@ export async function renderPublication(
       element.querySelectorAll('a[href^="#stratum-publish-"]'),
     ))
       anchor.setAttribute("epub:type", "noteref");
+    // Task state is document content even though its checkbox is a UI control.
+    for (const checkbox of Array.from(
+      element.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ))
+      checkbox.replaceWith(checkbox.checked ? "[x] " : "[ ] ");
     element
       .querySelectorAll(
         "button, input, .copy-code-button, .metadata-container, .frontmatter, .heading-collapse-indicator, .collapse-indicator, .footnote-backref",

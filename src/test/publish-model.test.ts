@@ -224,3 +224,32 @@ test("publication names use the title with numbered copies", () => {
     "Example document(3).docx",
   );
 });
+
+test("escaped markers and HTML comments cannot consume visible publication text", () => {
+  const source = String.raw`Before \%%literal marker and after.`;
+  assert.equal(preparePublication(source).markdown, source);
+  const commented = preparePublication(
+    '<!-- %% example with <img src="private.png"> -->\n\nVisible paragraph. %%hidden%% End.',
+  );
+  assert.equal(commented.markdown.trim(), "Visible paragraph.  End.");
+  assert.equal(hasUnsupportedHtmlMedia(commented.markdown), false);
+  assert.equal(
+    preparePublication("Example `<!-- %% -->` and `%%literal%%`.").markdown,
+    "Example `<!-- %% -->` and `%%literal%%`.",
+  );
+  assert.equal(
+    preparePublication(String.raw`Before \\%%hidden%% after.`).markdown,
+    String.raw`Before \\ after.`,
+    "an even number of backslashes does not escape a comment",
+  );
+});
+
+test("raw HTML code preserves comment markers and the prose that follows", () => {
+  for (const source of [
+    "Before <code>%%literal</code> after.",
+    "<pre>%%literal</pre>\n\nVisible paragraph.",
+    "Before <code><!-- literal --></code> after.",
+    "<PRE><CODE>%%literal%%</CODE></PRE>\n\nVisible paragraph.",
+  ])
+    assert.equal(preparePublication(source).markdown, source);
+});
