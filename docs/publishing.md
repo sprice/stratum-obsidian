@@ -74,7 +74,7 @@ newest first. Each row provides:
 Word documents have Save as and Delete actions. Save a copy to open it in Word.
 Deleting a PDF also clears any open preview of it.
 
-To hide the tab, disable **Settings → Stratum → Publishing → Show Publish tab**.
+To hide the tab, disable **Settings → Stratum → Stratum tabs → Publish**.
 This keeps existing documents.
 
 ## Storage and supported content

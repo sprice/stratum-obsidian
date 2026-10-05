@@ -1,4 +1,10 @@
 import type { PublishController } from "./publish-controller";
+import { selectStratumTab } from "./plugin-tabs";
+import {
+  readEnabledTabs,
+  resolveActiveTab,
+  type StratumTab,
+} from "./stratum-tabs";
 import type { CitationService } from "./citation-service";
 import { CitationSuggest } from "./citation-suggest";
 import { SourcesController } from "./sources-controller";
@@ -159,8 +165,7 @@ export default class StratumPlugin extends Plugin {
   publish: PublishController | null = null;
   sources!: SourcesController;
   citations!: CitationService;
-  activeViewTab:
-    "browse" | "search" | "sync" | "reader" | "sources" | "publish" = "search";
+  activeViewTab: StratumTab | null = "search";
   readerNoteFile: TFile | null = null;
   librarySearchRequestId = 0;
   librarySearchDebounceTimer: number | null = null;
@@ -288,7 +293,11 @@ export default class StratumPlugin extends Plugin {
     this.registerView(VIEW_TYPE_STRATUM, (leaf) => new StratumView(leaf, this));
 
     this.addRibbonIcon("book-open-text", openStratumRibbonLabel, () => {
-      this.activeViewTab = "search";
+      this.activeViewTab = resolveActiveTab(
+        "search",
+        readEnabledTabs(this.settings.enabledTabs),
+        Platform.isDesktopApp,
+      );
       void this.activateView().then(() => {
         this.refreshViews();
       });
@@ -298,7 +307,11 @@ export default class StratumPlugin extends Plugin {
       id: "open-library-view",
       name: "Open library view",
       callback: () => {
-        this.activeViewTab = "search";
+        this.activeViewTab = resolveActiveTab(
+          "search",
+          readEnabledTabs(this.settings.enabledTabs),
+          Platform.isDesktopApp,
+        );
         void this.activateView().then(() => {
           this.refreshViews();
         });
@@ -380,8 +393,8 @@ export default class StratumPlugin extends Plugin {
       id: "show-document-sources",
       name: "Show sources for current note",
       callback: () => {
+        if (!selectStratumTab(this, "sources")) return;
         this.sources.showCurrent();
-        this.activeViewTab = "sources";
         void this.activateView().then(() => this.refreshViews());
       },
     });

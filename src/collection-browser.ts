@@ -1,3 +1,5 @@
+import { readEnabledTabs } from "./stratum-tabs";
+import { selectStratumTab } from "./plugin-tabs";
 import { SourceColumnsModal } from "./source-columns-modal";
 import { renderCollectionTable, sortCollectionTable } from "./collection-table";
 import {
@@ -51,13 +53,15 @@ export function getCollectionBrowserView(
 
 export function browseCollections(plugin: StratumPlugin): Promise<void> {
   if (plugin.isUnloaded) return Promise.resolve();
-  plugin.activeViewTab = "browse";
+  if (!selectStratumTab(plugin, "browse")) return Promise.resolve();
   const pending = pendingBrowse.get(plugin);
   if (pending) return pending;
   // Remember the main-pane browser before activating its sidebar controls.
   const browser = getCollectionBrowserView(plugin);
   const cancelled = () =>
-    plugin.isUnloaded || plugin.activeViewTab !== "browse";
+    plugin.isUnloaded ||
+    !readEnabledTabs(plugin.settings.enabledTabs).browse ||
+    plugin.activeViewTab !== "browse";
   const request = (async () => {
     await plugin.activateView();
     if (cancelled()) return;

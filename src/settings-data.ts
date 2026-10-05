@@ -1,3 +1,4 @@
+import { readEnabledTabs, type EnabledTabs } from "./stratum-tabs";
 import type { CollectionCatalogs } from "./collection-catalog";
 import type { PublishReadinessCache } from "./publish-readiness";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
@@ -40,10 +41,10 @@ export interface PendingAuthState {
 
 export interface StratumSettings {
   publishReadinessCache: PublishReadinessCache | null;
-  publishEnabled: boolean;
   publishPdfSetupComplete: boolean;
   pandocPath: string;
   tectonicPath: string;
+  enabledTabs: EnabledTabs;
   citationStyle: string;
   citationLanguage: string;
   citationStyles: Record<string, string>;
@@ -75,10 +76,10 @@ export interface StratumSettings {
 
 export const DEFAULT_SETTINGS: StratumSettings = {
   publishReadinessCache: null,
-  publishEnabled: true,
   publishPdfSetupComplete: false,
   pandocPath: "",
   tectonicPath: "",
+  enabledTabs: readEnabledTabs(undefined),
   citationStyle: "apa",
   citationLanguage: "en-US",
   citationStyles: {},

@@ -1,3 +1,4 @@
+import { readEnabledTabs } from "../stratum-tabs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -8,7 +9,6 @@ import {
 import {
   resolveBulkSyncDefaultAfterLocalReady,
   shouldRefreshLocalSyncAfterCloudConnection,
-  shouldShowSyncTab,
 } from "../local-sync-rules";
 import type { ZoteroCollectionSummary } from "../backend-types";
 import type { EnabledLibrary, StratumSettings } from "../settings-data";
@@ -19,11 +19,11 @@ function createSettings(params: {
   selectedSyncCollectionKey?: string | null;
 }): StratumSettings {
   return {
-    publishEnabled: true,
     publishReadinessCache: null,
     publishPdfSetupComplete: false,
     pandocPath: "",
     tectonicPath: "",
+    enabledTabs: readEnabledTabs(undefined),
     citationStyle: "apa",
     citationLanguage: "en-US",
     citationStyles: {},
@@ -225,30 +225,6 @@ test("shouldRefreshLocalSyncAfterCloudConnection only probes local Zotero when n
       zoteroConnected: true,
       bulkSyncEnabled: true,
       bulkSyncPreferenceInitialized: false,
-    }),
-    false,
-  );
-});
-
-test("shouldShowSyncTab is desktop-only and requires Stratum sign-in", () => {
-  assert.equal(
-    shouldShowSyncTab({
-      isDesktopApp: true,
-      hasSession: true,
-    }),
-    true,
-  );
-  assert.equal(
-    shouldShowSyncTab({
-      isDesktopApp: true,
-      hasSession: false,
-    }),
-    false,
-  );
-  assert.equal(
-    shouldShowSyncTab({
-      isDesktopApp: false,
-      hasSession: true,
     }),
     false,
   );

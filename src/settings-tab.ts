@@ -1,3 +1,4 @@
+import { STRATUM_TABS, readEnabledTabs } from "./stratum-tabs";
 import {
   Notice,
   Platform,
@@ -283,19 +284,6 @@ export class StratumSettingTab extends PluginSettingTab {
 
     if (Platform.isDesktopApp) {
       const publishSection = this.createSection(sections, "Publishing");
-      this.defineSetting(publishSection, "Show Publish tab", (setting) => {
-        setting
-          .setDesc("Create and manage PDF and .docx documents in the sidebar.")
-          .addToggle((toggle) =>
-            toggle
-              .setValue(this.plugin.settings.publishEnabled)
-              .onChange(async (value) => {
-                this.plugin.settings.publishEnabled = value;
-                await this.plugin.saveSettings();
-                this.plugin.refreshViews();
-              }),
-          );
-      });
       this.defineSetting(publishSection, "Publishing setup", (setting) => {
         setting
           .setDesc(
@@ -510,6 +498,37 @@ export class StratumSettingTab extends PluginSettingTab {
           }),
         );
     });
+
+    const tabsSection = this.createSection(sections, "Stratum tabs");
+    for (const tab of STRATUM_TABS) {
+      if ((tab.id === "sync" || tab.id === "publish") && !Platform.isDesktopApp)
+        continue;
+      this.defineSetting(tabsSection, tab.label, (setting) => {
+        setting
+          .setDesc(`Show the ${tab.label} tab in the Stratum panel.`)
+          .addToggle((toggle) =>
+            toggle
+              .setValue(
+                readEnabledTabs(this.plugin.settings.enabledTabs)[tab.id],
+              )
+              .onChange(async (enabled) => {
+                this.plugin.settings.enabledTabs = {
+                  ...readEnabledTabs(this.plugin.settings.enabledTabs),
+                  [tab.id]: enabled,
+                };
+                this.plugin.refreshViews();
+                await this.plugin.saveSettings();
+              }),
+          );
+      });
+    }
+    if (!Platform.isDesktopApp) {
+      this.defineSetting(tabsSection, "Desktop sync", (setting) => {
+        setting.setDesc(
+          "Local Zotero sync requires desktop and is unavailable on mobile.",
+        );
+      });
+    }
 
     const defaultsSection = this.createSection(sections, "Workspace defaults");
 

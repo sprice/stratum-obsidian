@@ -130,7 +130,9 @@ function fixture(desktop = false, modern = true) {
       rebuilds++;
       return Promise.resolve();
     },
-    refreshViews: () => {},
+    refreshViews: () => {
+      updates++;
+    },
     isBulkLibrarySyncRunning: () => false,
     isZoteroAutoSyncRunning: () => false,
   };
@@ -302,20 +304,64 @@ for (const modern of [false, true]) {
   });
 }
 
-test("publishing settings are desktop-only and disabling the tab persists", async () => {
-  const mobile = fixture();
-  const mobileNames = Array.from(mobile.tab.getSettingDefinitions()).flatMap(
-    (section) => Array.from(section.items, (item) => item.name),
-  );
-  assert.ok(!mobileNames.includes("Show Publish tab"));
-  const desktop = fixture(true, false);
-  Row.rendered = [];
-  desktop.tab.refresh();
-  const toggle = Row.rendered.find(
-    (row) => row.name === "Show Publish tab",
-  )!.control!;
-  assert.equal(toggle.value, true);
-  await toggle.change!(false);
-  assert.equal(desktop.plugin.settings.publishEnabled, false);
-  assert.equal(desktop.saves, 1);
+for (const desktop of [true, false]) {
+  test(`tab settings persist and refresh with desktop=${desktop}`, async () => {
+    const f = fixture(desktop);
+    const sections = f.tab.getSettingDefinitions();
+    const index = sections.findIndex(
+      (section) => section.heading === "Stratum tabs",
+    );
+    assert.equal(sections[index - 1].heading, "Citations");
+    assert.equal(sections[index + 1].heading, "Workspace defaults");
+    Row.rendered = [];
+    for (const item of sections[index].items)
+      item.render(new Row().setName(item.name) as never);
+    const toggles = Row.rendered.filter((row) => row.control);
+    assert.deepEqual(
+      toggles.map((row) => row.name),
+      desktop
+        ? ["Browse", "Search", "Sync", "Reader", "Sources", "Publish"]
+        : ["Browse", "Search", "Reader", "Sources"],
+    );
+    for (const row of toggles) {
+      assert.equal(row.control!.value, true);
+      await row.control!.change!(false);
+    }
+    assert.equal(f.saves, toggles.length);
+    assert.equal(f.updates, toggles.length);
+    assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
+    assert.equal(f.plugin.settings.enabledTabs.publish, !desktop);
+    assert.equal(
+      sections.some((section) => section.heading === "Publishing"),
+      desktop,
+    );
+    assert.equal(f.plugin.settings.enabledTabs.reader, false);
+  });
+}
+
+test("tab visibility updates before a slow settings save completes", async () => {
+  const f = fixture(true);
+  let release!: () => void;
+  f.plugin.saveSettings = () =>
+    new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  const browse = f.tab
+    .getSettingDefinitions()
+    .find((section) => section.heading === "Stratum tabs")!
+    .items.find((item) => item.name === "Browse")!;
+  const row = new Row();
+  browse.render(row as never);
+  const saving = row.control!.change!(false);
+  try {
+    assert.equal(f.plugin.settings.enabledTabs.browse, false);
+    assert.equal(
+      f.updates,
+      1,
+      "Do not leave a disabled tab visible while saveData is pending",
+    );
+  } finally {
+    release();
+    await saving;
+  }
 });

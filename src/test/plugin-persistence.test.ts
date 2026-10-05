@@ -1,6 +1,7 @@
+import { readEnabledTabs } from "../stratum-tabs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loadPluginSettings } from "../plugin-persistence";
+import { loadPluginSettings, savePluginSettings } from "../plugin-persistence";
 
 test("loadPluginSettings rewrites stored settings when orphaned autoSync keys are present", async () => {
   const savedValues: unknown[] = [];
@@ -227,7 +228,7 @@ test("publishing preferences migrate with defaults and preserve explicit desktop
     saveData: () => Promise.resolve(),
     app: { secretStorage: { getSecret: () => null, setSecret() {} } },
     settings: {} as {
-      publishEnabled: boolean;
+      enabledTabs: { publish: boolean };
       publishPdfSetupComplete: boolean;
       pandocPath: string;
       tectonicPath: string;
@@ -235,7 +236,7 @@ test("publishing preferences migrate with defaults and preserve explicit desktop
   });
   const legacy = create({});
   await loadPluginSettings(legacy as never);
-  assert.equal(legacy.settings.publishEnabled, true);
+  assert.equal(legacy.settings.enabledTabs.publish, true);
   assert.equal(legacy.settings.publishPdfSetupComplete, false);
   const configured = create({
     publishEnabled: false,
@@ -244,10 +245,34 @@ test("publishing preferences migrate with defaults and preserve explicit desktop
     tectonicPath: "/example/tectonic",
   });
   await loadPluginSettings(configured as never);
-  assert.equal(configured.settings.publishEnabled, false);
+  assert.equal(configured.settings.enabledTabs.publish, false);
   assert.equal(configured.settings.publishPdfSetupComplete, true);
   assert.equal(configured.settings.pandocPath, "/example/pandoc");
   assert.equal(configured.settings.tectonicPath, "/example/tectonic");
+});
+
+test("Publish visibility migrates once and the shared tab preference wins on reload", async () => {
+  let data: unknown = { publishEnabled: false, enabledTabs: { reader: false } };
+  const plugin = {
+    settings: {} as import("../settings-data").StratumSettings,
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.enabledTabs.publish, false);
+  assert.equal(plugin.settings.enabledTabs.reader, false);
+  plugin.settings.enabledTabs.publish = true;
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.enabledTabs.publish, true);
+  assert.equal(plugin.settings.enabledTabs.reader, false);
+  data = { publishEnabled: false, enabledTabs: { publish: true } };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.enabledTabs.publish, true);
 });
 
 test("publishing readiness survives reload and rejects malformed cache data", async () => {
@@ -279,4 +304,27 @@ test("publishing readiness survives reload and rejects malformed cache data", as
       value === cache ? cache : null,
     );
   }
+});
+
+test("tab preferences survive save/reload and legacy settings default on", async () => {
+  let data: unknown = {};
+  const plugin = {
+    settings: { enabledTabs: readEnabledTabs(undefined) },
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(plugin.settings.enabledTabs, readEnabledTabs(undefined));
+  plugin.settings.enabledTabs.reader = false;
+  plugin.settings.enabledTabs.sync = false;
+  await savePluginSettings(plugin as never);
+  plugin.settings.enabledTabs.reader = true;
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.enabledTabs.reader, false);
+  assert.equal(plugin.settings.enabledTabs.sync, false);
+  assert.equal(plugin.settings.enabledTabs.browse, true);
 });

@@ -1,4 +1,5 @@
 import { readPublishReadinessCache } from "./publish-readiness";
+import { readEnabledTabs } from "./stratum-tabs";
 import {
   loadCitationResources,
   saveCitationResources,
@@ -33,6 +34,7 @@ import {
 type StoredSettingsData = Partial<
   Pick<
     StratumSettings,
+    | "enabledTabs"
     | "notesFolder"
     | "filenameFormat"
     | "bulkSyncEnabled"
@@ -375,6 +377,7 @@ function readStoredSettings(value: unknown): Omit<
     legacyZoteroAutoSync: Partial<ZoteroAutoSyncState>;
     legacyBulkLibrarySync: Partial<BulkLibrarySyncState>;
   } = {
+    enabledTabs: readEnabledTabs(value.enabledTabs, value.publishEnabled),
     collectionCatalogs: readCollectionCatalogs(value.collectionCatalogs),
     itemFileMap: readItemFileMap(value.itemFileMap),
     libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),
@@ -413,8 +416,6 @@ function readStoredSettings(value: unknown): Omit<
   nextSettings.publishReadinessCache = readPublishReadinessCache(
     value.publishReadinessCache,
   );
-  if (typeof value.publishEnabled === "boolean")
-    nextSettings.publishEnabled = value.publishEnabled;
   for (const key of ["pandocPath", "tectonicPath"] as const) {
     if (typeof value[key] === "string" && !value[key].includes("\0"))
       nextSettings[key] = value[key].trim();
@@ -587,6 +588,7 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   plugin.settings = {
     ...DEFAULT_SETTINGS,
     ...persistedSettings,
+    enabledTabs: readEnabledTabs(persistedSettings.enabledTabs),
     itemFileMap: {
       ...DEFAULT_SETTINGS.itemFileMap,
       ...(persistedSettings.itemFileMap ?? {}),

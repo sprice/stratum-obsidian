@@ -1,3 +1,4 @@
+import { readEnabledTabs } from "../stratum-tabs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import type {
@@ -32,11 +33,11 @@ function createMockPlugin(params?: {
   const enabledLibraries = params?.enabledLibraries ?? [personalLibrary];
   const settingsOverrides = params?.settings ?? {};
   const settings: StratumSettings = {
-    publishEnabled: true,
     publishReadinessCache: null,
     publishPdfSetupComplete: false,
     pandocPath: "",
     tectonicPath: "",
+    enabledTabs: readEnabledTabs(undefined),
     citationStyle: "apa",
     citationLanguage: "en-US",
     citationStyles: {},
