@@ -156,7 +156,7 @@ export async function openCitationEvidence(
           {
             key: resolution.key,
             entry: undefined,
-            label: `@${resolution.key} — review in Sources`,
+            label: `@${resolution.key} — review in Citations`,
           },
         ];
       return resolution.notes.map((entry) => ({
@@ -219,7 +219,7 @@ export async function openCitationEvidence(
     }
   } catch {
     new Notice(
-      "Could not read citation evidence. Open sources to review reference data.",
+      "Could not read citation evidence. Open the citations tab to review reference data.",
     );
   }
 }

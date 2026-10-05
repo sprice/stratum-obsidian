@@ -60,7 +60,7 @@ export function createCitationFormatter(
     const item = references.get(key);
     if (!item)
       throw new Error(
-        `Missing citation data for @${key}. Refresh citation data or resolve this source in Sources.`,
+        `Missing citation data for @${key}. Refresh citation data or resolve this source in Citations.`,
       );
     return item.id;
   };
@@ -71,7 +71,7 @@ export function createCitationFormatter(
         const item = byIdentity.get(id);
         if (!item)
           throw new Error(
-            `Missing citation data for @${id}. Refresh citation data or resolve this source in Sources.`,
+            `Missing citation data for @${id}. Refresh citation data or resolve this source in Citations.`,
           );
         return JSON.parse(JSON.stringify({ ...item, id })) as CslItem;
       },
@@ -92,7 +92,7 @@ export function createCitationFormatter(
     });
     for (const key of unresolved)
       model.problems.push(
-        `Citation data is unavailable for @${key}. Review Sources for details.`,
+        `Citation data is unavailable for @${key}. Review Citations for details.`,
       );
     const signature = JSON.stringify(
       model.citations.map((c) => [c.draft, c.noteIndex]),

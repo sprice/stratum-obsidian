@@ -237,7 +237,7 @@ class ReadingCitations extends MarkdownRenderChild {
         if (generation !== this.generation || !this.active) return;
         if (result.model.problems.length)
           output.createEl("p", {
-            text: "Some references could not be formatted. Review sources for details.",
+            text: "Some references could not be formatted. Review citations for details.",
           });
         if (footer.bibliography) {
           output.createEl("h2", { text: footer.heading });
@@ -265,9 +265,9 @@ class ReadingCitations extends MarkdownRenderChild {
       for (const target of targets) {
         const error = target.createDiv({
           cls: "stratum-reference-output",
-          text: "References unavailable. Refresh citation data or check sources.",
+          text: "References unavailable. Refresh citation data or check the Citations tab.",
         });
-        const button = error.createEl("button", { text: "Review sources" });
+        const button = error.createEl("button", { text: "Review citations" });
         button.type = "button";
         button.addEventListener("click", () => {
           if (!selectStratumTab(this.service.plugin, "sources")) return;

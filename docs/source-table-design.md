@@ -18,12 +18,12 @@ another community plugin.
   It is qualitative evidence, not a measure of demand across all users.
 - [Obsidian's official API guidance](https://github.com/obsidianmd/obsidian-api)
   identifies MetadataCache and Workspace as the host interfaces and documents
-  lifecycle registration. The table uses these APIs and the existing Sources
+  lifecycle registration. The table uses these APIs and the existing Citations
   controller's subscriptions, debouncing, and ownership checks.
 
 ## Implementation boundaries
 
-The table is an optional Sources layout, not a general vault query language.
+The table is an optional Citations layout, not a general vault query language.
 It reuses citation and link parsing, diagnostics, pinning, and navigation.
 Metadata is read from the host cache when rendering. Sorting changes a copy of
 the displayed rows; it does not reorder or rewrite a manuscript. User values

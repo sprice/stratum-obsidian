@@ -265,7 +265,7 @@ test("disabling Reader cleans up its watcher and keyboard navigation skips hidde
   const tabs = f.content.all().filter((el) => el.attrs.role === "tab");
   assert.deepEqual(
     tabs.map((el) => el.text),
-    ["Browse", "Search", "Sources"],
+    ["Browse", "Search", "Citations"],
   );
   tabs[0].listeners.get("keydown")!({ key: "ArrowRight", preventDefault() {} });
   assert.equal(f.plugin.activeViewTab, "search");

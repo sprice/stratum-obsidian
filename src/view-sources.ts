@@ -44,7 +44,7 @@ export class SourcesPanel extends Component {
     this.active = true;
     this.container.addClass("stratum-sources");
     const header = this.container.createDiv({ cls: "stratum-sources-header" });
-    header.createEl("h3", { text: "Review sources for your note" });
+    header.createEl("h3", { text: "Review citations for your note" });
     this.pin = header.createEl("button", { cls: "clickable-icon" });
     this.pin.type = "button";
     setIcon(this.pin, "pin");
@@ -73,16 +73,16 @@ export class SourcesPanel extends Component {
     const tools = this.container.createDiv({ cls: "stratum-sources-tools" });
     const search = new SearchComponent(tools);
     search
-      .setPlaceholder("Search sources…")
+      .setPlaceholder("Search citations…")
       .setValue(this.state.query)
       .onChange((value) => {
         this.state.query = value;
         this.renderRows();
       });
-    search.inputEl.setAttr("aria-label", "Search sources");
+    search.inputEl.setAttr("aria-label", "Search citations");
     const sort = tools.createEl("select");
     this.sortMenu = sort;
-    sort.setAttr("aria-label", "Sort sources");
+    sort.setAttr("aria-label", "Sort citations");
     for (const [value, text] of [
       ["appearance", "First appearance"],
       ["author", "Author"],
@@ -103,7 +103,7 @@ export class SourcesPanel extends Component {
       this.renderRows();
     });
     const layout = tools.createEl("select");
-    layout.setAttr("aria-label", "Sources layout");
+    layout.setAttr("aria-label", "Citations layout");
     layout.createEl("option", { value: "list", text: "List" });
     layout.createEl("option", { value: "table", text: "Table" });
     layout.value = this.state.layout;
@@ -142,7 +142,7 @@ export class SourcesPanel extends Component {
     this.list.tabIndex = 0;
     this.list.setAttr(
       "aria-label",
-      "Source results; scroll to see additional columns",
+      "Citation results; scroll to see additional columns",
     );
     this.list.addEventListener("scroll", () => {
       this.state.scroll = this.list.scrollTop;
@@ -201,24 +201,24 @@ export class SourcesPanel extends Component {
         : undefined;
     const file = this.sources.document;
     this.documentButton.textContent = file
-      ? `Sources for: ${file.basename}`
+      ? `Citations for: ${file.basename}`
       : "";
     this.documentButton.hidden = !this.sources.showDocumentLink;
     this.documentButton.disabled = !file;
     this.documentButton.title = file
       ? "Return to this note"
-      : "Open a note to see its sources";
+      : "Open a note to see its citations";
     this.pin.disabled = !file;
     this.pin.setAttr("aria-pressed", String(this.sources.pinned));
     this.pin.setAttr(
       "aria-label",
       this.sources.pinned
-        ? "Unpin sources from this note"
-        : "Pin sources to this note",
+        ? "Unpin citations from this note"
+        : "Pin citations to this note",
     );
     this.pin.title = this.sources.pinned
-      ? "Unpin sources from this note"
-      : "Pin sources to this note";
+      ? "Unpin citations from this note"
+      : "Pin citations to this note";
     const rows = this.sources.rows;
     for (const row of rows)
       if (row.health?.reference && !row.health.problem)
@@ -238,7 +238,7 @@ export class SourcesPanel extends Component {
           this.sources.error ??
           (file
             ? "Citations and links to literature notes will appear here as you write."
-            : "Open a writing note, then choose Show sources for current note."),
+            : "Open a writing note, then choose Show citations for current note."),
       });
       return;
     }
@@ -269,7 +269,7 @@ export class SourcesPanel extends Component {
     }
     if (!filtered.length)
       this.list.createEl("p", {
-        text: "No matching sources.",
+        text: "No matching citations.",
         cls: "stratum-sources-empty",
       });
     this.list.scrollTop = this.state.scroll;
@@ -284,7 +284,7 @@ export class SourcesPanel extends Component {
   }
   private renderTable(rows: SourceRow[]): void {
     const table = this.list.createEl("table", { cls: "stratum-source-table" });
-    table.createEl("caption", { text: "Sources for this note" });
+    table.createEl("caption", { text: "Citations for this note" });
     const header = table.createEl("thead").createEl("tr");
     for (const key of ["source", ...this.state.columns]) {
       const cell = header.createEl("th", { attr: { scope: "col" } });

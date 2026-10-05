@@ -34,7 +34,7 @@ export function citationKeyIndex(
         owner.identity !== (entry.identity || `file:${entry.file.path}`)
       )
         throw new Error(
-          "Conflicting citation key. Repair this reference in Sources.",
+          "Conflicting citation key. Repair this reference in Citations.",
         );
       keys.set(entry, key);
     } catch (error) {

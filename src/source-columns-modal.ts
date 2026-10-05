@@ -18,7 +18,7 @@ export class SourceColumnsModal extends Modal {
   }
   onOpen(): void {
     this.active = true;
-    this.setTitle("Source table columns");
+    this.setTitle("Table columns");
     const el = this.contentEl;
     el.createEl("p", {
       text: "Choose up to eight columns. Source titles and navigation are always included.",

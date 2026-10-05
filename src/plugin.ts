@@ -391,7 +391,7 @@ export default class StratumPlugin extends Plugin {
 
     this.addCommand({
       id: "show-document-sources",
-      name: "Show sources for current note",
+      name: "Show citations for current note",
       callback: () => {
         if (!selectStratumTab(this, "sources")) return;
         this.sources.showCurrent();

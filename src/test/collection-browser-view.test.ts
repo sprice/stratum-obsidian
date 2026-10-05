@@ -457,7 +457,7 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   const tabs = root.all().filter((el) => el.attrs.role === "tab");
   assert.deepEqual(
     tabs.map((el) => el.text),
-    ["Browse", "Search", "Sync", "Reader", "Sources", "Publish"],
+    ["Browse", "Search", "Sync", "Reader", "Citations", "Publish"],
   );
   assert.equal(tabs[0].attrs["aria-selected"], "true");
   assert.ok(root.querySelector('input[aria-label="Search imported papers"]'));
@@ -489,11 +489,11 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   for (let i = 0; i < 3; i++) await Promise.resolve();
   root
     .all()
-    .find((el) => el.text === "Sources")!
+    .find((el) => el.text === "Citations")!
     .listeners.get("click")!();
   root
     .all()
-    .find((el) => el.text === "Sources")!
+    .find((el) => el.text === "Citations")!
     .listeners.get("keydown")!({ key: "Home", preventDefault() {} });
   for (let i = 0; i < 3; i++) await Promise.resolve();
   assert.equal(root.doc.activeElement?.text, "Browse");
@@ -515,7 +515,7 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     "pdf",
     "refresh keeps the selection",
   );
-  clickTab("Sources");
+  clickTab("Citations");
   clickTab("Publish");
   assert.equal(
     plugin.publish.selectedFormat,

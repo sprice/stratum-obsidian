@@ -45,12 +45,12 @@ export function bibliographyKeyResolver(
           /^\s*@\w+\s*[({]\s*([^\s,]+)\s*,/.exec(match[4])?.[1] !== key
         )
           throw new Error(
-            "The bibliography citation key was manually changed. Repair it in Sources before inserting this citation.",
+            "The bibliography citation key was manually changed. Repair it in Citations before inserting this citation.",
           );
         assertValidCitationKey(key);
         if ((counts.get(key) ?? 0) > (match ? 1 : 0))
           throw new Error(
-            `Citation key ${key} already exists without unambiguous ownership. Repair this reference in Sources.`,
+            `Citation key ${key} already exists without unambiguous ownership. Repair this reference in Citations.`,
           );
         return key;
       } catch (cause) {

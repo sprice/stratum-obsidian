@@ -181,7 +181,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   assert.equal(saved, 1);
   const sortMenu = root
     .all()
-    .find((el) => el.attrs["aria-label"] === "Sort sources")!;
+    .find((el) => el.attrs["aria-label"] === "Sort citations")!;
   assert.equal(sortMenu.value, "column");
   assert.equal(action("sort:sample_size").focused, true);
   const sorted = root.all().find((el) => el.tag === "tbody")!;
@@ -202,7 +202,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   );
   const layout = root
     .all()
-    .find((el) => el.attrs["aria-label"] === "Sources layout")!;
+    .find((el) => el.attrs["aria-label"] === "Citations layout")!;
   layout.value = "list";
   layout.trigger("change");
   assert.equal(state.layout, "list");
@@ -227,7 +227,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     .find(
       (el) =>
         el.attrs["aria-label"] ===
-        "Source results; scroll to see additional columns",
+        "Citation results; scroll to see additional columns",
     )!;
   results.scrollLeft = 420;
   results.trigger("scroll");
@@ -246,7 +246,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     .find(
       (el) =>
         el.attrs["aria-label"] ===
-        "Source results; scroll to see additional columns",
+        "Citation results; scroll to see additional columns",
     )!;
   assert.equal(
     restoredResults.scrollLeft,

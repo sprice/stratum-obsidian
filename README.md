@@ -24,7 +24,7 @@ Add your thoughts in **My Notes**. Sync updates the imported material while pres
 
 Insert and edit citations with multiple sources, page numbers, and other locators. Live Preview shows stable citation keys; Reading view formats citations and generates references or citation notes using your chosen style.
 
-Choose APA, IEEE, Chicago Notes, or another CSL style. Switch styles without changing your document’s citation text. The **Sources** sidebar brings together the sources cited in your draft, flags citation problems, and lets you open a literature note in the sidebar Reader while keeping your paper in its main tab.
+Choose APA, IEEE, Chicago Notes, or another CSL style. Switch styles without changing your document’s citation text. The **Citations** sidebar brings together the sources cited in your draft, flags citation problems, and lets you open a literature note in the sidebar Reader while keeping your paper in its main tab.
 
 Citation formatting runs locally once the required reference data and style are available. Publishing and PDF/Word export are not included yet.
 

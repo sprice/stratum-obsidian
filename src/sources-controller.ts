@@ -60,7 +60,7 @@ export class SourcesController extends Component {
       .map((o) => o.target);
     if (keys.length) {
       const health = await this.plugin.citations.diagnose(keys);
-      // Formatting is owned by Reading view; Sources needs only reference health.
+      // Formatting is owned by Reading view; Citations needs only reference health.
       void health;
     }
     if (!cachedStyle(this.plugin, style))
@@ -115,7 +115,7 @@ export class SourcesController extends Component {
       current.problem === "conflicting-key"
     )
       throw new Error(
-        "Source ownership changed. Review the updated Sources list before retrying.",
+        "Source ownership changed. Review the updated Citations list before retrying.",
       );
     await fetchCitationData(this.plugin, current.identity);
     this.schedule();
@@ -387,7 +387,7 @@ export class SourcesController extends Component {
       if (revision !== this.revision) return;
       this.rows = [];
       this.error =
-        "Could not read this note’s sources. Try opening the note again.";
+        "Could not read this note’s citations. Try opening the note again.";
       this.emit();
     }
   }
