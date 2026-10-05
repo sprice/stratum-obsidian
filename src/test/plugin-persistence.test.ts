@@ -222,6 +222,90 @@ test("unsupported item reports survive settings reload and discard malformed ent
   );
 });
 
+test("publishing preferences migrate with defaults and preserve explicit desktop setup", async () => {
+  const create = (data: unknown) => ({
+    loadData: () => Promise.resolve(data),
+    saveData: () => Promise.resolve(),
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+    settings: {} as {
+      enabledTabs: { publish: boolean };
+      publishPdfSetupComplete: boolean;
+      pandocPath: string;
+      tectonicPath: string;
+    },
+  });
+  const legacy = create({});
+  await loadPluginSettings(legacy as never);
+  assert.equal(legacy.settings.enabledTabs.publish, true);
+  assert.equal(legacy.settings.publishPdfSetupComplete, false);
+  const configured = create({
+    publishEnabled: false,
+    publishPdfSetupComplete: true,
+    pandocPath: " /example/pandoc ",
+    tectonicPath: "/example/tectonic",
+  });
+  await loadPluginSettings(configured as never);
+  assert.equal(configured.settings.enabledTabs.publish, false);
+  assert.equal(configured.settings.publishPdfSetupComplete, true);
+  assert.equal(configured.settings.pandocPath, "/example/pandoc");
+  assert.equal(configured.settings.tectonicPath, "/example/tectonic");
+});
+
+test("Publish visibility migrates once and the shared tab preference wins on reload", async () => {
+  let data: unknown = { publishEnabled: false, enabledTabs: { reader: false } };
+  const plugin = {
+    settings: {} as import("../settings-data").StratumSettings,
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.enabledTabs.publish, false);
+  assert.equal(plugin.settings.enabledTabs.reader, false);
+  plugin.settings.enabledTabs.publish = true;
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.enabledTabs.publish, true);
+  assert.equal(plugin.settings.enabledTabs.reader, false);
+  data = { publishEnabled: false, enabledTabs: { publish: true } };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.enabledTabs.publish, true);
+});
+
+test("publishing readiness survives reload and rejects malformed cache data", async () => {
+  const cache = {
+    version: 1,
+    pandocPath: "",
+    tectonicPath: "",
+    readiness: {
+      word: true,
+      pdf: true,
+      pandoc: { path: "/synthetic/pandoc", version: "3" },
+      tectonic: { path: "/synthetic/tectonic", version: "0.17" },
+    },
+  };
+  for (const value of [
+    cache,
+    { ...cache, version: 2 },
+    { ...cache, readiness: { ...cache.readiness, tectonic: null } },
+  ]) {
+    const plugin = {
+      loadData: () => Promise.resolve({ publishReadinessCache: value }),
+      saveData: () => Promise.resolve(),
+      app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+      settings: {} as import("../settings-data").StratumSettings,
+    };
+    await loadPluginSettings(plugin as never);
+    assert.deepEqual(
+      plugin.settings.publishReadinessCache,
+      value === cache ? cache : null,
+    );
+  }
+});
+
 test("tab preferences survive save/reload and legacy settings default on", async () => {
   let data: unknown = {};
   const plugin = {

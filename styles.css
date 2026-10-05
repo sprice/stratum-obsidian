@@ -727,3 +727,46 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-citation-notes .stratum-citation-evidence:focus-visible {
   color: var(--interactive-accent);
 }
+
+.stratum-publish-tab { height: 100%; overflow-y: auto; }
+.stratum-publish-panel { display: flex; flex-direction: column; gap: var(--size-4-3); padding-bottom: var(--size-4-4); }
+.stratum-publish-panel h3, .stratum-publish-panel h4, .stratum-publish-panel p { margin: 0; }
+.stratum-publish-controls { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--size-4-2); }
+.stratum-publish-controls select, .stratum-publish-controls button { width: 100%; min-width: 0; }
+.stratum-publish-controls button { height: auto; white-space: normal; }
+.stratum-publish-actions, .stratum-publish-row-actions { display: flex; align-items: center; gap: var(--size-4-2); flex-wrap: wrap; }
+.stratum-publish-status { font-size: var(--font-ui-small); color: var(--text-muted); overflow-wrap: anywhere; }
+.stratum-publish-status p + p { margin-top: var(--size-4-2); }
+.stratum-publish-error { color: var(--text-error); white-space: pre-wrap; max-height: 12rem; overflow: auto; }
+.stratum-publish-history { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex-wrap: wrap; margin-top: var(--size-4-4); }
+.stratum-publish-row { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.stratum-publish-document { min-width: 0; }
+.stratum-publish-filename { overflow-wrap: anywhere; font-size: var(--font-ui-small); }
+.stratum-publish-meta { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-top: var(--size-4-1); }
+.stratum-publish-row-actions { flex-shrink: 0; flex-wrap: nowrap; gap: var(--size-2-1); }
+/* Themes may override the browser's default hidden rule for buttons. */
+.stratum-publish-setup [hidden], .stratum-publish-panel [hidden] { display: none !important; }
+.stratum-publish-tools { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
+.stratum-publish-tool { padding: var(--size-4-3); }
+.stratum-publish-tool + .stratum-publish-tool { border-top: 1px solid var(--background-modifier-border); }
+.stratum-publish-tool-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--size-4-3); }
+.stratum-publish-tool-state { color: var(--text-muted); font-size: var(--font-ui-small); flex-shrink: 0; }
+.stratum-publish-tool-state.is-ready { color: var(--text-success); }
+.stratum-publish-setup .stratum-publish-meta, .stratum-publish-setup .setting-item-description { overflow-wrap: anywhere; }
+.stratum-publish-setup .setting-item { flex-wrap: wrap; gap: var(--size-4-2); }
+.stratum-publish-setup .setting-item-control { flex-wrap: wrap; }
+.stratum-publish-install a + a { margin-inline-start: var(--size-4-4); }
+.stratum-publish-setup-actions { justify-content: flex-end; margin-top: var(--size-4-4); }
+.stratum-publish-setup details { margin: var(--size-4-3) 0; }
+.stratum-publish-setup summary { cursor: pointer; color: var(--text-muted); }
+.stratum-publish-setup code { display: block; margin-bottom: var(--size-4-2); }
+
+.stratum-pdf-preview { display: flex; flex-direction: column; height: 100%; padding: 0 !important; }
+.stratum-pdf-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--size-4-2); padding: var(--size-4-2) var(--size-4-3); border-bottom: 1px solid var(--background-modifier-border); }
+.stratum-pdf-toolbar input { width: 4.5em; }
+.stratum-pdf-toolbar select { margin-inline-start: auto; }
+.stratum-pdf-status { padding: var(--size-4-1) var(--size-4-3); color: var(--text-muted); font-size: var(--font-ui-small); }
+.stratum-pdf-pages { flex: 1; min-height: 0; overflow: auto; padding: 16px; background: var(--background-secondary); }
+.stratum-pdf-page { position: relative; width: var(--pdf-width); height: var(--pdf-height); margin-inline: auto; background: white; box-shadow: 0 1px 6px #0003; }
+.stratum-pdf-page canvas { display: block; width: 100%; height: 100%; }
+.stratum-pdf-page .textLayer { user-select: text; }

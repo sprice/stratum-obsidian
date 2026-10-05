@@ -1,3 +1,4 @@
+import { readPublishReadinessCache } from "./publish-readiness";
 import { readEnabledTabs } from "./stratum-tabs";
 import {
   loadCitationResources,
@@ -376,7 +377,7 @@ function readStoredSettings(value: unknown): Omit<
     legacyZoteroAutoSync: Partial<ZoteroAutoSyncState>;
     legacyBulkLibrarySync: Partial<BulkLibrarySyncState>;
   } = {
-    enabledTabs: readEnabledTabs(value.enabledTabs),
+    enabledTabs: readEnabledTabs(value.enabledTabs, value.publishEnabled),
     collectionCatalogs: readCollectionCatalogs(value.collectionCatalogs),
     itemFileMap: readItemFileMap(value.itemFileMap),
     libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),
@@ -409,6 +410,15 @@ function readStoredSettings(value: unknown): Omit<
             pair[1].length < 2000000,
         ),
       );
+  }
+  if (typeof value.publishPdfSetupComplete === "boolean")
+    nextSettings.publishPdfSetupComplete = value.publishPdfSetupComplete;
+  nextSettings.publishReadinessCache = readPublishReadinessCache(
+    value.publishReadinessCache,
+  );
+  for (const key of ["pandocPath", "tectonicPath"] as const) {
+    if (typeof value[key] === "string" && !value[key].includes("\0"))
+      nextSettings[key] = value[key].trim();
   }
   if (typeof value.notesFolder === "string") {
     nextSettings.notesFolder = value.notesFolder;

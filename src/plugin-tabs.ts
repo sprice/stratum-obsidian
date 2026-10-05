@@ -7,7 +7,9 @@ export function canOpenStratumTab(
   tab: StratumTab,
 ): boolean {
   if (plugin.isUnloaded) return false;
-  if (tab === "sync" && !Platform.isDesktopApp) return false;
+  if ((tab === "sync" || tab === "publish") && !Platform.isDesktopApp)
+    return false;
+  if (tab === "publish" && !plugin.publish) return false;
   if (!readEnabledTabs(plugin.settings.enabledTabs)[tab]) {
     const label = STRATUM_TABS.find(({ id }) => id === tab)!.label;
     new Notice(

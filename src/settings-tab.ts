@@ -282,6 +282,22 @@ export class StratumSettingTab extends PluginSettingTab {
       }
     }
 
+    if (Platform.isDesktopApp) {
+      const publishSection = this.createSection(sections, "Publishing");
+      this.defineSetting(publishSection, "Publishing setup", (setting) => {
+        setting
+          .setDesc(
+            "Check publishing tools, get installation help, or choose their executable files.",
+          )
+          .addButton((button) =>
+            button.setButtonText("Set up publishing").onClick(async () => {
+              const { PublishSetupModal } = await import("./publish-setup");
+              new PublishSetupModal(this.plugin).open();
+            }),
+          );
+      });
+    }
+
     const syncSection = this.createSection(sections, "Sync");
 
     if (Platform.isDesktopApp) {
@@ -485,7 +501,8 @@ export class StratumSettingTab extends PluginSettingTab {
 
     const tabsSection = this.createSection(sections, "Stratum tabs");
     for (const tab of STRATUM_TABS) {
-      if (tab.id === "sync" && !Platform.isDesktopApp) continue;
+      if ((tab.id === "sync" || tab.id === "publish") && !Platform.isDesktopApp)
+        continue;
       this.defineSetting(tabsSection, tab.label, (setting) => {
         setting
           .setDesc(`Show the ${tab.label} tab in the Stratum panel.`)

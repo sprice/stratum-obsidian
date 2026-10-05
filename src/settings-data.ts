@@ -1,5 +1,6 @@
 import { readEnabledTabs, type EnabledTabs } from "./stratum-tabs";
 import type { CollectionCatalogs } from "./collection-catalog";
+import type { PublishReadinessCache } from "./publish-readiness";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import { getDefaultZoteroDataDir } from "./zotero-data-dir";
@@ -39,6 +40,10 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  publishReadinessCache: PublishReadinessCache | null;
+  publishPdfSetupComplete: boolean;
+  pandocPath: string;
+  tectonicPath: string;
   enabledTabs: EnabledTabs;
   citationStyle: string;
   citationLanguage: string;
@@ -70,6 +75,10 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  publishReadinessCache: null,
+  publishPdfSetupComplete: false,
+  pandocPath: "",
+  tectonicPath: "",
   enabledTabs: readEnabledTabs(undefined),
   citationStyle: "apa",
   citationLanguage: "en-US",

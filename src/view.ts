@@ -1,3 +1,4 @@
+import { PublishPanel } from "./view-publish";
 import {
   getVisibleTabs,
   readEnabledTabs,
@@ -111,6 +112,7 @@ function getBulkSyncCompletionFadeState(
 export class StratumView extends ItemView {
   plugin: StratumPlugin;
   private unmountBrowseControls: (() => void) | null = null;
+  private publishPanel: PublishPanel | null = null;
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
     ...readSourceTableState(undefined),
@@ -191,6 +193,10 @@ export class StratumView extends ItemView {
   onClose(): Promise<void> {
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
+    if (this.publishPanel) {
+      this.removeChild(this.publishPanel);
+      this.publishPanel = null;
+    }
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
       this.sourcesPanel = null;
@@ -422,6 +428,10 @@ export class StratumView extends ItemView {
         : null;
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
+    if (this.publishPanel) {
+      this.removeChild(this.publishPanel);
+      this.publishPanel = null;
+    }
     if (this.sourcesPanel) {
       this.removeChild(this.sourcesPanel);
       this.sourcesPanel = null;
@@ -434,11 +444,14 @@ export class StratumView extends ItemView {
     this.clearReaderMarkdownComponent();
 
     const enabledTabs = readEnabledTabs(this.plugin.settings.enabledTabs);
+    enabledTabs.publish = enabledTabs.publish && !!this.plugin.publish;
     this.plugin.activeViewTab = resolveActiveTab(
       this.plugin.activeViewTab,
       enabledTabs,
       isLocalSyncSupported(),
     );
+    if (this.plugin.activeViewTab !== "publish" && this.plugin.publish)
+      this.plugin.publish.selectedFormat = "";
 
     if (this.plugin.activeViewTab !== "reader") {
       this.clearReaderFileWatcher();
@@ -502,6 +515,11 @@ export class StratumView extends ItemView {
             this.app,
             () => this.app.workspace.requestSaveLayout(),
           ),
+        );
+      } else if (tab.id === "publish" && this.plugin.publish) {
+        panel.addClass("stratum-publish-tab");
+        this.publishPanel = this.addChild(
+          new PublishPanel(panel, this.plugin.publish),
         );
       } else {
         this.renderReaderTab(panel);

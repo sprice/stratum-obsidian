@@ -394,6 +394,7 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   const { StratumView } = loadRuntime<typeof import("../view")>(
     "view.ts",
     {
+      Platform: { isDesktopApp: true },
       ItemView: class {
         app = app;
         contentEl = root;
@@ -414,6 +415,7 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     {
       "./citation-evidence": {},
       "./view-sources": { SourcesPanel: class {} },
+      "./view-publish": { PublishPanel: class {} },
       "./collection-browser": {
         CollectionBrowserView: Browser,
         getCollectionBrowserView: () => {
@@ -445,14 +447,17 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     activeViewTab: "browse",
     backend: { hasSession: () => true },
     sources: {},
+    publish: { selectedFormat: "" },
     refreshViews: () => view.render(),
   };
   const view = new StratumView({ app } as never, plugin as never);
+  // Navigation to Search should not require its unrelated backend fixtures.
+  Object.assign(view, { renderSearchTab: () => {} });
   await view.onOpen();
   const tabs = root.all().filter((el) => el.attrs.role === "tab");
   assert.deepEqual(
     tabs.map((el) => el.text),
-    ["Browse", "Search", "Sync", "Reader", "Sources"],
+    ["Browse", "Search", "Sync", "Reader", "Sources", "Publish"],
   );
   assert.equal(tabs[0].attrs["aria-selected"], "true");
   assert.ok(root.querySelector('input[aria-label="Search imported papers"]'));
@@ -497,7 +502,40 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   selectedBrowser = new Browser();
   leafChanged!({ view: selectedBrowser });
   assert.equal(mounted, 5);
+  const clickTab = (text: string) =>
+    root
+      .all()
+      .find((el) => el.text === text)!
+      .listeners.get("click")!();
+  clickTab("Publish");
+  plugin.publish.selectedFormat = "pdf";
+  view.render();
+  assert.equal(
+    plugin.publish.selectedFormat,
+    "pdf",
+    "refresh keeps the selection",
+  );
+  clickTab("Sources");
+  clickTab("Publish");
+  assert.equal(
+    plugin.publish.selectedFormat,
+    "",
+    "returning to Publish clears the selection",
+  );
+  plugin.publish.selectedFormat = "pdf";
+  plugin.settings.enabledTabs.publish = false;
   plugin.settings.enabledTabs.browse = false;
+  view.render();
+  assert.equal(plugin.activeViewTab, "search");
+  assert.equal(plugin.publish.selectedFormat, "");
+  assert.equal(
+    root.all().some((el) => el.text === "Publish"),
+    false,
+  );
+  plugin.settings.enabledTabs.publish = true;
+  view.render();
+  clickTab("Publish");
+  assert.equal(plugin.publish.selectedFormat, "");
   plugin.activeViewTab = "sources";
   view.render();
   assert.equal(

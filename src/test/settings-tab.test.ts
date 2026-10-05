@@ -320,7 +320,7 @@ for (const desktop of [true, false]) {
     assert.deepEqual(
       toggles.map((row) => row.name),
       desktop
-        ? ["Browse", "Search", "Sync", "Reader", "Sources"]
+        ? ["Browse", "Search", "Sync", "Reader", "Sources", "Publish"]
         : ["Browse", "Search", "Reader", "Sources"],
     );
     for (const row of toggles) {
@@ -330,6 +330,11 @@ for (const desktop of [true, false]) {
     assert.equal(f.saves, toggles.length);
     assert.equal(f.updates, toggles.length);
     assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
+    assert.equal(f.plugin.settings.enabledTabs.publish, !desktop);
+    assert.equal(
+      sections.some((section) => section.heading === "Publishing"),
+      desktop,
+    );
     assert.equal(f.plugin.settings.enabledTabs.reader, false);
   });
 }

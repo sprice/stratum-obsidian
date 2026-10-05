@@ -31,13 +31,22 @@ test("platform filters Sync without changing saved preferences; all-off is valid
   const enabled = readEnabledTabs(undefined);
   assert.deepEqual(
     getVisibleTabs(enabled, true).map(({ id }) => id),
-    ["browse", "search", "sync", "reader", "sources"],
+    ["browse", "search", "sync", "reader", "sources", "publish"],
   );
   assert.deepEqual(
     getVisibleTabs(enabled, false).map(({ id }) => id),
     ["browse", "search", "reader", "sources"],
   );
   assert.equal(enabled.sync, true);
+  assert.equal(enabled.publish, true);
+  assert.equal(
+    resolveActiveTab("publish", { ...allOff(), publish: true }, false),
+    null,
+  );
+  assert.equal(
+    resolveActiveTab(null, { ...allOff(), publish: true }, true),
+    "publish",
+  );
   assert.equal(
     resolveActiveTab("search", { ...enabled, search: false }, true),
     "browse",
@@ -71,14 +80,16 @@ test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
     settings: { enabledTabs: allOff() },
     activeViewTab: null as string | null,
     isUnloaded: false,
+    publish: {},
   };
   for (const { id } of STRATUM_TABS)
     assert.equal(selectStratumTab(plugin as never, id), false);
   assert.equal(plugin.activeViewTab, null);
-  assert.equal(notices.length, 5);
+  assert.equal(notices.length, 6);
   plugin.settings.enabledTabs = readEnabledTabs(undefined);
   platform.isDesktopApp = false;
   assert.equal(selectStratumTab(plugin as never, "sync"), false);
+  assert.equal(selectStratumTab(plugin as never, "publish"), false);
   assert.equal(selectStratumTab(plugin as never, "reader"), true);
   assert.equal(plugin.activeViewTab, "reader");
   plugin.isUnloaded = true;
