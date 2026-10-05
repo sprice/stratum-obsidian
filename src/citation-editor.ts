@@ -100,7 +100,7 @@ class InlineCitation extends WidgetType {
         }),
       );
       menu.addItem((item) =>
-        item.setTitle("Show sources").onClick(() => {
+        item.setTitle("Show citations").onClick(() => {
           if (!current()) return;
           if (!selectStratumTab(this.service.plugin, "sources")) return;
           this.service.plugin.sources.showCurrent();

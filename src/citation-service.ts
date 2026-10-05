@@ -323,7 +323,7 @@ export class CitationService extends Component {
             "missing-data": "Citation data is missing",
           }[resolution.problem];
           problems.push(
-            `${reason} for @${resolution.key}. Open Sources for recovery actions.`,
+            `${reason} for @${resolution.key}. Open Citations for recovery actions.`,
           );
           continue;
         }

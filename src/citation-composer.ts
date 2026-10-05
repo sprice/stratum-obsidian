@@ -101,7 +101,7 @@ export async function openCitationComposer(
     );
     if (!rows[0]?.entry || rows[0].issue) {
       new Notice(
-        `Cannot safely resolve @${item.key}. Resolve it in Sources before editing.`,
+        `Cannot safely resolve @${item.key}. Resolve it in Citations before editing.`,
       );
       return;
     }

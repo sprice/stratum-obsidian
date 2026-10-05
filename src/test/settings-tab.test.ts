@@ -320,8 +320,8 @@ for (const desktop of [true, false]) {
     assert.deepEqual(
       toggles.map((row) => row.name),
       desktop
-        ? ["Browse", "Search", "Sync", "Reader", "Sources", "Publish"]
-        : ["Browse", "Search", "Reader", "Sources"],
+        ? ["Browse", "Search", "Sync", "Reader", "Citations", "Publish"]
+        : ["Browse", "Search", "Reader", "Citations"],
     );
     for (const row of toggles) {
       assert.equal(row.control!.value, true);

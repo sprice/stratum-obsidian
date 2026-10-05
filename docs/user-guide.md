@@ -57,10 +57,10 @@ research properties alongside clickable source titles. Select a heading to sort;
 select it again to reverse the order. Missing values stay last, and sorting applies
 to the entire filtered collection before pagination. Choose **List** to return
 to the title list. The browser saves its layout, columns, and sorting independently
-of the Sources sidebar, including when switching collections or reopening Obsidian.
+of the Citations sidebar, including when switching collections or reopening Obsidian.
 
 Research columns read properties recorded in your literature notes, using the same
-options as the [Sources table](#compare-sources-in-a-table). Browsing and sorting
+options as the [Citations table](#compare-sources-in-a-table). Browsing and sorting
 leave your notes unchanged; no working note or Dataview installation is needed.
 
 Normal Obsidian link modifiers open notes in new tabs. The browser remembers the collection, query, and scroll position through workspace view state. Large results load in batches of 100.
@@ -140,7 +140,7 @@ file already in the vault. The dialog shows a synthetic citation and reference
 example for installed styles.
 
 **Change citation style for this paper**, also available from the style button
-in Sources, creates an explicit override. **Use default style** removes it.
+in Citations, creates an explicit override. **Use default style** removes it.
 Overrides use `stratum_citation_style` and `stratum_citation_language` frontmatter.
 Changing styles never rewrites citation keys, locators, or manuscript prose.
 
@@ -172,9 +172,9 @@ switching styles. Nested explanatory footnotes and inline `^[note text]` notes
 are not supported for citation formatting; use named `[^note]` definitions.
 Unsupported notes keep the original Reading output and show a formatting error.
 
-### Sources sidebar
+### Citations sidebar
 
-Run **Stratum: Show sources for current note**, or select **Sources** in the
+Run **Stratum: Show citations for current note**, or select **Citations** in the
 Stratum sidebar. Listing your sources uses local notes and the managed
 bibliography; it does not require a connection or change the manuscript.
 Fetching missing reference data is a separate action that requires Zotero access.
@@ -201,13 +201,13 @@ remain visible in occurrence excerpts; this feature does not edit them.
 Obsidian wikilinks, embeds, and Markdown links count when they resolve to a
 Stratum literature note. Ordinary links do not count. Embedded notes are not
 recursively scanned. The current note's footnote text is included; frontmatter,
-comments, and code are excluded. The Sources list is for navigation; style-based formatting appears in Reading view.
+comments, and code are excluded. The Citations list is for navigation; style-based formatting appears in Reading view.
 
 ### Compare sources in a table
 
-In **Sources**, choose **Table** from the layout menu. The table follows the
+In **Citations**, choose **Table** from the layout menu. The table follows the
 current writing note's citations and literature-note links, just like the list.
-Pin Sources to keep comparing that note's sources while opening other notes.
+Pin Citations to keep comparing that note's sources while opening other notes.
 Your document stays unchanged, and Dataview is not required.
 
 Select **Columns** to choose up to eight properties alongside the source title.
@@ -241,7 +241,7 @@ saved with the Obsidian workspace while the Stratum view remains in its layout.
 
 ### Source health and recovery
 
-Sources reports problems beside the affected citation while keeping the style
+Citations reports problems beside the affected citation while keeping the style
 control available. **Show citation in paper** returns to the exact occurrence.
 
 - **Citation data missing:** choose **Fetch citation data** to retrieve the known
@@ -276,7 +276,7 @@ and fetches only missing references. Normal sync updates cached references.
 
 Once reference data, a style, and its language are available locally, formatting
 works without Zotero running or an internet connection. Missing or conflicting
-sources leave citations as Markdown and show an explanation in Sources rather
+sources leave citations as Markdown and show an explanation in Citations rather
 than silently producing an incomplete bibliography.
 
 Downloading more styles contacts `www.zotero.org`; additional language resources
@@ -298,12 +298,12 @@ same citation metadata into the export pipeline.
 
 Citation suggestions and the composer show the established insertion key from
 `stratum.bib`, even if Zotero now supplies a different key. Existing historical
-keys remain valid. Sources shows the keys actually used in the paper. The
+keys remain valid. Citations shows the keys actually used in the paper. The
 literature note's `citation_key` records the supplied metadata; it does not
 replace established bibliography ownership. Already-cited sources are preferred
 in citation suggestions. Filename preferences do not determine citation identity.
 
-For an unknown or conflicting key, choose **Repair citation** in Sources:
+For an unknown or conflicting key, choose **Repair citation** in Citations:
 
 1. Choose the intended imported source.
 2. Select one occurrence (the default) or all matching occurrences in this paper.
@@ -331,7 +331,7 @@ citation notes. Footnote numbers still navigate to their notes.
 A single resolved source opens its literature note in the sidebar Reader. A group
 or multiple notes for one source opens a searchable chooser; choose the exact
 source or note. Unknown keys, conflicting ownership, and missing notes lead to
-Sources for recovery instead of opening a guessed match.
+Citations for recovery instead of opening a guessed match.
 
 The manuscript stays in its main tab. **Return to writing** returns to that tab
 and restores its selection and scroll when the text and view mode still match.
@@ -369,8 +369,8 @@ Open Obsidian's command palette and search for **Stratum**. Assign shortcuts und
 | Insert or edit citation              | Compose or edit Pandoc citations with groups and locators.  |
 | Change citation style for this paper | Override the current paper's style and language.            |
 | Refresh citation data                | Fetch missing CSL reference data for imported notes.        |
-| Set bibliography location           | Place an optional marker for Reading view's reference list. |
-| Show sources for current note        | Inspect cited sources, source health, and recovery actions. |
+| Set bibliography location            | Place an optional marker for Reading view's reference list. |
+| Show citations for current note      | Inspect cited sources, source health, and recovery actions. |
 
 ## Enrichment
 

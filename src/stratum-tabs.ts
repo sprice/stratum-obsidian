@@ -3,7 +3,7 @@ export const STRATUM_TABS = [
   { id: "search", label: "Search" },
   { id: "sync", label: "Sync" },
   { id: "reader", label: "Reader" },
-  { id: "sources", label: "Sources" },
+  { id: "sources", label: "Citations" },
   { id: "publish", label: "Publish" },
 ] as const;
 
