@@ -1,0 +1,174 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type * as Setup from "../publish-setup";
+import type { PublishReadiness } from "../publish-desktop";
+import { loadRuntime } from "./runtime-harness";
+
+class Element {
+  text = "";
+  hidden = false;
+  disabled = false;
+  value = "";
+  children: Element[] = [];
+  listeners = new Map<string, () => void>();
+  constructor(public tagName = "DIV") {}
+  addClass() {}
+  toggleClass() {}
+  setAttr() {}
+  setAttribute() {}
+  setText(text: string) {
+    this.text = text;
+  }
+  empty() {
+    this.children = [];
+  }
+  private append(tag: string, options?: { text?: string }) {
+    const child = new Element(tag.toUpperCase());
+    child.text = options?.text || "";
+    this.children.push(child);
+    return child;
+  }
+  createEl(tag: string, options?: { text?: string }) {
+    return this.append(tag, options);
+  }
+  createDiv() {
+    return this.append("div");
+  }
+  createSpan() {
+    return this.append("span");
+  }
+  addEventListener(event: string, callback: () => void) {
+    this.listeners.set(event, callback);
+  }
+  click() {
+    if (!this.disabled && !this.hidden) this.listeners.get("click")?.();
+  }
+  find(text: string): Element | undefined {
+    if (this.text === text) return this;
+    for (const child of this.children) {
+      const found = child.find(text);
+      if (found) return found;
+    }
+    return undefined;
+  }
+}
+class Control {
+  inputEl = new Element("INPUT");
+  buttonEl = new Element("BUTTON");
+  setValue(value: string) {
+    this.inputEl.value = value;
+    return this;
+  }
+  setPlaceholder() {
+    return this;
+  }
+  setButtonText(text: string) {
+    this.buttonEl.text = text;
+    return this;
+  }
+  setTooltip() {
+    return this;
+  }
+  onChange() {
+    return this;
+  }
+  onClick() {
+    return this;
+  }
+}
+class Setting {
+  descEl = new Element();
+  constructor(private element: Element) {
+    element.children.push(this.descEl);
+  }
+  setName() {
+    return this;
+  }
+  addText(callback: (control: Control) => void) {
+    const control = new Control();
+    this.element.children.push(control.inputEl);
+    callback(control);
+    return this;
+  }
+  addButton(callback: (control: Control) => void) {
+    const control = new Control();
+    this.element.children.push(control.buttonEl);
+    callback(control);
+    return this;
+  }
+}
+
+test("setup rechecks stale detection on every open and offers PDF verification without installation help", () => {
+  const callbacks = new Set<() => void>();
+  const checks: boolean[] = [];
+  const publish = {
+    readiness: {
+      word: true,
+      pdf: false,
+      pandoc: { path: "/synthetic/pandoc", version: "3" },
+      tectonic: { path: "", version: "" },
+    } as PublishReadiness | null,
+    busy: false,
+    checking: false,
+    progress: "",
+    error: "",
+    subscribe: (callback: () => void) => {
+      callbacks.add(callback);
+      return () => callbacks.delete(callback);
+    },
+    check: (pdf = false) => {
+      checks.push(pdf);
+      return Promise.resolve();
+    },
+    cancel: () => {},
+  };
+  const { PublishSetupModal } = loadRuntime<typeof Setup>(
+    "publish-setup.ts",
+    {
+      Modal: class {
+        contentEl = new Element();
+        setTitle() {}
+        close() {}
+      },
+      Setting,
+    },
+    {},
+    "browser",
+    {
+      "./publish-desktop": { publishPlatform: () => ({ platform: "darwin" }) },
+    },
+  );
+  const modal = new PublishSetupModal({
+    app: {},
+    publish,
+    settings: { pandocPath: "", tectonicPath: "" },
+  } as never);
+  modal.onOpen();
+  assert.deepEqual(checks, [false]);
+  const content = modal.contentEl as unknown as Element;
+  assert.ok(content.find("Get Tectonic"));
+  publish.readiness!.tectonic = {
+    path: "/synthetic/tectonic",
+    version: "0.17",
+  };
+  callbacks.forEach((callback) => callback());
+  assert.equal(content.find("Get Tectonic"), undefined);
+  assert.ok(content.find("Detected"));
+  assert.equal(content.find("Check again")!.hidden, true);
+  content.find("Enable PDF")!.click();
+  assert.deepEqual(checks, [false, true]);
+  publish.checking = true;
+  callbacks.forEach((callback) => callback());
+  assert.equal(content.find("Cancel check")!.hidden, false);
+  assert.equal(content.find("Checking…")!.disabled, true);
+  publish.checking = false;
+  publish.readiness!.pdf = true;
+  callbacks.forEach((callback) => callback());
+  assert.ok(content.find("Done"));
+  assert.equal(content.find("Check again")!.hidden, false);
+  modal.onClose();
+  assert.equal(callbacks.size, 0);
+  modal.onOpen();
+  assert.deepEqual(checks, [false, true, false]);
+  modal.onClose();
+});

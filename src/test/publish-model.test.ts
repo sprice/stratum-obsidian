@@ -95,14 +95,10 @@ test("wiki labels and images are resolved without touching code examples", async
 });
 
 test("filenames are unique and safe on desktop platforms", () => {
-  const date = new Date("2026-01-01T00:00:00Z");
-  const first = publishFilename("CON", "pdf", date, "first");
-  assert.match(first, /^Document-CON-/);
-  assert.notEqual(first, publishFilename("CON", "pdf", date, "second"));
-  assert.doesNotMatch(
-    publishFilename('A/B:C*D?"E', "docx", date, "id"),
-    /[<>:"/\\|?*]/,
-  );
+  const first = publishFilename("CON", "pdf");
+  assert.equal(first, "Document-CON.pdf");
+  assert.notEqual(first, publishFilename("CON", "pdf", 2));
+  assert.doesNotMatch(publishFilename('A/B:C*D?"E', "docx", 2), /[<>:"/\\|?*]/);
 });
 
 test("catalog rejects traversal, unknown formats and conflicting identity", () => {
@@ -165,12 +161,7 @@ test("raw media checks distinguish HTML from code examples", () => {
 });
 
 test("publication filenames fit filesystem byte limits without splitting Unicode", () => {
-  const filename = publishFilename(
-    "研究😀".repeat(100),
-    "docx",
-    new Date("2026-01-01T00:00:00Z"),
-    "12345678-1234-1234-1234-123456789012",
-  );
+  const filename = publishFilename("研究😀".repeat(100), "docx", 2);
   assert.ok(new TextEncoder().encode(filename).length <= 255);
   assert.doesNotMatch(filename, /\uFFFD/);
 });
@@ -213,4 +204,23 @@ test("footnote comments do not resolve hidden image embeds", async () => {
     assert.fail("Commented images must not be resolved");
   });
   assert.equal(linked, "Visible  text.");
+});
+
+test("publication names use the title with numbered copies", () => {
+  assert.equal(
+    publishFilename("Example document", "pdf"),
+    "Example document.pdf",
+  );
+  assert.equal(
+    publishFilename("Example document", "pdf", 2),
+    "Example document(2).pdf",
+  );
+  assert.equal(
+    publishFilename("Example document", "docx"),
+    "Example document.docx",
+  );
+  assert.equal(
+    publishFilename("Example document", "docx", 3),
+    "Example document(3).docx",
+  );
 });

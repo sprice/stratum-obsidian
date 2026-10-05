@@ -1,3 +1,5 @@
+export const VIEW_TYPE_PUBLISH_PREVIEW = "stratum-publish-preview";
+
 export type PublishFormat = "pdf" | "docx";
 export const formatLabel = (format: PublishFormat): string =>
   format === "pdf" ? "PDF" : "Word";
@@ -84,8 +86,7 @@ export function readCatalog(text: string): PublishCatalog {
 export function publishFilename(
   title: string,
   format: PublishFormat,
-  date: Date,
-  id: string,
+  number = 1,
 ): string {
   const cleaned =
     title
@@ -102,7 +103,7 @@ export function publishFilename(
       break;
     safe += character;
   }
-  return `${/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(safe) ? "Document-" : ""}${safe}-${date.toISOString().replace(/[:.]/g, "-")}-${id}.${format}`;
+  return `${/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(safe) ? "Document-" : ""}${safe}${number > 1 ? `(${number})` : ""}.${format}`;
 }
 export function movePublishedNotes(
   catalog: PublishCatalog,

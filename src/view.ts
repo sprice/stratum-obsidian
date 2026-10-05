@@ -414,6 +414,8 @@ export class StratumView extends ItemView {
   }
 
   render(): void {
+    if (this.plugin.activeViewTab !== "publish" && this.plugin.publish)
+      this.plugin.publish.selectedFormat = "";
     const focused = this.contentEl.doc.activeElement;
     const focusedTabId = focused?.id.startsWith(`${this.tabIdPrefix}-tab-`)
       ? focused.id

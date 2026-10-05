@@ -1,5 +1,6 @@
 import {
   emptyCatalog,
+  publishFilename,
   readCatalog,
   movePublishedNotes,
   type PublishCatalog,
@@ -16,6 +17,8 @@ export interface PublishAdapter {
   rename(from: string, to: string): Promise<void>;
   remove(path: string): Promise<void>;
 }
+class PublicationCollisionError extends Error {}
+
 /** Serialize metadata updates. Write completed bytes before adding a catalog entry. */
 export class PublishStore {
   readonly directory: string;
@@ -121,33 +124,83 @@ export class PublishStore {
       await this.save(catalog);
     });
   }
-  add(document: PublishedDocument, bytes: ArrayBuffer): Promise<void> {
+  create(
+    document: Omit<PublishedDocument, "filename">,
+    title: string,
+    bytes: ArrayBuffer,
+  ): Promise<PublishedDocument> {
     return this.serial(async () => {
       const catalog = await this.load();
-      if (!catalog.notes.some((n) => n.id === document.noteId))
-        throw new Error("The source note is no longer registered.");
-      const path = `${this.directory}/${document.filename}`;
-      if (await this.adapter.exists(path))
-        throw new Error(
-          "A document with this filename already exists. Try publishing again.",
-        );
-      await this.ensureDirectory();
-      const temp = `${path}.tmp`;
-      let created = false;
-      try {
-        await this.adapter.writeBinary(temp, bytes);
-        await this.adapter.rename(temp, path);
-        created = true;
-        catalog.documents.push(document);
-        await this.save(catalog);
-      } catch (error) {
-        if (created && (await this.adapter.exists(path)))
-          await this.adapter.remove(path);
-        throw error;
-      } finally {
-        if (await this.adapter.exists(temp)) await this.adapter.remove(temp);
+      const occupied = new Set(
+        catalog.documents.map((entry) => entry.filename.toLowerCase()),
+      );
+      for (let number = 1; ; number++) {
+        const filename = publishFilename(title, document.format, number);
+        const path = `${this.directory}/${filename}`;
+        if (
+          occupied.has(filename.toLowerCase()) ||
+          (await this.adapter.exists(path)) ||
+          (await this.adapter.exists(`${path}.deleting`))
+        )
+          continue;
+        const entry = { ...document, filename };
+        try {
+          await this.writeDocument(catalog, entry, bytes);
+          return entry;
+        } catch (error) {
+          if (!(error instanceof PublicationCollisionError)) throw error;
+        }
       }
     });
+  }
+  add(document: PublishedDocument, bytes: ArrayBuffer): Promise<void> {
+    return this.serial(async () =>
+      this.writeDocument(await this.load(), document, bytes),
+    );
+  }
+  private async writeDocument(
+    catalog: PublishCatalog,
+    document: PublishedDocument,
+    bytes: ArrayBuffer,
+  ): Promise<void> {
+    if (!catalog.notes.some((n) => n.id === document.noteId))
+      throw new Error("The source note is no longer registered.");
+    const path = `${this.directory}/${document.filename}`;
+    if (
+      catalog.documents.some(
+        (entry) =>
+          entry.id === document.id ||
+          entry.filename.toLowerCase() === document.filename.toLowerCase(),
+      ) ||
+      (await this.adapter.exists(path))
+    )
+      throw new Error(
+        "A document with this filename already exists. Try publishing again.",
+      );
+    await this.ensureDirectory();
+    const temp = `${this.directory}/publication-${crypto.randomUUID()}.tmp`;
+    let created = false;
+    try {
+      await this.adapter.writeBinary(temp, bytes);
+      try {
+        await this.adapter.rename(temp, path);
+      } catch (error) {
+        if (await this.adapter.exists(path))
+          throw new PublicationCollisionError(
+            "A document with this filename already exists.",
+          );
+        throw error;
+      }
+      created = true;
+      catalog.documents.push(document);
+      await this.save(catalog);
+    } catch (error) {
+      if (created && (await this.adapter.exists(path)))
+        await this.adapter.remove(path);
+      throw error;
+    } finally {
+      if (await this.adapter.exists(temp)) await this.adapter.remove(temp);
+    }
   }
   path(document: PublishedDocument): string {
     return `${this.directory}/${document.filename}`;

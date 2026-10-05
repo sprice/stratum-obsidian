@@ -1,16 +1,24 @@
 import { Modal, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
 import { choosePublishExecutable, publishPlatform } from "./publish-desktop";
+import {
+  publishingSetupAction,
+  publishingToolState,
+} from "./publish-setup-state";
 
+type Tool = "pandoc" | "tectonic";
 export class PublishSetupModal extends Modal {
   private unsubscribe: (() => void) | null = null;
   private status!: HTMLElement;
-  private checkButton!: HTMLButtonElement;
-  private finishButton!: HTMLButtonElement;
-  private cancelButton!: HTMLButtonElement;
-  private paths: HTMLInputElement[] = [];
-  private steps: HTMLElement[] = [];
-  private chooseButtons: HTMLButtonElement[] = [];
+  private primary!: HTMLButtonElement;
+  private secondary!: HTMLButtonElement;
+  private help!: HTMLElement;
+  private downloadNote!: HTMLElement;
+  private controls: (HTMLInputElement | HTMLButtonElement)[] = [];
+  private rows = new Map<
+    Tool,
+    { badge: HTMLElement; detail: HTMLElement; path: HTMLElement }
+  >();
   constructor(private plugin: StratumPlugin) {
     super(plugin.app);
   }
@@ -23,170 +31,189 @@ export class PublishSetupModal extends Modal {
     this.setTitle("Set up publishing");
     const { contentEl } = this;
     contentEl.addClass("stratum-publish-setup");
+    this.controls = [];
+    this.rows.clear();
     contentEl.createEl("p", {
-      text: "Pandoc creates .docx documents. Tectonic also enables PDF creation. Everything runs on your computer.",
+      text: "Word and PDF documents, created on your computer.",
     });
-    const { platform, arch } = publishPlatform();
-    const system =
-      platform === "darwin"
-        ? `macOS (${arch === "arm64" ? "Apple silicon" : "Intel"})`
-        : platform === "win32"
-          ? `Windows (${arch === "arm64" ? "ARM64" : "64-bit"})`
-          : `Linux (${arch})`;
-    contentEl.createEl("p", {
-      cls: "stratum-publish-meta",
-      text: `Setup for ${system}`,
+    const tools = contentEl.createDiv({
+      cls: "stratum-publish-tools",
+      attr: { "aria-live": "polite" },
     });
-    this.status = contentEl.createDiv({
-      attr: { role: "status", "aria-live": "polite" },
-    });
-    this.installStep(
-      "1. Set up Word",
-      platform === "win32"
-        ? "Download the Windows .msi installer, open it, and follow the installation steps. Then choose Check again."
-        : platform === "darwin"
-          ? "Download the macOS .pkg installer, open it, and follow the installation steps. Then choose Check again."
-          : "Install Pandoc using your distribution’s package manager or its official Linux package. Then choose Check again.",
-      "Get Pandoc",
-      "https://pandoc.org/installing.html",
-    );
-    this.installStep(
-      "2. Set up PDF",
-      `Download the Tectonic archive for ${system}, extract it to a permanent folder, then choose the ${platform === "win32" ? "tectonic.exe" : "tectonic"} file below.`,
-      "Get Tectonic",
-      "https://tectonic-typesetting.github.io/book/latest/installation/",
-    );
-    if (platform === "darwin") {
-      const brew = contentEl.createEl("details");
-      brew.createEl("summary", { text: "Homebrew users" });
-      brew.createEl("p", {
-        text: "Run this command in your terminal, then check again.",
-      });
-      brew.createEl("code").appendText("brew install pandoc tectonic");
-      const copy = brew.createEl("button", { text: "Copy command" });
-      copy.addEventListener("click", () => {
-        void navigator.clipboard
-          .writeText("brew install pandoc tectonic")
-          .catch((error) => publish.fail(error));
-      });
+    for (const [tool, label] of [
+      ["pandoc", "Word · Pandoc"],
+      ["tectonic", "PDF · Tectonic"],
+    ] as const) {
+      const row = tools.createDiv({ cls: "stratum-publish-tool" });
+      const heading = row.createDiv({ cls: "stratum-publish-tool-heading" });
+      heading.createEl("strong", { text: label });
+      const badge = heading.createSpan({ cls: "stratum-publish-tool-state" });
+      const detail = row.createDiv({ cls: "stratum-publish-meta" });
+      this.rows.set(tool, { badge, detail, path: detail });
     }
+    this.help = contentEl.createDiv({ cls: "stratum-publish-install" });
+    const advanced = contentEl.createEl("details");
+    advanced.createEl("summary", { text: "Advanced" });
+    advanced.createEl("p", {
+      cls: "stratum-publish-meta",
+      text: "Tools are found automatically. Choose a location only for a custom installation.",
+    });
     for (const tool of ["pandoc", "tectonic"] as const) {
       const key = tool === "pandoc" ? "pandocPath" : "tectonicPath";
       const label = tool === "pandoc" ? "Pandoc" : "Tectonic";
-      new Setting(contentEl)
-        .setName(`${label} location`)
-        .setDesc("Already installed? Choose the executable file.")
+      let inputEl: HTMLInputElement;
+      const setting = new Setting(advanced)
+        .setName(label)
+        .addText((input) => {
+          inputEl = input.inputEl;
+          this.controls.push(inputEl);
+          input
+            .setPlaceholder("Automatic")
+            .setValue(this.plugin.settings[key])
+            .onChange((value) => {
+              this.plugin.settings[key] = value.trim();
+              publish.readiness = null;
+              this.updateStatus();
+            });
+          inputEl.setAttribute("aria-label", `${label} executable path`);
+          inputEl.addEventListener("blur", () => {
+            void this.plugin
+              .saveSettings()
+              .catch((error) => publish.fail(error));
+          });
+        })
         .addButton((button) => {
-          this.chooseButtons.push(button.buttonEl);
-          button.setButtonText(`Choose ${label} file`).onClick(async () => {
-            try {
-              const selected = await choosePublishExecutable(label);
-              if (selected) {
+          this.controls.push(button.buttonEl);
+          button
+            .setButtonText("Browse…")
+            .setTooltip(`Choose ${label} executable`)
+            .onClick(async () => {
+              try {
+                const selected = await choosePublishExecutable(label);
+                if (!selected) return;
                 this.plugin.settings[key] = selected;
+                inputEl.value = selected;
                 await this.plugin.saveSettings();
-                publish.readiness = null;
-                this.paths[tool === "pandoc" ? 0 : 1].value = selected;
                 await publish.check();
+              } catch (error) {
+                publish.fail(error);
               }
-            } catch (error) {
-              publish.fail(error);
-            }
-          });
+            });
         });
+      this.rows.get(tool)!.path = setting.descEl;
     }
-    const advanced = contentEl.createEl("details");
-    advanced.createEl("summary", { text: "Advanced: executable paths" });
-    for (const [key, label] of [
-      ["pandocPath", "Pandoc"],
-      ["tectonicPath", "Tectonic"],
-    ] as const)
-      new Setting(advanced).setName(`${label} path`).addText((input) => {
-        this.paths.push(input.inputEl);
-        input
-          .setPlaceholder("Detect automatically")
-          .setValue(this.plugin.settings[key])
-          .onChange((value) => {
-            this.plugin.settings[key] = value.trim();
-            publish.readiness = null;
-          });
-        input.inputEl.addEventListener("blur", () => {
-          void this.plugin.saveSettings().catch((error) => publish.fail(error));
-        });
-      });
-    contentEl.createEl("p", {
-      text: "Finish setup checks both formats using a sample document. Tectonic may download supporting files the first time; your notes are not uploaded. This can take several minutes.",
+    const reset = advanced.createEl("button", {
+      text: "Use automatic detection",
     });
-    const actions = contentEl.createDiv({ cls: "stratum-publish-actions" });
-    this.checkButton = actions.createEl("button", { text: "Check again" });
-    this.checkButton.addEventListener("click", () => {
-      void publish.check();
+    this.controls.push(reset);
+    reset.addEventListener("click", () => {
+      this.plugin.settings.pandocPath = this.plugin.settings.tectonicPath = "";
+      for (const control of this.controls)
+        if (control.tagName === "INPUT")
+          (control as HTMLInputElement).value = "";
+      void this.plugin
+        .saveSettings()
+        .then(() => publish.check())
+        .catch((error) => publish.fail(error));
     });
-    this.finishButton = actions.createEl("button", {
-      text: "Finish setup",
-      cls: "mod-cta",
+    this.downloadNote = contentEl.createEl("p", {
+      cls: "stratum-publish-meta",
+      text: "The first PDF check may download typesetting files and take a few minutes. Your notes stay on this computer.",
     });
-    this.finishButton.addEventListener("click", () => {
-      void publish.check(true);
+    this.status = contentEl.createDiv({
+      cls: "stratum-publish-status",
+      attr: { role: "status", "aria-live": "polite" },
     });
-    this.cancelButton = actions.createEl("button", { text: "Cancel check" });
-    this.cancelButton.addEventListener("click", () => publish.cancel());
-    const done = actions.createEl("button", { text: "Done" });
-    done.addEventListener("click", () => this.close());
+    const actions = contentEl.createDiv({
+      cls: "stratum-publish-actions stratum-publish-setup-actions",
+    });
+    this.secondary = actions.createEl("button");
+    this.secondary.addEventListener("click", () => {
+      if (publish.checking) publish.cancel();
+      else void publish.check(true);
+    });
+    this.primary = actions.createEl("button", { cls: "mod-cta" });
+    this.primary.addEventListener("click", () => {
+      if (publish.readiness?.word && publish.readiness.pdf) this.close();
+      else void publish.check(true);
+    });
     this.unsubscribe = publish.subscribe(() => this.updateStatus());
     this.updateStatus();
-    if (!publish.readiness && !publish.checking) void publish.check();
-  }
-  private installStep(
-    title: string,
-    description: string,
-    label: string,
-    url: string,
-  ): void {
-    const section = this.contentEl.createDiv({ cls: "stratum-publish-step" });
-    this.steps.push(section);
-    section.createEl("h3", { text: title });
-    section.createEl("p", { text: description });
-    const link = section.createEl("a", {
-      text: label,
-      href: url,
-      cls: "stratum-publish-install-link",
-    });
-    link.setAttr("target", "_blank");
-    link.setAttr("rel", "noopener noreferrer");
+    // Reopening must detect tools installed since the last attempt.
+    if (!publish.checking && !publish.busy) void publish.check();
   }
   private updateStatus(): void {
     const publish = this.plugin.publish!;
-    this.status.empty();
     const ready = publish.readiness;
-    if (this.steps[0]) this.steps[0].hidden = !!ready?.word;
-    if (this.steps[1]) this.steps[1].hidden = !!ready?.pdf;
-    for (const [label, tool] of [
-      ["Pandoc", ready?.pandoc],
-      ["Tectonic", ready?.tectonic],
-    ] as const) {
-      this.status.createEl("p", {
-        text: `${label}: ${tool?.version || tool?.error || "Not checked"}`,
-      });
+    const missing: Tool[] = [];
+    for (const tool of ["pandoc", "tectonic"] as const) {
+      const state = publishingToolState(
+        ready?.[tool],
+        !!(tool === "pandoc" ? ready?.word : ready?.pdf),
+        tool === "pandoc" ? ready?.wordError : ready?.pdfError,
+        publish.checking,
+      );
+      const row = this.rows.get(tool)!;
+      row.badge.setText(state.label);
+      row.badge.toggleClass("is-ready", state.ready);
+      row.detail.setText(state.detail);
+      row.detail.toggleClass(
+        "stratum-publish-error",
+        (!!ready?.[tool].path &&
+          !!(tool === "pandoc" ? ready.wordError : ready.pdfError)) ||
+          !!ready?.[tool].foundPath,
+      );
+      row.path.setText(ready?.[tool].path || ready?.[tool].foundPath || "");
+      if (state.missing) missing.push(tool);
     }
-    this.status.createEl("p", {
-      text: `Word: ${ready?.word ? "Ready" : ready?.wordError || "Setup needed"}`,
-    });
-    this.status.createEl("p", {
-      text: `PDF: ${ready?.pdf ? "Ready" : ready?.pdfError || (ready?.tectonic.path ? "Choose Finish setup to verify PDF support" : "Setup needed")}`,
-    });
+    this.help.empty();
+    this.help.hidden = !missing.length;
+    if (missing.length) {
+      this.help.createEl("p", {
+        text: "Install the missing tools, then check again.",
+      });
+      for (const tool of missing) {
+        const link = this.help.createEl("a", {
+          text: tool === "pandoc" ? "Get Pandoc" : "Get Tectonic",
+          href:
+            tool === "pandoc"
+              ? "https://pandoc.org/installing.html"
+              : "https://tectonic-typesetting.github.io/book/latest/installation/",
+        });
+        link.setAttr("target", "_blank");
+        link.setAttr("rel", "noopener noreferrer");
+      }
+      if (publishPlatform().platform === "darwin") {
+        const brew = this.help.createEl("details");
+        brew.createEl("summary", { text: "Homebrew installation" });
+        const command = `brew install ${missing.join(" ")}`;
+        brew.createEl("code", { text: command });
+        brew
+          .createEl("button", { text: "Copy command" })
+          .addEventListener("click", () => {
+            void navigator.clipboard
+              .writeText(command)
+              .catch((error) => publish.fail(error));
+          });
+      }
+    }
+    this.downloadNote.hidden = !!ready?.pdf;
+    this.status.empty();
     if (publish.progress) this.status.createEl("p", { text: publish.progress });
     if (publish.error)
       this.status.createEl("p", {
         text: publish.error,
         cls: "stratum-publish-error",
       });
-    this.checkButton.disabled = this.finishButton.disabled =
-      publish.checking || publish.busy;
-    this.cancelButton.hidden = !publish.checking;
-    for (const input of this.paths)
-      input.disabled = publish.checking || publish.busy;
-    for (const button of this.chooseButtons)
-      button.disabled = publish.checking || publish.busy;
+    if (!publish.checking && ready?.tectonic.path && !ready.pandoc.path)
+      this.status.createEl("p", { text: "Pandoc is also required for PDF." });
+    this.primary.setText(publishingSetupAction(ready, publish.checking));
+    this.primary.disabled = publish.checking || publish.busy;
+    this.secondary.setText(publish.checking ? "Cancel check" : "Check again");
+    this.secondary.hidden = !publish.checking && !(ready?.word && ready.pdf);
+    this.secondary.disabled = publish.busy;
+    for (const control of this.controls)
+      control.disabled = publish.checking || publish.busy;
   }
   onClose(): void {
     this.unsubscribe?.();

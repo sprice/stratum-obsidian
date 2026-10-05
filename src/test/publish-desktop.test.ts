@@ -1,4 +1,6 @@
 import test from "node:test";
+import { EventEmitter } from "node:events";
+import { posix } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -12,7 +14,11 @@ import { preparePublication } from "../publish-document";
 import { formatCitationDocument } from "../citation-format";
 import assets from "../csl/assets.json";
 const require = createRequire(import.meta.url);
-function runtime(desktop = true, remote?: object) {
+function runtime(
+  desktop = true,
+  remote?: object,
+  modules: Record<string, unknown> = {},
+) {
   return loadRuntime<typeof Desktop>(
     "publish-desktop.ts",
     { Platform: { isDesktopApp: desktop, isDesktop: desktop } },
@@ -20,7 +26,12 @@ function runtime(desktop = true, remote?: object) {
       atob,
       TextDecoder,
       Uint8Array,
-      window: { require, electron: { remote }, setTimeout, clearTimeout },
+      window: {
+        require: (name: string): unknown => modules[name] ?? require(name),
+        electron: { remote },
+        setTimeout,
+        clearTimeout,
+      },
     },
     "browser",
   );
@@ -243,7 +254,22 @@ test(
   "real PDF setup uses Pandoc and Tectonic",
   { skip: !pandoc || !tectonic },
   async () => {
-    const result = await runtime().checkPublishing(pandoc, tectonic, true);
+    const updates: Desktop.PublishReadiness[] = [];
+    const result = await runtime().checkPublishing(
+      pandoc,
+      tectonic,
+      true,
+      undefined,
+      undefined,
+      (state) => updates.push(state),
+    );
+    assert.equal(updates[0].word, false);
+    assert.ok(
+      updates[0].tectonic.path,
+      "tools appear before conversion finishes",
+    );
+    assert.equal(updates[1].word, true);
+    assert.equal(updates[1].pdf, false, "Word is ready while PDF prepares");
     assert.equal(result.word, true, result.wordError);
     assert.equal(result.pdf, true, result.pdfError);
   },
@@ -301,3 +327,140 @@ test(
     }
   },
 );
+
+test("GUI detection finds Homebrew tools without Terminal PATH and returns absolute paths", async () => {
+  const launched: string[] = [];
+  const desktop = runtime(true, undefined, {
+    "node:process": { platform: "darwin", env: { PATH: "/usr/bin:/bin" } },
+    "node:path": posix,
+    "node:os": { homedir: () => "/synthetic-home" },
+    "node:fs/promises": {
+      realpath: (path: string) =>
+        path.startsWith("/opt/homebrew/bin/")
+          ? Promise.resolve(path.replace("/bin/", "/opt/bin/"))
+          : Promise.reject(new Error("Not found")),
+    },
+    "node:child_process": {
+      spawn: (path: string) => {
+        launched.push(path);
+        const task = Object.assign(new EventEmitter(), {
+          stdout: new EventEmitter(),
+          stderr: new EventEmitter(),
+        });
+        queueMicrotask(() => {
+          task.stdout.emit("data", `${posix.basename(path)} 1.0`);
+          task.emit("close", 0);
+        });
+        return task;
+      },
+    },
+  });
+  for (const tool of ["pandoc", "tectonic"] as const) {
+    const found = await desktop.detectPublishTool(tool, "");
+    assert.equal(found.path, `/opt/homebrew/opt/bin/${tool}`);
+    assert.equal(found.version, `${tool} 1.0`);
+  }
+  assert.equal(
+    launched.length,
+    2,
+    "missing candidates should not spawn processes",
+  );
+  const missing = await desktop.detectPublishTool("pandoc", "/custom/missing");
+  assert.equal(
+    missing.path,
+    "",
+    "explicit overrides must not silently fall back",
+  );
+  assert.equal(launched.length, 2);
+});
+
+test("an installed but unusable executable is distinct from a missing tool", async () => {
+  const found = await runtime().detectPublishTool("pandoc", process.execPath);
+  assert.equal(found.path, "");
+  assert.ok(found.foundPath);
+  assert.match(found.error!, /pandoc/);
+});
+
+for (const style of ["apa", "chicago-notes-bibliography", "ieee"]) {
+  test(
+    `real PDF publication preserves ${style} references in explicit and automatic bibliographies`,
+    { skip: !pandoc || !tectonic },
+    async () => {
+      const styles = assets as Record<string, string>;
+      for (const explicit of [false, true]) {
+        const source =
+          "A claim [@example2024]. Another claim [@other2025]." +
+          (explicit ? '\n\n<div id="refs"></div>\n\nAfter references.' : "");
+        const formatted = formatCitationDocument(
+          source,
+          styles[style],
+          "en-US",
+          styles,
+          new Map([
+            [
+              "example2024",
+              {
+                id: "user/1/EXAMPLE",
+                type: "book",
+                title: "Synthetic reference",
+                author: [{ family: "Example", given: "Alex" }],
+                issued: { "date-parts": [[2024]] },
+              },
+            ],
+            [
+              "other2025",
+              {
+                id: "user/1/OTHER",
+                type: "book",
+                title: "Another synthetic reference",
+                author: [{ family: "Other", given: "Sam" }],
+                issued: { "date-parts": [[2025]] },
+              },
+            ],
+          ]),
+        );
+        const originalBibliography = formatted.bibliography;
+        const prepared = preparePublication(source, formatted);
+        const html = (markdown: string) =>
+          execFileSync(pandoc, ["-f", "markdown", "-t", "html"], {
+            input: markdown,
+            encoding: "utf8",
+          });
+        const document = `<html xmlns:epub="http://www.idpf.org/2007/ops"><body>${html(prepared.markdown)}${prepared.bibliography}${prepared.notes.map((note) => `<aside epub:type="footnote" id="${note.id}">${html(note.markdown)}</aside>`).join("")}</body></html>`;
+        const latex = execFileSync(
+          pandoc,
+          ["-f", "html+epub_html_exts", "-t", "latex"],
+          { input: document, encoding: "utf8" },
+        );
+        assert.equal((latex.match(/\\bibitem\[/g) ?? []).length, 2);
+        assert.match(latex, /synthetic reference/i);
+        assert.equal(
+          formatted.bibliography,
+          originalBibliography,
+          "Reading-view output stays unchanged",
+        );
+        if (style !== "ieee")
+          assert.match(
+            latex,
+            /\\begin\{CSLReferences\}\{1\}/,
+            "preserves hanging indentation",
+          );
+        if (explicit)
+          assert.ok(
+            latex.indexOf("\\end{CSLReferences}") <
+              latex.indexOf("After references"),
+          );
+        if (style === "chicago-notes-bibliography")
+          assert.equal((latex.match(/\\footnote\{/g) ?? []).length, 2);
+        const bytes = await runtime().convertPublication(document, [], "pdf", {
+          pandoc,
+          tectonic,
+        });
+        assert.equal(
+          new TextDecoder().decode(new Uint8Array(bytes).subarray(0, 5)),
+          "%PDF-",
+        );
+      }
+    },
+  );
+}

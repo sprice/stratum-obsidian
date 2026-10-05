@@ -91,8 +91,12 @@ export function preparePublication(
       ),
   );
   if (formatted)
-    for (const slot of model.bibliographies)
-      outerEdits.push({ ...slot, html: formatted.bibliography });
+    model.bibliographies.forEach((slot, index) => {
+      outerEdits.push({
+        ...slot,
+        html: publishBibliography(formatted.bibliography, String(index)),
+      });
+    });
   const markdown = replaceRangeText(text, 0, text.length, outerEdits).replace(
     /^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)(?:\r?\n|$)/,
     "",
@@ -103,10 +107,29 @@ export function preparePublication(
   return {
     markdown: stripPublishComments(markdown),
     notes,
-    bibliography: footer.bibliography,
+    bibliography: publishBibliography(footer.bibliography, "footer"),
     heading: footer.heading,
   };
 }
+/** Adapt citeproc's HTML to Pandoc's bibliography conventions, only for export. */
+function publishBibliography(html: string, section: string): string {
+  let entry = 0;
+  return (
+    html
+      .replace(
+        'class="csl-bib-body stratum-csl-hanging"',
+        'class="csl-bib-body hanging-indent"',
+      )
+      // Pandoc emits a LaTeX bibliography list for csl-bib-body, but only
+      // creates its required \bibitem entries for div IDs starting with ref-.
+      .replace(
+        /class="csl-entry"/g,
+        () =>
+          `id="ref-stratum-publish-${section}-${entry++}" class="csl-entry"`,
+      )
+  );
+}
+
 interface MarkdownNode {
   type: string;
   value?: string;

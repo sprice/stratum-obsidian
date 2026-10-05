@@ -113,6 +113,8 @@ function setup() {
       vault: {
         adapter,
         configDir: ".config",
+        getAbstractFileByPath: (path: string) =>
+          [first, second].find((file) => file.path === path) ?? null,
         on: (event: string, callback: (...args: never[]) => void) => {
           events.set(event, callback);
           return {};
@@ -153,6 +155,7 @@ test("switching notes during publication preserves the click-time document and i
   await controller.create();
   release();
   await pending;
+  assert.equal(controller.selectedFormat, "");
   assert.equal(rendered.length, 1);
   assert.equal(rendered[0].text, "Unsaved first note");
   assert.equal(rendered[0].path, "First.md");
@@ -197,4 +200,55 @@ test("closing the selected note clears stale editor state", () => {
   assert.equal(controller.document, null);
   assert.equal(controller.leaf, null);
   assert.equal(controller.canCreate(), false);
+});
+
+test("a PDF preview follows its source note and keeps the open source editor", () => {
+  const { controller, leaf, other, events, roots } = setup();
+  controller.catalog = {
+    version: 1,
+    notes: [
+      { id: "note", path: leaf.view.file.path, title: "First", ctime: 1 },
+    ],
+    documents: [
+      {
+        id: "pdf",
+        noteId: "note",
+        filename: "First.pdf",
+        format: "pdf",
+        createdAt: new Date().toISOString(),
+        citationStyle: "apa",
+        citationLanguage: "en-US",
+      },
+    ],
+  };
+  events.get("active-leaf-change")!(other as never);
+  const preview = {
+    view: {
+      getViewType: () => "stratum-publish-preview",
+      getState: () => ({ documentId: "pdf" }),
+    },
+  };
+  roots.push(preview as never);
+  events.get("active-leaf-change")!(preview as never);
+  assert.equal(controller.document, leaf.view.file);
+  assert.equal(controller.leaf, leaf);
+  assert.equal(controller.documents.length, 1);
+  roots.splice(0, 1);
+  events.get("active-leaf-change")!(preview as never);
+  assert.equal(
+    controller.document,
+    leaf.view.file,
+    "preview works even when the source tab is closed",
+  );
+  assert.equal(controller.leaf, null);
+});
+
+test("cancelled publishing keeps the file type selected for retry", async () => {
+  const { controller, release } = setup();
+  const pending = controller.create();
+  controller.cancel();
+  release();
+  await pending;
+  assert.equal(controller.selectedFormat, "docx");
+  assert.equal((await controller.store.list()).documents.length, 0);
 });

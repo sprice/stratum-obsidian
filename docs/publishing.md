@@ -6,21 +6,22 @@ selection when you focus the sidebar. Editing and Reading view both work.
 
 ## First-time setup
 
-1. Choose **Set up publishing** in the Publish tab, or open **Settings → Stratum →
-   Publishing → Publishing setup**.
-2. Install [Pandoc](https://pandoc.org/installing.html) for Word. The setup screen
-   links to the official installation instructions for your operating system.
-3. Install [Tectonic](https://tectonic-typesetting.github.io/book/latest/installation/)
-   for PDF. Extract its executable into a permanent folder and choose it using
-   **Choose Tectonic file**. macOS Homebrew users can copy the combined installation
-   command from the setup screen. Installation happens outside Obsidian; Stratum
-   does not download or install executables.
-4. Choose **Check again** to detect tools and verify a real Word conversion. If an
-   installed tool is not found, choose its executable or enter its full path under
-   **Advanced: executable paths**.
-5. Choose **Finish setup** to verify PDF conversion. Tectonic may download fonts
-   and typesetting support files on the first run. Allow several minutes and an
-   internet connection. Checks use a synthetic sample, never your note.
+1. Open **Settings → Stratum → Publishing → Publishing setup**. When setup is
+   incomplete, the Publish tab offers **Set up in settings** to open plugin settings.
+2. Setup automatically finds Pandoc and Tectonic, including standard Homebrew,
+   MacPorts, and user installation locations. Each tool shows **Detected** as soon
+   as it is found; **Ready** means a sample document was successfully created.
+3. If a tool is missing, use the installation links shown for that tool. On macOS,
+   Homebrew users can copy an installation command. Installation happens outside
+   Obsidian; Stratum does not download or install executables. Choose **Check
+   again** after installation.
+4. When Tectonic is detected, choose **Enable PDF** to verify PDF conversion.
+   Tectonic may download fonts and typesetting support files on the first run.
+   Allow several minutes and an internet connection. Checks use a synthetic
+   sample, never your note. Word is checked automatically when setup opens.
+5. For custom installations, expand **Advanced** to browse for an executable or
+   enter its path. **Use automatic detection** clears custom paths and checks
+   again. Reopening setup also checks for newly installed tools.
 
 Word can be used while PDF setup is incomplete. Tool errors appear in setup and
 can be retried. On macOS, allow a downloaded executable through the operating
@@ -30,9 +31,14 @@ to each computer; reselect them if vault settings were copied from another devic
 
 ## Create and manage documents
 
-Choose **PDF** or **Word** from **Choose File Type**, then choose **Create PDF Doc**
+Choose **PDF** or **Word** from **Choose file type**, then choose **Create PDF Doc**
 or **Create Word Doc**. Stratum captures the note text and citation preferences at
-that moment. Each click creates a separate document with a unique filename.
+that moment. Each click creates a separate document named from the note title,
+such as **Example document.pdf**. If a name is already taken, Stratum uses
+**Example document(2).pdf**, **Example document(3).pdf**, and so on. Word documents
+use the same pattern with **.docx**. Save as suggests this filename. Existing
+publications keep their filenames. The file type resets after successful publishing
+and whenever you leave the Publish tab.
 
 Citations use the same formatting as Stratum's Reading view, including the note's
 citation style and language overrides. Footnotes become native document footnotes.
@@ -41,15 +47,19 @@ is left unchanged. Headings, emphasis, lists, quotes, tables, external links, an
 vault images are preserved with document formatting rather than Obsidian theme CSS.
 Wikilinks become their displayed labels. Properties and Obsidian controls are omitted.
 
-The list below the controls shows that note's documents, newest first. Filter by
-**All file types**, **PDF**, or **Word**. Each row provides:
+The list below the controls shows all of that note's PDF and Word documents,
+newest first. Each row provides:
 
-- **Open**: open the stored document in the system's default application. Saving
-  edits in that application changes this stored document.
+- **Preview** (eye, PDF only): open the actual PDF in a main-pane tab with page
+  navigation, zoom, and selectable text. The file stays in hidden publication
+  storage. The sidebar keeps showing its source note's publications.
 - **Save as**: choose a destination in the native save dialog and save a copy. The
   stored document remains in the list. Cancelling the dialog makes no changes.
 - **Delete**: confirm removal of the stored document. Source notes and saved copies
   elsewhere remain intact.
+
+Word documents have Save as and Delete actions. Save a copy to open it in Word.
+Deleting a PDF also clears any open preview of it.
 
 To hide the tab, disable **Settings → Stratum → Publishing → Show Publish tab**.
 This keeps existing documents.

@@ -13,6 +13,7 @@ export interface ToolStatus {
   path: string;
   version: string;
   error?: string;
+  foundPath?: string;
 }
 export interface PublishReadiness {
   pandoc: ToolStatus;
@@ -226,36 +227,58 @@ export async function detectPublishTool(
   configured: string,
   signal?: AbortSignal,
 ): Promise<ToolStatus> {
-  const { os, path, process } = modules();
+  const { fs, os, path, process } = modules();
   const home = os.homedir();
-  const candidates = configured.trim()
-    ? [configured.trim()]
-    : [
-        name,
-        ...[
+  const windows = process.platform === "win32";
+  const executable = windows ? `${name}.exe` : name;
+  const searchPath = process.env.PATH ?? process.env.Path ?? "";
+  const directories = [
+    ...searchPath
+      .split(windows ? ";" : ":")
+      .filter((dir) => path.isAbsolute(dir)),
+    ...(windows
+      ? [process.env.LOCALAPPDATA, process.env.ProgramFiles]
+          .filter((dir): dir is string => !!dir)
+          .map((dir) =>
+            path.join(dir, name === "pandoc" ? "Pandoc" : "Tectonic"),
+          )
+      : [
           "/opt/homebrew/bin",
           "/usr/local/bin",
           "/usr/bin",
+          "/opt/local/bin",
           path.join(home, ".local", "bin"),
           path.join(home, ".cargo", "bin"),
-        ].map((dir) => path.join(dir, name)),
-        ...[process.env.LOCALAPPDATA, process.env.ProgramFiles]
-          .filter((dir): dir is string => !!dir)
-          .map((dir) =>
-            path.join(
-              dir,
-              name === "pandoc" ? "Pandoc" : "Tectonic",
-              `${name}.exe`,
-            ),
-          ),
-      ];
-  let error =
-    "Not installed or not found. Choose the executable if you already installed it.";
+          `/opt/homebrew/opt/${name}/bin`,
+          `/usr/local/opt/${name}/bin`,
+        ]),
+  ];
+  const override = configured.trim().replace(/^~[/\\]/, `${home}${path.sep}`);
+  const candidates = [
+    ...new Set(
+      override && override !== name && override !== executable
+        ? [override]
+        : directories.map((dir) => path.join(dir, executable)),
+    ),
+  ];
+  let failure: ToolStatus | undefined;
   for (const candidate of candidates) {
     if (signal?.aborted) throw new Error("Setup cancelled.");
+    let absolute: string;
+    try {
+      absolute = await fs.realpath(candidate);
+    } catch (error) {
+      if (override)
+        failure = {
+          path: "",
+          version: "",
+          error: `Could not start the publishing tool: ${error instanceof Error ? error.message : "File not found."}`,
+        };
+      continue;
+    }
     try {
       const version = (
-        await runPublishTool(candidate, ["--version"], {
+        await runPublishTool(absolute, ["--version"], {
           timeout: 8_000,
           signal,
         })
@@ -264,13 +287,30 @@ export async function detectPublishTool(
         .trim();
       if (!version.toLowerCase().includes(name))
         throw new Error(`Choose the ${name} executable.`);
-      return { path: candidate, version };
+      return { path: absolute, version };
     } catch (reason) {
-      if (configured) error = reason instanceof Error ? reason.message : error;
+      failure ??= {
+        path: "",
+        version: "",
+        foundPath: absolute,
+        error:
+          reason instanceof Error
+            ? reason.message
+            : "The installed tool could not run.",
+      };
     }
   }
-  return { path: "", version: "", error };
+  if (signal?.aborted) throw new Error("Setup cancelled.");
+  return (
+    failure ?? {
+      path: "",
+      version: "",
+      error:
+        "Not found. Install the tool, then check again, or choose its location in advanced settings.",
+    }
+  );
 }
+
 export async function convertPublication(
   html: string,
   assets: PublishAsset[],
@@ -329,23 +369,27 @@ export async function convertPublication(
   }
 }
 const probeHtml =
-  '<html xmlns:epub="http://www.idpf.org/2007/ops"><head><meta charset="utf-8"><title>Publishing check</title></head><body><h1>Publishing check</h1><p>A <em>formatted</em> citation (Example, 2024)<a epub:type="noteref" href="#n">1</a>.</p><table><tr><th>Example</th></tr><tr><td>Value</td></tr></table><p><img src="asset-0.png" alt="Test image"></p><aside epub:type="footnote" id="n"><p>Example footnote.</p></aside></body></html>';
+  '<html xmlns:epub="http://www.idpf.org/2007/ops"><head><meta charset="utf-8"><title>Publishing check</title></head><body><h1>Publishing check</h1><p>A <em>formatted</em> citation (Example, 2024)<a epub:type="noteref" href="#n">1</a>.</p><table><tr><th>Example</th></tr><tr><td>Value</td></tr></table><p><img src="asset-0.png" alt="Test image"></p><aside epub:type="footnote" id="n"><p>Example footnote.</p></aside><h2>References</h2><div class="csl-bib-body hanging-indent"><div id="ref-stratum-setup" class="csl-entry">Example, A. (2024). <i>Synthetic reference.</i></div></div></body></html>';
 export async function checkPublishing(
   pandocPath: string,
   tectonicPath: string,
   preparePdf: boolean,
   signal?: AbortSignal,
   progress?: (text: string) => void,
+  report?: (readiness: PublishReadiness) => void,
 ): Promise<PublishReadiness> {
   progress?.("Looking for publishing tools…");
-  const pandoc = await detectPublishTool("pandoc", pandocPath, signal);
-  const tectonic = await detectPublishTool("tectonic", tectonicPath, signal);
+  const [pandoc, tectonic] = await Promise.all([
+    detectPublishTool("pandoc", pandocPath, signal),
+    detectPublishTool("tectonic", tectonicPath, signal),
+  ]);
   const readiness: PublishReadiness = {
     pandoc,
     tectonic,
     word: false,
     pdf: false,
   };
+  report?.({ ...readiness });
   if (!pandoc.path) return readiness;
   // One synthetic pixel; never use the user's note for setup checks.
   const pixel = Uint8Array.from(
@@ -370,6 +414,7 @@ export async function checkPublishing(
       error instanceof Error ? error.message : "Word conversion failed.";
   }
   if (signal?.aborted) throw new Error("Setup cancelled.");
+  report?.({ ...readiness });
   if (preparePdf && tectonic.path) {
     progress?.(
       "Preparing PDF support. The first check may download support files and take several minutes…",
@@ -390,6 +435,7 @@ export async function checkPublishing(
     }
   }
   if (signal?.aborted) throw new Error("Setup cancelled.");
+  report?.({ ...readiness });
   return readiness;
 }
 export async function choosePublishExecutable(

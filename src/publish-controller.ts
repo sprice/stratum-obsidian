@@ -11,7 +11,7 @@ import type StratumPlugin from "./plugin";
 import { PublishStore } from "./publish-store";
 import {
   formatLabel,
-  publishFilename,
+  VIEW_TYPE_PUBLISH_PREVIEW,
   type PublishCatalog,
   type PublishedDocument,
   type PublishFormat,
@@ -19,7 +19,6 @@ import {
 import {
   checkPublishing,
   convertPublication,
-  openPublishedFile,
   savePublishedCopy,
   type PublishReadiness,
 } from "./publish-desktop";
@@ -35,7 +34,6 @@ export class PublishController extends Component {
   progress = "";
   error = "";
   selectedFormat: PublishFormat | "" = "";
-  filter: PublishFormat | "all" = "all";
   readonly store: PublishStore;
   private listeners = new Set<() => void>();
   private aborter: AbortController | null = null;
@@ -116,6 +114,31 @@ export class PublishController extends Component {
       if (candidate === leaf) root = true;
     });
     if (!root) return;
+    if (leaf?.view.getViewType?.() === VIEW_TYPE_PUBLISH_PREVIEW) {
+      const document = this.catalog?.documents.find(
+        (entry) => entry.id === leaf.view.getState().documentId,
+      );
+      const note = this.catalog?.notes.find(
+        (entry) => entry.id === document?.noteId,
+      );
+      const file = note?.path
+        ? this.plugin.app.vault.getAbstractFileByPath(note.path)
+        : null;
+      this.document =
+        file instanceof TFile && file.stat.ctime === note?.ctime ? file : null;
+      // Keep an open source editor, including unsaved text, when available.
+      let sourceLeaf: WorkspaceLeaf | null = null;
+      this.plugin.app.workspace.iterateRootLeaves((candidate) => {
+        if (
+          candidate.view instanceof MarkdownView &&
+          candidate.view.file === this.document
+        )
+          sourceLeaf = candidate;
+      });
+      this.leaf = sourceLeaf;
+      this.emit();
+      return;
+    }
     const file = leaf?.view instanceof MarkdownView ? leaf.view.file : null;
     this.document = file?.extension === "md" ? file : null;
     this.leaf = this.document ? leaf : null;
@@ -144,6 +167,11 @@ export class PublishController extends Component {
     const catalog = await this.store.list();
     if (revision === this.loadRevision && this.alive) {
       this.catalog = catalog;
+      const recent = this.plugin.app.workspace.getMostRecentLeaf(
+        this.plugin.app.workspace.rootSplit,
+      );
+      if (recent?.view.getViewType?.() === VIEW_TYPE_PUBLISH_PREVIEW)
+        this.follow(recent);
       this.emit();
     }
   }
@@ -153,11 +181,7 @@ export class PublishController extends Component {
         n.path === this.document?.path && n.ctime === this.document.stat.ctime,
     );
     return (this.catalog?.documents ?? [])
-      .filter(
-        (d) =>
-          d.noteId === note?.id &&
-          (this.filter === "all" || this.filter === d.format),
-      )
+      .filter((d) => d.noteId === note?.id)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   canCreate(): boolean {
@@ -175,6 +199,7 @@ export class PublishController extends Component {
   async check(preparePdf = false): Promise<void> {
     if (this.checking || this.busy || !Platform.isDesktopApp) return;
     this.checking = true;
+    this.readiness = null;
     this.error = "";
     this.aborter = new AbortController();
     this.emit();
@@ -186,6 +211,11 @@ export class PublishController extends Component {
         this.aborter.signal,
         (text) => {
           this.progress = text;
+          this.emit();
+        },
+        (readiness) => {
+          if (!this.alive || this.aborter?.signal.aborted) return;
+          this.readiness = readiness;
           this.emit();
         },
       );
@@ -231,7 +261,7 @@ export class PublishController extends Component {
     const aborter = (this.aborter = new AbortController());
     this.busy = true;
     this.error = "";
-    this.progress = `Creating ${formatLabel(format)} document for ${title}…`;
+    this.progress = `Creating ${formatLabel(format)} document…`;
     this.emit();
     try {
       const text = source ?? (await this.plugin.app.vault.read(file));
@@ -259,18 +289,19 @@ export class PublishController extends Component {
       if (aborter.signal.aborted || !this.alive) return;
       const id = crypto.randomUUID(),
         date = new Date();
-      await this.store.add(
+      await this.store.create(
         {
           id,
           noteId: note.id,
-          filename: publishFilename(title, format, date, id),
           format,
           createdAt: date.toISOString(),
           citationStyle: preferences.style,
           citationLanguage: preferences.language,
         },
+        title,
         bytes,
       );
+      this.selectedFormat = "";
       await this.reload();
       new Notice(`${formatLabel(format)} document created for ${title}.`);
     } catch (error) {
@@ -296,7 +327,19 @@ export class PublishController extends Component {
         throw new Error(
           "This published file is missing. Save another publication or remove this entry.",
         );
-      await openPublishedFile(this.absolute(document));
+      if (document.format !== "pdf") return;
+      const workspace = this.plugin.app.workspace;
+      const existing = workspace
+        .getLeavesOfType(VIEW_TYPE_PUBLISH_PREVIEW)
+        .find((leaf) => leaf.view.getState().documentId === document.id);
+      const leaf = existing ?? workspace.getLeaf("tab");
+      if (!existing)
+        await leaf.setViewState({
+          type: VIEW_TYPE_PUBLISH_PREVIEW,
+          state: { documentId: document.id },
+          active: true,
+        });
+      await workspace.revealLeaf(leaf);
     } catch (error) {
       this.fail(error);
     }

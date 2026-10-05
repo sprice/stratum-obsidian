@@ -167,3 +167,78 @@ test("interrupted deletion restores documents still referenced by the catalog", 
   await store.remove("doc");
   assert.equal((await store.list()).documents.length, 0);
 });
+
+test("numbered names skip collisions in history and storage, including simultaneous publications", async () => {
+  const m = memory();
+  const store = new PublishStore(m.adapter, ".config");
+  const note = await store.note("Example.md", "Example", 1);
+  const first = await store.create(
+    doc(note.id, "one"),
+    "Example",
+    new ArrayBuffer(1),
+  );
+  assert.equal(first.filename, "Example.pdf");
+  // History still owns a name when its file goes missing.
+  m.files.delete(store.path(first));
+  m.files.set(`${store.directory}/Example(2).pdf`, new ArrayBuffer(8));
+  m.files.set(`${store.directory}/Example(3).pdf.deleting`, new ArrayBuffer(9));
+  const [second, third] = await Promise.all([
+    store.create(doc(note.id, "two"), "Example", new ArrayBuffer(2)),
+    store.create(doc(note.id, "three"), "Example", new ArrayBuffer(3)),
+  ]);
+  assert.equal(second.filename, "Example(4).pdf");
+  assert.equal(third.filename, "Example(5).pdf");
+  assert.equal(
+    (m.files.get(`${store.directory}/Example(2).pdf`) as ArrayBuffer)
+      .byteLength,
+    8,
+  );
+  assert.equal((await store.list()).documents.length, 3);
+});
+
+test("a filename occupied during the final rename increments the number without overwriting", async () => {
+  const m = memory();
+  const store = new PublishStore(m.adapter, ".config");
+  const note = await store.note("Example.md", "Example", 1);
+  const rename = m.adapter.rename.bind(m.adapter);
+  m.adapter.rename = async (from, to) => {
+    if (to.endsWith("/Example.pdf")) m.files.set(to, new ArrayBuffer(9));
+    await rename(from, to);
+  };
+  const result = await store.create(
+    doc(note.id),
+    "Example",
+    new ArrayBuffer(1),
+  );
+  assert.equal(result.filename, "Example(2).pdf");
+  assert.equal(
+    (m.files.get(`${store.directory}/Example.pdf`) as ArrayBuffer).byteLength,
+    9,
+  );
+  assert.ok(![...m.files.keys()].some((path) => path.endsWith(".tmp")));
+});
+
+test("numbering continues beyond 100 copies and is separate for each format", async () => {
+  const m = memory();
+  const store = new PublishStore(m.adapter, ".config");
+  const note = await store.note("Example.md", "Example", 1);
+  m.files.set(`${store.directory}/Example.pdf`, new ArrayBuffer(1));
+  for (let number = 2; number <= 100; number++)
+    m.files.set(
+      `${store.directory}/Example(${number}).pdf`,
+      new ArrayBuffer(1),
+    );
+  const pdf = await store.create(
+    doc(note.id, "one"),
+    "Example",
+    new ArrayBuffer(2),
+  );
+  const word = await store.create(
+    { ...doc(note.id, "two"), format: "docx" },
+    "Example",
+    new ArrayBuffer(3),
+  );
+  assert.equal(pdf.filename, "Example(101).pdf");
+  assert.equal(word.filename, "Example.docx");
+  assert.equal((await store.list()).documents.length, 2);
+});

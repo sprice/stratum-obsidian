@@ -275,6 +275,13 @@ export default class StratumPlugin extends Plugin {
       const { PublishController } = await import("./publish-controller");
       if (this.isUnloaded) return;
       this.publish = this.addChild(new PublishController(this));
+      const { PublishPreviewView } = await import("./publish-preview");
+      const { VIEW_TYPE_PUBLISH_PREVIEW } = await import("./publish-model");
+      if (this.isUnloaded) return;
+      this.registerView(
+        VIEW_TYPE_PUBLISH_PREVIEW,
+        (leaf) => new PublishPreviewView(leaf, this.publish!),
+      );
     }
     this.settingTab = new StratumSettingTab(this);
     this.addSettingTab(this.settingTab);
