@@ -69,7 +69,8 @@ class Control {
   setTooltip() {
     return this;
   }
-  onChange() {
+  onChange(callback: (value: string) => void) {
+    this.inputEl.addEventListener("change", () => callback(this.inputEl.value));
     return this;
   }
   onClick() {
@@ -115,6 +116,11 @@ test("setup rechecks stale detection on every open and offers PDF verification w
     subscribe: (callback: () => void) => {
       callbacks.add(callback);
       return () => callbacks.delete(callback);
+    },
+    emit: () => callbacks.forEach((callback) => callback()),
+    invalidateSupport: () => {
+      publish.readiness = null;
+      publish.emit();
     },
     check: (pdf = false) => {
       checks.push(pdf);
@@ -166,6 +172,33 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   callbacks.forEach((callback) => callback());
   assert.ok(content.find("Done"));
   assert.equal(content.find("Check again")!.hidden, false);
+  modal.onClose();
+  modal.onOpen();
+  assert.deepEqual(
+    checks,
+    [false, true],
+    "reopening verified setup does not rerun conversion",
+  );
+  let sidebarReadiness = publish.readiness;
+  const updateSidebar = () => {
+    sidebarReadiness = publish.readiness;
+  };
+  callbacks.add(updateSidebar);
+  const advanced = content.children.find(
+    (child) => child.tagName === "DETAILS",
+  )!;
+  const pathInput = advanced.children.find(
+    (child) => child.tagName === "INPUT",
+  )!;
+  pathInput.value = "/different/pandoc";
+  pathInput.listeners.get("change")!();
+  assert.equal(publish.readiness, null);
+  assert.equal(
+    sidebarReadiness,
+    null,
+    "the sidebar must stop offering creation after a tool path changes",
+  );
+  callbacks.delete(updateSidebar);
   modal.onClose();
   assert.equal(callbacks.size, 0);
   modal.onOpen();

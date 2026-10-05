@@ -21,7 +21,20 @@ selection when you focus the sidebar. Editing and Reading view both work.
    sample, never your note. Word is checked automatically when setup opens.
 5. For custom installations, expand **Advanced** to browse for an executable or
    enter its path. **Use automatic detection** clears custom paths and checks
-   again. Reopening setup also checks for newly installed tools.
+   again. Reopening incomplete setup also checks for newly installed tools.
+
+Successful setup is remembered in the vault's plugin settings. Publish uses that
+saved readiness immediately after restarting Obsidian. Once per launch, a silent
+background check confirms that the tools can still run; it does not create a
+sample PDF or show checking text. Changing executable paths clears saved readiness.
+Use **Check again** in setup to explicitly repeat the full conversion checks.
+
+Successful publications do not run additional support checks. If conversion fails,
+Stratum checks the tools and tests the affected format using a synthetic document.
+Missing tools or a failed sample conversion update saved readiness and show setup
+guidance. If the sample succeeds, support stays enabled and the original document
+error remains visible. Cancelling a publication and unsupported note content do not
+clear verified support.
 
 Word can be used while PDF setup is incomplete. Tool errors appear in setup and
 can be retried. On macOS, allow a downloaded executable through the operating

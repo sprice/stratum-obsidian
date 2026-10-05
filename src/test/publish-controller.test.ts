@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { setImmediate as settle } from "node:timers/promises";
+import type { PublishReadiness } from "../publish-desktop";
+import type { StratumSettings } from "../settings-data";
 import { webcrypto } from "node:crypto";
 import { loadRuntime } from "./runtime-harness";
 import type * as Controller from "../publish-controller";
@@ -19,7 +22,28 @@ class View {
     public text: string,
   ) {}
 }
-function setup() {
+const readySupport: PublishReadiness = {
+  word: true,
+  pdf: true,
+  pandoc: { path: "/synthetic/pandoc", version: "3" },
+  tectonic: { path: "/synthetic/tectonic", version: "0.17" },
+};
+const cachedSupport = () => ({
+  version: 1 as const,
+  pandocPath: "",
+  tectonicPath: "",
+  readiness: structuredClone(readySupport),
+});
+function setup(settings: Partial<StratumSettings> = {}) {
+  const calls = { detect: 0, probe: [] as string[], check: 0, save: 0 };
+  const behavior = {
+    missing: "",
+    conversionError: "",
+    probeError: "",
+    renderError: "",
+    detection: Promise.resolve(),
+  };
+
   const files = new Map<string, string | ArrayBuffer>();
   const events = new Map<string, (...args: never[]) => void>();
   const adapter: PublishAdapter = {
@@ -69,7 +93,7 @@ function setup() {
       TFile: File,
       Notice: class {},
     },
-    { AbortController, TextEncoder, crypto: webcrypto },
+    { AbortController, TextEncoder, Error, crypto: webcrypto },
     "browser",
     {
       "./publish-render": {
@@ -79,11 +103,29 @@ function setup() {
           path: string,
           title: string,
         ) => {
+          if (behavior.renderError) throw new Error(behavior.renderError);
           rendered.push({ text, path, title });
           return Promise.resolve({ html: "synthetic", assets: [] });
         },
       },
       "./publish-desktop": {
+        detectPublishTool: async (name: "pandoc" | "tectonic") => {
+          calls.detect++;
+          await behavior.detection;
+          return behavior.missing === name
+            ? { path: "", version: "", error: "Missing" }
+            : readySupport[name];
+        },
+        probePublication: (format: string) => {
+          calls.probe.push(format);
+          return behavior.probeError
+            ? Promise.reject(new Error(behavior.probeError))
+            : Promise.resolve();
+        },
+        checkPublishing: () => {
+          calls.check++;
+          return Promise.resolve(structuredClone(readySupport));
+        },
         convertPublication: async (
           _html: string,
           _assets: unknown,
@@ -93,6 +135,8 @@ function setup() {
         ) => {
           await conversion;
           if (signal.aborted) throw new Error("Publishing cancelled.");
+          if (behavior.conversionError)
+            throw new Error(behavior.conversionError);
           return new ArrayBuffer(4);
         },
       },
@@ -104,7 +148,17 @@ function setup() {
     other = { view: new View(second, "Second note") };
   const roots = [leaf, other];
   const plugin = {
-    settings: { citationStyle: "apa", citationLanguage: "en-US" },
+    settings: {
+      citationStyle: "apa",
+      citationLanguage: "en-US",
+      pandocPath: "",
+      tectonicPath: "",
+      ...settings,
+    },
+    saveSettings: () => {
+      calls.save++;
+      return Promise.resolve();
+    },
     citations: {
       preferences: () => ({ style: "apa", language: "en-US" }),
       formatForPublication: () => Promise.resolve(undefined),
@@ -137,13 +191,24 @@ function setup() {
   controller.onload();
   controller.catalog = { version: 1, notes: [], documents: [] };
   controller.selectedFormat = "docx";
-  controller.readiness = {
+  controller.readiness ??= {
     word: true,
     pdf: false,
     pandoc: { path: "pandoc", version: "3" },
     tectonic: { path: "", version: "" },
   };
-  return { controller, leaf, other, rendered, release, events, roots };
+  return {
+    controller,
+    leaf,
+    other,
+    rendered,
+    release,
+    events,
+    roots,
+    plugin,
+    calls,
+    behavior,
+  };
 }
 
 test("switching notes during publication preserves the click-time document and ignores duplicate clicks", async () => {
@@ -251,4 +316,117 @@ test("cancelled publishing keeps the file type selected for retry", async () => 
   await pending;
   assert.equal(controller.selectedFormat, "docx");
   assert.equal((await controller.store.list()).documents.length, 0);
+});
+
+test("cached support is available immediately and only silently detects tools once per launch", async () => {
+  const { controller, calls, release, plugin } = setup({
+    publishReadinessCache: cachedSupport(),
+  });
+  assert.equal(controller.readiness?.pdf, true);
+  assert.equal(controller.checking, false);
+  assert.equal(controller.progress, "");
+  await settle();
+  controller.subscribe(() => {})();
+  controller.subscribe(() => {})();
+  release();
+  await controller.create();
+  controller.selectedFormat = "pdf";
+  await controller.create();
+  assert.equal(calls.detect, 2);
+  assert.equal(calls.check, 0);
+  assert.deepEqual(calls.probe, []);
+  assert.equal(plugin.settings.publishReadinessCache?.readiness.pdf, true);
+});
+
+test("legacy successful PDF setup migrates silently without a conversion check", async () => {
+  const { controller, calls, plugin } = setup({
+    publishPdfSetupComplete: true,
+  });
+  assert.equal(controller.readiness?.pdf, true);
+  await settle();
+  assert.equal(calls.check, 0);
+  assert.deepEqual(calls.probe, []);
+  assert.equal(plugin.settings.publishReadinessCache?.readiness.pdf, true);
+});
+
+test("a tool removed before startup invalidates persisted support without checking text", async () => {
+  const { controller, calls, behavior, plugin } = setup({
+    publishReadinessCache: cachedSupport(),
+  });
+  behavior.missing = "tectonic";
+  await settle();
+  assert.equal(controller.readiness?.word, true);
+  assert.equal(controller.readiness?.pdf, false);
+  assert.equal(plugin.settings.publishPdfSetupComplete, false);
+  assert.equal(plugin.settings.publishReadinessCache?.readiness.pdf, false);
+  assert.equal(controller.progress, "");
+  assert.equal(calls.check, 0);
+});
+
+test("failed conversion detects lost tools after launch and preserves the original error", async () => {
+  const { controller, behavior, calls, plugin, release } = setup();
+  behavior.conversionError = "Pandoc could not start";
+  behavior.missing = "pandoc";
+  release();
+  await controller.create();
+  assert.equal(controller.readiness?.word, false);
+  assert.equal(controller.readiness?.pdf, false);
+  assert.equal(plugin.settings.publishReadinessCache?.readiness.word, false);
+  assert.match(controller.error, /Pandoc could not start/);
+  assert.equal(calls.detect, 2);
+  assert.deepEqual(calls.probe, []);
+});
+
+test("document-specific conversion failures keep support while failed synthetic probes invalidate only the affected format", async () => {
+  for (const probeError of ["", "Synthetic PDF failure"]) {
+    const { controller, behavior, calls, plugin, release } = setup();
+    controller.readiness = structuredClone(readySupport);
+    controller.selectedFormat = "pdf";
+    behavior.conversionError = "Invalid document content";
+    behavior.probeError = probeError;
+    release();
+    await controller.create();
+    assert.equal(controller.readiness?.word, true);
+    assert.equal(controller.readiness?.pdf, !probeError);
+    assert.equal(
+      plugin.settings.publishReadinessCache?.readiness.pdf,
+      !probeError,
+    );
+    assert.match(controller.error, /Invalid document content/);
+    assert.deepEqual(calls.probe, ["pdf"]);
+  }
+});
+
+test("rendering failures and cancellation do not diagnose or invalidate tools", async () => {
+  const { controller, behavior, calls, release } = setup();
+  behavior.renderError = "Unsupported embedded note";
+  release();
+  await controller.create();
+  assert.equal(calls.detect, 0);
+  assert.equal(controller.readiness?.word, true);
+  behavior.renderError = "";
+  const pending = controller.create();
+  controller.cancel();
+  await pending;
+  assert.equal(calls.detect, 0);
+  assert.deepEqual(calls.probe, []);
+});
+
+test("changing executable paths prevents an in-flight startup check from restoring stale support", async () => {
+  const { controller, plugin } = setup({
+    publishReadinessCache: cachedSupport(),
+  });
+  plugin.settings.pandocPath = "/other/pandoc";
+  controller.invalidateSupport();
+  await settle();
+  assert.equal(controller.readiness, null);
+  assert.equal(plugin.settings.publishReadinessCache, null);
+  assert.equal(plugin.settings.publishPdfSetupComplete, false);
+});
+
+test("explicit setup persists verified support for the next launch", async () => {
+  const { controller, plugin } = setup();
+  await controller.check(true);
+  assert.equal(plugin.settings.publishReadinessCache?.readiness.pdf, true);
+  assert.equal(plugin.settings.publishPdfSetupComplete, true);
 });

@@ -33,6 +33,7 @@ function createMockPlugin(params?: {
   const settingsOverrides = params?.settings ?? {};
   const settings: StratumSettings = {
     publishEnabled: true,
+    publishReadinessCache: null,
     publishPdfSetupComplete: false,
     pandocPath: "",
     tectonicPath: "",

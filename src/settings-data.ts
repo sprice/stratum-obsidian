@@ -1,4 +1,5 @@
 import type { CollectionCatalogs } from "./collection-catalog";
+import type { PublishReadinessCache } from "./publish-readiness";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
 import type { LiteratureNoteFilenameFormat } from "./literature-note-filenames";
 import { getDefaultZoteroDataDir } from "./zotero-data-dir";
@@ -38,6 +39,7 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  publishReadinessCache: PublishReadinessCache | null;
   publishEnabled: boolean;
   publishPdfSetupComplete: boolean;
   pandocPath: string;
@@ -72,6 +74,7 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  publishReadinessCache: null,
   publishEnabled: true,
   publishPdfSetupComplete: false,
   pandocPath: "",

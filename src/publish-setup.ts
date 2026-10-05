@@ -72,8 +72,7 @@ export class PublishSetupModal extends Modal {
             .setValue(this.plugin.settings[key])
             .onChange((value) => {
               this.plugin.settings[key] = value.trim();
-              publish.readiness = null;
-              this.updateStatus();
+              publish.invalidateSupport();
             });
           inputEl.setAttribute("aria-label", `${label} executable path`);
           inputEl.addEventListener("blur", () => {
@@ -92,6 +91,7 @@ export class PublishSetupModal extends Modal {
                 const selected = await choosePublishExecutable(label);
                 if (!selected) return;
                 this.plugin.settings[key] = selected;
+                publish.invalidateSupport();
                 inputEl.value = selected;
                 await this.plugin.saveSettings();
                 await publish.check();
@@ -108,6 +108,7 @@ export class PublishSetupModal extends Modal {
     this.controls.push(reset);
     reset.addEventListener("click", () => {
       this.plugin.settings.pandocPath = this.plugin.settings.tectonicPath = "";
+      publish.invalidateSupport();
       for (const control of this.controls)
         if (control.tagName === "INPUT")
           (control as HTMLInputElement).value = "";
@@ -139,8 +140,13 @@ export class PublishSetupModal extends Modal {
     });
     this.unsubscribe = publish.subscribe(() => this.updateStatus());
     this.updateStatus();
-    // Reopening must detect tools installed since the last attempt.
-    if (!publish.checking && !publish.busy) void publish.check();
+    // Successful setup is cached. Failed or incomplete setup can be retried here.
+    if (
+      !(publish.readiness?.word && publish.readiness.pdf) &&
+      !publish.checking &&
+      !publish.busy
+    )
+      void publish.check();
   }
   private updateStatus(): void {
     const publish = this.plugin.publish!;

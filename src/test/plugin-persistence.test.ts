@@ -249,3 +249,34 @@ test("publishing preferences migrate with defaults and preserve explicit desktop
   assert.equal(configured.settings.pandocPath, "/example/pandoc");
   assert.equal(configured.settings.tectonicPath, "/example/tectonic");
 });
+
+test("publishing readiness survives reload and rejects malformed cache data", async () => {
+  const cache = {
+    version: 1,
+    pandocPath: "",
+    tectonicPath: "",
+    readiness: {
+      word: true,
+      pdf: true,
+      pandoc: { path: "/synthetic/pandoc", version: "3" },
+      tectonic: { path: "/synthetic/tectonic", version: "0.17" },
+    },
+  };
+  for (const value of [
+    cache,
+    { ...cache, version: 2 },
+    { ...cache, readiness: { ...cache.readiness, tectonic: null } },
+  ]) {
+    const plugin = {
+      loadData: () => Promise.resolve({ publishReadinessCache: value }),
+      saveData: () => Promise.resolve(),
+      app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+      settings: {} as import("../settings-data").StratumSettings,
+    };
+    await loadPluginSettings(plugin as never);
+    assert.deepEqual(
+      plugin.settings.publishReadinessCache,
+      value === cache ? cache : null,
+    );
+  }
+});

@@ -20,6 +20,7 @@ function createSettings(params: {
 }): StratumSettings {
   return {
     publishEnabled: true,
+    publishReadinessCache: null,
     publishPdfSetupComplete: false,
     pandocPath: "",
     tectonicPath: "",

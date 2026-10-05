@@ -370,6 +370,29 @@ export async function convertPublication(
 }
 const probeHtml =
   '<html xmlns:epub="http://www.idpf.org/2007/ops"><head><meta charset="utf-8"><title>Publishing check</title></head><body><h1>Publishing check</h1><p>A <em>formatted</em> citation (Example, 2024)<a epub:type="noteref" href="#n">1</a>.</p><table><tr><th>Example</th></tr><tr><td>Value</td></tr></table><p><img src="asset-0.png" alt="Test image"></p><aside epub:type="footnote" id="n"><p>Example footnote.</p></aside><h2>References</h2><div class="csl-bib-body hanging-indent"><div id="ref-stratum-setup" class="csl-entry">Example, A. (2024). <i>Synthetic reference.</i></div></div></body></html>';
+/** Diagnose conversion support with synthetic content, never the failed note. */
+export async function probePublication(
+  format: PublishFormat,
+  tools: PublishTools,
+  signal?: AbortSignal,
+  timeout = 120_000,
+): Promise<void> {
+  // One synthetic pixel; never use the user's note for setup checks.
+  const pixel = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC",
+    ),
+    (c) => c.charCodeAt(0),
+  ).buffer;
+  await convertPublication(
+    probeHtml,
+    [{ name: "asset-0.png", bytes: pixel }],
+    format,
+    tools,
+    signal,
+    timeout,
+  );
+}
 export async function checkPublishing(
   pandocPath: string,
   tectonicPath: string,
@@ -391,23 +414,10 @@ export async function checkPublishing(
   };
   report?.({ ...readiness });
   if (!pandoc.path) return readiness;
-  // One synthetic pixel; never use the user's note for setup checks.
-  const pixel = Uint8Array.from(
-    atob(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC",
-    ),
-    (c) => c.charCodeAt(0),
-  ).buffer;
   const tools = { pandoc: pandoc.path, tectonic: tectonic.path };
   progress?.("Checking Word conversion…");
   try {
-    await convertPublication(
-      probeHtml,
-      [{ name: "asset-0.png", bytes: pixel }],
-      "docx",
-      tools,
-      signal,
-    );
+    await probePublication("docx", tools, signal);
     readiness.word = true;
   } catch (error) {
     readiness.wordError =
@@ -420,14 +430,7 @@ export async function checkPublishing(
       "Preparing PDF support. The first check may download support files and take several minutes…",
     );
     try {
-      await convertPublication(
-        probeHtml,
-        [{ name: "asset-0.png", bytes: pixel }],
-        "pdf",
-        tools,
-        signal,
-        600_000,
-      );
+      await probePublication("pdf", tools, signal, 600_000);
       readiness.pdf = true;
     } catch (error) {
       readiness.pdfError =

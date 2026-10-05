@@ -19,10 +19,13 @@ import {
 import {
   checkPublishing,
   convertPublication,
+  detectPublishTool,
+  probePublication,
   savePublishedCopy,
   type PublishReadiness,
 } from "./publish-desktop";
 import { renderPublication } from "./publish-render";
+import { readPublishReadinessCache } from "./publish-readiness";
 
 export class PublishController extends Component {
   document: TFile | null = null;
@@ -40,12 +43,30 @@ export class PublishController extends Component {
   private loaded = false;
   private alive = true;
   private loadRevision = 0;
+  private supportRevision = 0;
+  private background: AbortController | null = null;
   constructor(readonly plugin: StratumPlugin) {
     super();
     this.store = new PublishStore(
       plugin.app.vault.adapter,
       plugin.app.vault.configDir,
     );
+    const settings = plugin.settings;
+    const cache = readPublishReadinessCache(settings.publishReadinessCache);
+    if (
+      cache &&
+      cache.pandocPath === settings.pandocPath &&
+      cache.tectonicPath === settings.tectonicPath
+    )
+      this.readiness = cache.readiness;
+    else if (!cache && settings.publishPdfSetupComplete)
+      // Migrate the previous successful PDF setup without another typesetting run.
+      this.readiness = {
+        word: true,
+        pdf: true,
+        pandoc: { path: settings.pandocPath || "pandoc", version: "" },
+        tectonic: { path: settings.tectonicPath || "tectonic", version: "" },
+      };
   }
   onload(): void {
     if (!Platform.isDesktopApp) return;
@@ -95,10 +116,12 @@ export class PublishController extends Component {
       }),
     );
     this.followRecent();
+    if (this.readiness) void this.validateCachedSupport();
   }
   onunload(): void {
     this.alive = false;
     this.aborter?.abort();
+    this.background?.abort();
     this.listeners.clear();
   }
   private followRecent(): void {
@@ -196,8 +219,101 @@ export class PublishController extends Component {
         : !!this.readiness?.word)
     );
   }
+  invalidateSupport(): void {
+    this.supportRevision++;
+    this.background?.abort();
+    this.readiness = null;
+    this.plugin.settings.publishReadinessCache = null;
+    this.plugin.settings.publishPdfSetupComplete = false;
+    this.emit();
+  }
+  private async persistSupport(): Promise<void> {
+    if (!this.alive || !this.readiness) return;
+    const settings = this.plugin.settings;
+    settings.publishPdfSetupComplete = this.readiness.pdf;
+    settings.publishReadinessCache = readPublishReadinessCache({
+      version: 1,
+      pandocPath: settings.pandocPath,
+      tectonicPath: settings.tectonicPath,
+      readiness: this.readiness,
+    });
+    await this.plugin.saveSettings();
+  }
+  private async detectedSupport(
+    previous: PublishReadiness,
+    signal: AbortSignal,
+  ): Promise<PublishReadiness> {
+    const [pandoc, tectonic] = await Promise.all([
+      detectPublishTool("pandoc", this.plugin.settings.pandocPath, signal),
+      detectPublishTool("tectonic", this.plugin.settings.tectonicPath, signal),
+    ]);
+    return {
+      pandoc,
+      tectonic,
+      word: previous.word && !!pandoc.path,
+      pdf: previous.pdf && !!pandoc.path && !!tectonic.path,
+    };
+  }
+  private async validateCachedSupport(): Promise<void> {
+    const revision = ++this.supportRevision;
+    const aborter = (this.background = new AbortController());
+    try {
+      const ready = await this.detectedSupport(this.readiness!, aborter.signal);
+      if (
+        !this.alive ||
+        aborter.signal.aborted ||
+        revision !== this.supportRevision
+      )
+        return;
+      this.readiness = ready;
+      this.emit();
+      await this.persistSupport();
+    } catch (error) {
+      if (
+        this.alive &&
+        !aborter.signal.aborted &&
+        revision === this.supportRevision
+      )
+        this.fail(error);
+    } finally {
+      if (this.background === aborter) this.background = null;
+    }
+  }
+  private async diagnoseFailure(
+    format: PublishFormat,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const previous = this.readiness;
+    if (!previous) return;
+    this.supportRevision++;
+    this.background?.abort();
+    this.progress = "Checking why publishing failed…";
+    this.emit();
+    const ready = await this.detectedSupport(previous, signal);
+    if (ready.pandoc.path && (format === "docx" || ready.tectonic.path)) {
+      try {
+        await probePublication(
+          format,
+          { pandoc: ready.pandoc.path, tectonic: ready.tectonic.path },
+          signal,
+        );
+        if (format === "pdf") ready.pdf = true;
+        else ready.word = true;
+      } catch {
+        if (signal.aborted) return;
+        if (format === "pdf") ready.pdf = false;
+        else ready.word = false;
+      }
+    }
+    if (signal.aborted || !this.alive) return;
+    this.readiness = ready;
+    await this.persistSupport();
+  }
   async check(preparePdf = false): Promise<void> {
     if (this.checking || this.busy || !Platform.isDesktopApp) return;
+    this.supportRevision++;
+    this.background?.abort();
+    const previous = this.readiness;
     this.checking = true;
     this.readiness = null;
     this.error = "";
@@ -219,11 +335,10 @@ export class PublishController extends Component {
           this.emit();
         },
       );
-      if (this.readiness.pdf && !this.plugin.settings.publishPdfSetupComplete) {
-        this.plugin.settings.publishPdfSetupComplete = true;
-        await this.plugin.saveSettings();
-      }
+      if (!this.aborter.signal.aborted && this.alive)
+        await this.persistSupport();
     } catch (error) {
+      if (this.aborter?.signal.aborted) this.readiness = previous;
       this.fail(error);
     } finally {
       this.checking = false;
@@ -263,6 +378,7 @@ export class PublishController extends Component {
     this.error = "";
     this.progress = `Creating ${formatLabel(format)} document…`;
     this.emit();
+    let converting = false;
     try {
       const text = source ?? (await this.plugin.app.vault.read(file));
       const preferences = this.plugin.citations.preferences(path, text);
@@ -279,6 +395,7 @@ export class PublishController extends Component {
         formatted,
         aborter.signal,
       );
+      converting = true;
       const bytes = await convertPublication(
         rendered.html,
         rendered.assets,
@@ -286,6 +403,7 @@ export class PublishController extends Component {
         tools,
         aborter.signal,
       );
+      converting = false;
       if (aborter.signal.aborted || !this.alive) return;
       const id = crypto.randomUUID(),
         date = new Date();
@@ -306,6 +424,13 @@ export class PublishController extends Component {
       new Notice(`${formatLabel(format)} document created for ${title}.`);
     } catch (error) {
       this.fail(error);
+      if (converting && !aborter.signal.aborted && this.alive) {
+        try {
+          await this.diagnoseFailure(format, aborter.signal);
+        } catch {
+          // Preserve the original failure if diagnosis itself cannot finish.
+        }
+      }
     } finally {
       this.busy = false;
       this.progress = "";

@@ -1,3 +1,4 @@
+import { readPublishReadinessCache } from "./publish-readiness";
 import {
   loadCitationResources,
   saveCitationResources,
@@ -409,6 +410,9 @@ function readStoredSettings(value: unknown): Omit<
   }
   if (typeof value.publishPdfSetupComplete === "boolean")
     nextSettings.publishPdfSetupComplete = value.publishPdfSetupComplete;
+  nextSettings.publishReadinessCache = readPublishReadinessCache(
+    value.publishReadinessCache,
+  );
   if (typeof value.publishEnabled === "boolean")
     nextSettings.publishEnabled = value.publishEnabled;
   for (const key of ["pandocPath", "tectonicPath"] as const) {
