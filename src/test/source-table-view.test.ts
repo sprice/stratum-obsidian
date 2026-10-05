@@ -24,6 +24,9 @@ class Element {
   setAttr(key: string, value: string) {
     this.attrs[key] = value;
   }
+  setAttribute(key: string, value: string) {
+    this.setAttr(key, value);
+  }
   setText(text: string) {
     this.text = text;
   }
@@ -65,6 +68,107 @@ class Element {
   trigger(event: string) {
     this.listeners.get(event)?.();
   }
+}
+
+for (const failSave of [false, true]) {
+  test(`inline style selector applies to the captured note and recovers from save failure=${failSave}`, async () => {
+    class Dropdown {
+      static instances: Dropdown[] = [];
+      selectEl: Element;
+      disabled = false;
+      change!: (value: string) => Promise<void>;
+      constructor(parent: Element) {
+        this.selectEl = parent.createEl("select");
+        Dropdown.instances.push(this);
+      }
+      addOption(value: string, text: string) {
+        this.selectEl.createEl("option", { value, text });
+        return this;
+      }
+      setValue(value: string) {
+        this.selectEl.value = value;
+        return this;
+      }
+      setDisabled(disabled: boolean) {
+        this.disabled = disabled;
+        return this;
+      }
+      onChange(callback: (value: string) => Promise<void>) {
+        this.change = callback;
+        return this;
+      }
+    }
+    const notices: string[] = [];
+    const { SourcesPanel } = loadRuntime<typeof import("../view-sources")>(
+      "view-sources.ts",
+      {
+        Component: class {},
+        Modal: class {},
+        DropdownComponent: Dropdown,
+        Notice: class {
+          constructor(text: string) {
+            notices.push(text);
+          }
+        },
+      },
+    );
+    const changes: string[][] = [];
+    let settingsOpened = 0;
+    const sources = {
+      citationStyleChoices: () =>
+        Promise.resolve({
+          path: "Synthetic draft.md",
+          selected: "apa",
+          unavailable: false,
+          options: [
+            { id: "apa", title: "APA" },
+            { id: "ieee", title: "IEEE" },
+          ],
+        }),
+      changeCitationStyle: (value: string, path: string) => {
+        changes.push([value, path]);
+        return failSave
+          ? Promise.reject(new Error("Save failed"))
+          : Promise.resolve();
+      },
+      manageCitationStyles: () => {
+        settingsOpened++;
+        return Promise.resolve();
+      },
+    };
+    const root = new Element();
+    const panel = new SourcesPanel(
+      root as never,
+      sources as never,
+      {} as never,
+      {} as never,
+      () => {},
+    );
+    const status = new Element();
+    Object.assign(panel, { citationStatus: status });
+    await (
+      panel as unknown as { renderCitationStatus(): Promise<void> }
+    ).renderCitationStatus();
+    const control = Dropdown.instances[0];
+    assert.equal(control.selectEl.value, "apa");
+    assert.equal(
+      control.selectEl.attrs["aria-label"],
+      "Citation style for this note",
+    );
+    control.setValue("ieee");
+    const saving = control.change("ieee");
+    assert.equal(control.disabled, true);
+    await saving;
+    assert.deepEqual(changes, [["ieee", "Synthetic draft.md"]]);
+    assert.equal(control.disabled, false);
+    assert.equal(control.selectEl.value, failSave ? "apa" : "ieee");
+    assert.equal(notices.length, failSave ? 1 : 0);
+    status
+      .all()
+      .find((el) => el.text === "Manage citation styles")!
+      .trigger("click");
+    assert.equal(settingsOpened, 1);
+  });
 }
 
 test("native table preserves source navigation and diagnostics and sorts custom properties without writes", () => {
@@ -122,7 +226,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     rows: [first, second, unresolved],
     subscribe: () => () => {},
     subscribeCitationChanges: () => () => {},
-    citationStatus: () => Promise.resolve(null),
+    citationStyleChoices: () => Promise.resolve(null),
     properties: (row: SourceRow) =>
       row === first
         ? { sample_size: 100 }

@@ -80,7 +80,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   pandocPath: "",
   tectonicPath: "",
   enabledTabs: readEnabledTabs(undefined),
-  citationStyle: "apa",
+  citationStyle: "chicago-notes-bibliography",
   citationLanguage: "en-US",
   citationStyles: {},
   citationLocales: {},

@@ -135,6 +135,48 @@
 	gap: 1.5rem;
 }
 
+.stratum-tab-chooser-trigger::after {
+	content: "";
+	width: 0.4em;
+	height: 0.4em;
+	margin-left: 0.6em;
+	border-right: 1.5px solid currentColor;
+	border-bottom: 1.5px solid currentColor;
+	transform: translateY(-0.15em) rotate(45deg);
+}
+
+.stratum-tab-chooser {
+	position: fixed;
+	z-index: calc(var(--layer-modal) + 1);
+	width: 240px;
+	padding: 6px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-shadow: var(--shadow-s);
+}
+
+.stratum-tab-chooser-option {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 36px;
+	padding: 6px 10px;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.stratum-tab-chooser-option:hover,
+.stratum-tab-chooser-option:focus-within {
+	background: var(--background-modifier-hover);
+}
+
+.stratum-tab-chooser-option input {
+	margin: 0;
+}
+
 .stratum-settings-section {
 	display: grid;
 	gap: 0.85rem;
@@ -612,6 +654,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .stratum-sources-document { align-self: flex-start; max-width: 100%; min-height: 0; padding: var(--size-2-1) 0; border: 0; box-shadow: none; background: transparent; color: var(--link-color); font-size: var(--font-ui-small); text-decoration: underline; cursor: pointer; }
 .stratum-sources-document:hover { background: transparent; color: var(--link-color-hover); }
+.stratum-citation-style-label { display: flex; flex-direction: column; gap: var(--size-2-2); font-size: var(--font-ui-small); color: var(--text-muted); }
+.stratum-citation-style-label select { width: 100%; min-width: 0; color: var(--text-normal); }
+.stratum-citation-settings-button { margin-top: var(--size-2-2); }
 .stratum-sources-document[hidden] { display: none; }
 .stratum-sources-summary, .stratum-sources-meta, .stratum-sources-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
 .stratum-sources-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }

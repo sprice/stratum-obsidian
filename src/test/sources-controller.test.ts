@@ -35,6 +35,50 @@ class HostComponent {
   register() {}
   registerEvent() {}
 }
+
+test("managing styles opens the plugin settings and global style dialog without a note override", async () => {
+  const calls: string[] = [];
+  const { SourcesController } = loadRuntime<typeof Controller>(
+    "sources-controller.ts",
+    { Component: HostComponent, FuzzySuggestModal: class {} },
+    {},
+    "node",
+    {
+      "./citation-controls": {
+        CitationPreferences: class {
+          constructor(_plugin: unknown, file?: unknown) {
+            assert.equal(file, undefined);
+            calls.push("dialog");
+          }
+          open() {
+            calls.push("open dialog");
+          }
+        },
+      },
+    },
+  );
+  const plugin = {
+    isUnloaded: false,
+    manifest: { id: "stratum" },
+    app: {
+      setting: {
+        open: () => {
+          calls.push("settings");
+        },
+        openTabById: (id: string) => {
+          calls.push(id);
+        },
+      },
+    },
+  };
+  const controller = new SourcesController(plugin as never);
+  await controller.manageCitationStyles();
+  assert.deepEqual(calls, ["settings", "stratum", "dialog", "open dialog"]);
+  calls.length = 0;
+  plugin.isUnloaded = true;
+  await controller.manageCitationStyles();
+  assert.deepEqual(calls, []);
+});
 class Emitter {
   events = new Map<string, ((...args: unknown[]) => void)[]>();
   on(name: string, fn: (...args: unknown[]) => void) {

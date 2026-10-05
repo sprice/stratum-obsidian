@@ -28,7 +28,7 @@ export class PublishSetupModal extends Modal {
       this.close();
       return;
     }
-    this.setTitle("Set up publishing");
+    this.setTitle("Publishing tools");
     const { contentEl } = this;
     contentEl.addClass("stratum-publish-setup");
     this.controls = [];

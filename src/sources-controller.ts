@@ -19,10 +19,8 @@ import {
   type BibliographyBinding,
 } from "./document-sources";
 import { shouldFollowSourceDocument } from "./sources-context";
-import {
-  parseSourceOccurrences,
-  type SourceOccurrence,
-} from "./source-occurrences";
+import { getSettingsManager } from "./view-helpers";
+import type { SourceOccurrence } from "./source-occurrences";
 
 export class SourcesController extends Component {
   document: TFile | null = null;
@@ -49,32 +47,32 @@ export class SourcesController extends Component {
       : undefined;
   }
 
-  async citationStatus(): Promise<string | null> {
-    if (!this.document || !this.plugin.citations) return null;
-    const document = this.document;
-    const text = this.text;
-    const { styleTitle, cachedStyle } = await import("./citation-styles");
-    const { style } = this.plugin.citations.preferences(document.path, text);
-    const keys = parseSourceOccurrences(text)
-      .filter((o) => o.kind === "citation")
-      .map((o) => o.target);
-    if (keys.length) {
-      const health = await this.plugin.citations.diagnose(keys);
-      // Formatting is owned by Reading view; Citations needs only reference health.
-      void health;
-    }
-    if (!cachedStyle(this.plugin, style))
-      throw new Error(
-        "Citation style unavailable. Select it in Stratum settings to download it.",
-      );
-    return styleTitle(this.plugin, style);
-  }
-  async changeCitationStyle(): Promise<void> {
+  async citationStyleChoices() {
     const file = this.document;
-    if (!file) return;
-    const { CitationPreferences } = await import("./citation-controls");
+    if (!file || !this.plugin.citations) return null;
+    const { noteCitationStyleChoices } =
+      await import("./citation-style-choice");
+    if (this.document !== file || this.plugin.isUnloaded) return null;
+    return noteCitationStyleChoices(this.plugin, file, this.text);
+  }
+  async changeCitationStyle(style: string, path: string): Promise<void> {
+    const file = this.document;
+    if (!file || file.path !== path || this.plugin.isUnloaded) return;
+    const language = this.plugin.citations.preferences(
+      file.path,
+      this.text,
+    ).language;
+    const { setNoteCitationStyle } = await import("./citation-style-choice");
     if (!this.plugin.isUnloaded)
-      new CitationPreferences(this.plugin, file).open();
+      await setNoteCitationStyle(this.plugin, file, style, language);
+  }
+  async manageCitationStyles(): Promise<void> {
+    if (this.plugin.isUnloaded) return;
+    const settings = getSettingsManager(this.plugin.app);
+    settings?.open();
+    settings?.openTabById(this.plugin.manifest.id);
+    const { CitationPreferences } = await import("./citation-controls");
+    if (!this.plugin.isUnloaded) new CitationPreferences(this.plugin).open();
   }
   subscribeCitationChanges(callback: () => void): () => void {
     return (

@@ -4,11 +4,13 @@ import type * as SettingsTab from "../settings-tab";
 import type * as PluginModule from "../plugin";
 import { DEFAULT_SETTINGS } from "../settings-data";
 import { loadRuntime } from "./runtime-harness";
+import type { EnabledTabs, StratumTab } from "../stratum-tabs";
 
 class Element {
   isConnected = true;
   addClass() {}
   setAttr() {}
+  setAttribute() {}
   listeners = new Map<string, () => void>();
   addEventListener(name: string, callback: () => void) {
     this.listeners.set(name, callback);
@@ -68,6 +70,7 @@ class Row {
   descEl = new Element();
   control?: Control;
   heading = false;
+  description = "";
   constructor() {
     Row.rendered.push(this);
   }
@@ -75,7 +78,8 @@ class Row {
     this.name = name;
     return this;
   }
-  setDesc() {
+  setDesc(description: string) {
+    this.description = description;
     return this;
   }
   setHeading() {
@@ -94,6 +98,11 @@ class Row {
 }
 
 function fixture(desktop = false, modern = true) {
+  let chooser!: {
+    tabs: { id: StratumTab; label: string }[];
+    enabled: EnabledTabs;
+    onChange: (id: StratumTab, enabled: boolean) => Promise<void>;
+  };
   class HostTab {
     containerEl = new Element();
   }
@@ -105,6 +114,16 @@ function fixture(desktop = false, modern = true) {
       Setting: Row,
       Platform: platform,
       requireApiVersion: () => modern,
+    },
+    {},
+    "node",
+    {
+      "./settings-tab-chooser": {
+        openTabChooser: (_anchor: unknown, options: typeof chooser) => {
+          chooser = options;
+          return () => {};
+        },
+      },
     },
   );
   let saves = 0;
@@ -150,6 +169,9 @@ function fixture(desktop = false, modern = true) {
   return {
     tab,
     plugin,
+    get chooser() {
+      return chooser;
+    },
     get saves() {
       return saves;
     },
@@ -316,19 +338,23 @@ for (const desktop of [true, false]) {
     Row.rendered = [];
     for (const item of sections[index].items)
       item.render(new Row().setName(item.name) as never);
-    const toggles = Row.rendered.filter((row) => row.control);
+    const row = Row.rendered.find((row) => row.name === "Visible tabs")!;
+    assert.equal(row.description, "All tabs shown.");
+    await row.control!.click!();
+    const choices = f.chooser.tabs;
     assert.deepEqual(
-      toggles.map((row) => row.name),
+      Array.from(choices, (tab) => tab.label),
       desktop
         ? ["Browse", "Search", "Sync", "Reader", "Citations", "Publish"]
         : ["Browse", "Search", "Reader", "Citations"],
     );
-    for (const row of toggles) {
-      assert.equal(row.control!.value, true);
-      await row.control!.change!(false);
+    for (const tab of choices) {
+      assert.equal(f.chooser.enabled[tab.id], true);
+      await f.chooser.onChange(tab.id, false);
     }
-    assert.equal(f.saves, toggles.length);
-    assert.equal(f.updates, toggles.length);
+    assert.equal(row.description, "No tabs shown.");
+    assert.equal(f.saves, choices.length);
+    assert.equal(f.updates, choices.length);
     assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
     assert.equal(f.plugin.settings.enabledTabs.publish, !desktop);
     assert.equal(
@@ -349,10 +375,11 @@ test("tab visibility updates before a slow settings save completes", async () =>
   const browse = f.tab
     .getSettingDefinitions()
     .find((section) => section.heading === "Stratum tabs")!
-    .items.find((item) => item.name === "Browse")!;
+    .items.find((item) => item.name === "Visible tabs")!;
   const row = new Row();
   browse.render(row as never);
-  const saving = row.control!.change!(false);
+  await row.control!.click!();
+  const saving = f.chooser.onChange("browse", false);
   try {
     assert.equal(f.plugin.settings.enabledTabs.browse, false);
     assert.equal(

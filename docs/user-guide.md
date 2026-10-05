@@ -133,14 +133,24 @@ citations using your selected style. Stratum does not modify Zotero data.
 ### Citation styles and previews
 
 Choose the default style in **Settings → Stratum → Citations → Default citation style**.
-Papers inherit this choice. APA, IEEE, and Chicago Notes are bundled; **Find more
+Without a selection, the default is Chicago Manual of Style 18th edition
+(notes and bibliography). Papers inherit the default until you choose a style
+for that note. APA, IEEE, and Chicago Notes are bundled; **Find more
 styles** searches Zotero's CSL repository. Selected styles and formatting
 languages are downloaded once and saved locally. You can also import a `.csl`
 file already in the vault. The dialog shows a synthetic citation and reference
 example for installed styles.
 
-**Change citation style for this paper**, also available from the style button
-in Citations, creates an explicit override. **Use default style** removes it.
+In the Citations tab, **Citation style for this note** switches immediately
+between bundled and installed styles and shows the style currently in use.
+Selecting a style saves it for that note, even if it matches the overall default.
+**Manage citation styles** opens the style management dialog
+directly over Stratum settings. The same dialog is available through
+**Manage citation styles** under **Default citation style** in settings.
+
+The command **Change citation style for this paper** also lets you override the
+note's language. Its **Use default style** action removes both overrides. The
+inline selector changes only the style and preserves any language override.
 Overrides use `stratum_citation_style` and `stratum_citation_language` frontmatter.
 Changing styles never rewrites citation keys, locators, or manuscript prose.
 
@@ -346,8 +356,9 @@ custom style or every Pandoc syntax extension.
 ## Publish documents
 
 On desktop, use the **Publish** sidebar tab to create PDF or Word snapshots of the
-active note with its selected citation style. **Set up publishing** guides you
-through Pandoc and Tectonic setup. Created documents stay in hidden plugin storage
+active note with its selected citation style. **Manage tools** in
+**Settings → Stratum → Publishing → Publishing tools** opens installation help
+and status checks for Pandoc and Tectonic. Created documents stay in hidden plugin storage
 and appear when you select their source note; each row offers open, save a copy,
 and confirmed delete actions. The tab is enabled by default and can be hidden in
 **Settings → Stratum → Publishing**.

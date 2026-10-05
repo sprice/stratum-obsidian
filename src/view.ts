@@ -1378,7 +1378,7 @@ export class StratumView extends ItemView {
       });
     }
     const openButton = actions.createEl("button", {
-      text: "Open in editor",
+      text: "Open note",
     });
     openButton.type = "button";
     openButton.addEventListener("click", () => {

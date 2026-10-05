@@ -1,5 +1,11 @@
 import { renderSourceHealth, sourceNeedsAttention } from "./view-source-health";
-import { Component, SearchComponent, setIcon } from "obsidian";
+import {
+  Component,
+  DropdownComponent,
+  Notice,
+  SearchComponent,
+  setIcon,
+} from "obsidian";
 import type { SourcesController } from "./sources-controller";
 import type { SourceRow } from "./document-sources";
 import { SourceColumnsModal } from "./source-columns-modal";
@@ -159,19 +165,44 @@ export class SourcesPanel extends Component {
   private async renderCitationStatus(): Promise<void> {
     const revision = ++this.citationRevision;
     try {
-      const label = await this.sources.citationStatus();
+      const choices = await this.sources.citationStyleChoices();
       if (
         revision !== this.citationRevision ||
         !this.citationStatus.isConnected
       )
         return;
       this.citationStatus.empty();
-      if (!label) return;
-      const button = this.citationStatus.createEl("button", { text: label });
-      button.title = "Change citation style for this paper";
-      button.addEventListener("click", () => {
-        void this.sources.changeCitationStyle();
+      if (!choices) return;
+      const label = this.citationStatus.createEl("label", {
+        cls: "stratum-citation-style-label",
+        text: "Citation style for this note",
       });
+      const dropdown = new DropdownComponent(label);
+      dropdown.selectEl.setAttribute(
+        "aria-label",
+        "Citation style for this note",
+      );
+      for (const option of choices.options)
+        dropdown.addOption(option.id, option.title);
+      let selected = choices.selected;
+      dropdown.setValue(selected).onChange(async (value) => {
+        dropdown.setDisabled(true);
+        try {
+          await this.sources.changeCitationStyle(value, choices.path);
+          selected = value;
+        } catch {
+          if (dropdown.selectEl.isConnected) dropdown.setValue(selected);
+          new Notice("Could not change citation style. Try again.");
+        } finally {
+          if (dropdown.selectEl.isConnected) dropdown.setDisabled(false);
+        }
+      });
+      if (choices.unavailable)
+        this.citationStatus.createEl("p", {
+          cls: "stratum-meta",
+          text: "This style is unavailable. Choose another style or manage citation styles to download it.",
+        });
+      this.renderCitationSettingsButton();
     } catch (error) {
       if (revision !== this.citationRevision) return;
       this.citationStatus.setText(
@@ -179,13 +210,21 @@ export class SourcesPanel extends Component {
           ? error.message
           : "Citation preview unavailable.",
       );
-      const button = this.citationStatus.createEl("button", {
-        text: "Change citation style",
-      });
-      button.addEventListener("click", () => {
-        void this.sources.changeCitationStyle();
-      });
+      this.renderCitationSettingsButton();
     }
+  }
+  private renderCitationSettingsButton(): void {
+    const button = this.citationStatus.createEl("button", {
+      cls: "stratum-citation-settings-button",
+      text: "Manage citation styles",
+    });
+    button.type = "button";
+    button.title = "Open citation settings";
+    button.addEventListener("click", () => {
+      void this.sources.manageCitationStyles().catch(() => {
+        new Notice("Could not open citation settings. Try again.");
+      });
+    });
   }
   private renderRows(): void {
     this.columnOrder.hidden = !this.state.columnSort;

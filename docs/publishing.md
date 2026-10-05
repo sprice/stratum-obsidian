@@ -6,7 +6,8 @@ selection when you focus the sidebar. Editing and Reading view both work.
 
 ## First-time setup
 
-1. Open **Settings → Stratum → Publishing → Publishing setup**. When setup is
+1. Open **Settings → Stratum → Publishing → Publishing tools** and choose
+   **Manage tools**. When setup is
    incomplete, the Publish tab offers **Set up in settings** to open plugin settings.
 2. Setup automatically finds Pandoc and Tectonic, including standard Homebrew,
    MacPorts, and user installation locations. Each tool shows **Detected** as soon
@@ -74,7 +75,8 @@ newest first. Each row provides:
 Word documents have Save as and Delete actions. Save a copy to open it in Word.
 Deleting a PDF also clears any open preview of it.
 
-To hide the tab, disable **Settings → Stratum → Stratum tabs → Publish**.
+To hide the tab, open **Settings → Stratum → Stratum tabs → Visible tabs**,
+choose **Choose visible tabs**, and uncheck **Publish**.
 This keeps existing documents.
 
 ## Storage and supported content
