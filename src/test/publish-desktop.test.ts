@@ -23,7 +23,6 @@ function runtime(
     "publish-desktop.ts",
     { Platform: { isDesktopApp: desktop, isDesktop: desktop } },
     {
-      atob,
       TextDecoder,
       Uint8Array,
       window: {
