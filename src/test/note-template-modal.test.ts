@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type * as Module from "../note-template-modal";
 import { loadRuntime } from "./runtime-harness";
+import {
+  SOURCE_SUMMARY_VARIABLES,
+  validateSourceSummaryTemplate,
+} from "../source-summary-template";
 
 class Element {
   children: Element[] = [];
@@ -44,6 +48,7 @@ class Button {
 }
 function fixture(
   save: (template: string) => Promise<void> = () => Promise.resolve(),
+  options?: ConstructorParameters<typeof Module.NoteTemplateModal>[3],
 ) {
   const buttons: Button[] = [];
   class Modal {
@@ -68,7 +73,7 @@ function fixture(
     "note-template-modal.ts",
     { Modal, Setting, Notice: class {} },
   );
-  const modal = new NoteTemplateModal({} as never, "## Summary", save);
+  const modal = new NoteTemplateModal({} as never, "## Summary", save, options);
   modal.onOpen();
   const element = modal.contentEl as unknown as Element;
   return {
@@ -117,4 +122,30 @@ test("invalid boundaries cannot save, and failed saves keep the draft available"
   assert.match(f.error.text, /Could not save/);
   assert.equal(f.input.value, "## Research");
   assert.equal(f.input.disabled, false);
+});
+
+test("a misspelled summary variable blocks Save, keeps the draft, and allows correction", async () => {
+  const saved: string[] = [];
+  const f = fixture(
+    (template) => {
+      saved.push(template);
+      return Promise.resolve();
+    },
+    {
+      title: "Source summary template",
+      description: ["Description", "Ownership"],
+      variables: SOURCE_SUMMARY_VARIABLES,
+      validate: validateSourceSummaryTemplate,
+    },
+  );
+  f.input.value = "### {{title_with__link}}";
+  await f.button("Save").click();
+  assert.deepEqual(saved, []);
+  assert.equal(f.closed, false);
+  assert.equal(f.input.value, "### {{title_with__link}}");
+  assert.equal(f.error.text, "Unknown variable {{title_with__link}}.");
+  f.input.value = "### {{title_with_link}}";
+  await f.button("Save").click();
+  assert.deepEqual(saved, ["### {{title_with_link}}"]);
+  assert.equal(f.closed, true);
 });

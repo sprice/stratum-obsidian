@@ -914,3 +914,23 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   resize: vertical;
   font-family: var(--font-monospace);
 }
+.stratum-note-template-error {
+  color: var(--text-error);
+}
+.stratum-note-template-error,
+.stratum-note-template-variables {
+  font-size: var(--font-ui-small);
+}
+
+.stratum-source-summary-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.stratum-source-summary-heading > a {
+  flex: 1;
+  min-width: 0;
+}
+.stratum-source-summary-actions {
+  flex-shrink: 0;
+}

@@ -1,3 +1,4 @@
+import { SourceSummaries } from "./source-summary";
 import { readAvailableCitationStyles } from "./citation-style-defaults";
 import type { PublishController } from "./publish-controller";
 import { selectStratumTab } from "./plugin-tabs";
@@ -121,6 +122,7 @@ export default class StratumPlugin extends Plugin {
   isUnloaded = false;
   settings: StratumSettings = DEFAULT_SETTINGS;
   settingTab: StratumSettingTab | null = null;
+  sourceSummaries: SourceSummaries | null = null;
   backend!: BackendClient;
   zoteroConnection: ZoteroConnectionState | null = null;
   availableGroups: ZoteroGroupSummary[] = [];
@@ -290,6 +292,13 @@ export default class StratumPlugin extends Plugin {
     this.registerEditorExtension(citationEditor(this.citations));
     this.registerEditorExtension(literatureNoteEditor());
     registerCitationReading(this.citations);
+    this.sourceSummaries = this.addChild(new SourceSummaries(this));
+    this.registerEditorExtension(this.sourceSummaries.editorExtension());
+    this.addCommand({
+      id: "insert-source-summary",
+      name: "Insert source summary",
+      editorCallback: (editor) => this.sourceSummaries?.openPicker(editor),
+    });
 
     this.sources = this.addChild(new SourcesController(this));
     if (Platform.isDesktopApp) {

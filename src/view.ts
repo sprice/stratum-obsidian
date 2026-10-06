@@ -663,6 +663,7 @@ export class StratumView extends ItemView {
   private renderNoteTemplateButton(container: HTMLElement): void {
     const button = createStratumButton(container, {
       text: "Edit template",
+      tooltip: "Edit literature note template",
       className: "stratum-note-template-button",
     });
     button.type = "button";

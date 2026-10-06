@@ -460,3 +460,71 @@ test("note templates survive reload, including an empty template; invalid templa
     assert.equal(plugin.settings.notesTemplate, "## My Notes");
   }
 });
+
+test("source summary templates survive reload and invalid stored templates fall back", async () => {
+  let data: unknown = {};
+  const plugin = {
+    settings: {} as import("../settings-data").StratumSettings,
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(
+    plugin.settings.sourceSummaryTemplate,
+    DEFAULT_SETTINGS.sourceSummaryTemplate,
+  );
+  plugin.settings.sourceSummaryTemplate = "### {{title}}\n\n{{authors}}";
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.equal(
+    plugin.settings.sourceSummaryTemplate,
+    "### {{title}}\n\n{{authors}}",
+  );
+  for (const sourceSummaryTemplate of [
+    "",
+    "{{unknown}}",
+    "{{title",
+    "<!-- stratum:sync-boundary -->",
+    42,
+    null,
+  ]) {
+    data = { sourceSummaryTemplate };
+    await loadPluginSettings(plugin as never);
+    assert.equal(
+      plugin.settings.sourceSummaryTemplate,
+      DEFAULT_SETTINGS.sourceSummaryTemplate,
+    );
+  }
+});
+
+test("the previous built-in summary template migrates without changing custom templates", async () => {
+  const {
+    DEFAULT_SOURCE_SUMMARY_TEMPLATE,
+    PREVIOUS_SOURCE_SUMMARY_TEMPLATE,
+    DIVIDED_SOURCE_SUMMARY_TEMPLATE,
+  } = await import("../source-summary-template");
+  for (const template of [
+    PREVIOUS_SOURCE_SUMMARY_TEMPLATE,
+    DIVIDED_SOURCE_SUMMARY_TEMPLATE,
+    PREVIOUS_SOURCE_SUMMARY_TEMPLATE + "\nMy own prompt",
+  ]) {
+    const plugin = {
+      settings: {} as import("../settings-data").StratumSettings,
+      loadData: () => Promise.resolve({ sourceSummaryTemplate: template }),
+      saveData: () => Promise.resolve(),
+      app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+    };
+    await loadPluginSettings(plugin as never);
+    assert.equal(
+      plugin.settings.sourceSummaryTemplate,
+      template === PREVIOUS_SOURCE_SUMMARY_TEMPLATE ||
+        template === DIVIDED_SOURCE_SUMMARY_TEMPLATE
+        ? DEFAULT_SOURCE_SUMMARY_TEMPLATE
+        : template.replaceAll("{{source_link}}", "{{title_with_link}}"),
+    );
+  }
+});

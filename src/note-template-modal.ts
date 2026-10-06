@@ -9,25 +9,42 @@ export class NoteTemplateModal extends Modal {
     app: App,
     private initial: string,
     private save: (template: string) => Promise<void>,
+    private options?: {
+      title: string;
+      description: string[];
+      variables: Record<string, string>;
+      validate: (template: string) => string | null;
+    },
   ) {
     super(app);
   }
   onOpen(): void {
     this.active = true;
-    this.setTitle("Literature note template");
+    this.setTitle(this.options?.title ?? "Literature note template");
     this.titleEl.id ||= `stratum-note-template-title-${++nextEditorId}`;
-    this.contentEl.createEl("p", {
-      text: "Default starting content for literature notes generated from Zotero.",
-    });
-    this.contentEl.createEl("p", {
-      text: "Template changes apply when notes are created or updated. Any personal edits to the existing content are preserved.",
-    });
+    for (const text of this.options?.description ?? [
+      "Default starting content for literature notes generated from Zotero.",
+      "Template changes apply when notes are created or updated. Any personal edits to the existing content are preserved.",
+    ])
+      this.contentEl.createEl("p", { text });
     const input = this.contentEl.createEl("textarea", {
       cls: "stratum-note-template-editor",
       attr: { "aria-labelledby": this.titleEl.id, spellcheck: "false" },
     });
     input.value = this.initial;
-    const error = this.contentEl.createEl("p", { attr: { role: "status" } });
+    const error = this.contentEl.createEl("p", {
+      cls: "stratum-note-template-error",
+      attr: { role: "alert" },
+    });
+    if (this.options) {
+      this.contentEl.createEl("h3", { text: "Available variables" });
+      this.contentEl.createEl("p", {
+        cls: "stratum-note-template-variables",
+        text: Object.keys(this.options.variables)
+          .map((name) => `{{${name}}}`)
+          .join(", "),
+      });
+    }
     let saving = false;
     new Setting(this.contentEl)
       .addButton((button) =>
@@ -39,7 +56,9 @@ export class NoteTemplateModal extends Modal {
           .setCta()
           .onClick(async () => {
             if (!this.active || saving) return;
-            const message = validateNotesTemplate(input.value);
+            const message = (this.options?.validate ?? validateNotesTemplate)(
+              input.value,
+            );
             if (message) {
               error.setText(message);
               return;
@@ -53,7 +72,7 @@ export class NoteTemplateModal extends Modal {
             } catch {
               if (this.active)
                 error.setText("Could not save the template. Try again.");
-              else new Notice("Could not save the literature note template.");
+              else new Notice("Could not save the template.");
             } finally {
               saving = false;
               button.setDisabled(false);

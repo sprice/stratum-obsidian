@@ -1,3 +1,9 @@
+import {
+  DEFAULT_SOURCE_SUMMARY_TEMPLATE,
+  DIVIDED_SOURCE_SUMMARY_TEMPLATE,
+  PREVIOUS_SOURCE_SUMMARY_TEMPLATE,
+  validateSourceSummaryTemplate,
+} from "./source-summary-template";
 import { validateNotesTemplate } from "./literature-note-template";
 import { readAvailableCitationStyles } from "./citation-style-defaults";
 import { readPublishReadinessCache } from "./publish-readiness";
@@ -40,6 +46,7 @@ type StoredSettingsData = Partial<
     | "lastActiveTab"
     | "notesFolder"
     | "notesTemplate"
+    | "sourceSummaryTemplate"
     | "filenameFormat"
     | "bulkSyncEnabled"
     | "bulkSyncPreferenceInitialized"
@@ -441,6 +448,23 @@ function readStoredSettings(value: unknown): Omit<
     !validateNotesTemplate(value.notesTemplate)
   ) {
     nextSettings.notesTemplate = value.notesTemplate;
+  }
+  const summaryTemplate =
+    typeof value.sourceSummaryTemplate === "string"
+      ? value.sourceSummaryTemplate.replaceAll(
+          "{{source_link}}",
+          "{{title_with_link}}",
+        )
+      : null;
+  if (
+    summaryTemplate !== null &&
+    !validateSourceSummaryTemplate(summaryTemplate)
+  ) {
+    nextSettings.sourceSummaryTemplate =
+      value.sourceSummaryTemplate === PREVIOUS_SOURCE_SUMMARY_TEMPLATE ||
+      value.sourceSummaryTemplate === DIVIDED_SOURCE_SUMMARY_TEMPLATE
+        ? DEFAULT_SOURCE_SUMMARY_TEMPLATE
+        : summaryTemplate;
   }
   if (isLiteratureNoteFilenameFormat(value.filenameFormat)) {
     nextSettings.filenameFormat = value.filenameFormat;

@@ -172,6 +172,7 @@ test("sidebar controls filter main-pane results and preserve state through refre
           }
         },
         Modal: class {},
+        setIcon() {},
         SearchComponent: class {
           inputEl: Element;
           constructor(header: Element) {
