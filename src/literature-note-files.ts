@@ -67,6 +67,7 @@ function getStemVariants(
 
 export async function createLiteratureNoteFile(params: {
   stratumVersion: string;
+  notesTemplate?: string;
   app: App;
   notesFolder: string;
   detail: ZoteroItemDetail;
@@ -90,6 +91,7 @@ export async function createLiteratureNoteFile(params: {
       const initialContent = buildLiteratureNoteContent({
         detail: params.detail,
         stratumVersion: params.stratumVersion,
+        notesTemplate: params.notesTemplate,
         filenameStem,
         parseYaml,
         stringifyYaml,

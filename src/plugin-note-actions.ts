@@ -20,7 +20,6 @@ import {
   LiteratureNoteSearchModal,
 } from "./library-search-modal";
 import { openCitationComposer } from "./citation-composer";
-import { buildLiteratureNoteWikiLink } from "./literature-note-links";
 import {
   requireZoteroItemDetailForNoteSync,
   writeLiteratureNoteFromDetail,
@@ -149,10 +148,6 @@ export async function createLiteratureNote(
   }
 }
 
-function getActiveEditor(plugin: StratumPlugin): Editor | null {
-  return plugin.app.workspace.activeEditor?.editor ?? null;
-}
-
 export function openLiteratureNoteFromModal(plugin: StratumPlugin): void {
   const entries = buildLiteratureNoteEntries(plugin);
   if (entries.length === 0) {
@@ -199,6 +194,7 @@ export function insertLiteratureNoteLink(
   plugin: StratumPlugin,
   editor: Editor,
 ): void {
+  const sourcePath = plugin.app.workspace.activeEditor?.file?.path ?? "";
   const entries = buildLiteratureNoteEntries(plugin);
   if (entries.length === 0) {
     new Notice(
@@ -208,12 +204,15 @@ export function insertLiteratureNoteLink(
   }
 
   new LiteratureNoteSearchModal(plugin.app, entries, (entry) => {
-    const target = getActiveEditor(plugin) ?? editor;
-    const wikilink = buildLiteratureNoteWikiLink({
-      basename: entry.file.basename,
-      preferredLinkText: entry.preferredLinkText,
-    });
-    target.replaceSelection(wikilink);
+    const active = plugin.app.workspace.activeEditor;
+    const target = active?.editor ?? editor;
+    const link = plugin.app.fileManager.generateMarkdownLink(
+      entry.file,
+      active?.editor ? (active.file?.path ?? sourcePath) : sourcePath,
+      "",
+      entry.preferredLinkText ?? "",
+    );
+    target.replaceSelection(link);
   }).open();
 }
 

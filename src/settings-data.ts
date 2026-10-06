@@ -1,3 +1,4 @@
+import { DEFAULT_NOTES_TEMPLATE } from "./literature-note-template";
 import { INITIAL_CITATION_STYLES } from "./citation-style-defaults";
 import {
   readEnabledTabs,
@@ -59,6 +60,7 @@ export interface StratumSettings {
   citationLocales: Record<string, string>;
   collectionCatalogs: CollectionCatalogs;
   notesFolder: string;
+  notesTemplate: string;
   filenameFormat: LiteratureNoteFilenameFormat;
   bulkSyncEnabled: boolean;
   bulkSyncPreferenceInitialized: boolean;
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   citationLocales: {},
   collectionCatalogs: {},
   notesFolder: DEFAULT_NOTE_FOLDER,
+  notesTemplate: DEFAULT_NOTES_TEMPLATE,
   filenameFormat: "readable",
   bulkSyncEnabled: false,
   bulkSyncPreferenceInitialized: false,

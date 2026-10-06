@@ -31,6 +31,7 @@ function createSettings(params: {
     citationLocales: {},
     collectionCatalogs: {},
     notesFolder: "Literature Notes",
+    notesTemplate: "## My Notes",
     filenameFormat: "readable",
     bulkSyncEnabled: true,
     bulkSyncPreferenceInitialized: true,

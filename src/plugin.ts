@@ -8,6 +8,7 @@ import {
 } from "./stratum-tabs";
 import type { CitationService } from "./citation-service";
 import { CitationSuggest } from "./citation-suggest";
+import { registerZoteroOpenCommands } from "./zotero-open-commands";
 import { SourcesController } from "./sources-controller";
 import {
   browseCollections,
@@ -278,6 +279,7 @@ export default class StratumPlugin extends Plugin {
 
     const { CitationService } = await import("./citation-service");
     const { citationEditor } = await import("./citation-editor");
+    const { literatureNoteEditor } = await import("./literature-note-editor");
     const { registerCitationReading } = await import("./citation-reading");
     if (this.isUnloaded) return;
     const { refreshCitationData } = await import("./citation-refresh");
@@ -286,6 +288,7 @@ export default class StratumPlugin extends Plugin {
     this.citations = new CitationService(this);
     this.addChild(this.citations);
     this.registerEditorExtension(citationEditor(this.citations));
+    this.registerEditorExtension(literatureNoteEditor());
     registerCitationReading(this.citations);
 
     this.sources = this.addChild(new SourcesController(this));
@@ -348,6 +351,7 @@ export default class StratumPlugin extends Plugin {
       name: "Open literature note",
       callback: () => openLiteratureNoteFromModal(this),
     });
+    registerZoteroOpenCommands(this);
 
     this.addCommand({
       id: "open-literature-note-in-panel",

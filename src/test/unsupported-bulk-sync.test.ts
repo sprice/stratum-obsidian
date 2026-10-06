@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
 import { getBulkLibrarySyncStatusMessage } from "../zotero-sync";
+import { USER_BOUNDARY_CALLOUT } from "../literature-note-content-types";
 
 test("bulk sync continues past unknown types without retries or enrichment", async () => {
   class File {
@@ -30,7 +31,7 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
   ];
   const requests: string[] = [];
   const notices: string[] = [];
-  let contents = `---\n${JSON.stringify({ zotero_item_identity: "user/1/BOOK", zotero_item_key: "BOOK", zotero_library_id: "1", zotero_library_type: "user" })}\n---\nPersonal writing`;
+  let contents = `---\n${JSON.stringify({ zotero_item_identity: "user/1/BOOK", zotero_item_key: "BOOK", zotero_library_id: "1", zotero_library_type: "user" })}\n---\n${USER_BOUNDARY_CALLOUT}\n\nPersonal writing`;
   let writes = 0;
   const runtime = loadRuntime<typeof import("../plugin-bulk-sync")>(
     "plugin-bulk-sync.ts",

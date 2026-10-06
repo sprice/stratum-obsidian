@@ -1,5 +1,18 @@
-import { Platform, TFile } from "obsidian";
-import { getTrackedChildItemKeysFromFrontmatter } from "./literature-note-frontmatter";
+import {
+  DEFAULT_NOTES_TEMPLATE,
+  NOTES_TEMPLATE_KEY,
+  needsNotesTemplateUpdate,
+} from "./literature-note-template";
+import {
+  NOTE_LAYOUT_KEY,
+  NOTE_LAYOUT_VERSION,
+  readLiteratureNoteLayout,
+} from "./literature-note-layout";
+import { Platform, TFile, parseYaml } from "obsidian";
+import {
+  getTrackedChildItemKeysFromFrontmatter,
+  splitFrontmatterContent,
+} from "./literature-note-frontmatter";
 import { log } from "./log";
 import { getLibraryAutoSyncState } from "./plugin-libraries";
 import {
@@ -338,12 +351,16 @@ function resolveTrackedRefreshFile(
   });
 }
 
-function getTrackedChildKeysByIdentity(
+export async function getTrackedNoteMetadata(
   plugin: StratumPlugin,
   library: LiveSyncLibrary,
-): Record<string, string[]> {
+): Promise<{
+  trackedChildKeysByIdentity: Record<string, string[]>;
+  layoutMigrationIdentities: Set<string>;
+}> {
   const prefix = `${library.type}/${library.id}/`;
   const trackedChildKeysByIdentity: Record<string, string[]> = {};
+  const layoutMigrationIdentities = new Set<string>();
 
   for (const [identity, entry] of Object.entries(plugin.settings.itemFileMap)) {
     if (!identity.startsWith(prefix)) {
@@ -365,11 +382,39 @@ function getTrackedChildKeysByIdentity(
 
     const frontmatter =
       plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+    if (
+      frontmatter &&
+      Number(frontmatter[NOTE_LAYOUT_KEY]) !== NOTE_LAYOUT_VERSION
+    ) {
+      layoutMigrationIdentities.add(identity);
+    } else if (frontmatter) {
+      // Master retains the new frontmatter version when it restores its old
+      // bottom callout. Inspect tracked notes through Obsidian's read cache so
+      // an unchanged source can still migrate that mixed layout.
+      const { body, frontmatter: actualFrontmatter } = splitFrontmatterContent(
+        await plugin.app.vault.cachedRead(file),
+        parseYaml,
+      );
+      const layout = readLiteratureNoteLayout(
+        body,
+        actualFrontmatter[NOTE_LAYOUT_KEY],
+      );
+      if (
+        layout &&
+        (layout.legacy ||
+          needsNotesTemplateUpdate(
+            layout.personal,
+            actualFrontmatter[NOTES_TEMPLATE_KEY],
+            plugin.settings.notesTemplate ?? DEFAULT_NOTES_TEMPLATE,
+          ))
+      )
+        layoutMigrationIdentities.add(identity);
+    }
     trackedChildKeysByIdentity[identity] =
       getTrackedChildItemKeysFromFrontmatter(frontmatter);
   }
 
-  return trackedChildKeysByIdentity;
+  return { trackedChildKeysByIdentity, layoutMigrationIdentities };
 }
 
 async function runLocalLiveSyncFlush(plugin: StratumPlugin): Promise<void> {
@@ -413,10 +458,7 @@ async function runLocalLiveSyncFlush(plugin: StratumPlugin): Promise<void> {
         library,
         previousItemVersions,
         currentItemVersions: versionsResponse.itemVersions,
-        trackedChildKeysByIdentity: getTrackedChildKeysByIdentity(
-          plugin,
-          library,
-        ),
+        ...(await getTrackedNoteMetadata(plugin, library)),
       });
 
       log("live-sync", "refreshing changed literature notes", {

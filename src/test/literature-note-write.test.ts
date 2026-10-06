@@ -6,6 +6,13 @@ import type * as Index from "../plugin-note-index";
 import { normalizeZoteroItemDetail } from "../zotero-item-detail-normalizer";
 import { findExistingLiteratureNoteMatch } from "../literature-note-matching";
 import { loadRuntime } from "./runtime-harness";
+import { composeLiteratureNoteBody } from "../literature-note-layout";
+import {
+  MANAGED_START,
+  MANAGED_END,
+  SYNC_BOUNDARY,
+  USER_BOUNDARY_CALLOUT,
+} from "../literature-note-content-types";
 
 const identity = { libraryType: "user", libraryId: "1", itemKey: "ABCD1234" };
 const frontmatter = {
@@ -31,7 +38,7 @@ const detail = normalizeZoteroItemDetail({
   collections: [],
 });
 const content = (fm: Record<string, unknown>, body = "My original notes") =>
-  `---\n${JSON.stringify(fm)}\n---\n\n${body}\n`;
+  `---\n${JSON.stringify(fm)}\n---\n\n> [!stratum]- My Notes\n> This block and everything above it is managed by Stratum. Write your notes below.\n\n${body}\n`;
 class FakeFile {
   path = "Literature Notes/custom.md";
   name = "custom.md";
@@ -196,6 +203,28 @@ test("deleted-item marking preserves edits and rejects a replaced note", async (
     }),
     /no longer matches/,
   );
+});
+
+test("already-deleted mixed layout still migrates and subsequent marking is unchanged", async () => {
+  const fm = {
+    ...frontmatter,
+    stratum_note_layout: 2,
+    zotero_status: "deleted",
+  };
+  const managed = `${MANAGED_START}\nSynthetic source\n${MANAGED_END}\n`;
+  const fixture = vaultFixture(
+    `---\n${JSON.stringify(fm)}\n---\n${composeLiteratureNoteBody("## My Notes\n\n", managed)}\n${USER_BOUNDARY_CALLOUT}\n\nRetain my research\n`,
+  );
+  const params = { app: fixture.app, file: fixture.file, identity };
+  assert.equal((await note.markLiteratureNoteDeleted(params)).changed, true);
+  assert.ok(fixture.current.includes("Retain my research"));
+  assert.ok(
+    fixture.current.indexOf("Retain my research") <
+      fixture.current.indexOf(SYNC_BOUNDARY),
+  );
+  const migrated = fixture.current;
+  assert.equal((await note.markLiteratureNoteDeleted(params)).changed, false);
+  assert.equal(fixture.current, migrated);
 });
 
 test("a stale cached file path is discarded and repaired by identity", () => {
@@ -595,4 +624,78 @@ test("image sync resolves an existing note before deciding whether its embed is 
   assert.match(fixture.current, /!\[Selected area\]/);
   assert.doesNotMatch(fixture.current, /Area image unavailable/);
   assert.match(fixture.current, /My original notes/);
+});
+
+test("later syncs preserve edits made above the new boundary during the atomic write", async () => {
+  const fixture = vaultFixture();
+  const params = {
+    stratumVersion: "0.2.1",
+    app: fixture.app,
+    existingFile: fixture.file,
+    detail,
+    filenameFormat: "readable" as const,
+    notesFolder: "Literature Notes",
+  };
+  await note.createOrUpdateLiteratureNote(params);
+  fixture.beforeProcess = () => {
+    fixture.current = fixture.current.replace(
+      "## My Notes\n",
+      "## My Notes\nConcurrent personal edit  \n",
+    );
+  };
+  await note.createOrUpdateLiteratureNote({
+    ...params,
+    detail: {
+      ...detail,
+      item: { ...detail.item, version: detail.item.version + 1 },
+    },
+  });
+  assert.ok(fixture.current.includes("Concurrent personal edit  \n"));
+  assert.ok(
+    fixture.current.indexOf("Concurrent personal edit  \n") <
+      fixture.current.indexOf("<!-- stratum:sync-boundary -->"),
+  );
+  assert.match(fixture.current, /My original notes/);
+});
+
+test("missing required boundary never writes the note", async () => {
+  const original = `---\n${JSON.stringify(frontmatter)}\n---\nPersonal writing`;
+  const fixture = vaultFixture(original);
+  await assert.rejects(
+    note.createOrUpdateLiteratureNote({
+      stratumVersion: "0.2.1",
+      app: fixture.app,
+      existingFile: fixture.file,
+      detail,
+      filenameFormat: "readable",
+      notesFolder: "Literature Notes",
+    }),
+    /boundary is missing or damaged/,
+  );
+  assert.equal(fixture.writes, 0);
+  assert.equal(fixture.current, original);
+});
+
+test("template replacement rechecks personal writing inside the atomic update", async () => {
+  const starter = "## My Notes\n\n";
+  const initial = `---\n${JSON.stringify({ ...frontmatter, stratum_note_layout: 2, stratum_notes_template: starter })}\n---\n${composeLiteratureNoteBody(starter, `${MANAGED_START}\nSource\n${MANAGED_END}\n`)}`;
+  const fixture = vaultFixture(initial);
+  fixture.beforeProcess = () => {
+    fixture.current = initial.replace(
+      SYNC_BOUNDARY,
+      `My concurrent research\n\n${SYNC_BOUNDARY}`,
+    );
+  };
+  await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
+    app: fixture.app,
+    existingFile: fixture.file,
+    detail,
+    filenameFormat: "readable",
+    notesFolder: "Literature Notes",
+    notesTemplate: "## Summary",
+  });
+  assert.match(fixture.current, /My concurrent research/);
+  assert.doesNotMatch(fixture.current, /## Summary/);
+  assert.match(fixture.current, /stratum_notes_template/);
 });

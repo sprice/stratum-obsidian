@@ -1,4 +1,9 @@
 import { assertSupportedZoteroItem } from "./zotero-item-support";
+import {
+  NOTE_LAYOUT_KEY,
+  NOTE_LAYOUT_VERSION,
+  requireLiteratureNoteLayout,
+} from "./literature-note-layout";
 import { TFile, htmlToMarkdown, parseYaml, stringifyYaml } from "obsidian";
 import type { App } from "obsidian";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
@@ -61,6 +66,7 @@ function assertNoteIdentity(
 
 export async function createOrUpdateLiteratureNote(params: {
   stratumVersion: string;
+  notesTemplate?: string;
   app: App;
   notesFolder: string;
   detail: ZoteroItemDetail;
@@ -94,6 +100,7 @@ export async function createOrUpdateLiteratureNote(params: {
     const candidate = buildLiteratureNoteContent({
       detail: params.detail,
       stratumVersion: params.stratumVersion,
+      notesTemplate: params.notesTemplate,
       filenameStem,
       existingContent,
       parseYaml,
@@ -110,6 +117,7 @@ export async function createOrUpdateLiteratureNote(params: {
       const nextContent = buildLiteratureNoteContent({
         detail: params.detail,
         stratumVersion: params.stratumVersion,
+        notesTemplate: params.notesTemplate,
         filenameStem,
         existingContent: currentContent,
         parseYaml,
@@ -133,6 +141,7 @@ export async function createOrUpdateLiteratureNote(params: {
     notesFolder: folder,
     detail: params.detail,
     stratumVersion: params.stratumVersion,
+    notesTemplate: params.notesTemplate,
     filenameFormat: params.filenameFormat,
     canWrite: params.canWrite,
     ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
@@ -157,8 +166,16 @@ export async function markLiteratureNoteDeleted(params: {
     if (params.canWrite && !params.canWrite())
       throw new Error("Note sync was cancelled.");
     assertNoteIdentity(existingContent, params.identity);
-    const { frontmatter } = splitFrontmatterContent(existingContent, parseYaml);
-    if (frontmatter.zotero_status === "deleted") return existingContent;
+    const { frontmatter, body } = splitFrontmatterContent(
+      existingContent,
+      parseYaml,
+    );
+    if (
+      frontmatter.zotero_status === "deleted" &&
+      frontmatter[NOTE_LAYOUT_KEY] === NOTE_LAYOUT_VERSION &&
+      !requireLiteratureNoteLayout(body, frontmatter[NOTE_LAYOUT_KEY]).legacy
+    )
+      return existingContent;
     changed = true;
     return markLiteratureNoteAsDeletedContent({
       existingContent,

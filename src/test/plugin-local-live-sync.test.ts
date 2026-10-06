@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type * as LiveSync from "../plugin-local-live-sync";
+import type StratumPlugin from "../plugin";
+import { loadRuntime } from "./runtime-harness";
+import { composeLiteratureNoteBody } from "../literature-note-layout";
+import {
+  MANAGED_START,
+  MANAGED_END,
+  USER_BOUNDARY_CALLOUT,
+} from "../literature-note-content-types";
 import {
   getTrackedLibraryRefreshCandidates,
   isWatchedZoteroDataFile,
@@ -156,4 +165,113 @@ test("getTrackedLibraryRefreshCandidates returns notes whose parent or tracked c
       filePath: "Literature Notes/Updated.md",
     },
   ]);
+});
+
+test("unchanged sources are refreshed for layout migration within the selected library", () => {
+  const params = {
+    itemFileMap: {
+      "user/1/UNCHANGED": {
+        filePath: "Papers/Synthetic.md",
+        zoteroItemKey: "UNCHANGED",
+        zoteroVersion: 10,
+      },
+      "group/2/OTHER": {
+        filePath: "Papers/Other.md",
+        zoteroItemKey: "OTHER",
+        zoteroVersion: 10,
+      },
+    },
+    library: { type: "user" as const, id: "1" },
+    previousItemVersions: { UNCHANGED: 10 },
+    currentItemVersions: { UNCHANGED: 10 },
+    layoutMigrationIdentities: new Set(["user/1/UNCHANGED", "group/2/OTHER"]),
+  };
+  assert.deepEqual(
+    getTrackedLibraryRefreshCandidates(params).map((entry) => entry.identity),
+    ["user/1/UNCHANGED"],
+  );
+  assert.deepEqual(
+    getTrackedLibraryRefreshCandidates({
+      ...params,
+      layoutMigrationIdentities: new Set(),
+    }),
+    [],
+  );
+});
+
+test("actual mixed layout overrides cached version 2 for unchanged-source migration", async () => {
+  class FakeFile {
+    path = "Papers/Synthetic.md";
+  }
+  const file = new FakeFile();
+  const runtime = loadRuntime<typeof LiveSync>("plugin-local-live-sync.ts", {
+    TFile: FakeFile,
+    Platform: {},
+    parseYaml: JSON.parse,
+  });
+  const fm = {
+    stratum_note_layout: 2,
+    stratum_notes_template: "## My Notes\n\n",
+  };
+  const managed = `${MANAGED_START}\nSynthetic source\n${MANAGED_END}\n`;
+  const modern = `---\n${JSON.stringify(fm)}\n---\n${composeLiteratureNoteBody("## My Notes\n\n", managed)}`;
+  let content = `${modern}\n${USER_BOUNDARY_CALLOUT}\n\nMy research\n`;
+  const plugin = {
+    settings: {
+      itemFileMap: {
+        "user/1/UNCHANGED": {
+          filePath: file.path,
+          zoteroItemKey: "UNCHANGED",
+          zoteroVersion: 10,
+        },
+        "group/2/OTHER": {
+          filePath: "Papers/Other.md",
+          zoteroItemKey: "OTHER",
+          zoteroVersion: 10,
+        },
+      },
+    },
+    app: {
+      vault: {
+        getAbstractFileByPath: (path: string) => {
+          assert.equal(path, file.path);
+          return file;
+        },
+        cachedRead: () => Promise.resolve(content),
+      },
+      metadataCache: { getFileCache: () => ({ frontmatter: fm }) },
+    },
+  } as unknown as StratumPlugin;
+  const library = {
+    type: "user" as const,
+    id: "1",
+    identity: "user:1",
+    name: "Synthetic",
+  };
+  for (const needsMigration of [true, false]) {
+    const metadata = await runtime.getTrackedNoteMetadata(plugin, library);
+    const candidates = getTrackedLibraryRefreshCandidates({
+      itemFileMap: plugin.settings.itemFileMap,
+      library,
+      previousItemVersions: { UNCHANGED: 10 },
+      currentItemVersions: { UNCHANGED: 10 },
+      ...metadata,
+    });
+    assert.equal(candidates.length, needsMigration ? 1 : 0);
+    if (needsMigration)
+      assert.equal(candidates[0].identity, "user/1/UNCHANGED");
+    content = modern;
+  }
+  plugin.settings.notesTemplate = "## Summary";
+  const metadata = await runtime.getTrackedNoteMetadata(plugin, library);
+  assert.equal(
+    metadata.layoutMigrationIdentities.has("user/1/UNCHANGED"),
+    true,
+  );
+  content = modern.replace("## My Notes\n\n", "## My Notes\n\nMy analysis\n\n");
+  const editedMetadata = await runtime.getTrackedNoteMetadata(plugin, library);
+  assert.equal(
+    editedMetadata.layoutMigrationIdentities.has("user/1/UNCHANGED"),
+    false,
+  );
 });

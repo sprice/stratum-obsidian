@@ -1,3 +1,8 @@
+import { SYNC_BOUNDARY } from "../literature-note-content-types";
+import {
+  composeLiteratureNoteBody,
+  requireLiteratureNoteLayout,
+} from "../literature-note-layout";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -6,7 +11,6 @@ import {
   MANAGED_START,
   MANAGED_END,
   USER_BOUNDARY_CALLOUT,
-  USER_BOUNDARY_PATTERN,
 } from "../literature-note-content";
 import type { ZoteroItemDetail } from "../backend-client";
 
@@ -86,7 +90,11 @@ function stringifyForTest(value: Record<string, unknown>): string {
     .map(
       ([key, entry]) =>
         `${key}: ${
-          Array.isArray(entry) ? `[${entry.join(", ")}]` : String(entry)
+          Array.isArray(entry)
+            ? `[${entry.join(", ")}]`
+            : typeof entry === "string" && entry.includes("\n")
+              ? JSON.stringify(entry)
+              : String(entry)
         }`,
     )
     .join("\n");
@@ -107,19 +115,50 @@ function syncUpdate(existingContent: string): string {
   });
 }
 
-/** Extract everything after the boundary callout from the output. */
+/** Extract personal content from the new layout. */
 function extractUserSection(content: string): string | null {
-  const match = USER_BOUNDARY_PATTERN.exec(content);
-  if (!match) return null;
-  // Find the end of the callout block (first line that doesn't start with >)
-  const fromCallout = content.slice(match.index);
-  const lines = fromCallout.split("\n");
-  let endIdx = 1;
-  while (endIdx < lines.length && lines[endIdx].startsWith(">")) {
-    endIdx++;
-  }
-  return lines.slice(endIdx).join("\n");
+  const from = content.indexOf("## My Notes");
+  const to = content.indexOf(SYNC_BOUNDARY);
+  return from >= 0 && to > from ? content.slice(from, to) : null;
 }
+
+test("mixed layout preserves bottom writing through refresh and deletion", () => {
+  const personal =
+    "\nMigration research  \n- [x] Read\n- [ ] Compare\n[[Companion]]\n\n> A quotation\n\n^migration-check\n\n";
+  const managed = `${MANAGED_START}\nOld source\n${MANAGED_END}\n`;
+  const mixed = `---\nstratum_note_layout: 2\n---\n${composeLiteratureNoteBody("## My Notes\n\nReplaceable header\n\n", managed)}\n${USER_BOUNDARY_CALLOUT}\n${personal}`;
+  const parseYaml = () => ({ stratum_note_layout: 2 });
+  const refresh = (existingContent: string) =>
+    buildLiteratureNoteContent({
+      stratumVersion: "0.3.6",
+      detail: createDetail(),
+      filenameStem: "Synthetic paper",
+      existingContent,
+      parseYaml,
+      stringifyYaml: stringifyForTest,
+      htmlToMarkdown: (html) => html,
+    });
+  const deletion = (existingContent: string) =>
+    markLiteratureNoteAsDeletedContent({
+      existingContent,
+      parseYaml,
+      stringifyYaml: stringifyForTest,
+    });
+  const refreshed = refresh(mixed);
+  for (const output of [
+    refreshed,
+    refresh(refreshed),
+    deletion(mixed),
+    deletion(refreshed),
+  ]) {
+    const body = output.slice(output.indexOf("\n---\n") + 5);
+    const layout = requireLiteratureNoteLayout(body, 2);
+    assert.equal(layout.personal, `## My Notes\n${personal}`);
+    assert.doesNotMatch(output, /Replaceable header|\[!stratum\]/);
+    assert.ok(output.indexOf(personal) < output.indexOf(SYNC_BOUNDARY));
+    assert.equal(output.split(personal).length, 2);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Core boundary: user content below [!stratum] callout survives sync
@@ -253,8 +292,8 @@ test("boundary: user content survives if callout title is renamed", () => {
 
   const output = syncUpdate(existing);
   assert.match(output, /User wrote this under a renamed callout\./);
-  // The renamed callout should survive since code matches on [!stratum] type
-  assert.match(output, /\[!stratum\]/);
+  // The old callout is replaced while writing beneath it is preserved.
+  assert.match(output, /\[!warning\] Synced source content/);
 });
 
 test("boundary: user content survives if callout title is completely different", () => {
@@ -274,7 +313,7 @@ test("boundary: user content survives if callout title is completely different",
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(output, /Research Log/);
+  assert.match(output, /## My Notes/);
   assert.match(output, /User renamed the section entirely\./);
   assert.match(output, /They wrote important analysis here\./);
 });
@@ -296,14 +335,14 @@ test("boundary: user content survives if callout is expanded (+) instead of coll
 
   const output = syncUpdate(existing);
   assert.match(output, /Content after expanded callout\./);
-  assert.match(output, /\[!stratum\]/);
+  assert.match(output, /\[!warning\] Synced source content/);
 });
 
 // ---------------------------------------------------------------------------
 // Content placement: user content outside managed block
 // ---------------------------------------------------------------------------
 
-test("boundary: user content between managed block and boundary callout is preserved", () => {
+test("boundary: content above the owned My Notes callout is replaced", () => {
   const existing = [
     "---",
     "zotero_item_key: ABCD1234",
@@ -320,14 +359,14 @@ test("boundary: user content between managed block and boundary callout is prese
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(
+  assert.doesNotMatch(
     output,
     /Some text the user put between managed block and the callout\./,
   );
   assert.match(output, /More user content here\./);
 });
 
-test("boundary: user content added directly after managed end marker is preserved", () => {
+test("boundary: text before the My Notes callout is managed", () => {
   const existing = [
     "---",
     "zotero_item_key: ABCD1234",
@@ -343,7 +382,7 @@ test("boundary: user content added directly after managed end marker is preserve
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(
+  assert.doesNotMatch(
     output,
     /User content right after managed end with no blank line\./,
   );
@@ -408,7 +447,7 @@ test("boundary: empty user section (just callout) is preserved without corruptio
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(output, /\[!stratum\]/);
+  assert.match(output, /\[!warning\] Synced source content/);
   const managedStartCount = (
     output.match(/<!-- stratum:managed:start -->/g) || []
   ).length;
@@ -536,7 +575,7 @@ test("boundary: user content is stable across multiple consecutive syncs", () =>
 // No managed markers: first sync on a pre-existing note
 // ---------------------------------------------------------------------------
 
-test("boundary: note without managed markers gets markers added without losing content", () => {
+test("boundary: note without managed markers preserves only writing after the callout", () => {
   const existing = [
     "---",
     "zotero_item_key: ABCD1234",
@@ -552,25 +591,18 @@ test("boundary: note without managed markers gets markers added without losing c
   const output = syncUpdate(existing);
   assert.match(output, /<!-- stratum:managed:start -->/);
   assert.match(output, /<!-- stratum:managed:end -->/);
-  assert.match(
+  assert.doesNotMatch(
     output,
     /This is a note someone created manually before Stratum existed\./,
   );
   assert.match(output, /Their original thoughts\./);
 });
 
-test("boundary: note with only user content and no callout gets boundary callout appended", () => {
-  const existing = [
-    "---",
-    "zotero_item_key: ABCD1234",
-    "---",
-    "",
-    "Just some loose text with no structure.",
-  ].join("\n");
-
-  const output = syncUpdate(existing);
-  assert.match(output, /\[!stratum\]/);
-  assert.match(output, /Just some loose text with no structure\./);
+test("boundary: a note without the required callout is not rewritten", () => {
+  assert.throws(
+    () => syncUpdate("Just some loose text with no structure."),
+    /boundary is missing or damaged/,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -694,18 +726,12 @@ test("boundary: new note always includes boundary callout", () => {
     htmlToMarkdown: (html) => html,
   });
 
-  assert.match(output, /\[!stratum\]/);
+  assert.match(output, /\[!warning\] Synced source content/);
   assert.match(output, /<!-- stratum:managed:start -->/);
   assert.match(output, /<!-- stratum:managed:end -->/);
 
-  // The boundary callout should come AFTER the managed end marker
-  const managedEndIdx = output.indexOf(MANAGED_END);
-  const boundaryMatch = USER_BOUNDARY_PATTERN.exec(output);
-  assert.ok(boundaryMatch, "Boundary callout must exist");
-  assert.ok(
-    boundaryMatch.index > managedEndIdx,
-    "Boundary callout must appear after the managed block",
-  );
+  assert.ok(output.indexOf("## My Notes") < output.indexOf(SYNC_BOUNDARY));
+  assert.ok(output.indexOf(SYNC_BOUNDARY) < output.indexOf(MANAGED_START));
 });
 
 // ---------------------------------------------------------------------------
@@ -782,7 +808,7 @@ test("boundary: callout with deleted description lines still works as boundary",
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(output, /\[!stratum\]/);
+  assert.match(output, /\[!warning\] Synced source content/);
   assert.match(output, /User deleted the description line from the callout\./);
 });
 
@@ -804,8 +830,8 @@ test("boundary: callout with extra user-added description lines works", () => {
   ].join("\n");
 
   const output = syncUpdate(existing);
-  assert.match(output, /\[!stratum\]/);
-  assert.match(output, /I added another line/);
+  assert.match(output, /\[!warning\] Synced source content/);
+  assert.doesNotMatch(output, /I added another line/);
   assert.match(output, /Notes below the callout\./);
 });
 
@@ -813,7 +839,9 @@ test("standalone marker examples below the user boundary are never overwritten",
   const personal = `${USER_BOUNDARY_CALLOUT}\n\nMy example:\n${MANAGED_START}\nKeep this example\n${MANAGED_END}\n`;
   const output = syncUpdate(personal);
   assert.match(output, /Keep this example/);
-  assert.ok(output.includes(personal.trimEnd()));
+  assert.ok(
+    output.includes(personal.slice(personal.indexOf("\n\n") + 2).trimEnd()),
+  );
 });
 
 test("a missing managed end marker cannot swallow personal writing", () => {
@@ -821,7 +849,9 @@ test("a missing managed end marker cannot swallow personal writing", () => {
   const output = syncUpdate(
     `${MANAGED_START}\nDamaged managed section\n${personal}`,
   );
-  assert.ok(output.includes(personal.trimEnd()));
+  assert.ok(
+    output.includes(personal.slice(personal.indexOf("\n\n") + 2).trimEnd()),
+  );
 });
 
 test("quoted Zotero markers cannot prematurely end the managed section", () => {
@@ -838,7 +868,9 @@ test("quoted Zotero markers cannot prematurely end the managed section", () => {
     stringifyYaml: stringifyForTest,
     htmlToMarkdown: (html) => html,
   });
-  const output = syncUpdate(initial + "\nPersonal writing\n");
+  const output = syncUpdate(
+    initial.replace("## My Notes\n", "## My Notes\n\nPersonal writing\n"),
+  );
   assert.doesNotMatch(output, /Old abstract tail|Old journal tail/);
   assert.match(output, /Personal writing/);
 });
@@ -855,7 +887,10 @@ test("Zotero text containing replacement metacharacters is preserved literally",
   const output = buildLiteratureNoteContent({
     stratumVersion: "0.2.1",
     detail: createDetail({ item: { abstract: "Cost $& and $' and $`" } }),
-    existingContent: initial + "\nPersonal writing\n",
+    existingContent: initial.replace(
+      "## My Notes\n",
+      "## My Notes\n\nPersonal writing\n",
+    ),
     filenameStem: "Paper",
     parseYaml: () => ({}),
     stringifyYaml: stringifyForTest,
@@ -875,7 +910,9 @@ test("deletion marking never edits warning or marker examples in personal notes"
       parseYaml: () => ({}),
       stringifyYaml: stringifyForTest,
     });
-    assert.ok(output.includes(personal.trimEnd()));
+    assert.ok(
+      output.includes(personal.slice(personal.indexOf("\n\n") + 2).trimEnd()),
+    );
   }
 });
 
