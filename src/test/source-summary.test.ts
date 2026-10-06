@@ -3,6 +3,7 @@ import test from "node:test";
 import { ChangeSet, Text } from "@codemirror/state";
 import { loadRuntime } from "./runtime-harness";
 import * as summaryTemplates from "../source-summary-template";
+import * as summaryInsertion from "../source-summary-insertion";
 const { DEFAULT_SOURCE_SUMMARY_TEMPLATE } = summaryTemplates;
 import { composeLiteratureNoteBody } from "../literature-note-layout";
 import {
@@ -128,6 +129,7 @@ function fixture(text = "BeforeSelectedAfter") {
     "node",
     {
       "./source-summary-template": summaryTemplates,
+      "./source-summary-insertion": summaryInsertion,
       "@codemirror/view": {
         ViewPlugin: {
           fromClass: (ctor: new () => { update(update: unknown): void }) => {

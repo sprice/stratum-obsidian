@@ -25,8 +25,8 @@ import {
   DEFAULT_SOURCE_SUMMARY_TEMPLATE,
   escapeSummaryText,
   renderSourceSummary,
-  summaryInsertion,
 } from "./source-summary-template";
+import { summaryInsertion } from "./source-summary-insertion";
 import type StratumPlugin from "./plugin";
 
 interface Destination {

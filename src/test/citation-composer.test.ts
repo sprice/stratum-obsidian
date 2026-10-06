@@ -5,6 +5,11 @@ import { loadRuntime } from "./runtime-harness";
 
 test("composer writes to its captured editor and aborts stale or cancelled edits", async () => {
   for (const scenario of [
+    "new-save",
+    "new-cancel",
+    "new-changed",
+    "new-closed",
+    "new-unloaded",
     "save",
     "suggestion",
     "changed",
@@ -19,17 +24,22 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
     let modal:
       | { isActive: boolean; save: () => Promise<void>; draft: CitationDraft }
       | undefined;
+    let picker:
+      import("../library-search-modal").LiteratureNoteSearchModal | undefined;
+    let pickerClosed = false;
     let unload = () => {};
     class File {}
     const file = new File(),
       bib = new File();
-    let text = "A claim [@synthetic2026, p. xiv].";
+    let text = scenario.startsWith("new-")
+      ? "A claim "
+      : "A claim [@synthetic2026, p. xiv].";
     let open = true;
     let writes = 0;
     let inserted = "";
     const editor = {
       getValue: () => text,
-      getCursor: () => ({ line: 0, ch: 15 }),
+      getCursor: () => ({ line: 0, ch: scenario.startsWith("new-") ? 8 : 15 }),
       posToOffset: (pos: { ch: number }) => pos.ch,
       offsetToPos: (ch: number) => ({ line: 0, ch }),
       replaceRange: (
@@ -47,7 +57,17 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
       "citation-composer.ts",
       {
         TFile: File,
-        FuzzySuggestModal: class {},
+        FuzzySuggestModal: class {
+          setPlaceholder() {}
+          open() {
+            picker = this as unknown as typeof picker;
+          }
+          close() {
+            pickerClosed = true;
+            (this as unknown as { onClose(): void }).onClose();
+          }
+          onClose() {}
+        },
         Modal: class {
           open() {
             modal = this as unknown as typeof modal;
@@ -124,7 +144,46 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
       assert.equal(modal, undefined);
       continue;
     }
+    if (scenario.startsWith("new-")) {
+      assert.equal(modal, undefined, "new citations show the picker first");
+      assert.ok(picker);
+      assert.equal(writes, 0);
+      if (scenario === "new-cancel") {
+        picker.close();
+        assert.equal(modal, undefined);
+        assert.equal(writes, 0);
+        continue;
+      }
+      if (scenario === "new-unloaded") {
+        unload();
+        assert.equal(pickerClosed, true);
+        picker.onChooseItem(picker.getItems()[0]);
+        assert.equal(modal, undefined);
+        assert.equal(writes, 0);
+        continue;
+      }
+      if (scenario === "new-changed" || scenario === "new-closed") {
+        if (scenario === "new-changed") text += "Changed";
+        else open = false;
+        assert.throws(
+          () => picker!.onChooseItem(picker!.getItems()[0]),
+          /original note or sources changed/,
+        );
+        assert.equal(modal, undefined);
+        assert.equal(writes, 0);
+        continue;
+      }
+      picker.onChooseItem(picker.getItems()[0]);
+      picker.close();
+    } else {
+      assert.equal(
+        picker,
+        undefined,
+        "editing and suggestions skip the initial picker",
+      );
+    }
     assert.ok(modal);
+    assert.equal(modal.draft.items.length, 1);
     // Another active editor must not steal the insertion target.
     plugin.app.workspace.activeEditor = {
       editor: {} as typeof editor,
@@ -134,12 +193,17 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
     if (scenario === "closed") open = false;
     if (scenario === "cancelled") modal.isActive = false;
     if (
+      scenario === "new-save" ||
       scenario === "save" ||
       scenario === "draft-mutated" ||
       scenario === "suggestion"
     ) {
       await modal.save();
-      if (scenario === "suggestion") assert.equal(inserted, "[@synthetic2026]");
+      if (scenario === "new-save") {
+        assert.equal(inserted, "[@synthetic2026]");
+        assert.equal(text, "A claim [@synthetic2026]");
+      } else if (scenario === "suggestion")
+        assert.equal(inserted, "[@synthetic2026]");
       else {
         assert.equal(inserted, "[@synthetic2026, p. xiv]");
         assert.equal(text, "A claim [@synthetic2026, p. xiv].");

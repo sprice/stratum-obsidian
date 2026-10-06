@@ -1,4 +1,4 @@
-import { SourceSummaries } from "./source-summary";
+import type { SourceSummaries } from "./source-summary";
 import { readAvailableCitationStyles } from "./citation-style-defaults";
 import type { PublishController } from "./publish-controller";
 import { selectStratumTab } from "./plugin-tabs";
@@ -286,6 +286,7 @@ export default class StratumPlugin extends Plugin {
     if (this.isUnloaded) return;
     const { refreshCitationData } = await import("./citation-refresh");
     const { citationDocument } = await import("./citation-document");
+    const { SourceSummaries } = await import("./source-summary");
     if (this.isUnloaded) return;
     this.citations = new CitationService(this);
     this.addChild(this.citations);
