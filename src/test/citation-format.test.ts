@@ -381,3 +381,90 @@ test("all five starter styles format citations and bibliography using bundled re
     assert.match(result.bibliography, /A second example/i, id);
   }
 });
+test("MLA bare citations render an author, with a parenthetical remainder only when needed", () => {
+  const cases = [
+    ["@smith2024 argues this.", "Smith"],
+    ["@smith2024 [p. 42] argues this.", "Smith (42)"],
+    ["A claim [@smith2024].", "(Smith)"],
+    ["A claim [-@smith2024].", ""],
+    ["A claim [@smith2024; @jones2023].", "(Smith; Jones)"],
+  ];
+  for (const [source, expected] of cases) {
+    const output = format(source, "modern-language-association").citations[0];
+    assert.doesNotMatch(output, /NO_PRINTED_FORM/);
+    assert.equal(output, expected);
+  }
+});
+test("MLA narrative citations keep title disambiguation and update when the other work is removed", async () => {
+  const { createCitationFormatter } = await import("../citation-format");
+  const refs = new Map(references);
+  refs.set("smithOther", {
+    ...references.get("smith2024")!,
+    id: "user/1/C",
+    title: "Another example",
+  });
+  const render = createCitationFormatter(
+    styles["modern-language-association"],
+    "en-US",
+    styles,
+    refs,
+  );
+  const both = render("@smith2024 [p. 42] argues this. @smithOther disagrees.");
+  assert.deepEqual(both.citations, [
+    "Smith (<i>Example Research</i> 42)",
+    "Smith (<i>Another Example</i>)",
+  ]);
+  const one = render("@smith2024 argues this. A claim [@smith2024].");
+  assert.deepEqual(one.citations, ["Smith", "(Smith)"]);
+  assert.doesNotMatch(one.bibliography, /Another example/i);
+  assert.match(one.bibliography, /Example research/i);
+});
+test("an ordinary citation that a style cannot format still reports a visible style error", () => {
+  const empty =
+    '<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0"><info><id>x</id><title>x</title><updated>2020-01-01T00:00:00+00:00</updated></info><citation><layout><text value=""/></layout></citation><bibliography><layout><text variable="title"/></layout></bibliography></style>';
+  const output = formatCitationDocument(
+    "A claim [@smith2024].",
+    empty,
+    "en-US",
+    styles,
+    references,
+  ).citations[0];
+  assert.match(output, /no printed form/i);
+});
+test("author suppression does not hide a style that cannot format the source", () => {
+  const yearOnly =
+    '<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0"><info><id>x</id><title>x</title><updated>2020-01-01T00:00:00+00:00</updated></info><citation><layout><date variable="issued"><date-part name="year"/></date></layout></citation><bibliography><layout><text variable="title"/></layout></bibliography></style>';
+  const refs = new Map(references);
+  refs.set("smith2024", { ...references.get("smith2024")!, issued: undefined });
+  for (const source of ["A claim [-@smith2024].", "@smith2024 argues this."]) {
+    assert.throws(
+      () => formatCitationDocument(source, yearOnly, "en-US", styles, refs),
+      /could not format a source/i,
+    );
+  }
+});
+test("narrative citations preserve literal source metadata", () => {
+  for (const author of [
+    "Research [NO_PRINTED_FORM] Institute",
+    "Research [NO_PRINTED_FORM]",
+  ]) {
+    const refs = new Map(references);
+    refs.set("smith2024", {
+      ...references.get("smith2024")!,
+      author: [{ literal: author }],
+    });
+    for (const [style, expected] of [
+      ["apa", `${author} (2024)`],
+      ["modern-language-association", author],
+    ]) {
+      const result = formatCitationDocument(
+        "@smith2024 argues this.",
+        styles[style],
+        "en-US",
+        styles,
+        refs,
+      );
+      assert.equal(result.citations[0], expected);
+    }
+  }
+});

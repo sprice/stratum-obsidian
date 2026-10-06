@@ -1,4 +1,5 @@
-import CSL, { type Citation } from "citeproc";
+import type { Citation } from "citeproc";
+import { CitationEngine } from "./citation-engine";
 import { citationDocument, type CitationDocument } from "./citation-document";
 import type { CslItem } from "./csl-data";
 export interface FormattedDocument {
@@ -64,7 +65,7 @@ export function createCitationFormatter(
       );
     return item.id;
   };
-  const engine = new CSL.Engine(
+  const engine = new CitationEngine(
     {
       retrieveLocale: (lang) => locales[lang] || false,
       retrieveItem: (id) => {
