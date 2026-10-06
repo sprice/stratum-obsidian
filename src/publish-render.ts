@@ -1,3 +1,10 @@
+import { preparePublishMath, protectTexDelimiters } from "./publish-math";
+import {
+  academicMetadata,
+  academicOpening,
+  publicationFrontmatter,
+} from "./publish-academic";
+import type { NotePublishPreferences } from "./publish-options";
 import { publishImage } from "./publish-image";
 import { Component, MarkdownRenderer, TFile, type App } from "obsidian";
 import type { FormattedDocument } from "./citation-format";
@@ -17,8 +24,22 @@ export async function renderPublication(
   title: string,
   result: FormattedDocument | undefined,
   signal: AbortSignal,
+  preferences?: NotePublishPreferences,
 ): Promise<{ html: string; assets: PublishAsset[] }> {
   const prepared = preparePublication(text, result);
+  const academic = preferences?.documentType === "academic";
+  const { properties, body: sourceBody } = academic
+    ? publicationFrontmatter(text)
+    : { properties: {}, body: "" };
+  const metadata = academicMetadata(properties, sourceBody);
+  if (academic && !metadata.title)
+    throw new Error(
+      "Add a nonempty title property before publishing an academic paper.",
+    );
+  if (academic && preferences?.opening !== "body" && metadata.duplicateTitle)
+    throw new Error(
+      "The body repeats the title property. Choose Use title from body, or remove the repeated title and author lines yourself.",
+    );
   const assets: PublishAsset[] = [];
   const imagePaths = new Map<string, string>();
   const image = async (target: string): Promise<string> => {
@@ -64,7 +85,8 @@ export async function renderPublication(
       throw new Error(
         "Raw HTML media is not supported when publishing. Use Markdown image embeds instead.",
       );
-    const linked = await preparePublishLinks(markdown, image);
+    const math = preparePublishMath(markdown);
+    const linked = await preparePublishLinks(math.markdown, image);
     const element = createDiv();
     element.addClass("stratum-reference-output");
     await MarkdownRenderer.render(app, linked, element, sourcePath, owner);
@@ -75,7 +97,7 @@ export async function renderPublication(
       )
     )
       throw new Error(
-        "This note contains a rendered block that publishing does not support yet. Replace diagrams, math, or embedded documents with vault images before publishing.",
+        "This note contains a rendered block that publishing does not support yet. Replace diagrams or embedded documents with vault images before publishing.",
       );
     for (const anchor of Array.from(
       element.querySelectorAll('a[href^="#stratum-publish-"]'),
@@ -130,17 +152,64 @@ export async function renderPublication(
         )
           node.removeAttribute(attr.name);
     }
-    return element.innerHTML;
+    return math.restore(element.innerHTML);
   };
   try {
-    const body = await render(prepared.markdown);
+    let body = await render(prepared.markdown);
+    let demoted = false;
+    if (academic) {
+      // Take the body's title before inserting keywords so it stays first.
+      let opening = "";
+      if (preferences?.opening === "body")
+        body = body.replace(
+          /^\s*<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1>/i,
+          (_match, title: string) => {
+            opening = `<div class="stratum-publish-title"><p>${title}</p></div>`;
+            return "";
+          },
+        );
+      else opening = protectTexDelimiters(academicOpening(metadata));
+      const keywords = metadata.keywords.length
+        ? `<div class="stratum-publish-keywords"><p>Keywords: ${protectTexDelimiters(escapeHtml(metadata.keywords.join(", ")))}</p></div>`
+        : "";
+      const abstract =
+        /<h2(?:\s[^>]*)?>Abstract<\/h2>([\s\S]*?)(?=<h[12]\b|$)/i;
+      body =
+        opening +
+        (abstract.test(body)
+          ? body.replace(
+              abstract,
+              `<div class="stratum-publish-abstract"><h2 class="unnumbered">Abstract</h2>$1</div>${keywords}`,
+            )
+          : keywords + body);
+      // With a separate title block, second-level Markdown headings become paper sections.
+      demoted = !/<h1\b/i.test(body);
+      if (demoted)
+        body = body.replace(
+          /(<\/?h)([2-6])(\b)/gi,
+          (_match, prefix: string, level: string, boundary: string) =>
+            `${prefix}${Number(level) - 1}${boundary}`,
+        );
+    }
     const notes: string[] = [];
     for (const note of prepared.notes)
       notes.push(
         `<aside epub:type="footnote" id="${note.id}">${await render(note.markdown)}</aside>`,
       );
+    // The bibliography stays at the same level as the paper's sections.
+    const sectionLevels = [
+      ...body.matchAll(/<h([1-6])\b(?![^>]*\bunnumbered\b)/gi),
+    ].map((match) => Number(match[1]));
+    const level =
+      academic && sectionLevels.length
+        ? Math.min(...sectionLevels)
+        : academic
+          ? 1
+          : 2;
     const bibliography = prepared.bibliography
-      ? `<h2>${prepared.heading}</h2>${prepared.bibliography}`
+      ? protectTexDelimiters(
+          `<h${level} class="unnumbered">${prepared.heading}</h${level}>${prepared.bibliography}`,
+        )
       : "";
     return {
       html: `<!DOCTYPE html><html xmlns:epub="http://www.idpf.org/2007/ops"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body>${body}${bibliography}${notes.join("")}</body></html>`,

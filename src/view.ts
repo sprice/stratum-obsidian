@@ -481,9 +481,6 @@ export class StratumView extends ItemView {
     this.readerSuggest = null;
     this.clearReaderMarkdownComponent();
 
-    if (this.plugin.activeViewTab !== "publish" && this.plugin.publish)
-      this.plugin.publish.selectedFormat = "";
-
     if (this.plugin.activeViewTab !== "reader") {
       this.clearReaderFileWatcher();
       this.clearReaderRefreshTimer();

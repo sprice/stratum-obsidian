@@ -21,11 +21,25 @@ import {
   convertPublication,
   detectPublishTool,
   probePublication,
+  PublishFontError,
   savePublishedCopy,
   type PublishReadiness,
 } from "./publish-desktop";
 import { renderPublication } from "./publish-render";
 import { readPublishReadinessCache } from "./publish-readiness";
+import {
+  readPublishOptions,
+  readNotePreferences,
+  readAcademicDefaults,
+  DEFAULT_ACADEMIC_OPTIONS,
+  type NotePublishPreferences,
+  type PublishOptions,
+} from "./publish-options";
+import {
+  publicationFrontmatter,
+  academicMetadata,
+  addAcademicProperties,
+} from "./publish-academic";
 
 export class PublishController extends Component {
   document: TFile | null = null;
@@ -48,6 +62,14 @@ export class PublishController extends Component {
   private loadRevision = 0;
   private supportRevision = 0;
   private background: AbortController | null = null;
+  private preferenceQueue: Promise<void> = Promise.resolve();
+  private preferencePending = 0;
+  private preparing = false;
+  private selectionKey = "";
+  private sourceRevision = 0;
+  private sourceText = "";
+  private sourceTimer: number | null = null;
+  preferencesSaving = false;
   constructor(readonly plugin: StratumPlugin) {
     super();
     this.store = new PublishStore(
@@ -119,6 +141,21 @@ export class PublishController extends Component {
       }),
     );
     this.followRecent();
+    if (this.plugin.app.metadataCache?.on)
+      this.registerEvent(
+        this.plugin.app.metadataCache.on("changed", (file) => {
+          if (file === this.document) this.emit();
+        }),
+      );
+    this.registerEvent(
+      this.plugin.app.workspace.on("editor-change", () => {
+        if (this.sourceTimer !== null) window.clearTimeout(this.sourceTimer);
+        this.sourceTimer = window.setTimeout(() => {
+          this.sourceTimer = null;
+          this.emit();
+        }, 250);
+      }),
+    );
     if (this.readiness) void this.validateCachedSupport();
   }
   onunload(): void {
@@ -126,6 +163,7 @@ export class PublishController extends Component {
     this.clearError();
     this.aborter?.abort();
     this.background?.abort();
+    if (this.sourceTimer !== null) window.clearTimeout(this.sourceTimer);
     this.listeners.clear();
   }
   private followRecent(): void {
@@ -163,12 +201,199 @@ export class PublishController extends Component {
           sourceLeaf = candidate;
       });
       this.leaf = sourceLeaf;
+      this.syncSelection();
       this.emit();
       return;
     }
     const file = leaf?.view instanceof MarkdownView ? leaf.view.file : null;
     this.document = file?.extension === "md" ? file : null;
     this.leaf = this.document ? leaf : null;
+    this.syncSelection();
+    this.emit();
+  }
+  private syncSelection(): void {
+    const file = this.document;
+    const key = file ? `${file.path}:${file.stat.ctime}` : "";
+    if (key === this.selectionKey) return;
+    this.selectionKey = key;
+    this.selectedFormat = this.notePreferences.format;
+    this.sourceText = "";
+    const revision = ++this.sourceRevision;
+    if (
+      file &&
+      !(this.leaf?.view instanceof MarkdownView) &&
+      this.plugin.app.vault.read
+    )
+      void this.plugin.app.vault
+        .read(file)
+        .then((text) => {
+          if (revision === this.sourceRevision && this.document === file) {
+            this.sourceText = text;
+            this.emit();
+          }
+        })
+        .catch((error) => this.fail(error));
+  }
+  private currentText(): string {
+    const view = this.leaf?.view;
+    return view instanceof MarkdownView && view.file === this.document
+      ? view.editor.getValue()
+      : this.sourceText;
+  }
+  get notePreferences(): NotePublishPreferences {
+    const note = this.catalog?.notes.find(
+      (n) =>
+        n.path === this.document?.path && n.ctime === this.document?.stat.ctime,
+    );
+    return readNotePreferences(
+      note?.preferences,
+      readPublishOptions(this.plugin.settings.publishingDefaults),
+      readPublishOptions(
+        this.plugin.settings.academicPublishingDefaults,
+        DEFAULT_ACADEMIC_OPTIONS,
+      ),
+    );
+  }
+  get layout(): PublishOptions {
+    return this.notePreferences[this.selectedFormat || "docx"];
+  }
+  get academicInfo() {
+    const text = this.currentText();
+    const { properties, body } = text
+      ? publicationFrontmatter(text)
+      : {
+          properties: this.document
+            ? (this.plugin.app.metadataCache?.getFileCache(this.document)
+                ?.frontmatter ?? {})
+            : {},
+          body: "",
+        };
+    return academicMetadata(properties, body);
+  }
+  get academicProblem(): string {
+    if (this.notePreferences.documentType !== "academic") return "";
+    try {
+      const metadata = this.academicInfo;
+      if (!metadata.title)
+        return "Add a nonempty title property to prepare this academic paper.";
+      if (
+        metadata.duplicateTitle &&
+        this.notePreferences.opening === "properties"
+      )
+        return "The body repeats the title property. Use title from body, or remove the repeated opening yourself.";
+      return "";
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Check this note's publishing properties.";
+    }
+  }
+  updatePreferences(
+    patch: Partial<NotePublishPreferences>,
+    layoutPatch?: { format: "docx" | "pdf"; patch: Partial<PublishOptions> },
+  ): Promise<void> {
+    const file = this.document;
+    if (!file || this.busy) return Promise.resolve();
+    this.preferencesSaving = true;
+    this.preferencePending++;
+    const next = this.preferenceQueue.then(async () => {
+      const note = await this.store.note(
+        file.path,
+        file.basename,
+        file.stat.ctime,
+      );
+      const defaults = readPublishOptions(
+        this.plugin.settings.publishingDefaults,
+      );
+      const academic = readPublishOptions(
+        this.plugin.settings.academicPublishingDefaults,
+        DEFAULT_ACADEMIC_OPTIONS,
+      );
+      const current = readNotePreferences(note.preferences, defaults, academic);
+      if (layoutPatch)
+        current[layoutPatch.format] = readPublishOptions({
+          ...current[layoutPatch.format],
+          ...layoutPatch.patch,
+        });
+      if (patch.documentType && patch.documentType !== current.documentType) {
+        const oldDefaults =
+          current.documentType === "academic" ? academic : defaults;
+        const base = patch.documentType === "academic" ? academic : defaults;
+        for (const format of ["pdf", "docx"] as const)
+          if (
+            !note.preferences ||
+            JSON.stringify(current[format]) === JSON.stringify(oldDefaults)
+          )
+            current[format] = { ...base };
+      }
+      await this.store.setPreferences(
+        note.id,
+        readNotePreferences({ ...current, ...patch }, defaults, academic),
+      );
+      await this.reload();
+    });
+    this.preferenceQueue = next.catch(() => {});
+    this.emit();
+    return next
+      .catch((error) => {
+        this.fail(error);
+        throw error;
+      })
+      .finally(() => {
+        this.preferencesSaving = --this.preferencePending > 0 || this.preparing;
+        this.emit();
+      });
+  }
+  selectFormat(format: PublishFormat | ""): Promise<void> {
+    this.selectedFormat = format;
+    return this.updatePreferences({ format });
+  }
+  updateLayout(patch: Partial<PublishOptions>): Promise<void> {
+    const format = this.selectedFormat || "docx";
+    return this.updatePreferences({}, { format, patch });
+  }
+  async prepareAcademic(): Promise<void> {
+    const file = this.document;
+    if (!file || this.busy || this.preferencesSaving) return;
+    this.preparing = this.preferencesSaving = true;
+    this.emit();
+    try {
+      const defaults = readAcademicDefaults(
+        this.plugin.settings.academicProperties,
+      );
+      await this.plugin.app.fileManager.processFrontMatter(
+        file,
+        (properties: Record<string, unknown>) =>
+          addAcademicProperties(properties, file.basename, defaults),
+      );
+      this.sourceText = await this.plugin.app.vault.read(file);
+    } catch (error) {
+      this.fail(error);
+    } finally {
+      this.preparing = false;
+      this.preferencesSaving = this.preferencePending > 0;
+      this.emit();
+    }
+  }
+  async citationStyleChoices() {
+    const file = this.document;
+    if (!file) return null;
+    const text = this.currentText() || (await this.plugin.app.vault.read(file));
+    const { noteCitationStyleChoices } =
+      await import("./citation-style-choice");
+    return noteCitationStyleChoices(this.plugin, file, text);
+  }
+  async changeCitationStyle(style: string): Promise<void> {
+    const file = this.document;
+    if (!file || this.busy) return;
+    const text = this.currentText() || (await this.plugin.app.vault.read(file));
+    const { setNoteCitationStyle } = await import("./citation-style-choice");
+    await setNoteCitationStyle(
+      this.plugin,
+      file,
+      style,
+      this.plugin.citations.preferences(file.path, text).language,
+    );
     this.emit();
   }
   subscribe(listener: () => void): () => void {
@@ -208,7 +433,10 @@ export class PublishController extends Component {
     const revision = ++this.loadRevision;
     const catalog = await this.store.list();
     if (revision === this.loadRevision && this.alive) {
+      const firstLoad = !this.catalog;
       this.catalog = catalog;
+      if (firstLoad && this.notePreferences.format)
+        this.selectedFormat = this.notePreferences.format;
       const recent = this.plugin.app.workspace.getMostRecentLeaf(
         this.plugin.app.workspace.rootSplit,
       );
@@ -236,6 +464,8 @@ export class PublishController extends Component {
       !!this.catalog &&
       !this.busy &&
       !this.checking &&
+      !this.preferencesSaving &&
+      !this.academicProblem &&
       (this.selectedFormat === "pdf"
         ? !!this.readiness?.pdf
         : !!this.readiness?.word)
@@ -385,6 +615,8 @@ export class PublishController extends Component {
       title = file.basename,
       ctime = file.stat.ctime,
       format = this.selectedFormat;
+    const publishing = this.notePreferences;
+    const layout = { ...publishing[format] };
     const view = this.leaf?.view;
     // Reading and editing use the same source snapshot, including unsaved editor text.
     const source =
@@ -416,6 +648,7 @@ export class PublishController extends Component {
         title,
         formatted,
         aborter.signal,
+        publishing,
       );
       converting = true;
       const bytes = await convertPublication(
@@ -424,6 +657,8 @@ export class PublishController extends Component {
         format,
         tools,
         aborter.signal,
+        120_000,
+        layout,
       );
       converting = false;
       if (aborter.signal.aborted || !this.alive) return;
@@ -437,18 +672,35 @@ export class PublishController extends Component {
           createdAt: date.toISOString(),
           citationStyle: preferences.style,
           citationLanguage: preferences.language,
+          publishing: {
+            documentType: publishing.documentType,
+            opening: publishing.opening,
+            layout,
+            ...(publishing.documentType === "academic"
+              ? {
+                  metadata: academicMetadata(
+                    publicationFrontmatter(text).properties,
+                  ),
+                }
+              : {}),
+          },
         },
         title,
         bytes,
       );
-      this.selectedFormat = "";
       await this.reload();
     } catch (error) {
       this.fail(
         error,
         `There was an error creating the ${formatLabel(format)} file`,
       );
-      if (converting && !aborter.signal.aborted && this.alive) {
+      // A missing font is a layout choice, not a tool failure.
+      if (
+        converting &&
+        !(error instanceof PublishFontError) &&
+        !aborter.signal.aborted &&
+        this.alive
+      ) {
         try {
           await this.diagnoseFailure(format, aborter.signal);
         } catch {

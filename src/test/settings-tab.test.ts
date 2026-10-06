@@ -29,6 +29,9 @@ class Element {
     this.listeners.get("blur")?.();
   }
   empty() {}
+  createEl() {
+    return new Element();
+  }
   createDiv() {
     return new Element();
   }
@@ -102,6 +105,8 @@ class Row {
     callback(this.control);
     return this;
   }
+  addTextArea = (callback: (control: Control) => void) =>
+    this.addText(callback);
   addToggle = (callback: (control: Control) => void) => this.addText(callback);
   addDropdown = (callback: (control: Control) => void) =>
     this.addText(callback);
@@ -144,6 +149,7 @@ function fixture(desktop = false, modern = true) {
     {},
     "node",
     {
+      "./publish-customize": { renderPublishCustomization() {} },
       "./note-template-modal": {
         NoteTemplateModal: class {
           opened = false;
@@ -410,7 +416,7 @@ for (const desktop of [true, false]) {
     assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
     assert.equal(f.plugin.settings.enabledTabs.publish, !desktop);
     assert.equal(
-      sections.some((section) => section.heading === "Stratum Publishing"),
+      sections.some((section) => section.heading === "Publishing"),
       desktop,
     );
     assert.equal(f.plugin.settings.enabledTabs.reader, false);

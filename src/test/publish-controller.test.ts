@@ -125,6 +125,7 @@ function setup(settings: Partial<StratumSettings> = {}) {
         },
       },
       "./publish-desktop": {
+        PublishFontError: class extends Error {},
         detectPublishTool: async (name: "pandoc" | "tectonic") => {
           calls.detect++;
           await behavior.detection;
@@ -251,7 +252,7 @@ test("switching notes during publication preserves the click-time document and i
   await controller.create();
   release();
   await pending;
-  assert.equal(controller.selectedFormat, "");
+  assert.equal(controller.selectedFormat, "docx");
   assert.equal(rendered.length, 1);
   assert.equal(rendered[0].text, "Unsaved first note");
   assert.equal(rendered[0].path, "First.md");
@@ -542,6 +543,30 @@ test("explicit setup persists verified support for the next launch", async () =>
   await controller.check(true);
   assert.equal(plugin.settings.publishReadinessCache?.readiness.pdf, true);
   assert.equal(plugin.settings.publishPdfSetupComplete, true);
+});
+
+test("publishing preferences serialize edits, retain independent formats, and follow supported moves", async () => {
+  const { controller } = setup();
+  await controller.updatePreferences({ documentType: "academic" });
+  await controller.selectFormat("docx");
+  await Promise.all([
+    controller.updateLayout({ bodyFont: "Georgia" }),
+    controller.updateLayout({ titleSize: 28 }),
+  ]);
+  assert.equal(controller.layout.bodyFont, "Georgia");
+  assert.equal(controller.layout.titleSize, 28);
+  await controller.selectFormat("pdf");
+  assert.equal(controller.layout.bodyFont, "");
+  await controller.updateLayout({ bodyFont: "Arial" });
+  await controller.store.move("First.md", "Papers/Renamed.md");
+  await controller.reload();
+  const stored = (await controller.store.list()).notes[0].preferences!;
+  assert.equal(stored.documentType, "academic");
+  assert.equal(stored.docx.bodyFont, "Georgia");
+  assert.equal(stored.docx.titleSize, 28);
+  assert.equal(stored.pdf.bodyFont, "Arial");
+  assert.equal(stored.format, "pdf");
+  assert.equal(controller.preferencesSaving, false);
 });
 
 test("publishing errors expire after five seconds without refreshes extending them", () => {

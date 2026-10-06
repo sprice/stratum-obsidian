@@ -5,6 +5,7 @@ import {
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
+import { readNotePreferences } from "../publish-options";
 import type { PublishedDocument } from "../publish-model";
 
 class Element {
@@ -68,6 +69,17 @@ function setup() {
         },
       },
     },
+    notePreferences: readNotePreferences(undefined),
+    academicInfo: { title: "", duplicateTitle: false, bothAuthors: false },
+    academicProblem: "",
+    preferencesSaving: false,
+    prepareAcademic: () => Promise.resolve(),
+    citationStyleChoices: () => Promise.resolve(null),
+    updatePreferences: () => Promise.resolve(),
+    selectFormat(value: string) {
+      this.selectedFormat = value;
+      return Promise.resolve();
+    },
     selectedFormat: "",
     readiness: { word: true, pdf: true },
     document: { basename: "Synthetic note title", extension: "md" } as {
@@ -110,9 +122,9 @@ function setup() {
 test("ready publishing hides setup and status, and reflects a completed export's reset", () => {
   const { root, publish, update } = setup();
   const selects = root.all().filter((el) => el.tag === "select");
-  assert.equal(selects.length, 2);
-  assert.equal(selects[0].value, "");
-  assert.ok(selects[0].children.some((el) => el.text === "Choose file type"));
+  assert.equal(selects.length, 4);
+  assert.equal(selects[2].value, "");
+  assert.ok(selects[2].children.some((el) => el.text === "Choose file type"));
   assert.ok(!root.all().some((el) => el.text === "Synthetic note title"));
   assert.equal(
     root.all().find((el) => el.text === "Set up in settings")!.hidden,
@@ -122,19 +134,19 @@ test("ready publishing hides setup and status, and reflects a completed export's
     root.all().find((el) => el.cls === "stratum-publish-status")!.hidden,
     true,
   );
-  selects[0].value = "pdf";
-  selects[0].listeners.get("change")!();
+  selects[2].value = "pdf";
+  selects[2].listeners.get("change")!();
   assert.equal(publish.selectedFormat, "pdf");
-  assert.ok(root.all().some((el) => el.text === "Create PDF Doc"));
+  assert.ok(root.all().some((el) => el.text === "Create PDF document"));
   update();
   assert.equal(
-    selects[0].value,
+    selects[2].value,
     "pdf",
     "ordinary updates preserve the selection",
   );
   publish.selectedFormat = "";
   update();
-  assert.equal(selects[0].value, "");
+  assert.equal(selects[2].value, "");
   assert.equal(
     root.all().find((el) => el.text === "Create document")!.disabled,
     true,
@@ -166,16 +178,20 @@ test("incomplete setup opens plugin settings; progress and errors remain visible
   assert.ok(
     root
       .all()
-      .some((el) => el.text === "There was an error creating the PDF file"),
+      .some((el) =>
+        el.text.includes("There was an error creating the PDF file"),
+      ),
   );
-  assert.ok(!root.all().some((el) => el.text === publish.error));
+  assert.ok(root.all().some((el) => el.text.includes(publish.error)));
   publish.errorMessage = "There was an error with publishing";
   update();
-  assert.ok(root.all().some((el) => el.text === publish.errorMessage));
+  assert.ok(root.all().some((el) => el.text.startsWith(publish.errorMessage)));
   assert.ok(
     !root
       .all()
-      .some((el) => el.text === "There was an error creating the PDF file"),
+      .some((el) =>
+        el.text.includes("There was an error creating the PDF file"),
+      ),
   );
 });
 
@@ -199,7 +215,7 @@ test("creation and note history require Markdown, but all history remains access
     assert.equal(regions[0].hidden, true);
     assert.equal(regions[1].hidden, false);
     assert.equal(regions[2].hidden, true);
-    const scope = root.all().filter((el) => el.tag === "select")[1];
+    const scope = root.all().filter((el) => el.tag === "select")[3];
     scope.value = "all";
     scope.listeners.get("change")!();
     assert.equal(regions[0].hidden, true);
@@ -248,7 +264,7 @@ test("history scope switches documents and survives controller updates", () => {
     true,
     "the source action is disabled when the source note is unavailable",
   );
-  const scope = root.all().filter((el) => el.tag === "select")[1];
+  const scope = root.all().filter((el) => el.tag === "select")[3];
   scope.value = "all";
   scope.listeners.get("change")!();
   assert.equal(publish.historyScope, "all");
@@ -275,4 +291,38 @@ test("history scope switches documents and survives controller updates", () => {
     "a different history scope starts at the top",
   );
   assert.deepEqual(filenames(), []);
+});
+
+test("academic setup keeps history accessible and opens defaults through the gear", () => {
+  const { root, publish, update, settingsCalls } = setup();
+  publish.notePreferences.documentType = "academic";
+  publish.academicProblem = "Add a nonempty title property.";
+  update();
+  assert.equal(
+    root.all().find((el) => el.text === "Add publishing properties")!.hidden,
+    false,
+  );
+  assert.equal(
+    root.all().find((el) => el.text === "Create document")!.hidden,
+    true,
+  );
+  assert.equal(
+    root.all().find((el) => el.cls === "stratum-publish-history")!.hidden,
+    false,
+  );
+  const gear = root.all().find((el) => el.cls === "clickable-icon")!;
+  gear.listeners.get("click")!();
+  assert.deepEqual(settingsCalls, ["open", "stratum"]);
+  publish.academicInfo.title = "Synthetic paper";
+  publish.academicProblem = "";
+  update();
+  assert.equal(
+    root.all().find((el) => el.text === "Add publishing properties")!.hidden,
+    true,
+  );
+  assert.equal(
+    root.all().find((el) => el.text === "Create document")!.hidden,
+    false,
+  );
+  assert.equal(gear.hidden, false);
 });

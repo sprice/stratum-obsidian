@@ -7,6 +7,7 @@ import {
   type PublishedDocument,
   type PublishedNote,
 } from "./publish-model";
+import type { NotePublishPreferences } from "./publish-options";
 export interface PublishAdapter {
   exists(path: string): Promise<boolean>;
   mkdir(path: string): Promise<void>;
@@ -121,6 +122,19 @@ export class PublishStore {
       )
         return;
       movePublishedNotes(catalog, oldPath, newPath);
+      await this.save(catalog);
+    });
+  }
+  setPreferences(
+    id: string,
+    preferences: NotePublishPreferences,
+  ): Promise<void> {
+    return this.serial(async () => {
+      const catalog = await this.load();
+      const note = catalog.notes.find((entry) => entry.id === id);
+      if (!note)
+        throw new Error("The publication source is no longer registered.");
+      note.preferences = preferences;
       await this.save(catalog);
     });
   }

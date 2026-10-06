@@ -1,5 +1,8 @@
 /* Desktop host access is loaded only after Platform.isDesktopApp is checked. */
 import { Platform } from "obsidian";
+import { readPublishOptions, type PublishOptions } from "./publish-options";
+import { configureDocx } from "./publish-docx";
+import { PUBLICATION_FILTER, publicationHeader } from "./publish-layout";
 import type { PublishFormat } from "./publish-model";
 export interface PublishAsset {
   name: string;
@@ -130,11 +133,92 @@ export function publishPlatform(): {
     homebrew: process.platform === "darwin",
   };
 }
+/** Discover font names only on explicit request; never upload font data. */
+export async function installedPublishFonts(): Promise<string[]> {
+  const local = host() as HostWindow & {
+    queryLocalFonts?: () => Promise<{ family: string }[]>;
+  };
+  let families: string[] = [];
+  if (local.queryLocalFonts) {
+    try {
+      families = (await local.queryLocalFonts()).map((font) => font.family);
+    } catch {
+      /* Native desktop discovery remains available. */
+    }
+  }
+  if (!families.length) {
+    const { process, path } = modules();
+    if (process.platform === "darwin") {
+      const output = await runPublishTool(
+        "/usr/sbin/system_profiler",
+        ["SPFontsDataType", "-json"],
+        { timeout: 30_000, outputLimit: 8_000_000 },
+      );
+      const data = JSON.parse(output) as {
+        SPFontsDataType?: {
+          typefaces?: { family?: string; enabled?: string }[];
+        }[];
+      };
+      families = (data.SPFontsDataType ?? []).flatMap((font) =>
+        (font.typefaces ?? [])
+          .filter((face) => face.enabled !== "no")
+          .map((face) => face.family ?? ""),
+      );
+    } else if (process.platform === "win32") {
+      const output = await runPublishTool(
+        path.join(
+          process.env.SystemRoot || "C:\\Windows",
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "powershell.exe",
+        ),
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Add-Type -AssemblyName System.Drawing; (New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object { $_.Name }",
+        ],
+        { timeout: 15_000, outputLimit: 1_000_000 },
+      );
+      families = output.split(/\r?\n/);
+    } else {
+      families = (
+        await runPublishTool("fc-list", ["--format=%{family}\\n"], {
+          timeout: 15_000,
+          outputLimit: 1_000_000,
+        })
+      )
+        .split(/\r?\n/)
+        .flatMap((name) => name.split(","));
+    }
+  }
+  return [
+    ...new Set(
+      families
+        .map((name) => name.trim())
+        .filter((name) => name && name.length <= 120),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+}
+/** A selected font is unavailable to PDF typesetting; the tools themselves still work. */
+export class PublishFontError extends Error {
+  constructor(font: string) {
+    super(
+      `The font “${font}” is not available for PDF publishing. Install it, or choose another font in Customize.`,
+    );
+  }
+}
 /** No shell, bounded output, cancellable, and no note content in logs. */
 export function runPublishTool(
   executable: string,
   args: string[],
-  options: { cwd?: string; timeout?: number; signal?: AbortSignal } = {},
+  options: {
+    cwd?: string;
+    timeout?: number;
+    signal?: AbortSignal;
+    outputLimit?: number;
+  } = {},
 ): Promise<string> {
   const { child, process, path } = modules();
   return new Promise((resolve, reject) => {
@@ -195,10 +279,12 @@ export function runPublishTool(
       options.signal?.removeEventListener("abort", abort);
     };
     task.stdout.on("data", (chunk: { toString(): string }) => {
-      output = (output + chunk.toString()).slice(-32768);
+      output = (output + chunk.toString()).slice(
+        -(options.outputLimit ?? 32768),
+      );
     });
     task.stderr.on("data", (chunk: { toString(): string }) => {
-      error = (error + chunk.toString()).slice(-32768);
+      error = (error + chunk.toString()).slice(-(options.outputLimit ?? 32768));
     });
     task.once("error", (reason) => {
       cleanup();
@@ -318,6 +404,7 @@ export async function convertPublication(
   tools: PublishTools,
   signal?: AbortSignal,
   timeout = 120_000,
+  layout?: PublishOptions,
 ): Promise<ArrayBuffer> {
   const { fs, path, os } = modules();
   const directory = await fs.mkdtemp(
@@ -338,24 +425,89 @@ export async function convertPublication(
     }
     const output = `document.${format}`;
     const args = [
-      "--from=html+epub_html_exts",
+      "--from=html+epub_html_exts+tex_math_single_backslash",
       "--standalone",
       "--resource-path=.",
       "--output",
       output,
     ];
+    args.push("--log=diagnostics.json");
+    const options = layout ? readPublishOptions(layout) : undefined;
+    if (options) {
+      await fs.writeFile(
+        path.join(directory, "layout.lua"),
+        PUBLICATION_FILTER,
+        { mode: 0o600 },
+      );
+      args.push("--lua-filter=layout.lua");
+      if (options.numberSections) args.push("--number-sections");
+    }
     if (format === "pdf")
       args.push(
         `--pdf-engine=${tools.tectonic}`,
-        "--variable=geometry:margin=1in",
+        `--variable=geometry:margin=${options?.margin ?? 1}in`,
       );
+    if (format === "pdf" && options) {
+      await fs.writeFile(
+        path.join(directory, "layout.tex"),
+        publicationHeader(options),
+        { mode: 0o600 },
+      );
+      // Tectonic uses XeTeX/fontspec; choose fonts explicitly for text, not math.
+      args.push(
+        ...(options.bodyFont
+          ? [
+              `--variable=mainfont:${options.bodyFont}`,
+              `--variable=sansfont:${options.bodyFont}`,
+            ]
+          : []),
+        "--variable=fontsize:12pt",
+        `--variable=papersize:${options.paperSize}`,
+        `--variable=linestretch:${options.lineSpacing}`,
+        "--include-in-header=layout.tex",
+      );
+    }
     args.push("document.html");
-    await runPublishTool(tools.pandoc, args, {
-      cwd: directory,
-      signal,
-      timeout,
-    });
+    try {
+      await runPublishTool(tools.pandoc, args, {
+        cwd: directory,
+        signal,
+        timeout,
+      });
+    } catch (error) {
+      const font =
+        format === "pdf" && error instanceof Error
+          ? /fontspec Error: The font "([^"]+)" cannot be found/.exec(
+              error.message,
+            )?.[1]
+          : undefined;
+      if (font) throw new PublishFontError(font);
+      throw error;
+    }
     if (signal?.aborted) throw new Error("Publishing cancelled.");
+    // Inspect warning categories, not localized stderr or a blanket warning exit status.
+    // The private temporary diagnostics file is removed with the conversion directory.
+    const diagnostics: unknown = JSON.parse(
+      new TextDecoder().decode(
+        await fs.readFile(path.join(directory, "diagnostics.json")),
+      ),
+    );
+    if (!Array.isArray(diagnostics))
+      throw new Error(
+        "The publishing tool's conversion diagnostics could not be read.",
+      );
+    if (
+      diagnostics.some(
+        (entry: unknown) =>
+          entry !== null &&
+          typeof entry === "object" &&
+          "type" in entry &&
+          entry.type === "CouldNotConvertTeXMath",
+      )
+    )
+      throw new Error(
+        `An equation could not be converted to ${format === "docx" ? "Word" : "PDF"}. Simplify the equation${format === "docx" ? ", or publish to PDF" : ""}, then try again.`,
+      );
     const bytes = await fs.readFile(path.join(directory, output));
     if (
       format === "pdf"
@@ -363,7 +515,17 @@ export async function convertPublication(
         : bytes[0] !== 0x50 || bytes[1] !== 0x4b
     )
       throw new Error("The converter did not produce a valid document.");
-    return Uint8Array.from(bytes).buffer;
+    const configured =
+      format === "docx" && options
+        ? configureDocx(bytes, options, (data) =>
+            (
+              host().require!("node:zlib") as {
+                inflateRawSync(data: Uint8Array): Uint8Array;
+              }
+            ).inflateRawSync(data),
+          )
+        : bytes;
+    return Uint8Array.from(configured).buffer;
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

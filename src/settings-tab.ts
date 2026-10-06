@@ -25,6 +25,15 @@ import {
 } from "./plugin-libraries";
 import { clearLocalSyncState } from "./plugin-local-sync";
 import { getDefaultZoteroDataDir } from "./zotero-data-dir";
+import {
+  readAcademicDefaults,
+  readPublishOptions,
+  DEFAULT_ACADEMIC_OPTIONS,
+} from "./publish-options";
+import {
+  PublishOptionError,
+  renderPublishCustomization,
+} from "./publish-customize";
 
 interface SearchableSetting {
   name: string;
@@ -41,6 +50,18 @@ export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
   private closeTabChooser?: () => void;
   private templateRow?: HTMLElement;
+  private academicDefaultsRow?: HTMLElement;
+  focusAcademicDefaults(): void {
+    window.setTimeout(() => {
+      this.academicDefaultsRow?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+      this.academicDefaultsRow
+        ?.querySelector<HTMLInputElement>("input, textarea")
+        ?.focus({ preventScroll: true });
+    }, 100);
+  }
 
   async openNoteTemplateEditor(): Promise<void> {
     const { NoteTemplateModal } = await import("./note-template-modal");
@@ -434,7 +455,7 @@ export class StratumSettingTab extends PluginSettingTab {
     }
 
     if (Platform.isDesktopApp) {
-      const publishSection = this.createSection(sections, "Stratum Publishing");
+      const publishSection = this.createSection(sections, "Publishing");
       this.defineSetting(publishSection, "Publishing tools", (setting) => {
         setting
           .setDesc(
@@ -446,6 +467,105 @@ export class StratumSettingTab extends PluginSettingTab {
               new PublishSetupModal(this.plugin).open();
             }),
           );
+      });
+      for (const [key, label] of [
+        ["publishingDefaults", "General document defaults"],
+        ["academicPublishingDefaults", "Academic layout defaults"],
+      ] as const) {
+        this.defineSetting(publishSection, label, (setting) => {
+          setting.setDesc(
+            "Starting appearance for new document configurations. Existing note preferences are kept.",
+          );
+          const details = setting.settingEl.createEl("details", {
+            cls: "stratum-publish-defaults",
+          });
+          details.createEl("summary", { text: "Customize defaults" });
+          renderPublishCustomization(
+            details,
+            readPublishOptions(
+              this.plugin.settings[key],
+              key === "academicPublishingDefaults"
+                ? DEFAULT_ACADEMIC_OPTIONS
+                : undefined,
+            ),
+            async (patch) => {
+              this.plugin.settings[key] = readPublishOptions({
+                ...readPublishOptions(
+                  this.plugin.settings[key],
+                  key === "academicPublishingDefaults"
+                    ? DEFAULT_ACADEMIC_OPTIONS
+                    : undefined,
+                ),
+                ...patch,
+              });
+              await this.plugin.saveSettings();
+            },
+            (error) => {
+              new Notice(
+                error instanceof PublishOptionError
+                  ? error.message
+                  : "Could not save publishing defaults. Try again.",
+              );
+            },
+          );
+        });
+      }
+      const academicSection = this.createSection(sections, "Academic defaults");
+      for (const [key, label] of [
+        ["authors", "Authors"],
+        ["affiliations", "Affiliations"],
+        ["keywords", "Keywords"],
+      ] as const) {
+        this.defineSetting(academicSection, label, (setting) => {
+          if (key === "authors") this.academicDefaultsRow = setting.settingEl;
+          setting
+            .setDesc(
+              "One entry per line. Added only when the note's property is absent; leave blank to omit.",
+            )
+            .addTextArea((input) =>
+              input
+                .setValue(
+                  readAcademicDefaults(this.plugin.settings.academicProperties)[
+                    key
+                  ].join("\n"),
+                )
+                .onChange(async (value) => {
+                  this.plugin.settings.academicProperties = {
+                    ...readAcademicDefaults(
+                      this.plugin.settings.academicProperties,
+                    ),
+                    [key]: value
+                      .split(/\r?\n/)
+                      .map((v) => v.trim())
+                      .filter(Boolean),
+                  };
+                  await this.plugin.saveSettings();
+                }),
+            );
+        });
+      }
+      this.defineSetting(academicSection, "Date", (setting) => {
+        setting
+          .setDesc(
+            "Optional date added during preparation. Leave blank to omit.",
+          )
+          .addText((input) => {
+            input.inputEl.type = "date";
+            input
+              .setValue(
+                readAcademicDefaults(this.plugin.settings.academicProperties)
+                  .date,
+              )
+              .onChange(async (value) => {
+                this.plugin.settings.academicProperties = {
+                  ...readAcademicDefaults(
+                    this.plugin.settings.academicProperties,
+                  ),
+                  date: value,
+                };
+                await this.plugin.saveSettings();
+              });
+          });
       });
     }
 
