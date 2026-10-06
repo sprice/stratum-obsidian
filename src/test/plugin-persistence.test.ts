@@ -207,7 +207,10 @@ test("unsupported item reports survive settings reload and discard malformed ent
           { type: "user", id: "1", name: "My Library", identity: "user:1" },
         ],
         libraryBulkSync: {
-          "user:1": { unsupportedItems: [item, null, { title: "broken" }] },
+          "user:1": {
+            unsupportedItems: [item, null, { title: "broken" }],
+            annotationImageWarning: "1 area image could not be refreshed.",
+          },
         },
       }),
     saveData: async () => {},
@@ -219,6 +222,10 @@ test("unsupported item reports survive settings reload and discard malformed ent
   assert.deepEqual(
     plugin.settings?.libraryBulkSync["user:1"].unsupportedItems,
     [item],
+  );
+  assert.equal(
+    plugin.settings?.libraryBulkSync["user:1"].annotationImageWarning,
+    "1 area image could not be refreshed.",
   );
 });
 

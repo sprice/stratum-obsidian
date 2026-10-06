@@ -42,6 +42,7 @@ export interface BulkLibrarySyncState {
   retryAfterSeconds: number | null;
   failedItemKeys: string[];
   unsupportedItems?: UnsupportedZoteroItem[];
+  annotationImageWarning?: string;
 }
 
 export interface DeletedChildLookupCandidate {
@@ -209,6 +210,7 @@ export function formatBulkLibrarySyncCompletionMessage(params: {
     | "enrichmentFailureCount"
     | "unsupportedItems"
     | "failedCount"
+    | "annotationImageWarning"
   >;
   libraryName?: string;
   collectionName?: string | null;
@@ -235,13 +237,17 @@ export function formatBulkLibrarySyncCompletionMessage(params: {
   if (params.state.failedCount > 0) {
     completedSummary = `Finished processing ${params.state.processedCount} items. ${params.state.failedCount} failed.${unsupportedCount ? ` ${unsupportedCount} skipped because their Zotero item types are not supported. See the Sync panel for details.` : ""} Run sync again to retry failed items.`;
   }
-  return params.state.enrichmentFailureCount > 0
-    ? `${completedSummary} Enrichment failed for ${
-        params.state.enrichmentFailureCount
-      } paper${
-        params.state.enrichmentFailureCount === 1 ? "" : "s"
-      }. Run sync again later to try again.`
-    : completedSummary;
+  const summary =
+    params.state.enrichmentFailureCount > 0
+      ? `${completedSummary} Enrichment failed for ${
+          params.state.enrichmentFailureCount
+        } paper${
+          params.state.enrichmentFailureCount === 1 ? "" : "s"
+        }. Run sync again later to try again.`
+      : completedSummary;
+  return params.state.annotationImageWarning
+    ? `${summary} ${params.state.annotationImageWarning}`
+    : summary;
 }
 
 export function getBulkLibrarySyncButtonLabel(

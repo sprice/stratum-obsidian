@@ -307,6 +307,10 @@ function readBulkLibrarySyncState(
     nextState.lastError = value.lastError;
   }
 
+  if (typeof value.annotationImageWarning === "string") {
+    nextState.annotationImageWarning = value.annotationImageWarning;
+  }
+
   if (Array.isArray(value.unsupportedItems)) {
     nextState.unsupportedItems = value.unsupportedItems.flatMap((item) => {
       if (

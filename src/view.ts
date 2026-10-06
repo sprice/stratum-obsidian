@@ -14,7 +14,11 @@ import {
   CollectionBrowserView,
   getCollectionBrowserView,
 } from "./collection-browser";
-import { createStratumButton } from "./ui-controls";
+import {
+  createStratumButton,
+  createStratumSelect,
+  createStratumSearch,
+} from "./ui-controls";
 import {
   Component,
   Notice,
@@ -22,7 +26,6 @@ import {
   MarkdownRenderer,
   MarkdownView,
   parseYaml,
-  SearchComponent,
   TFile,
   WorkspaceLeaf,
   type EventRef,
@@ -116,6 +119,11 @@ export class StratumView extends ItemView {
   private browseBrowser: CollectionBrowserView | null = null;
   private renderedTabsKey: string | null = null;
   private tabContent: HTMLElement | null = null;
+  private syncControls: {
+    container: HTMLElement;
+    key: string;
+    refresh: () => void;
+  } | null = null;
   private publishPanel: PublishPanel | null = null;
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
@@ -199,6 +207,7 @@ export class StratumView extends ItemView {
   }
 
   onClose(): Promise<void> {
+    this.syncControls = null;
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
     this.browseBrowser = null;
@@ -425,7 +434,6 @@ export class StratumView extends ItemView {
     const panel =
       this.contentEl.querySelector<HTMLElement>(".stratum-sync-tab");
     if (!panel) return;
-    panel.empty();
     this.renderSyncTab(panel);
   }
 
@@ -489,6 +497,7 @@ export class StratumView extends ItemView {
     const { contentEl } = this;
     contentEl.addClass("stratum-view");
     if (!reuseShell) {
+      this.syncControls = null;
       contentEl.empty();
       const shell = contentEl.createDiv({ cls: "stratum-shell" });
       this.renderedTabsKey = tabsKey;
@@ -537,7 +546,8 @@ export class StratumView extends ItemView {
       }
       // Keep Browse attached, merely hidden, so its controls never go through
       // another initial style/layout pass when returning from another tab.
-      if (tab.id !== "browse" || !keepBrowse) panel.empty();
+      if (tab.id !== "sync" && (tab.id !== "browse" || !keepBrowse))
+        panel.empty();
       if (panel.hidden) continue;
 
       if (tab.id === "browse") {
@@ -643,7 +653,7 @@ export class StratumView extends ItemView {
   }
 
   private renderSettingsButton(container: HTMLElement): void {
-    const button = container.createEl("button", {
+    const button = createStratumButton(container, {
       text: `Open ${PLUGIN_NAME} settings`,
     });
     button.type = "button";
@@ -718,27 +728,27 @@ export class StratumView extends ItemView {
     const searchSection = searchTab.createDiv({
       cls: "stratum-search-section",
     });
-    searchSection.createEl("h3", { text: "Search your Zotero library" });
+    searchSection.createEl("h3", { text: "Search Zotero" });
     searchSection.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Search by title, author, or year, then select an item to create or update its literature note.",
+      text: "Find Zotero items to create or update literature notes",
     });
 
+    const filters = searchSection.createDiv({ cls: "stratum-library-filters" });
     if (
       this.plugin.settings.enabledLibraries.length > 1 &&
       selectedSearchLibrary
     ) {
-      const libraryPicker = searchSection.createDiv({
+      const libraryPicker = filters.createDiv({
         cls: "stratum-search-control",
       });
-      const pickerLabel = libraryPicker.createEl("label", {
-        cls: "stratum-search-label",
-        text: "Library",
+      const picker = createStratumSelect(libraryPicker, {
+        label: "Library",
+        ariaLabel: "Choose library",
+        value: "",
+        choices: [],
       });
-      const pickerId = "stratum-library-picker";
-      const picker = libraryPicker.createEl("select");
-      picker.id = pickerId;
-      pickerLabel.setAttr("for", pickerId);
+      picker.id = "stratum-library-picker";
       picker.disabled =
         this.plugin.activeNoteActionKey !== null ||
         this.plugin.isBulkLibrarySyncRunning();
@@ -761,17 +771,16 @@ export class StratumView extends ItemView {
       });
     }
 
-    const collectionPicker = searchSection.createDiv({
+    const collectionPicker = filters.createDiv({
       cls: "stratum-search-control",
     });
-    const collectionLabel = collectionPicker.createEl("label", {
-      cls: "stratum-search-label",
-      text: "Collection",
+    const collectionSelect = createStratumSelect(collectionPicker, {
+      label: "Collection",
+      ariaLabel: "Choose collection",
+      value: "",
+      choices: [],
     });
-    const collectionId = "stratum-collection-picker";
-    const collectionSelect = collectionPicker.createEl("select");
-    collectionSelect.id = collectionId;
-    collectionLabel.setAttr("for", collectionId);
+    collectionSelect.id = "stratum-collection-picker";
     collectionSelect.disabled =
       this.plugin.activeNoteActionKey !== null ||
       this.plugin.isBulkLibrarySyncRunning() ||
@@ -808,8 +817,8 @@ export class StratumView extends ItemView {
         cls: "stratum-error",
         text: this.plugin.libraryCollectionsError,
       });
-      const retryCollectionsButton = collectionErrorRow.createEl("button", {
-        cls: "stratum-inline-action",
+      const retryCollectionsButton = createStratumButton(collectionErrorRow, {
+        className: "stratum-inline-action",
         text: this.plugin.isLoadingLibraryCollections ? "Retrying..." : "Retry",
       });
       if (
@@ -826,16 +835,13 @@ export class StratumView extends ItemView {
     const searchBox = searchSection.createDiv({
       cls: "stratum-search-control",
     });
-    const searchLabel = searchBox.createEl("label", {
-      cls: "stratum-search-label",
-      text: "Search your library",
+    const searchComponent = createStratumSearch(searchBox, {
+      label: "Search your library",
+      ariaLabel: "Search your library",
+      placeholder: "Title, author, or year",
+      value: this.plugin.librarySearchQuery,
     });
-    const searchId = "stratum-paper-search";
-    const searchComponent = new SearchComponent(searchBox);
-    searchComponent.setPlaceholder("Title, author, or year");
-    searchComponent.setValue(this.plugin.librarySearchQuery);
-    searchComponent.inputEl.id = searchId;
-    searchLabel.setAttr("for", searchId);
+    searchComponent.inputEl.id = "stratum-paper-search";
     if (this.plugin.activeNoteActionKey) {
       searchComponent.setDisabled(true);
     }
@@ -915,8 +921,8 @@ export class StratumView extends ItemView {
           ? `Showing cached papers while Zotero asks us to slow down. Live refresh should resume in about ${this.plugin.librarySearchMeta.retryAfterSeconds} seconds.`
           : "Showing cached papers while Zotero asks us to slow down.",
       });
-      const refreshButton = cacheRow.createEl("button", {
-        cls: "stratum-inline-action",
+      const refreshButton = createStratumButton(cacheRow, {
+        className: "stratum-inline-action",
         text: this.plugin.isSearchingLibrary ? "Refreshing..." : "Fetch fresh",
       });
       if (this.plugin.isSearchingLibrary || this.plugin.activeNoteActionKey) {
@@ -1016,8 +1022,8 @@ export class StratumView extends ItemView {
         });
 
         if (selected.abstract.length > ABSTRACT_TEASER_LENGTH) {
-          const toggleAbstractButton = abstractPreview.createEl("button", {
-            cls: "stratum-inline-button",
+          const toggleAbstractButton = createStratumButton(abstractPreview, {
+            className: "stratum-inline-button",
             text: this.plugin.isSelectedLibraryAbstractExpanded
               ? "Hide full abstract"
               : "Show full abstract",
@@ -1031,8 +1037,8 @@ export class StratumView extends ItemView {
       const selectedActions = selectedCard.createDiv({
         cls: "stratum-actions",
       });
-      const createButton = selectedActions.createEl("button", {
-        cls: "mod-cta",
+      const createButton = createStratumButton(selectedActions, {
+        primary: true,
         text:
           this.plugin.activeNoteActionKey === selected.key
             ? "Working..."
@@ -1058,6 +1064,34 @@ export class StratumView extends ItemView {
   }
 
   private renderSyncTab(container: HTMLElement): void {
+    // Progress, busy state, and completion messages update without replacing controls.
+    // Rebuild only when the available choices, selected scope, or setup state changes.
+    const key = JSON.stringify({
+      session: this.plugin.backend.hasSession(),
+      connected: this.plugin.zoteroConnection?.connected,
+      enabled: this.plugin.settings.bulkSyncEnabled,
+      libraries: this.plugin.localSyncLibraries,
+      library:
+        this.plugin.selectedSyncLibrary?.identity ??
+        this.plugin.settings.selectedSyncLibraryIdentity,
+      collections: this.plugin.syncCollections,
+      collection: this.plugin.selectedSyncCollection,
+      librariesError: this.plugin.localSyncLibrariesError,
+      collectionsError: this.plugin.syncCollectionsError,
+      initialLoading:
+        this.plugin.isLoadingLocalSyncLibraries &&
+        !this.plugin.localSyncLibraries?.length,
+    });
+    if (
+      this.syncControls?.container === container &&
+      this.syncControls.key === key
+    ) {
+      this.syncControls.refresh();
+      return;
+    }
+    this.syncControls = null;
+    this.clearBulkSyncStatusTimers();
+    container.empty();
     if (!isLocalSyncSupported()) return;
     const syncTab = container;
     const zoteroConnected = Boolean(this.plugin.zoteroConnection?.connected);
@@ -1168,64 +1202,30 @@ export class StratumView extends ItemView {
 
     void this.plugin.localSync.ensureCollectionsLoaded(selectedSyncLibrary);
     const selectedSyncCollection = getSelectedSyncCollection(this.plugin);
-    const bulkSyncState = getLibraryBulkSyncState(
-      this.plugin,
-      selectedSyncLibrary,
-    );
-    const scopedBulkSyncState =
-      bulkSyncState.collectionKey === (selectedSyncCollection?.key ?? null)
-        ? bulkSyncState
-        : buildDefaultBulkLibrarySyncState();
-    const scopedCollectionName =
-      scopedBulkSyncState.collectionName ??
-      selectedSyncCollection?.displayName ??
-      null;
-
     const syncSection = syncTab.createDiv({
       cls: "stratum-search-section",
     });
-    syncSection.createEl("h3", { text: "Sync your Zotero library" });
-    const unsupported = scopedBulkSyncState.unsupportedItems ?? [];
-    if (unsupported.length) {
-      const report = syncSection.createEl("details");
-      report.createEl("summary", {
-        text: `${unsupported.length} unsupported Zotero items skipped`,
-      });
-      report.createEl("p", {
-        text: "These item types are not supported yet. Existing notes were left unchanged.",
-      });
-      const list = report.createEl("ul");
-      for (const item of unsupported) {
-        const row = list.createEl("li");
-        row.createSpan({
-          text: `${item.title} (${item.itemType ?? "missing type"}) — `,
-        });
-        // Construct the protocol link from the selected library and item key,
-        // rather than trusting a URL restored from plugin settings.
-        row.createEl("a", {
-          text: "Open in Zotero",
-          href: `zotero://select/${selectedSyncLibrary.type === "group" ? `groups/${encodeURIComponent(selectedSyncLibrary.id)}` : "library"}/items/${encodeURIComponent(item.itemKey)}`,
-        });
-      }
-    }
-
+    syncSection.createEl("h3", { text: "Sync Zotero" });
+    const reportContainer = syncSection.createDiv();
     syncSection.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Create or update literature notes from your local Zotero library. Choose a collection or sync the whole library.",
+      text: "Create or update literature notes from your Zotero library",
     });
 
+    const filters = syncSection.createDiv({ cls: "stratum-library-filters" });
+    let librarySelect: HTMLSelectElement | null = null;
     if (this.plugin.localSyncLibraries.length > 1) {
-      const libraryPicker = syncSection.createDiv({
+      const libraryPicker = filters.createDiv({
         cls: "stratum-search-control",
       });
-      const pickerLabel = libraryPicker.createEl("label", {
-        cls: "stratum-search-label",
-        text: "Library",
+      const picker = createStratumSelect(libraryPicker, {
+        label: "Library",
+        ariaLabel: "Choose library",
+        value: "",
+        choices: [],
       });
-      const pickerId = "stratum-sync-library-picker";
-      const picker = libraryPicker.createEl("select");
-      picker.id = pickerId;
-      pickerLabel.setAttr("for", pickerId);
+      librarySelect = picker;
+      picker.id = "stratum-sync-library-picker";
       picker.disabled =
         this.plugin.isBulkLibrarySyncRunning() ||
         this.plugin.isZoteroAutoSyncRunning() ||
@@ -1251,17 +1251,16 @@ export class StratumView extends ItemView {
       });
     }
 
-    const collectionPicker = syncSection.createDiv({
+    const collectionPicker = filters.createDiv({
       cls: "stratum-search-control",
     });
-    const collectionLabel = collectionPicker.createEl("label", {
-      cls: "stratum-search-label",
-      text: "Collection",
+    const collectionSelect = createStratumSelect(collectionPicker, {
+      label: "Collection",
+      ariaLabel: "Choose collection",
+      value: "",
+      choices: [],
     });
-    const collectionId = "stratum-sync-collection-picker";
-    const collectionSelect = collectionPicker.createEl("select");
-    collectionSelect.id = collectionId;
-    collectionLabel.setAttr("for", collectionId);
+    collectionSelect.id = "stratum-sync-collection-picker";
     collectionSelect.disabled =
       this.plugin.isBulkLibrarySyncRunning() ||
       this.plugin.isZoteroAutoSyncRunning() ||
@@ -1292,6 +1291,7 @@ export class StratumView extends ItemView {
       });
     });
 
+    let retryCollections: HTMLButtonElement | null = null;
     if (this.plugin.syncCollectionsError) {
       const collectionErrorRow = collectionPicker.createDiv({
         cls: "stratum-cache-row",
@@ -1300,10 +1300,11 @@ export class StratumView extends ItemView {
         cls: "stratum-error",
         text: this.plugin.syncCollectionsError,
       });
-      const retryCollectionsButton = collectionErrorRow.createEl("button", {
-        cls: "stratum-inline-action",
+      const retryCollectionsButton = createStratumButton(collectionErrorRow, {
+        className: "stratum-inline-action",
         text: this.plugin.isLoadingSyncCollections ? "Retrying..." : "Retry",
       });
+      retryCollections = retryCollectionsButton;
       if (this.plugin.isLoadingSyncCollections) {
         retryCollectionsButton.disabled = true;
       }
@@ -1315,12 +1316,9 @@ export class StratumView extends ItemView {
     const actions = syncSection.createDiv({
       cls: "stratum-actions",
     });
-    const bulkSyncButton = actions.createEl("button", {
-      cls: "mod-cta",
-      text: getBulkLibrarySyncButtonLabel(scopedBulkSyncState, {
-        libraryName: selectedSyncLibrary.name,
-        collectionName: scopedCollectionName,
-      }),
+    const bulkSyncButton = createStratumButton(actions, {
+      primary: true,
+      text: "Sync",
     });
     bulkSyncButton.disabled =
       this.plugin.isBulkLibrarySyncRunning() ||
@@ -1332,60 +1330,139 @@ export class StratumView extends ItemView {
       void this.plugin.runBulkLibrarySync();
     });
 
-    const scopedNounPhrase = scopedCollectionName
-      ? `papers from ${scopedCollectionName}`
-      : `papers in ${selectedSyncLibrary.name}`;
-    const bulkSyncStatus =
-      scopedBulkSyncState.phase === "idle"
-        ? null
-        : this.plugin.isBulkLibrarySyncRunning() &&
-            this.plugin.bulkLibrarySyncStage === "enrichment"
-          ? this.plugin.bulkLibrarySyncCurrentPageTotalCount > 0
-            ? `Enriching ${Math.min(
-                this.plugin.bulkLibrarySyncCurrentPageProcessedCount,
-                this.plugin.bulkLibrarySyncCurrentPageTotalCount,
-              )} of ${this.plugin.bulkLibrarySyncCurrentPageTotalCount} ${scopedNounPhrase}.`
-            : `Finishing enrichment for ${scopedNounPhrase}.`
-          : getBulkSyncStatusMessage({
-              state: scopedBulkSyncState,
-              processedCount: this.plugin.isBulkLibrarySyncRunning()
-                ? this.plugin.getBulkLibrarySyncProcessedCount()
-                : scopedBulkSyncState.processedCount,
-              libraryName: selectedSyncLibrary.name,
-              collectionName: scopedCollectionName,
-            });
-    const bulkSyncCompletionFade =
-      getBulkSyncCompletionFadeState(scopedBulkSyncState);
-    const shouldRenderBulkSyncStatus =
-      Boolean(bulkSyncStatus) &&
-      (scopedBulkSyncState.phase !== "completed" ||
-        bulkSyncCompletionFade !== null);
-    if (shouldRenderBulkSyncStatus && bulkSyncCompletionFade !== null) {
-      const bulkSyncStatusEl = syncSection.createEl("p", {
-        cls: "stratum-meta stratum-bulk-sync-status",
-        text: bulkSyncStatus ?? "",
-      });
-      bulkSyncStatusEl.addClass("is-auto-fade");
-      if (bulkSyncCompletionFade.startFaded) {
-        bulkSyncStatusEl.addClass("is-faded");
-      } else {
-        this.bulkSyncStatusFadeTimer = window.setTimeout(() => {
-          if (bulkSyncStatusEl.isConnected) {
-            bulkSyncStatusEl.addClass("is-faded");
-          }
-        }, bulkSyncCompletionFade.fadeInMs);
+    const statusContainer = syncSection.createDiv();
+    let reportKey = "";
+    const refresh = () => {
+      this.clearBulkSyncStatusTimers();
+      const bulkSyncState = getLibraryBulkSyncState(
+        this.plugin,
+        selectedSyncLibrary,
+      );
+      const scopedBulkSyncState =
+        bulkSyncState.collectionKey === (selectedSyncCollection?.key ?? null)
+          ? bulkSyncState
+          : buildDefaultBulkLibrarySyncState();
+      const scopedCollectionName =
+        scopedBulkSyncState.collectionName ??
+        selectedSyncCollection?.displayName ??
+        null;
+
+      if (retryCollections) {
+        retryCollections.disabled = this.plugin.isLoadingSyncCollections;
+        retryCollections.setText(
+          this.plugin.isLoadingSyncCollections ? "Retrying..." : "Retry",
+        );
       }
-      this.bulkSyncStatusRemoveTimer = window.setTimeout(() => {
-        if (bulkSyncStatusEl.isConnected) {
-          bulkSyncStatusEl.remove();
+      if (librarySelect)
+        librarySelect.disabled =
+          this.plugin.isBulkLibrarySyncRunning() ||
+          this.plugin.isZoteroAutoSyncRunning() ||
+          this.plugin.isLoadingLocalSyncLibraries;
+      collectionSelect.disabled =
+        this.plugin.isBulkLibrarySyncRunning() ||
+        this.plugin.isZoteroAutoSyncRunning() ||
+        this.plugin.isLoadingSyncCollections ||
+        Boolean(this.plugin.syncCollectionsError);
+      bulkSyncButton.disabled =
+        this.plugin.isBulkLibrarySyncRunning() ||
+        this.plugin.isZoteroAutoSyncRunning() ||
+        this.plugin.isLoadingLocalSyncLibraries ||
+        this.plugin.isLoadingSyncCollections ||
+        Boolean(this.plugin.syncCollectionsError);
+      bulkSyncButton.setText(
+        getBulkLibrarySyncButtonLabel(scopedBulkSyncState, {
+          libraryName: selectedSyncLibrary.name,
+          collectionName: scopedCollectionName,
+        }),
+      );
+      const unsupported = scopedBulkSyncState.unsupportedItems ?? [];
+      const nextReportKey = JSON.stringify(unsupported);
+      reportContainer.hidden = !unsupported.length;
+      if (nextReportKey !== reportKey) {
+        reportKey = nextReportKey;
+        reportContainer.empty();
+        if (unsupported.length) {
+          const report = reportContainer.createEl("details");
+          report.createEl("summary", {
+            text: `${unsupported.length} unsupported Zotero items skipped`,
+          });
+          report.createEl("p", {
+            text: "These item types are not supported yet. Existing notes were left unchanged.",
+          });
+          const list = report.createEl("ul");
+          for (const item of unsupported) {
+            const row = list.createEl("li");
+            row.createSpan({
+              text: `${item.title} (${item.itemType ?? "missing type"}) — `,
+            });
+            // Construct the protocol link from the selected library and item key,
+            // rather than trusting a URL restored from plugin settings.
+            row.createEl("a", {
+              text: "Open in Zotero",
+              href: `zotero://select/${selectedSyncLibrary.type === "group" ? `groups/${encodeURIComponent(selectedSyncLibrary.id)}` : "library"}/items/${encodeURIComponent(item.itemKey)}`,
+            });
+          }
         }
-      }, bulkSyncCompletionFade.removeInMs);
-    } else if (shouldRenderBulkSyncStatus) {
-      syncSection.createEl("p", {
-        cls: "stratum-meta stratum-bulk-sync-status",
-        text: bulkSyncStatus ?? "",
-      });
-    }
+      }
+      statusContainer.empty();
+      const scopedNounPhrase = scopedCollectionName
+        ? `papers from ${scopedCollectionName}`
+        : `papers in ${selectedSyncLibrary.name}`;
+      const bulkSyncStatus =
+        scopedBulkSyncState.phase === "idle"
+          ? null
+          : this.plugin.isBulkLibrarySyncRunning() &&
+              this.plugin.bulkLibrarySyncStage === "enrichment"
+            ? this.plugin.bulkLibrarySyncCurrentPageTotalCount > 0
+              ? `Enriching ${Math.min(
+                  this.plugin.bulkLibrarySyncCurrentPageProcessedCount,
+                  this.plugin.bulkLibrarySyncCurrentPageTotalCount,
+                )} of ${this.plugin.bulkLibrarySyncCurrentPageTotalCount} ${scopedNounPhrase}.`
+              : `Finishing enrichment for ${scopedNounPhrase}.`
+            : getBulkSyncStatusMessage({
+                state: scopedBulkSyncState,
+                processedCount: this.plugin.isBulkLibrarySyncRunning()
+                  ? this.plugin.getBulkLibrarySyncProcessedCount()
+                  : scopedBulkSyncState.processedCount,
+                libraryName: selectedSyncLibrary.name,
+                collectionName: scopedCollectionName,
+              });
+      const bulkSyncCompletionFade =
+        getBulkSyncCompletionFadeState(scopedBulkSyncState);
+      const shouldRenderBulkSyncStatus =
+        Boolean(bulkSyncStatus) &&
+        (scopedBulkSyncState.phase !== "completed" ||
+          bulkSyncCompletionFade !== null);
+      statusContainer.hidden = !shouldRenderBulkSyncStatus;
+      if (shouldRenderBulkSyncStatus && bulkSyncCompletionFade !== null) {
+        const bulkSyncStatusEl = statusContainer.createEl("p", {
+          cls: "stratum-meta stratum-bulk-sync-status",
+          text: bulkSyncStatus ?? "",
+        });
+        bulkSyncStatusEl.addClass("is-auto-fade");
+        if (bulkSyncCompletionFade.startFaded) {
+          bulkSyncStatusEl.addClass("is-faded");
+        } else {
+          this.bulkSyncStatusFadeTimer = window.setTimeout(() => {
+            if (bulkSyncStatusEl.isConnected) {
+              bulkSyncStatusEl.addClass("is-faded");
+            }
+          }, bulkSyncCompletionFade.fadeInMs);
+        }
+        this.bulkSyncStatusRemoveTimer = window.setTimeout(() => {
+          if (bulkSyncStatusEl.isConnected) {
+            bulkSyncStatusEl.remove();
+          }
+        }, bulkSyncCompletionFade.removeInMs);
+      } else if (shouldRenderBulkSyncStatus) {
+        statusContainer.createEl("p", {
+          cls: "stratum-meta stratum-bulk-sync-status",
+          text: bulkSyncStatus ?? "",
+        });
+      }
+    };
+    this.syncControls = { container, key, refresh };
+    refresh();
   }
 
   private renderReaderTab(container: HTMLElement): void {
@@ -1418,7 +1495,7 @@ export class StratumView extends ItemView {
     const header = readerTab.createDiv({ cls: "stratum-reader-header" });
     const actions = header.createDiv({ cls: "stratum-reader-actions" });
     if (hasWritingPosition(this.plugin)) {
-      const back = actions.createEl("button", { text: "Return to writing" });
+      const back = createStratumButton(actions, { text: "Return to writing" });
       back.type = "button";
       back.addEventListener("click", () => {
         void returnToWriting(this.plugin).catch(
@@ -1426,7 +1503,7 @@ export class StratumView extends ItemView {
         );
       });
     }
-    const openButton = actions.createEl("button", {
+    const openButton = createStratumButton(actions, {
       text: "Open note",
     });
     openButton.type = "button";
@@ -1434,7 +1511,7 @@ export class StratumView extends ItemView {
       void this.openFileInPrimaryEditor(readerFile);
     });
 
-    const closeButton = actions.createEl("button", {
+    const closeButton = createStratumButton(actions, {
       text: "Close",
     });
     closeButton.type = "button";
@@ -1558,25 +1635,22 @@ export class StratumView extends ItemView {
     entries: LiteratureNoteEntry[],
   ): void {
     const picker = container.createDiv({ cls: "stratum-search-section" });
-    picker.createEl("h3", { text: "Read a literature note" });
+    picker.createEl("h3", { text: "Read notes" });
     picker.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Find a literature note by title, author, year, or citation key, then open it here to read alongside your writing.",
+      text: "Read literature notes alongside your writing",
     });
 
     const searchBox = picker.createDiv({
       cls: "stratum-search-control",
     });
-    const searchLabel = searchBox.createEl("label", {
-      cls: "stratum-search-label",
-      text: "Search your literature notes",
+    const searchComponent = createStratumSearch(searchBox, {
+      label: "Search your literature notes",
+      ariaLabel: "Search your literature notes",
+      placeholder: "Type a note title, author, or year",
+      value: this.readerSearchQuery,
     });
-    const searchId = "stratum-reader-search";
-    const searchComponent = new SearchComponent(searchBox);
-    searchComponent.setPlaceholder("Type a note title, author, or year");
-    searchComponent.setValue(this.readerSearchQuery);
-    searchComponent.inputEl.id = searchId;
-    searchLabel.setAttr("for", searchId);
+    searchComponent.inputEl.id = "stratum-reader-search";
 
     const feedbackContainer = picker.createDiv({
       cls: "stratum-search-feedback",

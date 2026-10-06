@@ -1,3 +1,4 @@
+import { createStratumSelect, createStratumButton } from "./ui-controls";
 import { Component, Modal, setIcon, type App } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import {
@@ -24,11 +25,11 @@ class DeletePublicationModal extends Modal {
     const actions = this.contentEl.createDiv({
       cls: "stratum-publish-actions",
     });
-    const cancel = actions.createEl("button", { text: "Cancel" });
+    const cancel = createStratumButton(actions, { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());
-    const remove = actions.createEl("button", {
+    const remove = createStratumButton(actions, {
       text: "Delete document",
-      cls: "mod-warning",
+      className: "mod-warning",
     });
     remove.addEventListener("click", () => {
       remove.disabled = true;
@@ -42,9 +43,12 @@ class DeletePublicationModal extends Modal {
 }
 export class PublishPanel extends Component {
   private body!: HTMLElement;
+  private controls!: HTMLElement;
+  private scope!: HTMLSelectElement;
   private setup!: HTMLButtonElement;
   private status!: HTMLElement;
   private list!: HTMLElement;
+  private listContext = "";
   private create!: HTMLButtonElement;
   private type!: HTMLSelectElement;
   private cancel!: HTMLButtonElement;
@@ -56,25 +60,29 @@ export class PublishPanel extends Component {
   }
   onload(): void {
     this.body = this.container.createDiv({ cls: "stratum-publish-panel" });
-    this.body.createEl("h3", { text: "Publish your note" });
-    const controls = this.body.createDiv({ cls: "stratum-publish-controls" });
-    this.type = controls.createEl("select", {
-      attr: { "aria-label": "File type" },
+    this.body.createEl("h3", { text: "Publish note" });
+    this.body.createEl("p", {
+      cls: "stratum-placeholder",
+      text: "Word or PDF documents created from your note",
     });
-    for (const [value, text] of [
-      ["", "Choose file type"],
-      ["pdf", "PDF"],
-      ["docx", "Word"],
-    ])
-      this.type.createEl("option", { value, text });
-    this.type.value = this.publish.selectedFormat;
+    const controls = this.body.createDiv({ cls: "stratum-publish-controls" });
+    this.controls = controls;
+    this.type = createStratumSelect(controls, {
+      ariaLabel: "Choose file type to publish",
+      value: this.publish.selectedFormat,
+      choices: [
+        { value: "", label: "Choose file type" },
+        { value: "pdf", label: "PDF" },
+        { value: "docx", label: "Word" },
+      ],
+    });
     this.type.addEventListener("change", () => {
       this.publish.selectedFormat = this.type.value as PublishFormat | "";
       this.update();
     });
-    this.create = controls.createEl("button", {
+    this.create = createStratumButton(controls, {
       text: "Create document",
-      cls: "mod-cta",
+      primary: true,
     });
     this.create.addEventListener("click", () => {
       void this.publish.create();
@@ -83,16 +91,29 @@ export class PublishPanel extends Component {
       cls: "stratum-publish-status",
       attr: { role: "status", "aria-live": "polite" },
     });
-    this.setup = this.body.createEl("button", { text: "Set up in settings" });
+    this.setup = createStratumButton(this.body, { text: "Set up in settings" });
     this.setup.addEventListener("click", () => {
       const settings = getSettingsManager(this.publish.plugin.app);
       settings?.open();
       settings?.openTabById(this.publish.plugin.manifest.id);
     });
-    this.cancel = this.body.createEl("button", { text: "Cancel" });
+    this.cancel = createStratumButton(this.body, { text: "Cancel" });
     this.cancel.addEventListener("click", () => this.publish.cancel());
     const history = this.body.createDiv({ cls: "stratum-publish-history" });
     history.createEl("h4", { text: "Published documents" });
+    this.scope = createStratumSelect(history, {
+      label: "Show",
+      ariaLabel: "Choose which documents to view",
+      value: this.publish.historyScope,
+      choices: [
+        { value: "note", label: "Documents for this note" },
+        { value: "all", label: "All published documents" },
+      ],
+    });
+    this.scope.addEventListener("change", () => {
+      this.publish.historyScope = this.scope.value === "all" ? "all" : "note";
+      this.update();
+    });
     this.list = this.body.createDiv({ cls: "stratum-publish-list" });
     this.register(this.publish.subscribe(() => this.update()));
     this.update();
@@ -101,6 +122,11 @@ export class PublishPanel extends Component {
   }
   private update(): void {
     const publish = this.publish;
+    const hasNote = publish.document?.extension === "md";
+    this.controls.hidden = !hasNote;
+    const showAll = publish.historyScope === "all";
+    this.scope.value = publish.historyScope;
+    this.list.hidden = !hasNote && !showAll;
     this.type.value = publish.selectedFormat;
     this.create.setText(
       publish.selectedFormat
@@ -128,18 +154,25 @@ export class PublishPanel extends Component {
     if (message) this.status.createEl("p", { text: message });
     if (publish.error)
       this.status.createEl("p", {
-        text: publish.error,
+        text: publish.errorMessage,
         cls: "stratum-publish-error",
       });
+    const listContext = showAll
+      ? "all"
+      : `note:${publish.document?.path ?? ""}`;
+    const scrollTop =
+      this.listContext === listContext ? this.list.scrollTop : 0;
+    this.listContext = listContext;
     this.list.empty();
-    if (!publish.documents.length)
+    const documents = showAll ? publish.allDocuments : publish.documents;
+    if (!documents.length)
       this.list.createEl("p", {
-        text: !publish.document
-          ? "Published documents appear here when you select their source note."
-          : "No published documents for this note yet.",
+        text: showAll
+          ? "No published documents"
+          : "No published documents for this note",
         cls: "stratum-publish-meta",
       });
-    for (const doc of publish.documents) {
+    for (const doc of documents) {
       const row = this.list.createDiv({ cls: "stratum-publish-row" });
       const details = row.createDiv({ cls: "stratum-publish-document" });
       details.createDiv({
@@ -153,6 +186,15 @@ export class PublishPanel extends Component {
       const actions = row.createDiv({ cls: "stratum-publish-row-actions" });
       if (doc.format === "pdf")
         this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
+      const sourceAvailable = !!publish.sourceNote(doc);
+      this.icon(
+        actions,
+        "file-text",
+        sourceAvailable ? "Open source note" : "Source note unavailable",
+        doc,
+        () => publish.openSource(doc),
+        !sourceAvailable,
+      );
       this.icon(actions, "download", "Save as", doc, () =>
         publish.saveCopy(doc),
       );
@@ -160,6 +202,7 @@ export class PublishPanel extends Component {
         new DeletePublicationModal(publish.plugin.app, publish, doc).open(),
       );
     }
+    this.list.scrollTop = scrollTop;
   }
   private icon(
     container: HTMLElement,
@@ -167,12 +210,14 @@ export class PublishPanel extends Component {
     label: string,
     document: PublishedDocument,
     action: () => void | Promise<void>,
+    disabled = false,
   ): void {
     const button = container.createEl("button", {
       cls: "clickable-icon",
       attr: { "aria-label": `${label}: ${document.filename}`, title: label },
     });
     setIcon(button, icon);
+    button.disabled = disabled;
     button.addEventListener("click", () => {
       button.disabled = true;
       void Promise.resolve()

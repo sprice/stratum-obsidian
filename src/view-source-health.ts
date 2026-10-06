@@ -1,3 +1,4 @@
+import { createStratumButton } from "./ui-controls";
 import type { SourceRow } from "./document-sources";
 
 export function sourceNeedsAttention(row: SourceRow): boolean {
@@ -23,7 +24,7 @@ export function renderSourceHealth(
   const message = (text: string) =>
     el.createEl("p", { cls: "stratum-sources-issue", text });
   const action = (text: string, suffix: string, callback: () => void) => {
-    const button = el.createEl("button", { text });
+    const button = createStratumButton(el, { text });
     button.type = "button";
     button.dataset.sourceAction = `${row.id}:${suffix}`;
     button.addEventListener("click", callback);

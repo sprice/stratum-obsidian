@@ -1,3 +1,7 @@
+import {
+  ButtonComponentMock,
+  DropdownComponentMock,
+} from "./ui-component-mocks";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
@@ -16,6 +20,7 @@ class Element {
   textContent = "";
   value = "";
   focused = false;
+  hidden = false;
   constructor(
     public tag = "div",
     public text = "",
@@ -102,6 +107,7 @@ for (const failSave of [false, true]) {
     const { SourcesPanel } = loadRuntime<typeof import("../view-sources")>(
       "view-sources.ts",
       {
+        ButtonComponent: ButtonComponentMock,
         Component: class {},
         Modal: class {},
         DropdownComponent: Dropdown,
@@ -197,6 +203,8 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   const { SourcesPanel } = loadRuntime<typeof import("../view-sources")>(
     "view-sources.ts",
     {
+      ButtonComponent: ButtonComponentMock,
+      DropdownComponent: DropdownComponentMock,
       Component: class {
         register() {}
       },
@@ -244,6 +252,10 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     navigations = 0,
     saved = 0;
   const controller = {
+    pinned: false,
+    togglePin() {
+      this.pinned = !this.pinned;
+    },
     document: { basename: "Synthetic draft" },
     rows: [first, second, unresolved],
     subscribe: () => () => {},
@@ -379,5 +391,18 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     420,
     "Rebuilding Sources must preserve the visible research columns",
   );
+  controller.pinned = true;
+  controller.rows = [];
+  const refreshRows = () =>
+    (nextPanel as unknown as { renderRows(): void }).renderRows();
+  refreshRows();
+  const pin = nextContainer
+    .all()
+    .find((el) => el.attrs["aria-label"] === "Unpin citations from this note")!;
+  assert.equal(pin.hidden, false, "an empty pinned note can still be unpinned");
+  pin.trigger("click");
+  assert.equal(controller.pinned, false);
+  refreshRows();
+  assert.equal(pin.hidden, true);
   nextPanel.onunload();
 });

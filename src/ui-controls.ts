@@ -6,20 +6,24 @@ type SelectOption = {
   disabled?: boolean;
 };
 
-export function createStratumSelect(
+export function createStratumDropdown(
   container: HTMLElement,
   options: {
-    label: string;
+    label?: string;
     ariaLabel: string;
     value: string;
     choices: SelectOption[];
   },
-): HTMLSelectElement {
-  const field = container.createEl("label", {
-    text: options.label,
-    cls: "stratum-control-field",
-  });
-  const select = new DropdownComponent(field).selectEl;
+): DropdownComponent {
+  const field =
+    options.label === undefined
+      ? container
+      : container.createEl("label", {
+          text: options.label,
+          cls: "stratum-control-field",
+        });
+  const component = new DropdownComponent(field);
+  const select = component.selectEl;
   select.addClass("stratum-control-select");
   select.setAttribute("aria-label", options.ariaLabel);
   for (const choice of options.choices) {
@@ -30,27 +34,38 @@ export function createStratumSelect(
     option.disabled = choice.disabled ?? false;
   }
   select.value = options.value;
-  return select;
+  return component;
+}
+
+export function createStratumSelect(
+  container: HTMLElement,
+  options: Parameters<typeof createStratumDropdown>[1],
+): HTMLSelectElement {
+  return createStratumDropdown(container, options).selectEl;
 }
 
 export function createStratumSearch(
   container: HTMLElement,
   options: {
-    label: string;
+    label?: string;
     ariaLabel: string;
     placeholder: string;
     value: string;
-    onChange: (value: string) => void;
+    onChange?: (value: string) => void;
   },
 ): SearchComponent {
-  const field = container.createEl("label", {
-    text: options.label,
-    cls: "stratum-control-field",
-  });
-  const search = new SearchComponent(field)
+  const field =
+    options.label === undefined
+      ? container
+      : container.createEl("label", {
+          text: options.label,
+          cls: "stratum-control-field",
+        });
+  const frame = field.createDiv({ cls: "stratum-control-search" });
+  const search = new SearchComponent(frame)
     .setPlaceholder(options.placeholder)
-    .setValue(options.value)
-    .onChange(options.onChange);
+    .setValue(options.value);
+  if (options.onChange) search.onChange(options.onChange);
   search.inputEl.setAttribute("aria-label", options.ariaLabel);
   return search;
 }
@@ -69,9 +84,8 @@ export function createStratumButton(
   if (options.primary) component.setCta();
   const button = component.buttonEl;
   button.type = "button";
-  button.addClass(
-    options.primary ? "stratum-control-cta" : "stratum-control-button",
-  );
+  button.addClass("stratum-control-button");
+  if (options.primary) button.addClass("stratum-control-cta");
   if (options.className) button.addClass(options.className);
   return button;
 }

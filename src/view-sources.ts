@@ -1,11 +1,11 @@
-import { renderSourceHealth, sourceNeedsAttention } from "./view-source-health";
 import {
-  Component,
-  DropdownComponent,
-  Notice,
-  SearchComponent,
-  setIcon,
-} from "obsidian";
+  createStratumSelect,
+  createStratumDropdown,
+  createStratumSearch,
+  createStratumButton,
+} from "./ui-controls";
+import { renderSourceHealth, sourceNeedsAttention } from "./view-source-health";
+import { Component, Notice, setIcon } from "obsidian";
 import type { SourcesController } from "./sources-controller";
 import type { SourceRow } from "./document-sources";
 import { SourceColumnsModal } from "./source-columns-modal";
@@ -29,6 +29,7 @@ export class SourcesPanel extends Component {
   private documentButton!: HTMLButtonElement;
   private pin!: HTMLButtonElement;
   private summary!: HTMLElement;
+  private tools!: HTMLElement;
   private citationStatus!: HTMLElement;
   private citationRevision = 0;
   private citationStyleSaving = false;
@@ -51,14 +52,14 @@ export class SourcesPanel extends Component {
     this.active = true;
     this.container.addClass("stratum-sources");
     const header = this.container.createDiv({ cls: "stratum-sources-header" });
-    header.createEl("h3", { text: "Review citations for your note" });
+    header.createEl("h3", { text: "Review citations" });
     this.pin = header.createEl("button", { cls: "clickable-icon" });
     this.pin.type = "button";
     setIcon(this.pin, "pin");
     this.pin.addEventListener("click", () => this.sources.togglePin());
     this.container.createEl("p", {
       cls: "stratum-placeholder",
-      text: "See the works cited or linked in your writing note, open their literature notes, and resolve citation issues.",
+      text: "Review sources cited or linked in your note",
     });
     this.documentButton = this.container.createEl("button", {
       cls: "stratum-sources-document",
@@ -78,18 +79,22 @@ export class SourcesPanel extends Component {
     this.summary = this.container.createDiv({ cls: "stratum-sources-summary" });
     this.summary.setAttr("role", "status");
     const tools = this.container.createDiv({ cls: "stratum-sources-tools" });
-    const search = new SearchComponent(tools);
-    search
-      .setPlaceholder("Search citations…")
-      .setValue(this.state.query)
-      .onChange((value) => {
+    this.tools = tools;
+    createStratumSearch(tools, {
+      ariaLabel: "Search citations",
+      placeholder: "Search citations…",
+      value: this.state.query,
+      onChange: (value) => {
         this.state.query = value;
         this.renderRows();
-      });
-    search.inputEl.setAttr("aria-label", "Search citations");
-    const sort = tools.createEl("select");
+      },
+    });
+    const sort = createStratumSelect(tools, {
+      ariaLabel: "Sort citations",
+      value: this.state.sort,
+      choices: [],
+    });
     this.sortMenu = sort;
-    sort.setAttr("aria-label", "Sort citations");
     for (const [value, text] of [
       ["appearance", "First appearance"],
       ["author", "Author"],
@@ -109,12 +114,18 @@ export class SourcesPanel extends Component {
       this.saveState();
       this.renderRows();
     });
-    const layout = tools.createEl("select");
-    layout.setAttr("aria-label", "Citations layout");
+    const layout = createStratumSelect(tools, {
+      ariaLabel: "Citations layout",
+      value: this.state.layout,
+      choices: [],
+    });
     layout.createEl("option", { value: "list", text: "List" });
     layout.createEl("option", { value: "table", text: "Table" });
     layout.value = this.state.layout;
-    const columns = tools.createEl("button", { text: "Columns" });
+    const columns = createStratumButton(tools, {
+      text: "Columns",
+      tooltip: "Choose table columns",
+    });
     columns.type = "button";
     columns.hidden = this.state.layout !== "table";
     columns.addEventListener("click", () => {
@@ -174,17 +185,15 @@ export class SourcesPanel extends Component {
         return;
       this.citationStatus.empty();
       if (!choices) return;
-      const label = this.citationStatus.createEl("label", {
-        cls: "stratum-citation-style-label",
-        text: "Citation style for this note",
+      const dropdown = createStratumDropdown(this.citationStatus, {
+        label: "Citation style for this note",
+        ariaLabel: "Citation style for this note",
+        value: choices.selected,
+        choices: choices.options.map((option) => ({
+          value: option.id,
+          label: option.title,
+        })),
       });
-      const dropdown = new DropdownComponent(label);
-      dropdown.selectEl.setAttribute(
-        "aria-label",
-        "Citation style for this note",
-      );
-      for (const option of choices.options)
-        dropdown.addOption(option.id, option.title);
       let selected = choices.selected;
       dropdown.setDisabled(this.citationStyleSaving);
       dropdown.setValue(selected).onChange(async (value) => {
@@ -220,8 +229,8 @@ export class SourcesPanel extends Component {
     }
   }
   private renderCitationSettingsButton(): void {
-    const button = this.citationStatus.createEl("button", {
-      cls: "stratum-citation-settings-button",
+    const button = createStratumButton(this.citationStatus, {
+      className: "stratum-citation-settings-button",
       text: "Manage citation styles",
     });
     button.type = "button";
@@ -265,6 +274,9 @@ export class SourcesPanel extends Component {
       ? "Unpin citations from this note"
       : "Pin citations to this note";
     const rows = this.sources.rows;
+    this.tools.hidden = rows.length === 0;
+    this.summary.hidden = rows.length === 0;
+    this.pin.hidden = rows.length === 0 && !this.sources.pinned;
     for (const row of rows)
       if (row.health?.reference && !row.health.problem)
         this.recoveryErrors.delete(row.id);
@@ -283,7 +295,7 @@ export class SourcesPanel extends Component {
           this.sources.error ??
           (file
             ? "Citations and links to literature notes will appear here as you write."
-            : "Open a writing note, then choose Show citations for current note."),
+            : "Open a note with citations or links to literature notes to see its sources."),
       });
       return;
     }

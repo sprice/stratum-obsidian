@@ -24,7 +24,6 @@ import type { EnabledLibrary } from "./settings";
 import {
   type BulkLibrarySyncState,
   buildDefaultBulkLibrarySyncState,
-  formatBulkLibrarySyncCompletionMessage,
 } from "./zotero-sync";
 import {
   LocalZoteroApiError,
@@ -681,12 +680,6 @@ export async function runBulkLibrarySync(
       resetBulkLibrarySyncRuntime(plugin);
       queueBulkLibrarySyncUiRefresh(plugin);
 
-      new Notice(
-        scope.collectionName
-          ? `${PLUGIN_NAME}: syncing all papers from ${scope.collectionName}...`
-          : `${PLUGIN_NAME}: syncing all papers in ${library.name}...`,
-      );
-
       while (true) {
         if (!canSyncLibrary(plugin, library))
           throw new Error("Bulk sync was cancelled.");
@@ -742,6 +735,8 @@ export async function runBulkLibrarySync(
       completedState.phase = "completed";
       completedState.completedAt = new Date().toISOString();
       completedState.enrichmentFailureCount = enrichmentFailureCount;
+      completedState.annotationImageWarning =
+        annotationImageSyncSummary(plugin).trim();
       completedState.lastError = null;
       completedState.retryAfterSeconds = null;
       await seedCloudAutoSyncBaselineAfterBulkSync(
@@ -750,13 +745,6 @@ export async function runBulkLibrarySync(
         scope.collectionKey,
       );
       await plugin.saveSettings();
-      new Notice(
-        formatBulkLibrarySyncCompletionMessage({
-          state: completedState,
-          libraryName: library.name,
-          collectionName: completedState.collectionName,
-        }) + annotationImageSyncSummary(plugin),
-      );
     } catch (error) {
       if (!canSyncLibrary(plugin, library)) return;
       const state = getLibraryBulkSyncState(plugin, library);

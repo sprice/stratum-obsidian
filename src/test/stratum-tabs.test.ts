@@ -1,3 +1,8 @@
+import { buildDefaultBulkLibrarySyncState } from "../zotero-sync";
+import {
+  ButtonComponentMock,
+  DropdownComponentMock,
+} from "./ui-component-mocks";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -113,8 +118,12 @@ class Element {
   hidden = false;
   text = "";
   constructor(public tag = "div") {}
-  createDiv() {
+  className = "";
+  value = "";
+  disabled = false;
+  createDiv(options?: { cls?: string }) {
     const child = new Element();
+    child.className = options?.cls ?? "";
     child.doc = this.doc;
     this.children.push(child);
     return child;
@@ -136,7 +145,15 @@ class Element {
   setAttr(key: string, value: string) {
     this.attrs[key] = value;
   }
-  addClass() {}
+  addClass(...classes: string[]) {
+    this.className += " " + classes.join(" ");
+  }
+  setAttribute(key: string, value: string) {
+    this.setAttr(key, value);
+  }
+  setText(text: string) {
+    this.text = text;
+  }
   empty() {
     this.children = [];
   }
@@ -155,7 +172,9 @@ class Element {
   querySelector(selector: string) {
     return selector.startsWith("#")
       ? (this.all().find((el) => el.id === selector.slice(1)) ?? null)
-      : null;
+      : (this.all().find((el) =>
+          el.className.split(" ").includes(selector.slice(1)),
+        ) ?? null);
   }
 }
 
@@ -178,7 +197,11 @@ function viewFixture(desktop: boolean) {
   const { StratumView } = loadRuntime<typeof import("../view")>(
     "view.ts",
     new Proxy<Record<string, unknown>>(
-      { Platform: { isDesktopApp: desktop } },
+      {
+        Platform: { isDesktopApp: desktop },
+        ButtonComponent: ButtonComponentMock,
+        DropdownComponent: DropdownComponentMock,
+      },
       { get: (target, key: string) => target[key] ?? Host },
     ),
     {
@@ -186,6 +209,7 @@ function viewFixture(desktop: boolean) {
       window: {
         requestAnimationFrame: (callback: () => void) => callback(),
         clearTimeout() {},
+        setTimeout: () => 1,
       },
     },
   );
@@ -300,3 +324,65 @@ for (const desktop of [true, false]) {
     assert.equal(bar().cssProps["--stratum-compact-tab-count"], "1");
   });
 }
+
+test("Sync keeps controls through progress, completion, and tab navigation", () => {
+  const f = viewFixture(true);
+  let running = false;
+  let processed = 0;
+  const state = buildDefaultBulkLibrarySyncState();
+  const libraries = [
+    { identity: "user:1", type: "user", id: "1", name: "Synthetic library" },
+    { identity: "group:2", type: "group", id: "2", name: "Synthetic group" },
+  ];
+  Object.assign(f.plugin.settings, {
+    bulkSyncEnabled: true,
+    libraryBulkSync: { "user:1": state },
+    libraryAutoSync: {},
+  });
+  Object.assign(f.plugin, {
+    backend: { hasSession: () => true },
+    zoteroConnection: { connected: true },
+    localSyncLibraries: libraries,
+    syncCollections: [],
+    localSync: { ensureLibrariesLoaded() {}, ensureCollectionsLoaded() {} },
+    isBulkLibrarySyncRunning: () => running,
+    isZoteroAutoSyncRunning: () => false,
+    isLoadingLocalSyncLibraries: false,
+    isLoadingSyncCollections: false,
+    getBulkLibrarySyncProcessedCount: () => processed,
+  });
+  f.view.render();
+  const selects = () => f.content.all().filter((el) => el.tag === "select");
+  const original = selects();
+  assert.equal(original.length, 2);
+  original[1].focus();
+  running = true;
+  state.phase = "running";
+  for (processed = 1; processed <= 3; processed++) {
+    f.view.refreshSyncProgress();
+    f.view.render();
+    original.forEach((select, index) => assert.equal(selects()[index], select));
+    assert.ok(selects().every((el) => el.disabled));
+  }
+  running = false;
+  state.phase = "completed";
+  state.completedAt = new Date().toISOString();
+  f.view.render();
+  original.forEach((select, index) => assert.equal(selects()[index], select));
+  assert.ok(selects().every((el) => !el.disabled));
+  f.plugin.activeViewTab = "browse";
+  f.view.render();
+  f.plugin.activeViewTab = "sync";
+  f.view.render();
+  original.forEach((select, index) => assert.equal(selects()[index], select));
+  assert.equal(f.content.doc.activeElement, original[1]);
+  libraries.push({
+    identity: "group:3",
+    type: "group",
+    id: "3",
+    name: "Another synthetic group",
+  });
+  f.view.render();
+  assert.notEqual(selects()[0], original[0]);
+  assert.equal(selects()[0].children.length, 3);
+});

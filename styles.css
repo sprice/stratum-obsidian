@@ -334,14 +334,7 @@
 	animation: stratum-spin 0.75s linear infinite;
 }
 
-.stratum-search-label {
-	display: block;
-	margin: 0 0 0.45rem;
-	color: var(--text-muted);
-	font-size: 0.84rem;
-	font-weight: 600;
-	line-height: 1.4;
-}
+
 
 .stratum-search-section {
 	display: grid;
@@ -634,7 +627,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 
 /* Shared Stratum controls keep Obsidian's native input and button styling. */
-.stratum-control-field { display: flex; flex-direction: column; gap: var(--size-4-1); color: var(--text-muted); font-size: var(--font-ui-small); }
+.stratum-control-field { min-width: 0; display: flex; flex-direction: column; gap: var(--size-4-1); color: var(--text-muted); font-size: var(--font-ui-small); }
 .stratum-control-select { width: 100%; min-width: 0; color: var(--text-normal); }
 .stratum-control-select, .stratum-control-button { outline: 1px solid transparent; outline-offset: -1px; }
 @media (hover: hover) {
@@ -673,19 +666,19 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 /* Document sources stay compact and usable in narrow Obsidian sidebars. */
 .stratum-sources { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; min-height: 0; }
 .stratum-sources-header { display: flex; align-items: center; justify-content: space-between; }
+.stratum-sources-header > [hidden] { display: none; }
 .stratum-sources-header h3 { margin: 0; }
 .stratum-sources-header [aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
 .stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .stratum-sources-document { align-self: flex-start; max-width: 100%; min-height: 0; padding: var(--size-2-1) 0; border: 0; box-shadow: none; background: transparent; color: var(--link-color); font-size: var(--font-ui-small); text-decoration: underline; cursor: pointer; }
 .stratum-sources-document:hover { background: transparent; color: var(--link-color-hover); }
-.stratum-citation-style-label { display: flex; flex-direction: column; gap: var(--size-2-2); font-size: var(--font-ui-small); color: var(--text-muted); }
-.stratum-citation-style-label select { width: 100%; min-width: 0; color: var(--text-normal); }
 .stratum-citation-settings-button { margin-top: var(--size-2-2); }
 .stratum-sources-document[hidden] { display: none; }
 .stratum-sources-summary, .stratum-sources-meta, .stratum-sources-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
 .stratum-sources-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
-.stratum-sources-tools .search-input-container { flex: 1 1 140px; min-width: 0; }
-.stratum-sources-tools select { max-width: 100%; }
+.stratum-sources-tools[hidden] { display: none; }
+.stratum-sources-tools > .stratum-control-search { flex: 1 1 140px; }
+.stratum-sources-tools select { width: auto; max-width: 100%; flex: 0 1 auto; }
 .stratum-sources-tools button[hidden] { display: none; }
 .stratum-sources-results { flex: 1; min-height: 0; overflow-y: auto; }
 .stratum-source-table { border-collapse: collapse; width: 100%; font-size: var(--font-ui-small); }
@@ -798,7 +791,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 
 .stratum-publish-tab { height: 100%; overflow-y: auto; }
-.stratum-publish-panel { display: flex; flex-direction: column; gap: var(--size-4-3); padding-bottom: var(--size-4-4); }
+.stratum-publish-panel { height: 100%; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--size-4-3); padding-bottom: var(--size-4-4); }
+.stratum-publish-panel > :not(.stratum-publish-list) { flex-shrink: 0; }
 .stratum-publish-panel h3, .stratum-publish-panel h4, .stratum-publish-panel p { margin: 0; }
 .stratum-publish-controls { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--size-4-2); }
 .stratum-publish-controls select, .stratum-publish-controls button { width: 100%; min-width: 0; }
@@ -807,7 +801,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-status { font-size: var(--font-ui-small); color: var(--text-muted); overflow-wrap: anywhere; }
 .stratum-publish-status p + p { margin-top: var(--size-4-2); }
 .stratum-publish-error { color: var(--text-error); white-space: pre-wrap; max-height: 12rem; overflow: auto; }
-.stratum-publish-history { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex-wrap: wrap; margin-top: var(--size-4-4); }
+.stratum-publish-history { display: flex; flex-direction: column; align-items: stretch; gap: var(--size-4-3); margin-top: var(--size-4-4); }
+.stratum-publish-history .stratum-control-field { width: 50%; }
 .stratum-publish-row { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
 .stratum-publish-document { min-width: 0; }
 .stratum-publish-filename { overflow-wrap: anywhere; font-size: var(--font-ui-small); }
@@ -845,3 +840,14 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-style-checklist .stratum-tab-chooser-option span { overflow-wrap: anywhere; }
 .stratum-checklist-badge { margin-left: auto; font-size: var(--font-ui-smaller); color: var(--text-muted); }
 .stratum-style-checklist .stratum-tab-chooser-option:has(input:disabled) { cursor: default; }
+
+/* Reserve room for the native search focus ring inside clipping panels. */
+.stratum-control-search { min-width: 0; padding: var(--size-4-1); box-sizing: border-box; }
+.stratum-control-search .search-input-container { width: 100%; min-width: 0; }
+.stratum-control-search input { width: 100%; }
+.stratum-library-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--size-4-3); }
+.stratum-library-filters > :only-child { grid-column: 1 / -1; }
+@container stratum-sidebar (max-width: 28rem) {
+  .stratum-library-filters { grid-template-columns: minmax(0, 1fr); }
+}
+.stratum-publish-list { flex: 1 1 8rem; box-sizing: border-box; min-height: 8rem; min-width: 0; overflow-y: auto; padding: var(--size-4-3); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
