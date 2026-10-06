@@ -9,7 +9,15 @@ export interface CitationStyle {
 }
 export const bundledStyles: CitationStyle[] = [
   { id: "apa", title: "American Psychological Association 7th edition" },
+  {
+    id: "modern-language-association",
+    title: "MLA Handbook 9th edition (in-text citations)",
+  },
   { id: "ieee", title: "IEEE" },
+  {
+    id: "nlm-citation-sequence",
+    title: "NLM/Vancouver: Citing Medicine 2nd edition (citation-sequence)",
+  },
   {
     id: "chicago-notes-bibliography",
     title: "Chicago Manual of Style 18th edition (notes and bibliography)",

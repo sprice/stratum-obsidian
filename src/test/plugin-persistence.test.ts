@@ -2,6 +2,66 @@ import { readEnabledTabs } from "../stratum-tabs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadPluginSettings, savePluginSettings } from "../plugin-persistence";
+import { DEFAULT_SETTINGS } from "../settings-data";
+
+test("last selected tab survives reload and invalid stored tabs fall back to Search", async () => {
+  let data: unknown = {};
+  const plugin = {
+    settings: {} as import("../settings-data").StratumSettings,
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.lastActiveTab, "search");
+  plugin.settings.lastActiveTab = "sources";
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.lastActiveTab, "sources");
+  for (const lastActiveTab of [null, "unknown", 1, {}, []]) {
+    data = { lastActiveTab };
+    await loadPluginSettings(plugin as never);
+    assert.equal(plugin.settings.lastActiveTab, "search");
+  }
+});
+
+test("rapid settings saves finish in order and preserve the latest tab", async () => {
+  let finish!: () => void;
+  let writes = 0;
+  let data: unknown;
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const plugin = {
+    settings: { ...DEFAULT_SETTINGS, lastActiveTab: "reader" },
+    saveData: async (value: unknown) => {
+      const snapshot = structuredClone(value);
+      if (++writes === 1) await gate;
+      data = snapshot;
+    },
+  };
+  const first = savePluginSettings(plugin as never);
+  await new Promise((resolve) => setImmediate(resolve));
+  plugin.settings.lastActiveTab = "sources";
+  const second = savePluginSettings(plugin as never);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(writes, 1, "The second disk write must wait for the first");
+  finish();
+  await Promise.all([first, second]);
+  assert.equal((data as { lastActiveTab: string }).lastActiveTab, "sources");
+  plugin.saveData = () => Promise.reject(new Error("Disk failure"));
+  await assert.rejects(savePluginSettings(plugin as never), /Disk failure/);
+  plugin.saveData = (value) => {
+    data = structuredClone(value);
+    return Promise.resolve();
+  };
+  plugin.settings.lastActiveTab = "browse";
+  await savePluginSettings(plugin as never);
+  assert.equal((data as { lastActiveTab: string }).lastActiveTab, "browse");
+});
 
 test("loadPluginSettings rewrites stored settings when orphaned autoSync keys are present", async () => {
   const savedValues: unknown[] = [];
@@ -207,7 +267,10 @@ test("unsupported item reports survive settings reload and discard malformed ent
           { type: "user", id: "1", name: "My Library", identity: "user:1" },
         ],
         libraryBulkSync: {
-          "user:1": { unsupportedItems: [item, null, { title: "broken" }] },
+          "user:1": {
+            unsupportedItems: [item, null, { title: "broken" }],
+            annotationImageWarning: "1 area image could not be refreshed.",
+          },
         },
       }),
     saveData: async () => {},
@@ -219,6 +282,10 @@ test("unsupported item reports survive settings reload and discard malformed ent
   assert.deepEqual(
     plugin.settings?.libraryBulkSync["user:1"].unsupportedItems,
     [item],
+  );
+  assert.equal(
+    plugin.settings?.libraryBulkSync["user:1"].annotationImageWarning,
+    "1 area image could not be refreshed.",
   );
 });
 
@@ -327,4 +394,38 @@ test("tab preferences survive save/reload and legacy settings default on", async
   assert.equal(plugin.settings.enabledTabs.reader, false);
   assert.equal(plugin.settings.enabledTabs.sync, false);
   assert.equal(plugin.settings.enabledTabs.browse, true);
+});
+
+test("available citation styles survive reload, retain the default, and reject malformed identifiers", async () => {
+  let data: unknown = {
+    citationStyle: "ieee",
+    availableCitationStyles: [
+      "modern-language-association",
+      "../invalid",
+      null,
+    ],
+  };
+  const plugin = {
+    settings: {} as import("../settings-data").StratumSettings,
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(plugin.settings.availableCitationStyles, [
+    "modern-language-association",
+    "ieee",
+  ]);
+  plugin.settings.availableCitationStyles = ["apa", "ieee"];
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(plugin.settings.availableCitationStyles, ["apa", "ieee"]);
+  assert.equal(plugin.settings.citationStyle, "ieee");
+  data = {};
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.citationStyle, "apa");
+  assert.equal(plugin.settings.availableCitationStyles?.length, 5);
 });

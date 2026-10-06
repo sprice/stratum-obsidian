@@ -219,7 +219,7 @@ export async function importAnnotationImages(
         : undefined,
     });
   }
-  // Bulk sync appends one aggregate message to its existing completion notice.
+  // Bulk sync records one aggregate warning in its inline completion status.
   if (
     !plugin.bulkLibrarySyncRunPromise &&
     state.pending.size &&

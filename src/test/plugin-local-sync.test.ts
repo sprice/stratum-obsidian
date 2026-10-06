@@ -24,6 +24,7 @@ function createSettings(params: {
     pandocPath: "",
     tectonicPath: "",
     enabledTabs: readEnabledTabs(undefined),
+    lastActiveTab: "search",
     citationStyle: "apa",
     citationLanguage: "en-US",
     citationStyles: {},

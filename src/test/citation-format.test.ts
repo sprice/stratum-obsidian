@@ -362,3 +362,22 @@ test("note styles retain native footnotes when a reference is nested in a link",
   );
   assert.equal(format(text, "apa").citations.length, 1);
 });
+
+test("all five starter styles format citations and bibliography using bundled resources", () => {
+  for (const id of [
+    "apa",
+    "modern-language-association",
+    "chicago-notes-bibliography",
+    "ieee",
+    "nlm-citation-sequence",
+  ]) {
+    const result = format("A claim [@smith2024]. Another [@jones2023].", id);
+    assert.equal(result.citations.length, 2, id);
+    assert.ok(
+      result.citations.every((citation) => citation.length > 0),
+      id,
+    );
+    assert.match(result.bibliography, /Example research/i, id);
+    assert.match(result.bibliography, /A second example/i, id);
+  }
+});

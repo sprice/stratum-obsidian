@@ -29,6 +29,16 @@
       "name": "chicago-notes-bibliography",
       "url": "https://www.zotero.org/styles/chicago-notes-bibliography",
       "sha256": "0a2f19c3aa56f5ac04b442f2e9b97e611896756283dc5ed430ce77f09f4d7a06"
+    },
+    {
+      "name": "modern-language-association",
+      "url": "https://raw.githubusercontent.com/citation-style-language/styles/master/modern-language-association.csl",
+      "sha256": "e1432698ef28938d044b06bd45ddcc57d6b974cec25f71007075646a11f99484"
+    },
+    {
+      "name": "nlm-citation-sequence",
+      "url": "https://raw.githubusercontent.com/citation-style-language/styles/master/nlm-citation-sequence.csl",
+      "sha256": "492f7935df42054b33d515f7275122f419780df990ea35925dcbbff0fecf1137"
     }
   ]
 }

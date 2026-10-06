@@ -1,3 +1,4 @@
+import { INITIAL_CITATION_STYLES } from "./citation-style-defaults";
 import type { StratumSettings } from "./settings-data";
 import type StratumPlugin from "./plugin";
 
@@ -47,7 +48,7 @@ export async function saveCitationResources(
     throw new Error(
       "Citation resources could not be read. Restore the resource cache before changing styles.",
     );
-  for (const id of ["apa", "ieee", "chicago-notes-bibliography"])
+  for (const id of INITIAL_CITATION_STYLES)
     delete plugin.settings.citationStyles[id];
   for (const language of ["en-US", "en-GB", "fr-FR"])
     delete plugin.settings.citationLocales[language];

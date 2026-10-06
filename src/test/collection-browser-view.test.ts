@@ -19,16 +19,30 @@ class Element {
   scrollTop = 0;
   scrollLeft = 0;
   id = "";
+  className = "";
   value = "";
+  placeholder = "";
   text = "";
   hidden = false;
+  disabled = false;
+  parent: Element | null = null;
+  shown = false;
   change: ((value: string) => void) | null = null;
   selectionStart = 0;
   selectionEnd = 0;
   constructor(public tag = "div") {}
-  addClass() {}
+  addClass(...classes: string[]) {
+    this.className = [this.className, ...classes].filter(Boolean).join(" ");
+  }
   empty() {
     this.children = [];
+  }
+  remove() {
+    if (this.parent)
+      this.parent.children = this.parent.children.filter(
+        (child) => child !== this,
+      );
+    this.parent = null;
   }
   setText(text: string) {
     this.text = text;
@@ -46,22 +60,40 @@ class Element {
   focus() {
     this.doc.activeElement = this;
   }
+  isShown() {
+    return this.shown;
+  }
   createEl(
     tag: string,
-    options?: { value?: string; text?: string; attr?: Record<string, string> },
+    options?: {
+      value?: string;
+      text?: string;
+      cls?: string;
+      attr?: Record<string, string>;
+    },
   ) {
     const child = new Element(tag);
+    child.parent = this;
     child.doc = this.doc;
     child.value = options?.value ?? "";
     child.text = options?.text ?? "";
+    child.className = options?.cls ?? "";
     child.attrs = options?.attr ?? {};
     this.children.push(child);
     return child;
   }
-  createDiv(options?: { attr?: Record<string, string> }) {
+  createDiv(options?: { cls?: string; attr?: Record<string, string> }) {
     const child = new Element();
     child.doc = this.doc;
+    child.className = options?.cls ?? "";
     child.attrs = options?.attr ?? {};
+    this.children.push(child);
+    return child;
+  }
+  createSpan(options?: { text?: string }) {
+    const child = new Element("span");
+    child.doc = this.doc;
+    child.text = options?.text ?? "";
     this.children.push(child);
     return child;
   }
@@ -75,6 +107,8 @@ class Element {
     return this.querySelectorAll(selector)[0] ?? null;
   }
   querySelectorAll(selector: string) {
+    if (selector === "option:disabled")
+      return this.all().filter((el) => el.tag === "option" && el.disabled);
     if (selector.startsWith("#"))
       return this.all().filter((el) => el.id === selector.slice(1));
     if (selector === "[data-collection-sort]")
@@ -110,8 +144,11 @@ test("sidebar controls filter main-pane results and preserve state through refre
       requestSaveLayout() {},
       getLeavesOfType: () => (extraLeaf ? [leaf, extraLeaf] : [leaf]),
       getActiveViewOfType: () => activeBrowser,
-      revealLeaf: () => {
+      revealLeaf: (target: unknown) => {
+        assert.equal(target, leaf);
         revealed++;
+        root.shown = true;
+        for (const listener of leafListeners) listener(leaf);
         return Promise.resolve();
       },
       getLeaf: () => {
@@ -125,6 +162,7 @@ test("sidebar controls filter main-pane results and preserve state through refre
       "collection-browser.ts",
       {
         ItemView: class {
+          constructor(public leaf: unknown) {}
           app = app;
           contentEl = root;
           register() {}
@@ -139,7 +177,8 @@ test("sidebar controls filter main-pane results and preserve state through refre
           constructor(header: Element) {
             this.inputEl = header.createEl("input");
           }
-          setPlaceholder() {
+          setPlaceholder(value: string) {
+            this.inputEl.placeholder = value;
             return this;
           }
           setValue(value: string) {
@@ -148,6 +187,49 @@ test("sidebar controls filter main-pane results and preserve state through refre
           }
           onChange(callback: (value: string) => void) {
             this.inputEl.change = callback;
+            return this;
+          }
+        },
+        ToggleComponent: class {
+          toggleEl: Element;
+          constructor(container: Element) {
+            this.toggleEl = container.createEl("input", {
+              attr: { "aria-label": "Include subcollections" },
+            });
+          }
+          setValue(value: boolean) {
+            this.toggleEl.value = String(value);
+            return this;
+          }
+          setTooltip() {
+            return this;
+          }
+          onChange(callback: (value: boolean) => void) {
+            this.toggleEl.change = (value) => callback(value === "true");
+            return this;
+          }
+        },
+        DropdownComponent: class {
+          selectEl: Element;
+          constructor(container: Element) {
+            this.selectEl = container.createEl("select");
+          }
+        },
+        ButtonComponent: class {
+          buttonEl: Element;
+          constructor(container: Element) {
+            this.buttonEl = container.createEl("button");
+          }
+          setButtonText(text: string) {
+            this.buttonEl.text = text;
+            return this;
+          }
+          setTooltip(text: string) {
+            this.buttonEl.attrs.title = text;
+            return this;
+          }
+          setCta() {
+            this.buttonEl.addClass("mod-cta");
             return this;
           }
         },
@@ -178,6 +260,7 @@ test("sidebar controls filter main-pane results and preserve state through refre
       },
     );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     app,
     settings: {
       collectionCatalogs: {},
@@ -206,56 +289,104 @@ test("sidebar controls filter main-pane results and preserve state through refre
   assert.equal(root.querySelector("select"), null);
   assert.equal(root.querySelector("input"), null);
   assert.equal(
-    sidebar.querySelector('select[aria-label="Literature browser layout"]')
-      ?.value,
+    sidebar.querySelector('select[aria-label="Choose layout"]')?.value,
     "table",
   );
+  assert.ok(
+    sidebar
+      .querySelector('select[aria-label="Choose layout"]')
+      ?.className.includes("stratum-control-select"),
+  );
   assert.equal(
-    sidebar.querySelector('input[aria-label="Search imported papers"]')?.value,
+    sidebar.querySelector('input[aria-label="Search literature notes"]')?.value,
     "synthetic",
   );
-  assert.ok(sidebar.all().some((el) => el.text === "1 imported paper"));
+  assert.equal(
+    sidebar.querySelector('input[aria-label="Search literature notes"]')
+      ?.placeholder,
+    "Title, author, year, or more",
+  );
+  assert.ok(sidebar.all().some((el) => el.text === "1 item"));
+  assert.equal(
+    sidebar.all().some((el) => el.text === "All libraries"),
+    false,
+  );
+  assert.ok(sidebar.all().some((el) => el.text === "View"));
+  assert.ok(sidebar.all().some((el) => el.text === "Search"));
+  assert.equal(
+    sidebar.all().find((el) => el.text === "Columns")?.attrs.title,
+    "Choose table columns",
+  );
+  const stableControls = sidebar.querySelectorAll("select");
+  const stableOptions = stableControls[0].children.slice();
+  const stableColumns = sidebar.all().find((el) => el.text === "Columns");
+  const showItems = sidebar.all().find((el) => el.text === "Show items")!;
+  assert.ok(showItems.className.includes("mod-cta"));
+  assert.equal(showItems.hidden, false);
+  showItems.listeners.get("click")!();
+  await Promise.resolve();
+  assert.equal(revealed, 1, "Show items reveals the existing browser");
+  assert.equal(showItems.hidden, true);
+  // A metadata refresh can arrive after revealing the browser. It must update
+  // results without replacing the controls and restarting their transitions.
+  await Promise.resolve().then(() => events.get("resolved")!());
+  sidebar.querySelectorAll("select").forEach((select, index) => {
+    assert.equal(select, stableControls[index]);
+  });
+  stableControls[0].children.forEach((option, index) => {
+    assert.equal(option, stableOptions[index]);
+  });
+  assert.equal(
+    sidebar.all().find((el) => el.text === "Columns"),
+    stableColumns,
+  );
+
+  root.shown = false;
+  for (const listener of leafListeners) listener({ view: null });
+  assert.equal(showItems.hidden, false);
   const input = sidebar.querySelector(
-    'input[aria-label="Search imported papers"]',
+    'input[aria-label="Search literature notes"]',
   );
   input.change!("no match");
   assert.equal(peerSidebar.querySelector("input").value, "no match");
   assert.equal(sidebar.querySelector("input"), input);
   assert.equal(root.querySelectorAll("a").length, 0);
-  assert.ok(sidebar.all().some((el) => el.text === "0 imported papers"));
+  assert.ok(sidebar.all().some((el) => el.text === "0 items"));
   input.change!("synthetic");
   input.value = "synthetic";
   input.focus();
   const results = root
     .all()
-    .find((el) => el.attrs["aria-label"] === "Imported papers")!;
+    .find((el) => el.className === "stratum-collection-results")!;
+  assert.equal(results.attrs["aria-label"], undefined);
   results.scrollLeft = 420;
   results.listeners.get("scroll")!();
   events.get("changed")!();
   const refreshed = root
     .all()
-    .find((el) => el.attrs["aria-label"] === "Imported papers")!;
+    .find((el) => el.className === "stratum-collection-results")!;
   assert.notEqual(refreshed, results);
   const refreshedInput = sidebar.querySelector(
-    'input[aria-label="Search imported papers"]',
+    'input[aria-label="Search literature notes"]',
   );
+  assert.equal(refreshedInput, input);
+  sidebar.querySelectorAll("select").forEach((select, index) => {
+    assert.equal(select, stableControls[index]);
+  });
   assert.equal(refreshedInput.value, "synthetic");
   assert.equal(sidebar.doc.activeElement, refreshedInput);
   assert.equal(refreshed.scrollLeft, 420);
   const snapshot = JSON.stringify(view.getState());
   await browseCollections(plugin as never);
-  assert.equal(revealed, 1);
+  assert.equal(revealed, 2);
   assert.equal(plugin.activeViewTab, "browse");
   assert.equal(JSON.stringify(view.getState()), snapshot);
-  const layout = sidebar.querySelector(
-    'select[aria-label="Literature browser layout"]',
-  );
+  const layout = sidebar.querySelector('select[aria-label="Choose layout"]');
   layout.value = "list";
   layout.listeners.get("change")!();
   assert.equal(view.getState().layout, "list");
   assert.equal(
-    peerSidebar.querySelector('select[aria-label="Literature browser layout"]')
-      .value,
+    peerSidebar.querySelector('select[aria-label="Choose layout"]').value,
     "list",
   );
   assert.equal(root.querySelector("table"), null);
@@ -263,16 +394,117 @@ test("sidebar controls filter main-pane results and preserve state through refre
   const switcher = sidebar.querySelector(
     'select[aria-label="Choose collection"]',
   );
+  const viewSelect = sidebar.querySelector(
+    'select[aria-label="Choose layout"]',
+  );
+  const peerViewSelect = peerSidebar.querySelector(
+    'select[aria-label="Choose layout"]',
+  );
   switcher.value = "unfiled";
   switcher.listeners.get("change")!();
   assert.equal(view.getState().collection, "unfiled");
   assert.equal(view.getState().query, "");
+  assert.equal(
+    sidebar.querySelector('select[aria-label="Choose layout"]'),
+    viewSelect,
+  );
+  assert.equal(
+    peerSidebar.querySelector('select[aria-label="Choose layout"]'),
+    peerViewSelect,
+  );
+  assert.equal(
+    peerSidebar.querySelector('select[aria-label="Choose collection"]')?.value,
+    "unfiled",
+  );
+  assert.equal(
+    sidebar.querySelector('input[aria-label="Search literature notes"]')?.value,
+    "",
+  );
   assert.equal(root.querySelectorAll("a").length, 1);
+  await view.setState(
+    { ...view.getState(), collection: "missing-collection" },
+    {} as never,
+  );
+  const unavailableSwitcher = sidebar.querySelector(
+    'select[aria-label="Choose collection"]',
+  );
+  assert.ok(unavailableSwitcher.querySelector("option:disabled"));
+  const layoutBeforeRecovery = sidebar.querySelector(
+    'select[aria-label="Choose layout"]',
+  );
+  unavailableSwitcher.value = "unfiled";
+  unavailableSwitcher.listeners.get("change")!();
+  assert.equal(unavailableSwitcher.querySelector("option:disabled"), null);
+  assert.equal(
+    peerSidebar
+      .querySelector('select[aria-label="Choose collection"]')
+      .querySelector("option:disabled"),
+    null,
+  );
+  assert.equal(
+    sidebar.querySelector('select[aria-label="Choose layout"]'),
+    layoutBeforeRecovery,
+  );
+  Object.assign(plugin.settings.collectionCatalogs, {
+    "user:1": {
+      libraryName: "Synthetic library",
+      updatedAt: 1,
+      collections: [
+        {
+          key: "PARENT",
+          name: "Parent",
+          parentCollectionKey: null,
+          displayName: "Parent",
+        },
+        {
+          key: "CHILD",
+          name: "Child",
+          parentCollectionKey: "PARENT",
+          displayName: "Parent / Child",
+        },
+      ],
+    },
+  });
+  await view.setState(
+    { ...view.getState(), collection: JSON.stringify(["user:1", "PARENT"]) },
+    {} as never,
+  );
+  const toggle = sidebar.querySelector(
+    'input[aria-label="Include subcollections"]',
+  );
+  assert.ok(toggle);
+  toggle.focus();
+  toggle.value = "false";
+  toggle.change!("false");
+  events.get("changed")!();
+  assert.equal(
+    sidebar.querySelector('input[aria-label="Include subcollections"]'),
+    toggle,
+  );
+  assert.equal(sidebar.doc.activeElement, toggle);
+  assert.equal(toggle.value, "false");
+  assert.equal(
+    peerSidebar.querySelector('input[aria-label="Include subcollections"]')
+      .value,
+    "false",
+  );
+  await view.setState(
+    { ...view.getState(), collection: "unfiled" },
+    {} as never,
+  );
   unmount();
   const detachedInput = sidebar.querySelector("input");
   events.get("changed")!();
   assert.equal(sidebar.querySelector("input"), detachedInput);
   const remount = view.mountControls(sidebar as never);
+  // Returning to Browse mounts new controls; later metadata must retain them.
+  const remountedSelects = sidebar.querySelectorAll("select");
+  remountedSelects[1].focus();
+  await Promise.resolve().then(() => events.get("changed")!());
+  sidebar.querySelectorAll("select").forEach((select, index) => {
+    assert.equal(select, remountedSelects[index]);
+  });
+  assert.equal(sidebar.doc.activeElement, remountedSelects[1]);
   assert.equal(
     sidebar.querySelector('select[aria-label="Choose collection"]')?.value,
     "unfiled",
@@ -280,8 +512,28 @@ test("sidebar controls filter main-pane results and preserve state through refre
   remount();
   unmountPeer();
   const second = new CollectionBrowserView(leaf as never, plugin as never);
+  const secondRoot = new Element();
+  secondRoot.shown = true;
+  Object.assign(second, { contentEl: secondRoot });
   extraLeaf = { view: second };
   await second.onOpen();
+  root.shown = false;
+  const visibilitySidebar = new Element();
+  const unmountVisibility = view.mountControls(visibilitySidebar as never);
+  const revealTarget = visibilitySidebar
+    .all()
+    .find((el) => el.text === "Show items")!;
+  for (const listener of leafListeners) listener({ view: null });
+  assert.equal(getCollectionBrowserView(plugin as never), view);
+  assert.equal(
+    revealTarget.hidden,
+    false,
+    "a visible browser in another pane must not hide the action for this hidden target",
+  );
+  root.shown = true;
+  for (const listener of leafListeners) listener({ view: null });
+  assert.equal(revealTarget.hidden, true);
+  unmountVisibility();
   activeBrowser = second;
   // The sidebar can be closed while the user activates another Collections tab.
   for (const listener of leafListeners) listener(extraLeaf);
@@ -306,6 +558,7 @@ test("browsing creates a main-pane tab and selects the sidebar Browse panel", as
     },
   };
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: {
       collectionCatalogs: {},
       enabledTabs: readEnabledTabs(undefined),
@@ -359,20 +612,22 @@ test("browsing creates a main-pane tab and selects the sidebar Browse panel", as
   assert.equal((saved?.state as Record<string, unknown>).collection, "all");
 });
 
-test("Browse joins sidebar tabs and switching panels detaches controls without closing results", async () => {
+test("Browse preserves mounted controls across tab switches and releases stale targets", async () => {
   const root = new Element();
   let mounted = 0;
   let unmounted = 0;
   let opened = 0;
   let leafChanged: ((leaf: { view: unknown }) => void) | undefined;
   class Browser {
+    refreshControls() {}
+    leaf = { view: this };
     isReady() {
       return true;
     }
     mountControls(container: Element) {
       mounted++;
       container.createEl("input", {
-        attr: { "aria-label": "Search imported papers" },
+        attr: { "aria-label": "Search literature notes" },
       });
       return () => {
         unmounted++;
@@ -385,6 +640,14 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   const app = {
     workspace: {
       getLeavesOfType: () => [{ view: browser }],
+      revealLeaf: (leaf: { view: unknown }) => {
+        assert.equal(leaf, selectedBrowser.leaf);
+        opened++;
+        return Promise.resolve().then(() => {
+          root.doc.activeElement = null;
+          leafChanged!(leaf);
+        });
+      },
       requestSaveLayout() {},
       on(_event: string, callback: (leaf: { view: unknown }) => void) {
         leafChanged = callback;
@@ -440,6 +703,7 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     },
   );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: {
       collectionCatalogs: {},
       enabledTabs: readEnabledTabs(undefined),
@@ -460,33 +724,59 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
     ["Browse", "Search", "Sync", "Reader", "Citations", "Publish"],
   );
   assert.equal(tabs[0].attrs["aria-selected"], "true");
-  assert.ok(root.querySelector('input[aria-label="Search imported papers"]'));
+  assert.ok(root.querySelector('input[aria-label="Search literature notes"]'));
   assert.equal(mounted, 1);
+  const inputBeforeReveal = root.querySelector("input");
+  leafChanged!({ view: browser });
+  assert.equal(mounted, 1, "revealing the same browser preserves its controls");
+  assert.equal(root.querySelector("input"), inputBeforeReveal);
   const focusedInput = root.querySelector("input");
   focusedInput.focus();
   focusedInput.setSelectionRange(2, 4);
   view.render();
+  assert.equal(root.querySelector("input"), focusedInput);
+  assert.equal(mounted, 1, "whole-plugin refresh must retain Browse controls");
   assert.equal(root.doc.activeElement, root.querySelector("input"));
   assert.equal(root.querySelector("input").selectionStart, 2);
   assert.equal(root.querySelector("input").selectionEnd, 4);
   const currentTabs = root.all().filter((el) => el.attrs.role === "tab");
   currentTabs[4].listeners.get("click")!();
   assert.equal(plugin.activeViewTab, "sources");
-  assert.equal(unmounted, 2);
-  assert.equal(root.querySelector("input"), null);
+  assert.equal(unmounted, 0);
+  assert.equal(root.querySelector("input"), focusedInput);
+  const browsePanel = root
+    .all()
+    .find((el) => el.className === "stratum-browse-tab")!;
+  assert.equal(browsePanel.hidden, true);
   const readsBeforeSwitch = targetReads;
   selectedBrowser = new Browser();
   leafChanged!({ view: selectedBrowser });
   assert.equal(targetReads, readsBeforeSwitch + 1);
-  assert.equal(mounted, 2, "Track browser changes without rerendering Sources");
+  assert.equal(mounted, 1, "Track browser changes without rerendering Sources");
   root
     .all()
     .find((el) => el.text === "Browse")!
     .listeners.get("click")!();
   assert.equal(plugin.activeViewTab, "browse");
   assert.equal(opened, 1);
-  assert.equal(mounted, 3);
+  assert.equal(mounted, 2);
+  const inputAfterTabSwitch = root.querySelector("input");
   for (let i = 0; i < 3; i++) await Promise.resolve();
+  assert.equal(mounted, 2, "revealing results must not rebuild Browse again");
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  // An in-flight request from the previous panel may complete after reveal.
+  await Promise.resolve().then(() => plugin.refreshViews());
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  assert.equal(mounted, 2, "late global refresh must not remount Browse");
+  leafChanged!({ view: null });
+  await app.workspace.revealLeaf(selectedBrowser.leaf);
+  await Promise.resolve().then(() => plugin.refreshViews());
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  assert.equal(
+    mounted,
+    2,
+    "late global refresh after Show items retains controls",
+  );
   root
     .all()
     .find((el) => el.text === "Citations")!
@@ -498,10 +788,13 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   for (let i = 0; i < 3; i++) await Promise.resolve();
   assert.equal(root.doc.activeElement?.text, "Browse");
   assert.equal(plugin.activeViewTab, "browse");
-  assert.equal(opened, 2);
+  assert.equal(opened, 3);
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  assert.equal(mounted, 2, "returning to the same browser reuses the controls");
+  assert.equal(browsePanel.hidden, false);
   selectedBrowser = new Browser();
   leafChanged!({ view: selectedBrowser });
-  assert.equal(mounted, 5);
+  assert.equal(mounted, 3);
   const clickTab = (text: string) =>
     root
       .all()
@@ -545,11 +838,11 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   assert.equal(app.workspace.getLeavesOfType()[0].view, browser);
   assert.equal(
     opened,
-    2,
+    3,
     "Hiding Browse does not open or replace its workspace pane",
   );
   await view.onClose();
-  assert.equal(unmounted, 5);
+  assert.equal(unmounted, 3);
 });
 
 for (const stage of ["sidebar", "browser", "reveal"] as const) {
@@ -573,6 +866,7 @@ for (const stage of ["sidebar", "browser", "reveal"] as const) {
       setViewState: () => (stage === "browser" ? pause() : Promise.resolve()),
     };
     const plugin = {
+      saveSettings: () => Promise.resolve(),
       isUnloaded: false,
       settings: {
         collectionCatalogs: {},
@@ -637,6 +931,7 @@ for (const reason of ["panel switch", "tab disabled"] as const) {
       let revealed = 0;
       let refreshed = 0;
       const plugin = {
+        saveSettings: () => Promise.resolve(),
         settings: {
           collectionCatalogs: {},
           enabledTabs: readEnabledTabs(undefined),
@@ -710,6 +1005,7 @@ test("hidden Browse cannot create or reveal a workspace pane", async () => {
     { "./collection-browser-data": {}, "./collection-catalog-store": {} },
   );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: { enabledTabs: { browse: false } },
     activeViewTab: "search",
     activateView: () => {

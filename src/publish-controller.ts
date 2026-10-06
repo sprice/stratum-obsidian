@@ -36,7 +36,10 @@ export class PublishController extends Component {
   checking = false;
   progress = "";
   error = "";
+  errorMessage = "";
+  private errorTimer: number | null = null;
   selectedFormat: PublishFormat | "" = "";
+  historyScope: "note" | "all" = "note";
   readonly store: PublishStore;
   private listeners = new Set<() => void>();
   private aborter: AbortController | null = null;
@@ -120,6 +123,7 @@ export class PublishController extends Component {
   }
   onunload(): void {
     this.alive = false;
+    this.clearError();
     this.aborter?.abort();
     this.background?.abort();
     this.listeners.clear();
@@ -178,12 +182,27 @@ export class PublishController extends Component {
   emit(): void {
     if (this.alive) for (const listener of this.listeners) listener();
   }
-  fail(error: unknown): void {
+  fail(error: unknown, message = "There was an error with publishing"): void {
+    if (!this.alive) return;
+    this.clearError();
     this.error =
       error instanceof Error
         ? error.message
         : "Publishing failed. Please try again.";
+    this.errorMessage = message;
+    this.errorTimer = window.setTimeout(() => {
+      this.errorTimer = null;
+      this.error = "";
+      this.errorMessage = "";
+      this.emit();
+    }, 5_000);
     this.emit();
+  }
+  private clearError(): void {
+    if (this.errorTimer !== null) window.clearTimeout(this.errorTimer);
+    this.errorTimer = null;
+    this.error = "";
+    this.errorMessage = "";
   }
   async reload(): Promise<void> {
     const revision = ++this.loadRevision;
@@ -203,9 +222,12 @@ export class PublishController extends Component {
       (n) =>
         n.path === this.document?.path && n.ctime === this.document.stat.ctime,
     );
-    return (this.catalog?.documents ?? [])
-      .filter((d) => d.noteId === note?.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return this.allDocuments.filter((d) => d.noteId === note?.id);
+  }
+  get allDocuments(): PublishedDocument[] {
+    return [...(this.catalog?.documents ?? [])].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
   }
   canCreate(): boolean {
     return (
@@ -316,7 +338,7 @@ export class PublishController extends Component {
     const previous = this.readiness;
     this.checking = true;
     this.readiness = null;
-    this.error = "";
+    this.clearError();
     this.aborter = new AbortController();
     this.emit();
     try {
@@ -375,7 +397,7 @@ export class PublishController extends Component {
     };
     const aborter = (this.aborter = new AbortController());
     this.busy = true;
-    this.error = "";
+    this.clearError();
     this.progress = `Creating ${formatLabel(format)} document…`;
     this.emit();
     let converting = false;
@@ -421,9 +443,11 @@ export class PublishController extends Component {
       );
       this.selectedFormat = "";
       await this.reload();
-      new Notice(`${formatLabel(format)} document created for ${title}.`);
     } catch (error) {
-      this.fail(error);
+      this.fail(
+        error,
+        `There was an error creating the ${formatLabel(format)} file`,
+      );
       if (converting && !aborter.signal.aborted && this.alive) {
         try {
           await this.diagnoseFailure(format, aborter.signal);
@@ -443,6 +467,32 @@ export class PublishController extends Component {
     if (!(adapter instanceof FileSystemAdapter))
       throw new Error("Desktop filesystem access is unavailable.");
     return `${adapter.getBasePath()}/${this.store.path(document)}`;
+  }
+  sourceNote(document: PublishedDocument): TFile | null {
+    const note = this.catalog?.notes.find(
+      (entry) => entry.id === document.noteId,
+    );
+    const file = note?.path
+      ? this.plugin.app.vault.getAbstractFileByPath(note.path)
+      : null;
+    return file instanceof TFile &&
+      file.extension === "md" &&
+      file.stat.ctime === note?.ctime
+      ? file
+      : null;
+  }
+  async openSource(document: PublishedDocument): Promise<void> {
+    const file = this.sourceNote(document);
+    if (!file) return;
+    const workspace = this.plugin.app.workspace;
+    let existing: WorkspaceLeaf | null = null;
+    workspace.iterateRootLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView && leaf.view.file === file)
+        existing = leaf;
+    });
+    const leaf = existing ?? workspace.getLeaf("tab");
+    if (!existing) await leaf.openFile(file);
+    await workspace.revealLeaf(leaf);
   }
   async open(document: PublishedDocument): Promise<void> {
     try {

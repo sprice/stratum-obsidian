@@ -10,6 +10,10 @@ export const STRATUM_TABS = [
 export type StratumTab = (typeof STRATUM_TABS)[number]["id"];
 export type EnabledTabs = Record<StratumTab, boolean>;
 
+export function readLastActiveTab(value: unknown): StratumTab {
+  return STRATUM_TABS.find(({ id }) => id === value)?.id ?? "search";
+}
+
 export function readEnabledTabs(
   value: unknown,
   legacyPublishEnabled?: unknown,

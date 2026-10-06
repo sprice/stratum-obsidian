@@ -36,6 +36,28 @@ const keys = (text: string) =>
     .filter((o) => o.kind === "citation")
     .map((o) => o.target);
 
+test("excerpt offsets identify repeated occurrences after whitespace trimming", () => {
+  const text =
+    "😀 Heading\r\n  example2024 before [@example2024] and [@{example2024}].  ";
+  const occurrences = parseSourceOccurrences(text);
+  assert.equal(occurrences.length, 2);
+  for (const occurrence of occurrences) {
+    assert.equal(
+      occurrence.excerpt,
+      text.slice(
+        occurrence.excerptFrom,
+        occurrence.excerptFrom! + occurrence.excerpt.length,
+      ),
+    );
+    const start = occurrence.from - occurrence.excerptFrom!;
+    assert.equal(
+      occurrence.excerpt.slice(start, start + occurrence.to - occurrence.from),
+      text.slice(occurrence.from, occurrence.to),
+    );
+  }
+  assert.ok(occurrences[1].from - occurrences[1].excerptFrom! > 30);
+});
+
 test("recognizes grouped, narrative, suppressed-author, braced and footnote citations", () => {
   assert.deepEqual(
     keys(

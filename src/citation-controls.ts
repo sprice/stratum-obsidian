@@ -1,4 +1,21 @@
-import { FuzzySuggestModal, Modal, Notice, Setting, TFile } from "obsidian";
+import { openChecklist, type ChecklistItem } from "./settings-checklist";
+import {
+  availableCitationStyles,
+  setCitationStyleAvailable,
+  setDefaultCitationStyle,
+  changeCitationPreferences,
+} from "./citation-style-collection";
+import {
+  resetNoteCitationPreferences,
+  setNoteCitationStyle,
+} from "./citation-style-choice";
+import {
+  FuzzySuggestModal,
+  Modal,
+  Notice,
+  Setting,
+  type TFile,
+} from "obsidian";
 import { formatCitationDocument } from "./citation-format";
 import { renderCsl } from "./citation-render";
 import type StratumPlugin from "./plugin";
@@ -9,7 +26,6 @@ import {
   cachedStyle,
   languages,
   prepareStyle,
-  readStyle,
   styleCatalog,
   type CitationStyle,
 } from "./citation-styles";
@@ -39,6 +55,7 @@ export class CitationPreferences extends Modal {
   private active = false;
   private busy = false;
   private picker: StylePicker | null = null;
+  private closeChooser?: () => void;
   private showPicker(
     styles: CitationStyle[],
     choose: (style: CitationStyle) => void,
@@ -82,9 +99,11 @@ export class CitationPreferences extends Modal {
     this.active = false;
     openPreferences.get(this.plugin)?.delete(this);
     this.picker?.close();
+    this.closeChooser?.();
     this.contentEl.empty();
   }
   private render(): void {
+    this.closeChooser?.();
     const el = this.contentEl;
     el.empty();
     this.setTitle(
@@ -102,50 +121,68 @@ export class CitationPreferences extends Modal {
       .setDesc(title)
       .addButton((button) =>
         button
-          .setButtonText("Choose style")
+          .setButtonText(this.file ? "Choose style" : "Choose default style")
           .setDisabled(this.busy)
           .onClick(() => {
-            const available = [
-              ...bundledStyles,
-              ...Object.keys(this.plugin.settings.citationStyles)
-                .filter((id) => !bundledStyles.some((s) => s.id === id))
-                .map((id) => ({
-                  id,
-                  title: styleTitle(this.plugin, id),
-                })),
-            ];
-            this.showPicker(available, (style) => {
-              if (this.active) {
-                this.selected = style.id;
-                this.render();
-              }
+            this.showPicker(availableCitationStyles(this.plugin), (style) => {
+              void this.chooseStyle(style.id);
             });
           }),
       )
       .addButton((button) =>
         button
-          .setButtonText("Find more styles")
+          .setButtonText("Choose available citation styles")
           .setDisabled(this.busy)
-          .onClick(async () => {
-            button.setDisabled(true);
-            try {
-              const styles = await styleCatalog();
-              if (this.active)
-                this.showPicker(styles, (style) => {
-                  if (this.active) {
-                    this.selected = style.id;
-                    this.render();
-                  }
-                });
-            } catch (error) {
-              new Notice(
-                error instanceof Error
-                  ? error.message
-                  : "Could not load styles.",
-              );
-            } finally {
-              button.setDisabled(false);
-            }
+          .onClick(() => {
+            const wasOpen =
+              button.buttonEl.getAttribute("aria-expanded") === "true";
+            this.closeChooser?.();
+            if (wasOpen) return;
+            const enabled = new Set(
+              availableCitationStyles(this.plugin).map(({ id }) => id),
+            );
+            const item = (style: CitationStyle): ChecklistItem => ({
+              id: style.id,
+              label: style.title,
+              checked: enabled.has(style.id),
+              disabled: style.id === this.plugin.settings.citationStyle,
+              badge:
+                style.id === this.plugin.settings.citationStyle
+                  ? "Default"
+                  : undefined,
+            });
+            const local = new Map(
+              [
+                ...bundledStyles,
+                ...Object.keys(this.plugin.settings.citationStyles).map(
+                  (id) => ({ id, title: styleTitle(this.plugin, id) }),
+                ),
+                ...availableCitationStyles(this.plugin),
+              ].map((style) => [style.id, style]),
+            );
+            button.buttonEl.setAttribute("aria-haspopup", "dialog");
+            button.buttonEl.addClass("stratum-tab-chooser-trigger");
+            this.closeChooser = openChecklist(button.buttonEl, {
+              title: "Choose available citation styles",
+              searchable: true,
+              keyboard: { keymap: this.app.keymap, parent: this.scope },
+              items: Array.from(local.values(), item),
+              loadItems: async () => {
+                const catalog = await styleCatalog();
+                const all = new Map(
+                  [...catalog, ...local.values()].map((style) => [
+                    style.id,
+                    style,
+                  ]),
+                );
+                enabled.clear();
+                for (const { id } of availableCitationStyles(this.plugin))
+                  enabled.add(id);
+                return Array.from(all.values(), item);
+              },
+              onChange: (id, checked) =>
+                setCitationStyleAvailable(this.plugin, id, checked),
+            });
           }),
       );
     new Setting(el)
@@ -164,38 +201,6 @@ export class CitationPreferences extends Modal {
           }),
       );
     new Setting(el)
-      .setName("Import a custom style")
-      .setDesc("Select a citation style file already in your vault.")
-      .addButton((button) =>
-        button
-          .setButtonText("Choose style file")
-          .setDisabled(this.busy)
-          .onClick(() => {
-            const files = this.app.vault
-              .getFiles()
-              .filter((file) => file.extension === "csl");
-            this.showPicker(
-              files.map((file) => ({ id: file.path, title: file.path })),
-              (style) => {
-                void this.importCustom(style.id);
-              },
-            );
-          }),
-      );
-    el.createEl("p", {
-      cls: "setting-item-description",
-      text: "More styles are downloaded from Zotero's style repository. Selected styles are saved for offline use.",
-    });
-    const credits = el.createEl("p", { cls: "setting-item-description" });
-    credits.appendText("Citation formatting: ");
-    credits.createEl("a", {
-      text: "Citeproc-js",
-      href: "https://github.com/Juris-M/citeproc-js",
-    });
-    credits.appendText(
-      " by Frank Bennett. Styles: Citation Style Language project.",
-    );
-    new Setting(el)
       .setName("Unused custom styles")
       .setDesc("Remove imported styles that no paper uses.")
       .addButton((button) =>
@@ -206,38 +211,49 @@ export class CitationPreferences extends Modal {
             if (!this.active || this.busy || this.plugin.isUnloaded) return;
             this.busy = true;
             button.setDisabled(true);
-            const used = new Set([
-              this.selected,
-              this.plugin.settings.citationStyle,
-            ]);
-            for (const file of this.app.vault.getMarkdownFiles()) {
-              const cache = this.app.metadataCache.getFileCache(file);
-              if (!cache) {
-                this.busy = false;
-                if (this.active) this.render();
-                new Notice(
-                  "Wait for Obsidian to index your notes before removing styles.",
-                );
-                return;
-              }
-              const style: unknown = cache.frontmatter?.stratum_citation_style;
-              if (typeof style === "string") used.add(style);
-            }
-            const previous = this.plugin.settings.citationStyles;
-            this.plugin.settings.citationStyles = Object.fromEntries(
-              Object.entries(previous).filter(
-                ([id]) => !id.startsWith("custom-") || used.has(id),
-              ),
-            );
             try {
-              const { saveCitationResources } =
-                await import("./citation-resources");
-              await saveCitationResources(this.plugin);
-              await this.plugin.saveSettings();
-              new Notice("Unused custom citation styles removed.");
-            } catch {
-              this.plugin.settings.citationStyles = previous;
-              new Notice("Could not remove unused styles.");
+              await changeCitationPreferences(this.plugin, async () => {
+                const used = new Set([
+                  this.selected,
+                  this.plugin.settings.citationStyle,
+                  ...availableCitationStyles(this.plugin).map(({ id }) => id),
+                ]);
+                for (const file of this.app.vault.getMarkdownFiles()) {
+                  const cache = this.app.metadataCache.getFileCache(file);
+                  if (!cache) {
+                    this.busy = false;
+                    if (this.active) this.render();
+                    new Notice(
+                      "Wait for Obsidian to index your notes before removing styles.",
+                    );
+                    return;
+                  }
+                  const style: unknown =
+                    cache.frontmatter?.stratum_citation_style;
+                  if (typeof style === "string") used.add(style);
+                }
+                const previous = this.plugin.settings.citationStyles;
+                this.plugin.settings.citationStyles = Object.fromEntries(
+                  Object.entries(previous).filter(
+                    ([id]) => !id.startsWith("custom-") || used.has(id),
+                  ),
+                );
+                try {
+                  const { saveCitationResources } =
+                    await import("./citation-resources");
+                  await saveCitationResources(this.plugin);
+                  new Notice("Unused custom citation styles removed.");
+                } catch {
+                  this.plugin.settings.citationStyles = previous;
+                  throw new Error("Could not remove unused styles.");
+                }
+              });
+            } catch (error) {
+              new Notice(
+                error instanceof Error
+                  ? error.message
+                  : "Could not remove unused styles.",
+              );
             } finally {
               this.busy = false;
               if (this.active) this.render();
@@ -250,7 +266,7 @@ export class CitationPreferences extends Modal {
     preview.createEl("strong", { text: "Example" });
     if (!xml)
       preview.createEl("p", {
-        text: "Apply to download this style and see formatted citations in your paper.",
+        text: "Choose an available style to load citation resources.",
       });
     else
       try {
@@ -281,7 +297,7 @@ export class CitationPreferences extends Modal {
         renderCsl(preview, example.bibliography);
       } catch {
         preview.createEl("p", {
-          text: "Apply to load the resources needed for this preview.",
+          text: "Apply language to load the resources needed for this preview.",
         });
       }
     const actions = new Setting(el);
@@ -295,14 +311,7 @@ export class CitationPreferences extends Modal {
             this.busy = true;
             this.render();
             try {
-              await this.app.fileManager.processFrontMatter(
-                this.file!,
-                (fm: Record<string, unknown>) => {
-                  delete fm.stratum_citation_style;
-                  delete fm.stratum_citation_language;
-                },
-              );
-              this.plugin.citations.invalidate();
+              await resetNoteCitationPreferences(this.plugin, this.file!);
               this.close();
             } catch {
               new Notice(
@@ -316,7 +325,7 @@ export class CitationPreferences extends Modal {
       );
     actions.addButton((button) =>
       button
-        .setButtonText("Apply")
+        .setButtonText("Apply language")
         .setCta()
         .setDisabled(this.busy)
         .onClick(() => {
@@ -324,57 +333,66 @@ export class CitationPreferences extends Modal {
         }),
     );
   }
-  private async importCustom(path: string): Promise<void> {
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) return;
+  private async chooseStyle(id: string): Promise<void> {
+    if (!this.active || this.busy || this.plugin.isUnloaded) return;
+    this.busy = true;
+    this.render();
     try {
-      const xml = await this.app.vault.read(file);
-      readStyle(xml);
-      const id = `custom-${Array.from(path).reduce((hash, char) => Math.imul(hash ^ char.charCodeAt(0), 16777619), 2166136261) >>> 0}`;
-      await prepareStyle(this.plugin, id, this.language, xml);
-      if (this.active) {
-        this.selected = id;
-        this.render();
-      }
+      if (this.file) {
+        const language = this.plugin.citations.preferences(
+          this.file.path,
+        ).language;
+        await setNoteCitationStyle(this.plugin, this.file, id, language);
+      } else await setDefaultCitationStyle(this.plugin, id);
+      if (this.plugin.isUnloaded) return;
+      this.selected = id;
     } catch (error) {
       new Notice(
-        error instanceof Error ? error.message : "Could not import style.",
+        error instanceof Error
+          ? error.message
+          : "Could not change citation style.",
       );
+    } finally {
+      this.busy = false;
+      if (this.active) this.render();
     }
   }
   private async apply(): Promise<void> {
     if (!this.active || this.busy || this.plugin.isUnloaded) return;
     this.busy = true;
-    const id = this.selected,
-      language = this.language;
+    const language = this.language;
     this.render();
     try {
-      await prepareStyle(this.plugin, id, language);
-      if (!this.active || this.plugin.isUnloaded) return;
-      if (this.file)
-        await this.app.fileManager.processFrontMatter(
-          this.file,
-          (fm: Record<string, unknown>) => {
-            fm.stratum_citation_style = id;
-            fm.stratum_citation_language = language;
-          },
-        );
-      else {
-        const previousStyle = this.plugin.settings.citationStyle;
-        const previousLanguage = this.plugin.settings.citationLanguage;
-        this.plugin.settings.citationStyle = id;
-        this.plugin.settings.citationLanguage = language;
-        try {
-          await this.plugin.saveSettings();
-        } catch (error) {
-          this.plugin.settings.citationStyle = previousStyle;
-          this.plugin.settings.citationLanguage = previousLanguage;
-          throw error;
+      await changeCitationPreferences(this.plugin, async () => {
+        const id = this.file
+          ? this.plugin.citations.preferences(
+              this.file.path,
+              await this.app.vault.cachedRead(this.file),
+            ).style
+          : this.plugin.settings.citationStyle;
+        await prepareStyle(this.plugin, id, language);
+        if (!this.active || this.plugin.isUnloaded) return;
+        if (this.file)
+          await this.app.fileManager.processFrontMatter(
+            this.file,
+            (fm: Record<string, unknown>) => {
+              fm.stratum_citation_language = language;
+            },
+          );
+        else {
+          const previousLanguage = this.plugin.settings.citationLanguage;
+          this.plugin.settings.citationLanguage = language;
+          try {
+            await this.plugin.saveSettings();
+          } catch (error) {
+            this.plugin.settings.citationLanguage = previousLanguage;
+            throw error;
+          }
         }
-      }
-      this.plugin.citations.invalidate();
-      this.plugin.refreshSettingTab();
-      this.close();
+        this.plugin.citations.invalidate();
+        this.plugin.refreshSettingTab();
+        this.close();
+      });
     } catch (error) {
       new Notice(
         error instanceof Error

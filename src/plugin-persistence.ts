@@ -1,5 +1,6 @@
+import { readAvailableCitationStyles } from "./citation-style-defaults";
 import { readPublishReadinessCache } from "./publish-readiness";
-import { readEnabledTabs } from "./stratum-tabs";
+import { readEnabledTabs, readLastActiveTab } from "./stratum-tabs";
 import {
   loadCitationResources,
   saveCitationResources,
@@ -35,6 +36,7 @@ type StoredSettingsData = Partial<
   Pick<
     StratumSettings,
     | "enabledTabs"
+    | "lastActiveTab"
     | "notesFolder"
     | "filenameFormat"
     | "bulkSyncEnabled"
@@ -306,6 +308,10 @@ function readBulkLibrarySyncState(
     nextState.lastError = value.lastError;
   }
 
+  if (typeof value.annotationImageWarning === "string") {
+    nextState.annotationImageWarning = value.annotationImageWarning;
+  }
+
   if (Array.isArray(value.unsupportedItems)) {
     nextState.unsupportedItems = value.unsupportedItems.flatMap((item) => {
       if (
@@ -378,6 +384,7 @@ function readStoredSettings(value: unknown): Omit<
     legacyBulkLibrarySync: Partial<BulkLibrarySyncState>;
   } = {
     enabledTabs: readEnabledTabs(value.enabledTabs, value.publishEnabled),
+    lastActiveTab: readLastActiveTab(value.lastActiveTab),
     collectionCatalogs: readCollectionCatalogs(value.collectionCatalogs),
     itemFileMap: readItemFileMap(value.itemFileMap),
     libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),
@@ -391,6 +398,10 @@ function readStoredSettings(value: unknown): Omit<
     /^[a-z0-9-]+$/.test(value.citationStyle)
   )
     nextSettings.citationStyle = value.citationStyle;
+  nextSettings.availableCitationStyles = readAvailableCitationStyles(
+    value.availableCitationStyles,
+    nextSettings.citationStyle ?? DEFAULT_SETTINGS.citationStyle,
+  );
   if (
     typeof value.citationLanguage === "string" &&
     /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(value.citationLanguage)
@@ -705,8 +716,15 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   }
 }
 
-export async function savePluginSettings(plugin: StratumPlugin): Promise<void> {
-  await plugin.saveData(settingsWithoutResources(plugin));
+const settingsWrites = new WeakMap<StratumPlugin, Promise<void>>();
+export function savePluginSettings(plugin: StratumPlugin): Promise<void> {
+  // Serialize writes so rapid navigation cannot overwrite a newer selection
+  // or another settings update with an older disk write.
+  const next = (settingsWrites.get(plugin) ?? Promise.resolve())
+    .catch(() => {})
+    .then(() => plugin.saveData(settingsWithoutResources(plugin)));
+  settingsWrites.set(plugin, next);
+  return next;
 }
 
 export function persistAuthSessionSecrets(

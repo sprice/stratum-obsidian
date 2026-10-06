@@ -19,7 +19,7 @@
 
 .stratum-tab-bar {
 	display: grid;
-	grid-template-columns: repeat(var(--stratum-tab-count, 5), minmax(0, 1fr));
+	grid-template-columns: repeat(var(--stratum-tab-count, 3), minmax(0, 1fr));
 	min-width: 0;
 	gap: var(--size-2-1);
 	padding: var(--size-2-1);
@@ -71,6 +71,11 @@
 .stratum-tab-bar > button:focus-visible {
 	outline: 2px solid var(--background-modifier-border-focus);
 	outline-offset: -2px;
+}
+
+/* Panel layout classes must not override the native hidden state. */
+.stratum-tab-content > [hidden] {
+	display: none;
 }
 
 .stratum-tab-content {
@@ -133,6 +138,48 @@
 .stratum-settings-tab {
 	display: grid;
 	gap: 1.5rem;
+}
+
+.stratum-tab-chooser-trigger::after {
+	content: "";
+	width: 0.4em;
+	height: 0.4em;
+	margin-left: 0.6em;
+	border-right: 1.5px solid currentColor;
+	border-bottom: 1.5px solid currentColor;
+	transform: translateY(-0.15em) rotate(45deg);
+}
+
+.stratum-tab-chooser {
+	position: fixed;
+	z-index: calc(var(--layer-modal) + 1);
+	width: 240px;
+	padding: 6px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-shadow: var(--shadow-s);
+}
+
+.stratum-tab-chooser-option {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 36px;
+	padding: 6px 10px;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.stratum-tab-chooser-option:hover,
+.stratum-tab-chooser-option:focus-within {
+	background: var(--background-modifier-hover);
+}
+
+.stratum-tab-chooser-option input {
+	margin: 0;
 }
 
 .stratum-settings-section {
@@ -287,14 +334,7 @@
 	animation: stratum-spin 0.75s linear infinite;
 }
 
-.stratum-search-label {
-	display: block;
-	margin: 0 0 0.45rem;
-	color: var(--text-muted);
-	font-size: 0.84rem;
-	font-weight: 600;
-	line-height: 1.4;
-}
+
 
 .stratum-search-section {
 	display: grid;
@@ -383,46 +423,46 @@
 
 .stratum-selected-paper {
 	padding: 1rem;
-	border: 1px solid
-		color-mix(
-			in srgb,
-			var(--color-accent) 22%,
-			var(--background-modifier-border)
-		);
-	border-radius: 14px;
-	background: color-mix(
-		in srgb,
-		var(--background-secondary) 88%,
-		var(--color-accent) 12%
-	);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	min-width: 0;
 }
 
-.stratum-selected-label {
-	margin: 0 0 0.35rem;
-	color: var(--color-accent);
-	font-size: 0.78rem;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+.stratum-selected-open-note {
+	margin-inline-start: auto;
 }
 
 .stratum-selected-title {
 	margin: 0 0 0.35rem;
-	font-size: 1.02rem;
-	font-weight: 700;
-	line-height: 1.35;
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.stratum-selected-paper > .stratum-inline-action {
+	margin-top: 0.75rem;
 }
 
 .stratum-selected-abstract {
 	margin-top: 0.85rem;
 	padding-top: 0.85rem;
-	border-top: 1px solid
-		color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+	border-top: 1px solid var(--background-modifier-border);
 }
 
-.stratum-selected-abstract-label {
-	margin: 0 0 0.3rem;
-	font-weight: 700;
+.stratum-selected-abstract summary {
+	cursor: pointer;
+	color: var(--text-muted);
+}
+
+.stratum-selected-abstract summary:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 3px;
+}
+
+.stratum-selected-abstract p {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 .stratum-inline-button {
@@ -431,10 +471,11 @@
 }
 
 .stratum-selected-note {
-	margin-top: 0.85rem;
-	padding-top: 0.85rem;
-	border-top: 1px solid
-		color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+	margin: 0.5rem 0;
+}
+
+.stratum-selected-doi {
+	overflow-wrap: anywhere;
 }
 
 .stratum-reader-header {
@@ -586,13 +627,32 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 	--callout-color: rgb(var(--stratum-callout-rgb));
 }
 
+/* Shared Stratum controls keep Obsidian's native input and button styling. */
+.stratum-control-field { min-width: 0; display: flex; flex-direction: column; gap: var(--size-4-1); color: var(--text-muted); font-size: var(--font-ui-small); }
+.stratum-control-select { width: 100%; min-width: 0; color: var(--text-normal); }
+.stratum-control-select, .stratum-control-button { outline: 1px solid transparent; outline-offset: -1px; }
+@media (hover: hover) {
+  .stratum-control-select:hover:not(:disabled),
+  .stratum-control-button:hover:not(:disabled) {
+    outline-color: var(--background-modifier-border-hover);
+    transition: outline-color 150ms ease;
+  }
+}
+.stratum-control-select:focus-visible, .stratum-control-button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; transition: none; }
+
 /* Collection browsing uses native colors and adapts to sidebars and mobile. */
 .stratum-collection-browser { display: flex; flex-direction: column; gap: var(--size-4-4); padding: var(--size-4-4); overflow: hidden; }
-.stratum-collection-header { display: flex; flex-direction: column; gap: var(--size-4-2); }
-.stratum-collection-select { display: flex; flex-direction: column; gap: var(--size-4-1); color: var(--text-muted); font-size: var(--font-ui-small); }
-.stratum-collection-select select { align-self: flex-start; max-width: 100%; color: var(--text-normal); }
-.stratum-collection-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
+.stratum-collection-header { display: flex; flex-direction: column; gap: var(--size-4-3); }
+.stratum-collection-details { display: contents; }
+.stratum-collection-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr); align-items: end; gap: var(--size-4-3); }
+.stratum-collection-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--size-4-2); }
+.stratum-collection-tools select, .stratum-collection-tools button { width: 100%; min-width: 0; }
+.stratum-collection-tools button { height: auto; min-height: var(--input-height); white-space: normal; }
 .stratum-collection-tools button[hidden] { display: none; }
+@container stratum-sidebar (max-width: 28rem) { .stratum-collection-filters { grid-template-columns: minmax(0, 1fr); } }
+.stratum-collection-summary { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); }
+.stratum-collection-show-items { min-width: 11rem; max-width: 100%; justify-content: center; }
+.stratum-collection-summary button[hidden] { display: none; }
 .stratum-collection-results:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
 .stratum-collection-context, .stratum-collection-meta { color: var(--text-muted); font-size: var(--font-smaller); overflow-wrap: anywhere; }
 .stratum-collection-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); font-size: var(--font-ui-small); }
@@ -602,21 +662,25 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-collection-list > li { padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
 .stratum-collection-title { display: block; overflow-wrap: anywhere; margin-bottom: var(--size-4-1); }
 .stratum-collection-title:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
-.stratum-browse-tab { overflow-y: auto; height: 100%; }
+.stratum-browse-tab { overflow-y: auto; height: 100%; padding-inline: var(--size-4-2); }
 
 /* Document sources stay compact and usable in narrow Obsidian sidebars. */
 .stratum-sources { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; min-height: 0; }
 .stratum-sources-header { display: flex; align-items: center; justify-content: space-between; }
+.stratum-sources-header > [hidden] { display: none; }
 .stratum-sources-header h3 { margin: 0; }
-.stratum-sources-header [aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
+.stratum-sources-context button[aria-pressed="true"] { color: var(--interactive-accent); }
+.stratum-sources-context button[aria-pressed="true"] svg { fill: currentColor; stroke: currentColor; }
 .stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .stratum-sources-document { align-self: flex-start; max-width: 100%; min-height: 0; padding: var(--size-2-1) 0; border: 0; box-shadow: none; background: transparent; color: var(--link-color); font-size: var(--font-ui-small); text-decoration: underline; cursor: pointer; }
 .stratum-sources-document:hover { background: transparent; color: var(--link-color-hover); }
+.stratum-citation-settings-button { margin-top: var(--size-2-2); }
 .stratum-sources-document[hidden] { display: none; }
 .stratum-sources-summary, .stratum-sources-meta, .stratum-sources-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
 .stratum-sources-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
-.stratum-sources-tools .search-input-container { flex: 1 1 140px; min-width: 0; }
-.stratum-sources-tools select { max-width: 100%; }
+.stratum-sources-tools[hidden] { display: none; }
+.stratum-sources-tools > .stratum-control-search { flex: 1 1 140px; }
+.stratum-sources-tools select { width: auto; max-width: 100%; flex: 0 1 auto; }
 .stratum-sources-tools button[hidden] { display: none; }
 .stratum-sources-results { flex: 1; min-height: 0; overflow-y: auto; }
 .stratum-source-table { border-collapse: collapse; width: 100%; font-size: var(--font-ui-small); }
@@ -729,7 +793,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 
 .stratum-publish-tab { height: 100%; overflow-y: auto; }
-.stratum-publish-panel { display: flex; flex-direction: column; gap: var(--size-4-3); padding-bottom: var(--size-4-4); }
+.stratum-publish-panel { height: 100%; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--size-4-3); padding-bottom: var(--size-4-4); }
+.stratum-publish-panel > :not(.stratum-publish-list) { flex-shrink: 0; }
 .stratum-publish-panel h3, .stratum-publish-panel h4, .stratum-publish-panel p { margin: 0; }
 .stratum-publish-controls { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--size-4-2); }
 .stratum-publish-controls select, .stratum-publish-controls button { width: 100%; min-width: 0; }
@@ -738,7 +803,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-status { font-size: var(--font-ui-small); color: var(--text-muted); overflow-wrap: anywhere; }
 .stratum-publish-status p + p { margin-top: var(--size-4-2); }
 .stratum-publish-error { color: var(--text-error); white-space: pre-wrap; max-height: 12rem; overflow: auto; }
-.stratum-publish-history { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex-wrap: wrap; margin-top: var(--size-4-4); }
+.stratum-publish-history { display: flex; flex-direction: column; align-items: stretch; gap: var(--size-4-3); margin-top: var(--size-4-4); }
+.stratum-publish-history .stratum-control-field { width: 50%; }
 .stratum-publish-row { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
 .stratum-publish-document { min-width: 0; }
 .stratum-publish-filename { overflow-wrap: anywhere; font-size: var(--font-ui-small); }
@@ -770,3 +836,135 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-pdf-page { position: relative; width: var(--pdf-width); height: var(--pdf-height); margin-inline: auto; background: white; box-shadow: 0 1px 6px #0003; }
 .stratum-pdf-page canvas { display: block; width: 100%; height: 100%; }
 .stratum-pdf-page .textLayer { user-select: text; }
+
+.stratum-style-checklist { width: 560px; }
+.stratum-style-checklist > input { width: 100%; margin-bottom: var(--size-2-2); }
+.stratum-style-checklist .stratum-tab-chooser-option span { overflow-wrap: anywhere; }
+.stratum-checklist-badge { margin-left: auto; font-size: var(--font-ui-smaller); color: var(--text-muted); }
+.stratum-style-checklist .stratum-tab-chooser-option:has(input:disabled) { cursor: default; }
+
+/* Reserve room for the native search focus ring inside clipping panels. */
+.stratum-control-search { min-width: 0; padding: var(--size-4-1); box-sizing: border-box; }
+.stratum-control-search .search-input-container { width: 100%; min-width: 0; }
+.stratum-control-search input { width: 100%; }
+.stratum-library-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--size-4-3); }
+.stratum-library-filters > :only-child { grid-column: 1 / -1; }
+@container stratum-sidebar (max-width: 28rem) {
+  .stratum-library-filters { grid-template-columns: minmax(0, 1fr); }
+}
+.stratum-publish-list { flex: 1 1 8rem; box-sizing: border-box; min-height: 8rem; min-width: 0; overflow-y: auto; padding: var(--size-4-3); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
+
+/* Citations: keep the writing context and source list visually distinct. */
+.stratum-sources { gap: var(--size-4-4); overflow-y: auto; }
+.stratum-sources > :not(.stratum-sources-results) { flex-shrink: 0; }
+.stratum-sources .stratum-sources-results { flex: 1 0 8rem; min-height: 8rem; }
+.stratum-sources-context { display: flex; align-items: center; gap: var(--size-4-2); min-width: 0; }
+.stratum-sources-context .stratum-sources-document { flex: 1; min-width: 0; text-align: left; }
+.stratum-sources-pin-status, .stratum-sources-style-origin { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.stratum-sources-context [hidden], .stratum-sources-summary[hidden] { display: none; }
+.stratum-citation-status { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--size-4-1) var(--size-4-2); align-items: end; }
+.stratum-citation-status > .stratum-control-field { grid-column: 1; grid-row: 1; }
+.stratum-citation-status > .stratum-citation-settings-button { grid-column: 2; grid-row: 1; margin: 0; align-self: end; height: var(--input-height); }
+.stratum-citation-status > p { grid-column: 1 / -1; }
+.stratum-sources-secondary { height: auto; min-height: 0; padding: var(--size-2-1) var(--size-4-1); font-size: var(--font-ui-smaller); }
+.stratum-sources-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex-wrap: wrap; }
+.stratum-sources-count { order: -1; }
+.stratum-sources-summary button { height: auto; font-size: var(--font-ui-small); }
+.stratum-sources-summary button[aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
+.stratum-sources-tools { display: flex; flex-direction: column; gap: var(--size-4-4); }
+.stratum-sources-display { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--size-4-3); align-items: end; }
+.stratum-sources-view-group { min-width: 0; display: flex; flex-direction: column; gap: var(--size-4-1); }
+.stratum-control-label { color: var(--text-muted); font-size: var(--font-ui-small); }
+.stratum-sources-view-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--size-4-2); }
+.stratum-sources-tools select { width: 100%; }
+.stratum-sources-view-controls button { width: 100%; min-width: 0; }
+@container stratum-sidebar (max-width: 28rem) { .stratum-sources-display { grid-template-columns: minmax(0, 1fr); } }
+.stratum-sources button.stratum-sources-title:not(.clickable-icon) {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: var(--size-2-1);
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--link-color);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-medium);
+  line-height: 1.5;
+  white-space: normal;
+  text-align: left;
+  cursor: pointer;
+}
+.stratum-sources button.stratum-sources-title:not(.clickable-icon):hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--link-color-hover);
+  text-decoration: underline;
+}
+.stratum-sources summary.stratum-sources-occurrences {
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: var(--input-height);
+  padding: var(--size-4-2) var(--size-4-1);
+  margin-top: var(--size-4-1);
+  border-radius: var(--radius-s);
+}
+@media (hover: hover) {
+  .stratum-sources summary.stratum-sources-occurrences:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+}
+.stratum-sources-meta { margin-top: var(--size-4-1); line-height: 1.5; }
+.stratum-sources-list > li { padding: var(--size-4-4) 0; }
+.stratum-sources-results summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-1) 0; }
+.stratum-sources-health { display: flex; flex-direction: column; gap: var(--size-4-2); margin-block: var(--size-4-2); padding: var(--size-4-2); border-left: 2px solid var(--text-warning); }
+.stratum-sources-health-actions { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
+.stratum-sources-health-actions button { font-size: var(--font-ui-small); height: auto; white-space: normal; }
+.stratum-sources-health-details p { margin-block: var(--size-4-2); }
+.stratum-sources-excerpt { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); padding: var(--size-4-2); background: var(--background-secondary); box-shadow: none; border: 1px solid var(--background-modifier-border); line-height: 1.5; }
+.stratum-sources-passage { text-align: left; }
+.stratum-sources-passage mark { color: var(--text-normal); background: var(--text-highlight-bg); }
+.stratum-sources-passage-action { font-size: var(--font-ui-smaller); color: var(--text-accent); }
+
+.stratum-sources button:focus-visible, .stratum-sources summary:focus-visible { outline-offset: -2px; }
+
+.stratum-sources-summary button[hidden] { display: none; }
+
+/* The writing-note context is a quiet link, independent of the pin action. */
+.stratum-sources .stratum-sources-context button.stratum-sources-document:not(.clickable-icon) {
+  display: block;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: var(--size-2-1);
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--link-color);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-normal);
+  line-height: 1.5;
+  white-space: normal;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.stratum-sources .stratum-sources-context button.stratum-sources-document:not(.clickable-icon):hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--link-color-hover);
+  text-decoration: underline;
+}
+.stratum-sources-context .stratum-sources-pin-status { margin-left: auto; }
+.stratum-sources-context .stratum-sources-pin-status[hidden] + .clickable-icon { margin-left: auto; }

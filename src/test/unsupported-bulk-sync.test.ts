@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
+import { getBulkLibrarySyncStatusMessage } from "../zotero-sync";
 
 test("bulk sync continues past unknown types without retries or enrichment", async () => {
   class File {
@@ -63,6 +64,17 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
         };
       },
     },
+    {},
+    "browser",
+    {
+      "./plugin-annotation-images": {
+        beginAnnotationImageSync() {},
+        importAnnotationImages: (_plugin: unknown, detail: unknown) =>
+          Promise.resolve(detail),
+        annotationImageSyncSummary: () =>
+          " 1 area image could not be refreshed.",
+      },
+    },
   );
   const plugin = {
     manifest: { version: "0.2.1" },
@@ -117,6 +129,10 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
   assert.equal(state.updatedCount, 1);
   assert.equal(state.skippedCount, 1);
   assert.equal(state.failedCount, 0);
+  assert.equal(
+    state.annotationImageWarning,
+    "1 area image could not be refreshed.",
+  );
   assert.equal(state.unsupportedItems?.[0].title, "Future work");
   assert.equal(
     requests.filter((path) => path.endsWith("/items/FUTURE")).length,
@@ -124,5 +140,13 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
   );
   assert.equal(writes, 1);
   assert.match(contents, /Personal writing/);
-  assert.ok(notices.some((message) => message.includes("1 skipped")));
+  assert.equal(notices.length, 0);
+  assert.match(
+    getBulkLibrarySyncStatusMessage({ state, libraryName: library.name }) ?? "",
+    /1 skipped/,
+  );
+  assert.match(
+    getBulkLibrarySyncStatusMessage({ state, libraryName: library.name }) ?? "",
+    /1 area image could not be refreshed/,
+  );
 });

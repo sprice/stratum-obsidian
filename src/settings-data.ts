@@ -1,4 +1,9 @@
-import { readEnabledTabs, type EnabledTabs } from "./stratum-tabs";
+import { INITIAL_CITATION_STYLES } from "./citation-style-defaults";
+import {
+  readEnabledTabs,
+  type EnabledTabs,
+  type StratumTab,
+} from "./stratum-tabs";
 import type { CollectionCatalogs } from "./collection-catalog";
 import type { PublishReadinessCache } from "./publish-readiness";
 import { DEFAULT_NOTE_FOLDER } from "./constants";
@@ -45,7 +50,9 @@ export interface StratumSettings {
   pandocPath: string;
   tectonicPath: string;
   enabledTabs: EnabledTabs;
+  lastActiveTab: StratumTab;
   citationStyle: string;
+  availableCitationStyles?: string[];
   citationLanguage: string;
   citationStyles: Record<string, string>;
   citationStyleTitles?: Record<string, string>;
@@ -80,7 +87,9 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   pandocPath: "",
   tectonicPath: "",
   enabledTabs: readEnabledTabs(undefined),
+  lastActiveTab: "search",
   citationStyle: "apa",
+  availableCitationStyles: [...INITIAL_CITATION_STYLES],
   citationLanguage: "en-US",
   citationStyles: {},
   citationLocales: {},

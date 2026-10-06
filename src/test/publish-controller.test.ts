@@ -35,6 +35,8 @@ const cachedSupport = () => ({
   readiness: structuredClone(readySupport),
 });
 function setup(settings: Partial<StratumSettings> = {}) {
+  let timerId = 0;
+  const timers = new Map<number, { callback: () => void; delay: number }>();
   const calls = { detect: 0, probe: [] as string[], check: 0, save: 0 };
   const behavior = {
     missing: "",
@@ -93,7 +95,21 @@ function setup(settings: Partial<StratumSettings> = {}) {
       TFile: File,
       Notice: class {},
     },
-    { AbortController, TextEncoder, Error, crypto: webcrypto },
+    {
+      AbortController,
+      TextEncoder,
+      Error,
+      crypto: webcrypto,
+      window: {
+        setTimeout(callback: () => void, delay: number) {
+          timers.set(++timerId, { callback, delay });
+          return timerId;
+        },
+        clearTimeout(id: number) {
+          timers.delete(id);
+        },
+      },
+    },
     "browser",
     {
       "./publish-render": {
@@ -147,6 +163,8 @@ function setup(settings: Partial<StratumSettings> = {}) {
   const leaf = { view: new View(first, "Unsaved first note") },
     other = { view: new View(second, "Second note") };
   const roots = [leaf, other];
+  const opened: File[] = [];
+  const revealed: object[] = [];
   const plugin = {
     settings: {
       citationStyle: "apa",
@@ -175,6 +193,16 @@ function setup(settings: Partial<StratumSettings> = {}) {
         },
       },
       workspace: {
+        getLeaf: () => ({
+          openFile: (file: File) => {
+            opened.push(file);
+            return Promise.resolve();
+          },
+        }),
+        revealLeaf: (leaf: object) => {
+          revealed.push(leaf);
+          return Promise.resolve();
+        },
         rootSplit: {},
         getMostRecentLeaf: () => roots[0] ?? null,
         iterateRootLeaves: (callback: (leaf: object) => void) => {
@@ -198,6 +226,9 @@ function setup(settings: Partial<StratumSettings> = {}) {
     tectonic: { path: "", version: "" },
   };
   return {
+    opened,
+    revealed,
+    timers,
     controller,
     leaf,
     other,
@@ -230,6 +261,80 @@ test("switching notes during publication preserves the click-time document and i
   assert.equal(controller.documents.length, 0);
   controller.document = leaf.view.file as never;
   assert.equal(controller.documents.length, 1);
+});
+
+test("all publication history is sorted without mutating the catalog and works without a note", () => {
+  const { controller } = setup();
+  const makeDocument = (id: string, noteId: string, createdAt: string) => ({
+    id,
+    noteId,
+    filename: `${id}.pdf`,
+    format: "pdf" as const,
+    createdAt,
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+  });
+  controller.catalog = {
+    version: 1,
+    notes: [
+      { id: "first", path: "First.md", title: "First", ctime: 1 },
+      { id: "second", path: "Second.md", title: "Second", ctime: 2 },
+    ],
+    documents: [
+      makeDocument("older", "first", "2026-10-01T12:00:00Z"),
+      makeDocument("newer", "second", "2026-10-05T12:00:00Z"),
+    ],
+  };
+  assert.deepEqual(
+    Array.from(controller.documents, (d) => d.id),
+    ["older"],
+  );
+  assert.deepEqual(
+    Array.from(controller.allDocuments, (d) => d.id),
+    ["newer", "older"],
+  );
+  assert.deepEqual(
+    controller.catalog.documents.map((d) => d.id),
+    ["older", "newer"],
+  );
+  controller.document = null;
+  assert.equal(controller.documents.length, 0);
+  assert.equal(controller.allDocuments.length, 2);
+});
+
+test("opening a publication source reuses its main editor or opens a new main tab", async () => {
+  const { controller, leaf, roots, opened, revealed } = setup();
+  const document = {
+    id: "publication",
+    noteId: "source",
+    filename: "Synthetic.pdf",
+    format: "pdf" as const,
+    createdAt: "2026-10-05T12:00:00Z",
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+  };
+  controller.catalog = {
+    version: 1,
+    notes: [{ id: "source", path: "First.md", title: "First", ctime: 1 }],
+    documents: [document],
+  };
+  await controller.openSource(document);
+  assert.equal(revealed[0], leaf);
+  assert.equal(opened.length, 0);
+  roots.splice(0, 1);
+  await controller.openSource(document);
+  assert.equal(opened[0], leaf.view.file);
+  assert.equal(revealed.length, 2);
+  leaf.view.file.stat.ctime = 2;
+  assert.equal(controller.sourceNote(document), null);
+  await controller.openSource(document);
+  assert.equal(
+    opened.length,
+    1,
+    "a replacement file is not the published source",
+  );
+  controller.catalog.notes[0].path = null;
+  assert.equal(controller.sourceNote(document), null);
 });
 
 test("sidebar focus preserves selected note and another root Markdown note replaces it", () => {
@@ -373,6 +478,10 @@ test("failed conversion detects lost tools after launch and preserves the origin
   assert.equal(controller.readiness?.pdf, false);
   assert.equal(plugin.settings.publishReadinessCache?.readiness.word, false);
   assert.match(controller.error, /Pandoc could not start/);
+  assert.equal(
+    controller.errorMessage,
+    "There was an error creating the Word file",
+  );
   assert.equal(calls.detect, 2);
   assert.deepEqual(calls.probe, []);
 });
@@ -393,6 +502,10 @@ test("document-specific conversion failures keep support while failed synthetic 
       !probeError,
     );
     assert.match(controller.error, /Invalid document content/);
+    assert.equal(
+      controller.errorMessage,
+      "There was an error creating the PDF file",
+    );
     assert.deepEqual(calls.probe, ["pdf"]);
   }
 });
@@ -429,4 +542,25 @@ test("explicit setup persists verified support for the next launch", async () =>
   await controller.check(true);
   assert.equal(plugin.settings.publishReadinessCache?.readiness.pdf, true);
   assert.equal(plugin.settings.publishPdfSetupComplete, true);
+});
+
+test("publishing errors expire after five seconds without refreshes extending them", () => {
+  const { controller, timers } = setup();
+  controller.fail(new Error("Synthetic failure"));
+  assert.equal(controller.errorMessage, "There was an error with publishing");
+  const [firstId, first] = [...timers.entries()][0];
+  assert.equal(first.delay, 5_000);
+  controller.emit();
+  assert.equal(timers.get(firstId), first);
+  first.callback();
+  timers.delete(firstId);
+  assert.equal(controller.error, "");
+  assert.equal(controller.errorMessage, "");
+  controller.fail(new Error("Another failure"));
+  const secondId = [...timers.keys()][0];
+  controller.fail(new Error("New failure"));
+  assert.equal(timers.has(secondId), false);
+  assert.equal(timers.size, 1);
+  controller.onunload();
+  assert.equal(timers.size, 0);
 });

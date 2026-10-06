@@ -1,4 +1,5 @@
 import { STRATUM_TABS, readEnabledTabs } from "./stratum-tabs";
+import { openTabChooser } from "./settings-tab-chooser";
 import {
   Notice,
   Platform,
@@ -34,6 +35,7 @@ interface SettingsSection {
 
 export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
+  private closeTabChooser?: () => void;
 
   constructor(plugin: StratumPlugin) {
     super(plugin.app, plugin);
@@ -74,11 +76,16 @@ export class StratumSettingTab extends PluginSettingTab {
   }
 
   refresh(): void {
+    this.closeTabChooser?.();
     if (requireApiVersion("1.13.0")) {
       this.update();
     } else if (this.containerEl.isConnected) {
       this.renderLegacy();
     }
+  }
+
+  hide(): void {
+    this.closeTabChooser?.();
   }
 
   private renderLegacy(): void {
@@ -221,7 +228,7 @@ export class StratumSettingTab extends PluginSettingTab {
         });
     });
 
-    const librariesSection = this.createSection(sections, "Libraries");
+    const librariesSection = this.createSection(sections, "Zotero Libraries");
     const personalLibrary = getPersonalLibrary(this.plugin);
     if (personalLibrary) {
       this.defineSetting(librariesSection, "Personal library", (setting) => {
@@ -283,14 +290,14 @@ export class StratumSettingTab extends PluginSettingTab {
     }
 
     if (Platform.isDesktopApp) {
-      const publishSection = this.createSection(sections, "Publishing");
-      this.defineSetting(publishSection, "Publishing setup", (setting) => {
+      const publishSection = this.createSection(sections, "Stratum Publishing");
+      this.defineSetting(publishSection, "Publishing tools", (setting) => {
         setting
           .setDesc(
-            "Check publishing tools, get installation help, or choose their executable files.",
+            "Check tool status, get installation help, or choose custom tool locations.",
           )
           .addButton((button) =>
-            button.setButtonText("Set up publishing").onClick(async () => {
+            button.setButtonText("Manage tools").onClick(async () => {
               const { PublishSetupModal } = await import("./publish-setup");
               new PublishSetupModal(this.plugin).open();
             }),
@@ -475,7 +482,7 @@ export class StratumSettingTab extends PluginSettingTab {
           "Format citations and bibliographies in every paper without an override.",
         )
         .addButton((button) =>
-          button.setButtonText("Choose style").onClick(async () => {
+          button.setButtonText("Manage citation styles").onClick(async () => {
             const { CitationPreferences } = await import("./citation-controls");
             new CitationPreferences(this.plugin).open();
           }),
@@ -484,44 +491,80 @@ export class StratumSettingTab extends PluginSettingTab {
     this.defineSetting(citations, "Citation reference data", (setting) => {
       setting
         .setDesc(
-          "Fill missing reference data for previously imported notes. Requires your Zotero connection.",
+          "Get missing reference details from Zotero for imported notes.",
         )
         .addButton((button) =>
-          button.setButtonText("Refresh citation data").onClick(async () => {
-            const { refreshCitationData } = await import("./citation-refresh");
-            await refreshCitationData(this.plugin).catch(
-              () =>
-                new Notice(
-                  "Could not refresh citation data. Check your Zotero connection.",
-                ),
-            );
-          }),
+          button
+            .setButtonText("Fetch missing citation data")
+            .onClick(async () => {
+              const { refreshCitationData } =
+                await import("./citation-refresh");
+              await refreshCitationData(this.plugin).catch(
+                () =>
+                  new Notice(
+                    "Could not refresh citation data. Check your Zotero connection.",
+                  ),
+              );
+            }),
         );
     });
 
     const tabsSection = this.createSection(sections, "Stratum tabs");
-    for (const tab of STRATUM_TABS) {
-      if ((tab.id === "sync" || tab.id === "publish") && !Platform.isDesktopApp)
-        continue;
-      this.defineSetting(tabsSection, tab.label, (setting) => {
-        setting
-          .setDesc(`Show the ${tab.label} tab in the Stratum panel.`)
-          .addToggle((toggle) =>
-            toggle
-              .setValue(
-                readEnabledTabs(this.plugin.settings.enabledTabs)[tab.id],
-              )
-              .onChange(async (enabled) => {
-                this.plugin.settings.enabledTabs = {
-                  ...readEnabledTabs(this.plugin.settings.enabledTabs),
-                  [tab.id]: enabled,
-                };
-                this.plugin.refreshViews();
+    this.defineSetting(tabsSection, "Visible tabs", (setting) => {
+      const tabs = STRATUM_TABS.filter(
+        ({ id }) =>
+          Platform.isDesktopApp || (id !== "sync" && id !== "publish"),
+      );
+      const updateSummary = () => {
+        const enabled = readEnabledTabs(this.plugin.settings.enabledTabs);
+        const visible = tabs.filter(({ id }) => enabled[id]);
+        setting.setDesc(
+          visible.length === tabs.length
+            ? "All tabs shown."
+            : visible.length === 0
+              ? "No tabs shown."
+              : `${visible.map(({ label }) => label).join(", ")} shown.`,
+        );
+      };
+      updateSummary();
+      setting.addButton((button) => {
+        button.setButtonText("Choose visible tabs");
+        button.buttonEl.addClass("stratum-tab-chooser-trigger");
+        button.buttonEl.setAttribute("aria-haspopup", "dialog");
+        button.buttonEl.setAttribute("aria-expanded", "false");
+        button.onClick(() => {
+          const wasOpen =
+            button.buttonEl.getAttribute("aria-expanded") === "true";
+          this.closeTabChooser?.();
+          if (wasOpen) return;
+          this.closeTabChooser = openTabChooser(button.buttonEl, {
+            tabs,
+            keyboard: {
+              keymap: this.plugin.app.keymap,
+              parent: this.plugin.app.scope,
+            },
+            enabled: readEnabledTabs(this.plugin.settings.enabledTabs),
+            onChange: async (id, enabled) => {
+              const previous = this.plugin.settings.enabledTabs;
+              this.plugin.settings.enabledTabs = {
+                ...readEnabledTabs(this.plugin.settings.enabledTabs),
+                [id]: enabled,
+              };
+              updateSummary();
+              this.plugin.refreshViews();
+              try {
                 await this.plugin.saveSettings();
-              }),
-          );
+              } catch (error) {
+                this.plugin.settings.enabledTabs = previous;
+                updateSummary();
+                this.plugin.refreshViews();
+                throw error;
+              }
+            },
+          });
+        });
       });
-    }
+    });
     if (!Platform.isDesktopApp) {
       this.defineSetting(tabsSection, "Desktop sync", (setting) => {
         setting.setDesc(

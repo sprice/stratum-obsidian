@@ -327,13 +327,13 @@ function cacheLibrarySearchResponse(
 }
 
 function syncLibrarySearchQuery(plugin: StratumPlugin, query: string): void {
+  const changed = query !== plugin.librarySearchQuery;
   plugin.librarySearchQuery = query;
 
-  if (
-    plugin.selectedLibraryResult &&
-    query !== plugin.selectedLibraryResult.title
-  ) {
+  if (plugin.selectedLibraryResult && changed) {
     plugin.selectedLibraryResult = null;
+    plugin.selectedLibraryNoteFile = null;
+    plugin.libraryNoteActionError = null;
     plugin.isSelectedLibraryAbstractExpanded = false;
   }
 }

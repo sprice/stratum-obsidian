@@ -1,7 +1,13 @@
+import { buildDefaultBulkLibrarySyncState } from "../zotero-sync";
+import {
+  ButtonComponentMock,
+  DropdownComponentMock,
+} from "./ui-component-mocks";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
   readEnabledTabs,
+  readLastActiveTab,
   getVisibleTabs,
   resolveActiveTab,
   STRATUM_TABS,
@@ -12,6 +18,28 @@ const allOff = () =>
   readEnabledTabs(
     Object.fromEntries(STRATUM_TABS.map(({ id }) => [id, false])),
   );
+
+test("restored tabs respect visibility and platform availability", () => {
+  const enabled = readEnabledTabs(undefined);
+  for (const { id } of STRATUM_TABS)
+    assert.equal(resolveActiveTab(readLastActiveTab(id), enabled, true), id);
+  assert.equal(
+    resolveActiveTab(readLastActiveTab("publish"), enabled, false),
+    "browse",
+  );
+  assert.equal(
+    resolveActiveTab(
+      readLastActiveTab("reader"),
+      { ...enabled, reader: false },
+      true,
+    ),
+    "browse",
+  );
+  assert.equal(
+    resolveActiveTab(readLastActiveTab("reader"), allOff(), true),
+    null,
+  );
+});
 
 test("missing and malformed preferences default on; explicit false survives", () => {
   for (const input of [
@@ -63,6 +91,7 @@ test("platform filters Sync without changing saved preferences; all-off is valid
 });
 
 test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
+  let saves = 0;
   const notices: string[] = [];
   const platform = { isDesktopApp: true };
   const { selectStratumTab } = loadRuntime<typeof import("../plugin-tabs")>(
@@ -77,7 +106,11 @@ test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
     },
   );
   const plugin = {
-    settings: { enabledTabs: allOff() },
+    saveSettings: () => {
+      saves++;
+      return Promise.resolve();
+    },
+    settings: { enabledTabs: allOff(), lastActiveTab: "search" },
     activeViewTab: null as string | null,
     isUnloaded: false,
     publish: {},
@@ -86,12 +119,17 @@ test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
     assert.equal(selectStratumTab(plugin as never, id), false);
   assert.equal(plugin.activeViewTab, null);
   assert.equal(notices.length, 6);
+  assert.equal(saves, 0);
   plugin.settings.enabledTabs = readEnabledTabs(undefined);
   platform.isDesktopApp = false;
   assert.equal(selectStratumTab(plugin as never, "sync"), false);
   assert.equal(selectStratumTab(plugin as never, "publish"), false);
   assert.equal(selectStratumTab(plugin as never, "reader"), true);
   assert.equal(plugin.activeViewTab, "reader");
+  assert.equal(plugin.settings.lastActiveTab, "reader");
+  assert.equal(saves, 1);
+  assert.equal(selectStratumTab(plugin as never, "reader"), true);
+  assert.equal(saves, 1, "Reselecting the same tab does not rewrite settings");
   plugin.isUnloaded = true;
   assert.equal(selectStratumTab(plugin as never, "search"), false);
   assert.equal(plugin.activeViewTab, "reader");
@@ -113,8 +151,12 @@ class Element {
   hidden = false;
   text = "";
   constructor(public tag = "div") {}
-  createDiv() {
+  className = "";
+  value = "";
+  disabled = false;
+  createDiv(options?: { cls?: string }) {
     const child = new Element();
+    child.className = options?.cls ?? "";
     child.doc = this.doc;
     this.children.push(child);
     return child;
@@ -126,10 +168,25 @@ class Element {
     this.children.push(child);
     return child;
   }
+  createSpan(options?: { text?: string }) {
+    const child = new Element("span");
+    child.text = options?.text ?? "";
+    child.doc = this.doc;
+    this.children.push(child);
+    return child;
+  }
   setAttr(key: string, value: string) {
     this.attrs[key] = value;
   }
-  addClass() {}
+  addClass(...classes: string[]) {
+    this.className += " " + classes.join(" ");
+  }
+  setAttribute(key: string, value: string) {
+    this.setAttr(key, value);
+  }
+  setText(text: string) {
+    this.text = text;
+  }
   empty() {
     this.children = [];
   }
@@ -148,7 +205,9 @@ class Element {
   querySelector(selector: string) {
     return selector.startsWith("#")
       ? (this.all().find((el) => el.id === selector.slice(1)) ?? null)
-      : null;
+      : (this.all().find((el) =>
+          el.className.split(" ").includes(selector.slice(1)),
+        ) ?? null);
   }
 }
 
@@ -171,7 +230,11 @@ function viewFixture(desktop: boolean) {
   const { StratumView } = loadRuntime<typeof import("../view")>(
     "view.ts",
     new Proxy<Record<string, unknown>>(
-      { Platform: { isDesktopApp: desktop } },
+      {
+        Platform: { isDesktopApp: desktop },
+        ButtonComponent: ButtonComponentMock,
+        DropdownComponent: DropdownComponentMock,
+      },
       { get: (target, key: string) => target[key] ?? Host },
     ),
     {
@@ -179,10 +242,12 @@ function viewFixture(desktop: boolean) {
       window: {
         requestAnimationFrame: (callback: () => void) => callback(),
         clearTimeout() {},
+        setTimeout: () => 1,
       },
     },
   );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: { enabledTabs: readEnabledTabs(undefined), enabledLibraries: [] },
     manifest: { id: "stratum" },
     activeViewTab: "sync" as string | null,
@@ -278,7 +343,14 @@ for (const desktop of [true, false]) {
     f.view.render();
     const bar = () =>
       f.content.all().find((el) => el.attrs.role === "tablist")!;
-    assert.equal(bar().cssProps["--stratum-tab-count"], desktop ? "5" : "4");
+    assert.equal(bar().attrs["aria-label"], undefined);
+    assert.equal(bar().attrs.title, undefined);
+    const label = f.content.querySelector(
+      `#${bar().attrs["aria-labelledby"]}`,
+    )!;
+    assert.equal(label.text, "Stratum panels");
+    assert.equal(label.hidden, true);
+    assert.equal(bar().cssProps["--stratum-tab-count"], "3");
     assert.equal(bar().cssProps["--stratum-compact-tab-count"], "2");
     f.plugin.settings.enabledTabs = { ...allOff(), reader: true };
     f.view.render();
@@ -286,3 +358,65 @@ for (const desktop of [true, false]) {
     assert.equal(bar().cssProps["--stratum-compact-tab-count"], "1");
   });
 }
+
+test("Sync keeps controls through progress, completion, and tab navigation", () => {
+  const f = viewFixture(true);
+  let running = false;
+  let processed = 0;
+  const state = buildDefaultBulkLibrarySyncState();
+  const libraries = [
+    { identity: "user:1", type: "user", id: "1", name: "Synthetic library" },
+    { identity: "group:2", type: "group", id: "2", name: "Synthetic group" },
+  ];
+  Object.assign(f.plugin.settings, {
+    bulkSyncEnabled: true,
+    libraryBulkSync: { "user:1": state },
+    libraryAutoSync: {},
+  });
+  Object.assign(f.plugin, {
+    backend: { hasSession: () => true },
+    zoteroConnection: { connected: true },
+    localSyncLibraries: libraries,
+    syncCollections: [],
+    localSync: { ensureLibrariesLoaded() {}, ensureCollectionsLoaded() {} },
+    isBulkLibrarySyncRunning: () => running,
+    isZoteroAutoSyncRunning: () => false,
+    isLoadingLocalSyncLibraries: false,
+    isLoadingSyncCollections: false,
+    getBulkLibrarySyncProcessedCount: () => processed,
+  });
+  f.view.render();
+  const selects = () => f.content.all().filter((el) => el.tag === "select");
+  const original = selects();
+  assert.equal(original.length, 2);
+  original[1].focus();
+  running = true;
+  state.phase = "running";
+  for (processed = 1; processed <= 3; processed++) {
+    f.view.refreshSyncProgress();
+    f.view.render();
+    original.forEach((select, index) => assert.equal(selects()[index], select));
+    assert.ok(selects().every((el) => el.disabled));
+  }
+  running = false;
+  state.phase = "completed";
+  state.completedAt = new Date().toISOString();
+  f.view.render();
+  original.forEach((select, index) => assert.equal(selects()[index], select));
+  assert.ok(selects().every((el) => !el.disabled));
+  f.plugin.activeViewTab = "browse";
+  f.view.render();
+  f.plugin.activeViewTab = "sync";
+  f.view.render();
+  original.forEach((select, index) => assert.equal(selects()[index], select));
+  assert.equal(f.content.doc.activeElement, original[1]);
+  libraries.push({
+    identity: "group:3",
+    type: "group",
+    id: "3",
+    name: "Another synthetic group",
+  });
+  f.view.render();
+  assert.notEqual(selects()[0], original[0]);
+  assert.equal(selects()[0].children.length, 3);
+});

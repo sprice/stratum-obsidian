@@ -6,6 +6,8 @@ export interface SourceOccurrence {
   from: number;
   to: number;
   excerpt: string;
+  /** Original Markdown offset of the first character in the trimmed excerpt. */
+  excerptFrom?: number;
 }
 
 function escaped(text: string, offset: number): boolean {
@@ -110,11 +112,15 @@ export function sourceProse(text: string): string {
   return chars.join("");
 }
 
-function excerpt(text: string, from: number, to: number): string {
+function excerpt(text: string, from: number, to: number) {
   const start = Math.max(text.lastIndexOf("\n", from - 1) + 1, from - 75);
   const newline = text.indexOf("\n", to);
   const end = Math.min(newline < 0 ? text.length : newline, to + 100);
-  return text.slice(start, end).trim();
+  const raw = text.slice(start, end);
+  return {
+    excerpt: raw.trim(),
+    excerptFrom: start + raw.length - raw.trimStart().length,
+  };
 }
 
 export function parseSourceOccurrences(text: string): SourceOccurrence[] {
@@ -139,7 +145,7 @@ export function parseSourceOccurrences(text: string): SourceOccurrence[] {
       target,
       from,
       to,
-      excerpt: excerpt(text, from, to),
+      ...excerpt(text, from, to),
     });
   };
   const definitions = new Map<string, string>();
