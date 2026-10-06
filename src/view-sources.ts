@@ -183,10 +183,6 @@ export class SourcesPanel extends Component {
     });
     this.list = this.container.createDiv({ cls: "stratum-sources-results" });
     this.list.tabIndex = 0;
-    this.list.setAttr(
-      "aria-label",
-      "Citation results; scroll to see additional columns",
-    );
     this.list.addEventListener("scroll", () => {
       this.state.scroll = this.list.scrollTop;
       this.state.scrollLeft = this.list.scrollLeft;

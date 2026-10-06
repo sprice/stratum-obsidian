@@ -422,11 +422,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   firstPanel.onload();
   const results = firstContainer
     .all()
-    .find(
-      (el) =>
-        el.attrs["aria-label"] ===
-        "Citation results; scroll to see additional columns",
-    )!;
+    .find((el) => el.attrs.class === "stratum-sources-results")!;
   results.scrollLeft = 420;
   results.trigger("scroll");
   firstPanel.onunload();
@@ -441,11 +437,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   nextPanel.onload();
   const restoredResults = nextContainer
     .all()
-    .find(
-      (el) =>
-        el.attrs["aria-label"] ===
-        "Citation results; scroll to see additional columns",
-    )!;
+    .find((el) => el.attrs.class === "stratum-sources-results")!;
   assert.equal(
     restoredResults.scrollLeft,
     420,

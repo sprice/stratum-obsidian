@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   readEnabledTabs,
+  readLastActiveTab,
   getVisibleTabs,
   resolveActiveTab,
   STRATUM_TABS,
@@ -17,6 +18,28 @@ const allOff = () =>
   readEnabledTabs(
     Object.fromEntries(STRATUM_TABS.map(({ id }) => [id, false])),
   );
+
+test("restored tabs respect visibility and platform availability", () => {
+  const enabled = readEnabledTabs(undefined);
+  for (const { id } of STRATUM_TABS)
+    assert.equal(resolveActiveTab(readLastActiveTab(id), enabled, true), id);
+  assert.equal(
+    resolveActiveTab(readLastActiveTab("publish"), enabled, false),
+    "browse",
+  );
+  assert.equal(
+    resolveActiveTab(
+      readLastActiveTab("reader"),
+      { ...enabled, reader: false },
+      true,
+    ),
+    "browse",
+  );
+  assert.equal(
+    resolveActiveTab(readLastActiveTab("reader"), allOff(), true),
+    null,
+  );
+});
 
 test("missing and malformed preferences default on; explicit false survives", () => {
   for (const input of [
@@ -68,6 +91,7 @@ test("platform filters Sync without changing saved preferences; all-off is valid
 });
 
 test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
+  let saves = 0;
   const notices: string[] = [];
   const platform = { isDesktopApp: true };
   const { selectStratumTab } = loadRuntime<typeof import("../plugin-tabs")>(
@@ -82,7 +106,11 @@ test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
     },
   );
   const plugin = {
-    settings: { enabledTabs: allOff() },
+    saveSettings: () => {
+      saves++;
+      return Promise.resolve();
+    },
+    settings: { enabledTabs: allOff(), lastActiveTab: "search" },
     activeViewTab: null as string | null,
     isUnloaded: false,
     publish: {},
@@ -91,12 +119,17 @@ test("direct tab selection cannot open disabled tabs or mobile Sync", () => {
     assert.equal(selectStratumTab(plugin as never, id), false);
   assert.equal(plugin.activeViewTab, null);
   assert.equal(notices.length, 6);
+  assert.equal(saves, 0);
   plugin.settings.enabledTabs = readEnabledTabs(undefined);
   platform.isDesktopApp = false;
   assert.equal(selectStratumTab(plugin as never, "sync"), false);
   assert.equal(selectStratumTab(plugin as never, "publish"), false);
   assert.equal(selectStratumTab(plugin as never, "reader"), true);
   assert.equal(plugin.activeViewTab, "reader");
+  assert.equal(plugin.settings.lastActiveTab, "reader");
+  assert.equal(saves, 1);
+  assert.equal(selectStratumTab(plugin as never, "reader"), true);
+  assert.equal(saves, 1, "Reselecting the same tab does not rewrite settings");
   plugin.isUnloaded = true;
   assert.equal(selectStratumTab(plugin as never, "search"), false);
   assert.equal(plugin.activeViewTab, "reader");
@@ -214,6 +247,7 @@ function viewFixture(desktop: boolean) {
     },
   );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: { enabledTabs: readEnabledTabs(undefined), enabledLibraries: [] },
     manifest: { id: "stratum" },
     activeViewTab: "sync" as string | null,

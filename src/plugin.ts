@@ -259,6 +259,11 @@ export default class StratumPlugin extends Plugin {
       );
     }
     await loadPluginSettings(this);
+    this.activeViewTab = resolveActiveTab(
+      this.settings.lastActiveTab,
+      readEnabledTabs(this.settings.enabledTabs),
+      Platform.isDesktopApp,
+    );
     this.backend = createBackendClient(this);
     hydrateZoteroConnectionFromCache(this);
     setSelectedSearchLibrary(this, this.selectedSearchLibrary);
@@ -295,7 +300,7 @@ export default class StratumPlugin extends Plugin {
 
     this.addRibbonIcon("book-open-text", openStratumRibbonLabel, () => {
       this.activeViewTab = resolveActiveTab(
-        "search",
+        this.activeViewTab,
         readEnabledTabs(this.settings.enabledTabs),
         Platform.isDesktopApp,
       );
@@ -309,7 +314,7 @@ export default class StratumPlugin extends Plugin {
       name: "Open library view",
       callback: () => {
         this.activeViewTab = resolveActiveTab(
-          "search",
+          this.activeViewTab,
           readEnabledTabs(this.settings.enabledTabs),
           Platform.isDesktopApp,
         );

@@ -260,6 +260,7 @@ test("sidebar controls filter main-pane results and preserve state through refre
       },
     );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     app,
     settings: {
       collectionCatalogs: {},
@@ -557,6 +558,7 @@ test("browsing creates a main-pane tab and selects the sidebar Browse panel", as
     },
   };
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: {
       collectionCatalogs: {},
       enabledTabs: readEnabledTabs(undefined),
@@ -701,6 +703,7 @@ test("Browse preserves mounted controls across tab switches and releases stale t
     },
   );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: {
       collectionCatalogs: {},
       enabledTabs: readEnabledTabs(undefined),
@@ -863,6 +866,7 @@ for (const stage of ["sidebar", "browser", "reveal"] as const) {
       setViewState: () => (stage === "browser" ? pause() : Promise.resolve()),
     };
     const plugin = {
+      saveSettings: () => Promise.resolve(),
       isUnloaded: false,
       settings: {
         collectionCatalogs: {},
@@ -927,6 +931,7 @@ for (const reason of ["panel switch", "tab disabled"] as const) {
       let revealed = 0;
       let refreshed = 0;
       const plugin = {
+        saveSettings: () => Promise.resolve(),
         settings: {
           collectionCatalogs: {},
           enabledTabs: readEnabledTabs(undefined),
@@ -1000,6 +1005,7 @@ test("hidden Browse cannot create or reveal a workspace pane", async () => {
     { "./collection-browser-data": {}, "./collection-catalog-store": {} },
   );
   const plugin = {
+    saveSettings: () => Promise.resolve(),
     settings: { enabledTabs: { browse: false } },
     activeViewTab: "search",
     activateView: () => {

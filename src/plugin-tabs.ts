@@ -26,5 +26,12 @@ export function selectStratumTab(
 ): boolean {
   if (!canOpenStratumTab(plugin, tab)) return false;
   plugin.activeViewTab = tab;
+  if (plugin.settings.lastActiveTab !== tab) {
+    plugin.settings.lastActiveTab = tab;
+    void plugin.saveSettings().catch(() => {
+      if (!plugin.isUnloaded)
+        new Notice("Could not remember the selected tab.");
+    });
+  }
   return true;
 }
