@@ -90,7 +90,11 @@ function stringifyForTest(value: Record<string, unknown>): string {
     .map(
       ([key, entry]) =>
         `${key}: ${
-          Array.isArray(entry) ? `[${entry.join(", ")}]` : String(entry)
+          Array.isArray(entry)
+            ? `[${entry.join(", ")}]`
+            : typeof entry === "string" && entry.includes("\n")
+              ? JSON.stringify(entry)
+              : String(entry)
         }`,
     )
     .join("\n");

@@ -429,3 +429,34 @@ test("available citation styles survive reload, retain the default, and reject m
   assert.equal(plugin.settings.citationStyle, "apa");
   assert.equal(plugin.settings.availableCitationStyles?.length, 5);
 });
+
+test("note templates survive reload, including an empty template; invalid templates fall back", async () => {
+  let data: unknown = {};
+  const plugin = {
+    settings: structuredClone(DEFAULT_SETTINGS),
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.notesTemplate, "## My Notes");
+  for (const template of ["## Summary\n\n- [ ] Read", ""]) {
+    plugin.settings.notesTemplate = template;
+    await savePluginSettings(plugin as never);
+    await loadPluginSettings(plugin as never);
+    assert.equal(plugin.settings.notesTemplate, template);
+  }
+  for (const notesTemplate of [
+    null,
+    3,
+    "```\nUnclosed",
+    "<!-- stratum:sync-boundary -->",
+  ]) {
+    data = { notesTemplate };
+    await loadPluginSettings(plugin as never);
+    assert.equal(plugin.settings.notesTemplate, "## My Notes");
+  }
+});

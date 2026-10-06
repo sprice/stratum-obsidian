@@ -5,6 +5,7 @@ import {
   Platform,
   PluginSettingTab,
   Setting,
+  SettingGroup,
   requireApiVersion,
 } from "obsidian";
 
@@ -29,13 +30,36 @@ interface SearchableSetting {
 interface SettingsSection {
   type: "group";
   heading: string;
-  cls: string;
   items: SearchableSetting[];
 }
 
 export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
   private closeTabChooser?: () => void;
+  private templateRow?: HTMLElement;
+
+  async openNoteTemplateEditor(): Promise<void> {
+    const { NoteTemplateModal } = await import("./note-template-modal");
+    if (this.plugin.isUnloaded) return;
+    if (this.templateRow?.isConnected)
+      this.templateRow.scrollIntoView({ block: "center" });
+    new NoteTemplateModal(
+      this.app,
+      this.plugin.settings.notesTemplate,
+      async (template) => {
+        if (this.plugin.isUnloaded) throw new Error("Plugin was unloaded.");
+        const previous = this.plugin.settings.notesTemplate;
+        this.plugin.settings.notesTemplate = template;
+        try {
+          await this.plugin.saveSettings();
+        } catch (error) {
+          this.plugin.settings.notesTemplate = previous;
+          throw error;
+        }
+        this.plugin.refreshViews();
+      },
+    ).open();
+  }
 
   constructor(plugin: StratumPlugin) {
     super(plugin.app, plugin);
@@ -54,7 +78,6 @@ export class StratumSettingTab extends PluginSettingTab {
     const section: SettingsSection = {
       type: "group",
       heading: title,
-      cls: "stratum-settings-panel",
       items: [],
     };
     sections.push(section);
@@ -91,15 +114,12 @@ export class StratumSettingTab extends PluginSettingTab {
   private renderLegacy(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.addClass("stratum-settings-tab");
     for (const section of this.getSettingDefinitions()) {
-      const sectionEl = containerEl.createDiv({
-        cls: "stratum-settings-section",
-      });
-      new Setting(sectionEl).setName(section.heading).setHeading();
-      const panel = sectionEl.createDiv({ cls: section.cls });
+      const group = new SettingGroup(containerEl).setHeading(section.heading);
       for (const definition of section.items) {
-        definition.render(new Setting(panel).setName(definition.name));
+        group.addSetting((setting) => {
+          definition.render(setting.setName(definition.name));
+        });
       }
     }
   }
@@ -154,7 +174,6 @@ export class StratumSettingTab extends PluginSettingTab {
             }),
           )
           .addButton((button) => {
-            button.buttonEl.addClass("stratum-button-danger-subtle");
             button.setButtonText("Log out").onClick(async () => {
               await this.plugin.signOutFromPlugin();
               this.refresh();
@@ -227,6 +246,79 @@ export class StratumSettingTab extends PluginSettingTab {
           }
         });
     });
+
+    const defaultsSection = this.createSection(sections, "Workspace defaults");
+    this.defineSetting(
+      defaultsSection,
+      "Literature note template",
+      (setting) => {
+        this.templateRow = setting.settingEl;
+        setting
+          .setName("Literature note template")
+          .setDesc("Starting content for your literature notes from Zotero")
+          .addButton((button) =>
+            button.setButtonText("Edit template").onClick(() => {
+              void this.openNoteTemplateEditor().catch(
+                () => new Notice("Could not open the template editor."),
+              );
+            }),
+          );
+      },
+    );
+
+    this.defineSetting(
+      defaultsSection,
+      "Literature notes folder",
+      (setting) => {
+        setting
+          .setName("Literature notes folder")
+          .setDesc("Default destination for generated literature notes.")
+          .addText((text) => {
+            text
+              .setPlaceholder(DEFAULT_NOTE_FOLDER)
+              .setValue(this.plugin.settings.notesFolder);
+            const commit = async () => {
+              const folder = text.getValue().trim() || DEFAULT_NOTE_FOLDER;
+              if (folder === this.plugin.settings.notesFolder) return;
+              this.plugin.settings.notesFolder = folder;
+              text.setValue(folder);
+              await this.plugin.saveSettings();
+              await this.plugin.rebuildItemFileMap();
+            };
+            text.inputEl.addEventListener("blur", () => {
+              void commit().catch(
+                () => new Notice("Could not save the literature notes folder."),
+              );
+            });
+            text.inputEl.addEventListener("keydown", (event) => {
+              if (event.key === "Enter") text.inputEl.blur();
+            });
+          });
+      },
+    );
+
+    this.defineSetting(
+      defaultsSection,
+      "Literature note filename format",
+      (setting) => {
+        setting
+          .setName("Literature note filename format")
+          .setDesc(
+            "Choose how new literature notes are named. Existing filenames stay unchanged. Citation key filenames are generated from author, year, and title.",
+          )
+          .addDropdown((dropdown) =>
+            dropdown
+              .addOption("readable", "Readable format (author-year title)")
+              .addOption("citekey", "Citation key format (@author2020title)")
+              .setValue(this.plugin.settings.filenameFormat)
+              .onChange(async (value) => {
+                this.plugin.settings.filenameFormat =
+                  value as LiteratureNoteFilenameFormat;
+                await this.plugin.saveSettings();
+              }),
+          );
+      },
+    );
 
     const librariesSection = this.createSection(sections, "Zotero Libraries");
     const personalLibrary = getPersonalLibrary(this.plugin);
@@ -572,62 +664,6 @@ export class StratumSettingTab extends PluginSettingTab {
         );
       });
     }
-
-    const defaultsSection = this.createSection(sections, "Workspace defaults");
-
-    this.defineSetting(
-      defaultsSection,
-      "Literature notes folder",
-      (setting) => {
-        setting
-          .setName("Literature notes folder")
-          .setDesc("Default destination for generated literature notes.")
-          .addText((text) => {
-            text
-              .setPlaceholder(DEFAULT_NOTE_FOLDER)
-              .setValue(this.plugin.settings.notesFolder);
-            const commit = async () => {
-              const folder = text.getValue().trim() || DEFAULT_NOTE_FOLDER;
-              if (folder === this.plugin.settings.notesFolder) return;
-              this.plugin.settings.notesFolder = folder;
-              text.setValue(folder);
-              await this.plugin.saveSettings();
-              await this.plugin.rebuildItemFileMap();
-            };
-            text.inputEl.addEventListener("blur", () => {
-              void commit().catch(
-                () => new Notice("Could not save the literature notes folder."),
-              );
-            });
-            text.inputEl.addEventListener("keydown", (event) => {
-              if (event.key === "Enter") text.inputEl.blur();
-            });
-          });
-      },
-    );
-
-    this.defineSetting(
-      defaultsSection,
-      "Literature note filename format",
-      (setting) => {
-        setting
-          .setName("Literature note filename format")
-          .setDesc(
-            "Choose how new literature notes are named. Existing filenames stay unchanged. Citation key filenames are generated from author, year, and title.",
-          )
-          .addDropdown((dropdown) =>
-            dropdown
-              .addOption("readable", "Readable format (author-year title)")
-              .addOption("citekey", "Citation key format (@author2020title)")
-              .setValue(this.plugin.settings.filenameFormat)
-              .onChange(async (value) => {
-                this.plugin.settings.filenameFormat =
-                  value as LiteratureNoteFilenameFormat;
-                await this.plugin.saveSettings();
-              }),
-          );
-      },
-    );
 
     return sections;
   }

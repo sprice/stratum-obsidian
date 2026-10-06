@@ -660,6 +660,22 @@ export class StratumView extends ItemView {
     });
   }
 
+  private renderNoteTemplateButton(container: HTMLElement): void {
+    const button = createStratumButton(container, {
+      text: "Edit template",
+      className: "stratum-note-template-button",
+    });
+    button.type = "button";
+    button.addEventListener("click", () => {
+      const settings = getSettingsManager(this.app);
+      settings?.open();
+      settings?.openTabById(this.plugin.manifest.id);
+      void this.plugin.settingTab?.openNoteTemplateEditor().catch(() => {
+        new Notice("Could not open the template editor.");
+      });
+    });
+  }
+
   private renderBrowseTab(container: HTMLElement): void {
     const section = container.createDiv({ cls: "stratum-search-section" });
     section.createEl("h3", { text: "Browse notes" });
@@ -848,6 +864,9 @@ export class StratumView extends ItemView {
       cls: "stratum-search-spinner",
     });
     loadingSpinner?.setAttr("aria-hidden", "true");
+
+    const templateActions = searchSection.createDiv({ cls: "stratum-actions" });
+    this.renderNoteTemplateButton(templateActions);
 
     const feedbackContainer = searchSection.createDiv({
       cls: "stratum-search-feedback",
@@ -1250,6 +1269,8 @@ export class StratumView extends ItemView {
     bulkSyncButton.addEventListener("click", () => {
       void this.plugin.runBulkLibrarySync();
     });
+
+    this.renderNoteTemplateButton(actions);
 
     const statusContainer = syncSection.createDiv();
     let reportKey = "";

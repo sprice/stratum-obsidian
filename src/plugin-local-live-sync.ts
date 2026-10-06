@@ -1,4 +1,9 @@
 import {
+  DEFAULT_NOTES_TEMPLATE,
+  NOTES_TEMPLATE_KEY,
+  needsNotesTemplateUpdate,
+} from "./literature-note-template";
+import {
   NOTE_LAYOUT_KEY,
   NOTE_LAYOUT_VERSION,
   readLiteratureNoteLayout,
@@ -390,9 +395,18 @@ export async function getTrackedNoteMetadata(
         await plugin.app.vault.cachedRead(file),
         parseYaml,
       );
+      const layout = readLiteratureNoteLayout(
+        body,
+        actualFrontmatter[NOTE_LAYOUT_KEY],
+      );
       if (
-        readLiteratureNoteLayout(body, actualFrontmatter[NOTE_LAYOUT_KEY])
-          ?.legacy
+        layout &&
+        (layout.legacy ||
+          needsNotesTemplateUpdate(
+            layout.personal,
+            actualFrontmatter[NOTES_TEMPLATE_KEY],
+            plugin.settings.notesTemplate ?? DEFAULT_NOTES_TEMPLATE,
+          ))
       )
         layoutMigrationIdentities.add(identity);
     }

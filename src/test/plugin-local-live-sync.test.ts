@@ -209,7 +209,10 @@ test("actual mixed layout overrides cached version 2 for unchanged-source migrat
     Platform: {},
     parseYaml: JSON.parse,
   });
-  const fm = { stratum_note_layout: 2 };
+  const fm = {
+    stratum_note_layout: 2,
+    stratum_notes_template: "## My Notes\n\n",
+  };
   const managed = `${MANAGED_START}\nSynthetic source\n${MANAGED_END}\n`;
   const modern = `---\n${JSON.stringify(fm)}\n---\n${composeLiteratureNoteBody("## My Notes\n\n", managed)}`;
   let content = `${modern}\n${USER_BOUNDARY_CALLOUT}\n\nMy research\n`;
@@ -259,4 +262,16 @@ test("actual mixed layout overrides cached version 2 for unchanged-source migrat
       assert.equal(candidates[0].identity, "user/1/UNCHANGED");
     content = modern;
   }
+  plugin.settings.notesTemplate = "## Summary";
+  const metadata = await runtime.getTrackedNoteMetadata(plugin, library);
+  assert.equal(
+    metadata.layoutMigrationIdentities.has("user/1/UNCHANGED"),
+    true,
+  );
+  content = modern.replace("## My Notes\n\n", "## My Notes\n\nMy analysis\n\n");
+  const editedMetadata = await runtime.getTrackedNoteMetadata(plugin, library);
+  assert.equal(
+    editedMetadata.layoutMigrationIdentities.has("user/1/UNCHANGED"),
+    false,
+  );
 });

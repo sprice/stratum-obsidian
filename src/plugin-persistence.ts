@@ -1,3 +1,4 @@
+import { validateNotesTemplate } from "./literature-note-template";
 import { readAvailableCitationStyles } from "./citation-style-defaults";
 import { readPublishReadinessCache } from "./publish-readiness";
 import { readEnabledTabs, readLastActiveTab } from "./stratum-tabs";
@@ -38,6 +39,7 @@ type StoredSettingsData = Partial<
     | "enabledTabs"
     | "lastActiveTab"
     | "notesFolder"
+    | "notesTemplate"
     | "filenameFormat"
     | "bulkSyncEnabled"
     | "bulkSyncPreferenceInitialized"
@@ -433,6 +435,12 @@ function readStoredSettings(value: unknown): Omit<
   }
   if (typeof value.notesFolder === "string") {
     nextSettings.notesFolder = value.notesFolder;
+  }
+  if (
+    typeof value.notesTemplate === "string" &&
+    !validateNotesTemplate(value.notesTemplate)
+  ) {
+    nextSettings.notesTemplate = value.notesTemplate;
   }
   if (isLiteratureNoteFilenameFormat(value.filenameFormat)) {
     nextSettings.filenameFormat = value.filenameFormat;

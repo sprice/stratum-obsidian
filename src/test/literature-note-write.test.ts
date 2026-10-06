@@ -675,3 +675,27 @@ test("missing required boundary never writes the note", async () => {
   assert.equal(fixture.writes, 0);
   assert.equal(fixture.current, original);
 });
+
+test("template replacement rechecks personal writing inside the atomic update", async () => {
+  const starter = "## My Notes\n\n";
+  const initial = `---\n${JSON.stringify({ ...frontmatter, stratum_note_layout: 2, stratum_notes_template: starter })}\n---\n${composeLiteratureNoteBody(starter, `${MANAGED_START}\nSource\n${MANAGED_END}\n`)}`;
+  const fixture = vaultFixture(initial);
+  fixture.beforeProcess = () => {
+    fixture.current = initial.replace(
+      SYNC_BOUNDARY,
+      `My concurrent research\n\n${SYNC_BOUNDARY}`,
+    );
+  };
+  await note.createOrUpdateLiteratureNote({
+    stratumVersion: "0.2.1",
+    app: fixture.app,
+    existingFile: fixture.file,
+    detail,
+    filenameFormat: "readable",
+    notesFolder: "Literature Notes",
+    notesTemplate: "## Summary",
+  });
+  assert.match(fixture.current, /My concurrent research/);
+  assert.doesNotMatch(fixture.current, /## Summary/);
+  assert.match(fixture.current, /stratum_notes_template/);
+});

@@ -8,6 +8,10 @@ import type { EnabledTabs, StratumTab } from "../stratum-tabs";
 
 class Element {
   isConnected = true;
+  scrolled = false;
+  scrollIntoView() {
+    this.scrolled = true;
+  }
   addClass() {}
   setAttr() {}
   attributes = new Map<string, string>();
@@ -74,6 +78,7 @@ class Row {
   static rendered: Row[] = [];
   name = "";
   descEl = new Element();
+  settingEl = new Element();
   control?: Control;
   heading = false;
   description = "";
@@ -104,6 +109,11 @@ class Row {
 }
 
 function fixture(desktop = false, modern = true) {
+  const editors: {
+    initial: string;
+    save: (template: string) => Promise<void>;
+    opened: boolean;
+  }[] = [];
   let chooser!: {
     tabs: { id: StratumTab; label: string }[];
     enabled: EnabledTabs;
@@ -118,12 +128,37 @@ function fixture(desktop = false, modern = true) {
     {
       PluginSettingTab: HostTab,
       Setting: Row,
+      SettingGroup: class {
+        setHeading(heading: string) {
+          new Row().setName(heading).setHeading();
+          return this;
+        }
+        addSetting(render: (setting: Row) => void) {
+          render(new Row());
+          return this;
+        }
+      },
       Platform: platform,
       requireApiVersion: () => modern,
     },
     {},
     "node",
     {
+      "./note-template-modal": {
+        NoteTemplateModal: class {
+          opened = false;
+          constructor(
+            _app: unknown,
+            public initial: string,
+            public save: (template: string) => Promise<void>,
+          ) {
+            editors.push(this);
+          }
+          open() {
+            this.opened = true;
+          }
+        },
+      },
       "./settings-tab-chooser": {
         openTabChooser: (anchor: Element, options: typeof chooser) => {
           chooser = options;
@@ -178,6 +213,7 @@ function fixture(desktop = false, modern = true) {
   return {
     tab,
     plugin,
+    editors,
     get chooser() {
       return chooser;
     },
@@ -343,7 +379,9 @@ for (const desktop of [true, false]) {
       (section) => section.heading === "Stratum tabs",
     );
     assert.equal(sections[index - 1].heading, "Citations");
-    assert.equal(sections[index + 1].heading, "Workspace defaults");
+    assert.equal(sections[0].heading, "Workspace");
+    assert.equal(sections[1].heading, "Workspace defaults");
+    assert.equal(sections[2].heading, "Zotero Libraries");
     Row.rendered = [];
     for (const item of sections[index].items)
       item.render(new Row().setName(item.name) as never);
@@ -422,3 +460,31 @@ test("failed tab saves restore visibility and its summary", async () => {
   assert.equal(row.description, "All tabs shown.");
   assert.equal(f.updates, 2);
 });
+
+for (const modern of [true, false]) {
+  test(`template editor opens from settings and rolls back failed saves with modern=${modern}`, async () => {
+    const f = fixture(false, modern);
+    Row.rendered = [];
+    if (modern)
+      for (const section of f.tab.getSettingDefinitions()) {
+        for (const definition of section.items)
+          definition.render(new Row() as never);
+      }
+    else f.tab.refresh();
+    const row = Row.rendered.find(
+      (r) => r.name === "Literature note template",
+    )!;
+    assert.ok(row);
+    await row.control!.click!();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(row.settingEl.scrolled, true);
+    assert.equal(f.editors[0].opened, true);
+    assert.equal(f.editors[0].initial, "## My Notes");
+    await f.editors[0].save("## Summary");
+    assert.equal(f.plugin.settings.notesTemplate, "## Summary");
+    assert.equal(f.saves, 1);
+    f.plugin.saveSettings = () => Promise.reject(new Error("Disk failure"));
+    await assert.rejects(f.editors[0].save("## Rejected"), /Disk failure/);
+    assert.equal(f.plugin.settings.notesTemplate, "## Summary");
+  });
+}

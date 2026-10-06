@@ -1,4 +1,10 @@
 import {
+  DEFAULT_NOTES_TEMPLATE,
+  NOTES_TEMPLATE_KEY,
+  renderNotesTemplate,
+  canReplaceNotesTemplate,
+} from "./literature-note-template";
+import {
   composeLiteratureNoteBody,
   requireLiteratureNoteLayout,
   NOTE_LAYOUT_KEY,
@@ -70,6 +76,7 @@ function extractPreservedManagedSections(
 
 export function buildLiteratureNoteContent(params: {
   stratumVersion: string;
+  notesTemplate?: string;
   detail: ZoteroItemDetail;
   filenameStem: string | null;
   zoteroStatus?: ZoteroSyncStatus;
@@ -79,6 +86,9 @@ export function buildLiteratureNoteContent(params: {
   htmlToMarkdown: HtmlToMarkdownTransformer;
   enrichment?: OpenAlexEnrichment | null;
 }): string {
+  const starter = renderNotesTemplate(
+    params.notesTemplate ?? DEFAULT_NOTES_TEMPLATE,
+  );
   const zoteroStatus = params.zoteroStatus ?? "active";
   const enrichmentWasProvided = Object.prototype.hasOwnProperty.call(
     params,
@@ -94,6 +104,11 @@ export function buildLiteratureNoteContent(params: {
       body,
       frontmatter[NOTE_LAYOUT_KEY],
     );
+    const replaceStarter = canReplaceNotesTemplate(
+      layout.personal,
+      frontmatter[NOTES_TEMPLATE_KEY],
+    );
+    const personal = replaceStarter ? starter : layout.personal;
     const preserveManagedEnrichment =
       enrichmentWasProvided &&
       params.enrichment === undefined &&
@@ -112,14 +127,18 @@ export function buildLiteratureNoteContent(params: {
     );
     const nextFrontmatter = renderFrontmatterContent(
       detail,
-      { ...frontmatter, [NOTE_LAYOUT_KEY]: NOTE_LAYOUT_VERSION },
+      {
+        ...frontmatter,
+        [NOTE_LAYOUT_KEY]: NOTE_LAYOUT_VERSION,
+        ...(replaceStarter ? { [NOTES_TEMPLATE_KEY]: starter } : {}),
+      },
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
       params.stratumVersion,
       params.enrichment,
     );
-    const nextBody = composeLiteratureNoteBody(layout.personal, managedBlock);
+    const nextBody = composeLiteratureNoteBody(personal, managedBlock);
     const result = `${nextFrontmatter}${nextBody}`;
     const withoutTimestamp = (content: string) =>
       content.replace(/^zotero_synced_at:.*\r?$/gm, "");
@@ -138,15 +157,15 @@ export function buildLiteratureNoteContent(params: {
   return [
     renderFrontmatterContent(
       params.detail,
-      { [NOTE_LAYOUT_KEY]: NOTE_LAYOUT_VERSION },
+      { [NOTE_LAYOUT_KEY]: NOTE_LAYOUT_VERSION, [NOTES_TEMPLATE_KEY]: starter },
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
       params.stratumVersion,
       params.enrichment,
     ),
-    composeLiteratureNoteBody("## My Notes\n\n", managedBlock),
-  ].join("\n");
+    composeLiteratureNoteBody(starter, managedBlock),
+  ].join("");
 }
 
 export function markLiteratureNoteAsDeletedContent(params: {

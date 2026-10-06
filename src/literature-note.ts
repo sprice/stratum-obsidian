@@ -66,6 +66,7 @@ function assertNoteIdentity(
 
 export async function createOrUpdateLiteratureNote(params: {
   stratumVersion: string;
+  notesTemplate?: string;
   app: App;
   notesFolder: string;
   detail: ZoteroItemDetail;
@@ -99,6 +100,7 @@ export async function createOrUpdateLiteratureNote(params: {
     const candidate = buildLiteratureNoteContent({
       detail: params.detail,
       stratumVersion: params.stratumVersion,
+      notesTemplate: params.notesTemplate,
       filenameStem,
       existingContent,
       parseYaml,
@@ -115,6 +117,7 @@ export async function createOrUpdateLiteratureNote(params: {
       const nextContent = buildLiteratureNoteContent({
         detail: params.detail,
         stratumVersion: params.stratumVersion,
+        notesTemplate: params.notesTemplate,
         filenameStem,
         existingContent: currentContent,
         parseYaml,
@@ -138,6 +141,7 @@ export async function createOrUpdateLiteratureNote(params: {
     notesFolder: folder,
     detail: params.detail,
     stratumVersion: params.stratumVersion,
+    notesTemplate: params.notesTemplate,
     filenameFormat: params.filenameFormat,
     canWrite: params.canWrite,
     ...("enrichment" in params ? { enrichment: params.enrichment } : {}),
