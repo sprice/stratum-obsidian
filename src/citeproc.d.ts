@@ -22,7 +22,11 @@ declare module "citeproc" {
       forceLang?: boolean,
     );
     opt: { xclass: string; development_extensions: Record<string, boolean> };
+    /** Per-render diagnostics accumulated by the internal rendering hook. */
+    tmp: { citation_errors: unknown[] };
     setOutputFormat(format: string): void;
+    /** Internal rendering hook used by processCitationCluster. */
+    process_CitationCluster(sortedItems: unknown, citation: Citation): string;
     processCitationCluster(
       citation: Citation,
       before: [string, number][],

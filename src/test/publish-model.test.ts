@@ -44,6 +44,20 @@ test("publication keeps CSL output, explicit bibliography position, and removes 
   assert.equal(result.bibliography, "");
 });
 
+test("MLA publication distinguishes narrative citations from parenthetical citations", () => {
+  const source =
+    "@example2024 argues this. @example2024 [p. 42] adds detail. A claim [@example2024].";
+  const result = preparePublication(
+    source,
+    format(source, "modern-language-association"),
+  );
+  assert.equal(
+    result.markdown,
+    "Example argues this. Example (42) adds detail. A claim (Example).",
+  );
+  assert.match(result.bibliography, /Example research/i);
+});
+
 test("note styles preserve punctuation and interleave citations with explanatory footnotes", () => {
   const source =
     "A claim [@example2024]. More[^explanation]. Again [@example2024].\n\n[^explanation]: A *helpful* explanation [@example2024].";

@@ -63,8 +63,13 @@ class Element {
     this.children.push(element);
     return element;
   }
-  createDiv(options?: { text?: string; cls?: string }) {
+  createDiv(options?: {
+    text?: string;
+    cls?: string;
+    attr?: Record<string, string>;
+  }) {
     const element = new Element("div", options?.text);
+    element.attrs = options?.attr ?? {};
     if (options?.cls) element.attrs.class = options.cls;
     this.children.push(element);
     return element;
@@ -486,10 +491,11 @@ test("diagnostics distinguish duplicate notes from conflicting ownership and ret
       ] as NonNullable<SourceRow["health"]>["notes"],
     },
   };
-  const render = (row: SourceRow) => {
+  const render = (row: SourceRow, error?: string) => {
     const root = new Element();
     renderSourceHealth(root as never, row, {
       busy: false,
+      error,
       recover() {},
       repair() {},
       show() {},
@@ -530,6 +536,24 @@ test("diagnostics distinguish duplicate notes from conflicting ownership and ret
     render(conflicting)
       .all()
       .some((el) => el.text === "Conflicting sources"),
+  );
+  const failed = render(
+    { ...missing, health: { ...missing.health!, problem: "missing-data" } },
+    "Enable this source's library in Settings → Stratum, then retry.",
+  ).children[0];
+  const alert = failed.children.find((el) =>
+    el.attrs.class?.includes("fetch-error"),
+  );
+  assert.equal(
+    alert?.text,
+    "Enable this source's library in Settings → Stratum, then retry.",
+    "A fetch failure is shown directly under the action buttons",
+  );
+  assert.ok(
+    failed.children.indexOf(alert) >
+      failed.children.findIndex((el) =>
+        el.attrs.class?.includes("health-actions"),
+      ),
   );
   const diagnostic = render(conflicting).children[0];
   assert.equal(diagnostic.children[0].text, "Conflicting sources");

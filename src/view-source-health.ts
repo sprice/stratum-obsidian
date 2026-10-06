@@ -43,6 +43,13 @@ export function renderSourceHealth(
                   : "Literature note missing",
   });
   const actions = issue.createDiv({ cls: "stratum-sources-health-actions" });
+  // A failed fetch must be readable beside the button that triggered it. Rows
+  // re-render often, so this is not a live region that would re-announce.
+  if (options.error)
+    issue.createDiv({
+      cls: "stratum-sources-issue stratum-sources-fetch-error",
+      text: options.error,
+    });
   const info = issue.createEl("details", {
     cls: "stratum-sources-health-details",
   });
@@ -140,10 +147,6 @@ export function renderSourceHealth(
     health?.problem === "conflicting-key"
   )
     action("Repair citation", "repair", options.repair);
-  if (options.error) {
-    message(options.error);
-    info.open = true;
-  }
   if (sourceNeedsAttention(row)) {
     action("Show citation in paper", "show-problem", options.show);
   }
