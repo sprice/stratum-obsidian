@@ -137,6 +137,7 @@ export function openChecklist(
       const input = label.createEl("input", { type: "checkbox" });
       input.checked = item.checked;
       input.disabled = Boolean(item.disabled);
+      if (item.disabled) label.addClass("is-disabled");
       input.setAttribute(
         "aria-disabled",
         String(Boolean(item.disabled) || pending),

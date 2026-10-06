@@ -643,7 +643,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 /* Collection browsing uses native colors and adapts to sidebars and mobile. */
 .stratum-collection-browser { display: flex; flex-direction: column; gap: var(--size-4-4); padding: var(--size-4-4); overflow: hidden; }
 .stratum-collection-header { display: flex; flex-direction: column; gap: var(--size-4-3); }
-.stratum-collection-details { display: contents; }
+.stratum-collection-details { display: flex; flex-direction: column; gap: var(--size-4-3); }
+.stratum-collection-details:empty { display: none; }
 .stratum-collection-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr); align-items: end; gap: var(--size-4-3); }
 .stratum-collection-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--size-4-2); }
 .stratum-collection-tools select, .stratum-collection-tools button { width: 100%; min-width: 0; }
@@ -811,7 +812,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-meta { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-top: var(--size-4-1); }
 .stratum-publish-row-actions { flex-shrink: 0; flex-wrap: nowrap; gap: var(--size-2-1); }
 /* Themes may override the browser's default hidden rule for buttons. */
-.stratum-publish-setup [hidden], .stratum-publish-panel [hidden] { display: none !important; }
+.stratum-publish-setup [hidden], .stratum-view .stratum-publish-panel [hidden] { display: none; }
 .stratum-publish-tools { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
 .stratum-publish-tool { padding: var(--size-4-3); }
 .stratum-publish-tool + .stratum-publish-tool { border-top: 1px solid var(--background-modifier-border); }
@@ -827,7 +828,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-setup summary { cursor: pointer; color: var(--text-muted); }
 .stratum-publish-setup code { display: block; margin-bottom: var(--size-4-2); }
 
-.stratum-pdf-preview { display: flex; flex-direction: column; height: 100%; padding: 0 !important; }
+.workspace-leaf-content .view-content.stratum-pdf-preview { display: flex; flex-direction: column; height: 100%; padding: 0; }
 .stratum-pdf-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--size-4-2); padding: var(--size-4-2) var(--size-4-3); border-bottom: 1px solid var(--background-modifier-border); }
 .stratum-pdf-toolbar input { width: 4.5em; }
 .stratum-pdf-toolbar select { margin-inline-start: auto; }
@@ -841,7 +842,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-style-checklist > input { width: 100%; margin-bottom: var(--size-2-2); }
 .stratum-style-checklist .stratum-tab-chooser-option span { overflow-wrap: anywhere; }
 .stratum-checklist-badge { margin-left: auto; font-size: var(--font-ui-smaller); color: var(--text-muted); }
-.stratum-style-checklist .stratum-tab-chooser-option:has(input:disabled) { cursor: default; }
+.stratum-style-checklist .stratum-tab-chooser-option.is-disabled { cursor: default; }
 
 /* Reserve room for the native search focus ring inside clipping panels. */
 .stratum-control-search { min-width: 0; padding: var(--size-4-1); box-sizing: border-box; }

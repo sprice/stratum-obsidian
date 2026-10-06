@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -141,6 +142,52 @@ test("pnpm entry-point execution forwards script arguments and runs in the curre
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
+});
+
+for (const name of ["pnpm.cjs", "pnpm"]) {
+  test(`pnpm JavaScript launcher ${name} runs through Node without shell parsing`, () => {
+    const folder = mkdtempSync(join(tmpdir(), "quiet-script-"));
+    try {
+      const entry = join(folder, name);
+      writeFileSync(
+        entry,
+        "#!/usr/bin/env node\nconsole.log(JSON.stringify({args: process.argv.slice(2), cwd: process.cwd()}));\n",
+      );
+      const args = ["space separated", "$(echo unwanted)", "; exit 99"];
+      const result = spawnSync(process.execPath, [runner, "pnpm", ...args], {
+        cwd: folder,
+        env: { ...env, npm_execpath: entry, STRATUM_VERBOSE: "1" },
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const output = JSON.parse(result.stdout);
+      assert.deepEqual(output.args, args);
+      assert.equal(output.cwd, realpathSync(folder));
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+}
+
+test("standalone native pnpm entry points are executed rather than parsed as JavaScript", () => {
+  // Node itself is a portable native executable fixture (ELF, Mach-O, or PE).
+  const args = ["space separated", "$(echo unwanted)", "; exit 99"];
+  const result = spawnSync(
+    process.execPath,
+    [
+      runner,
+      "pnpm",
+      "-e",
+      "console.log(JSON.stringify(process.argv.slice(1)))",
+      ...args,
+    ],
+    {
+      env: { ...env, npm_execpath: process.execPath, STRATUM_VERBOSE: "1" },
+      encoding: "utf8",
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), args);
 });
 
 test(

@@ -194,13 +194,6 @@ export class PublishSetupModal extends Modal {
         brew.createEl("summary", { text: "Homebrew installation" });
         const command = `brew install ${missing.join(" ")}`;
         brew.createEl("code", { text: command });
-        brew
-          .createEl("button", { text: "Copy command" })
-          .addEventListener("click", () => {
-            void navigator.clipboard
-              .writeText(command)
-              .catch((error) => publish.fail(error));
-          });
       }
     }
     this.downloadNote.hidden = !!ready?.pdf;

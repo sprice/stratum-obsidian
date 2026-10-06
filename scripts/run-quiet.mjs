@@ -27,11 +27,28 @@ const verbose = process.env.STRATUM_VERBOSE === "1";
 const folder = verbose ? null : mkdtempSync(join(tmpdir(), "stratum-check-"));
 const log = folder && join(folder, "output.log");
 const fd = log ? openSync(log, "w", 0o600) : null;
-// pnpm's JS entry point avoids shell parsing and .cmd spawning on Windows.
+// pnpm may provide a JavaScript entry point or a standalone native executable.
+// Only scripts need Node; native executables must be spawned directly.
 const pnpmEntry = command === "pnpm" && process.env.npm_execpath;
+function isNodeScript(path) {
+  if (/\.(?:cjs|mjs|js)$/i.test(path)) return true;
+  let entry;
+  try {
+    entry = openSync(path, "r");
+    const prefix = Buffer.alloc(256);
+    const length = readSync(entry, prefix, 0, prefix.length, 0);
+    return /^#![^\r\n]*\bnode(?:\s|$)/.test(prefix.toString("utf8", 0, length));
+  } catch {
+    // Let spawn report an inaccessible or missing executable normally.
+    return false;
+  } finally {
+    if (entry !== undefined) closeSync(entry);
+  }
+}
+const pnpmScript = pnpmEntry && isNodeScript(pnpmEntry);
 const child = spawn(
-  pnpmEntry ? process.execPath : command,
-  pnpmEntry ? [pnpmEntry, ...args] : args,
+  pnpmScript ? process.execPath : pnpmEntry || command,
+  pnpmScript ? [pnpmEntry, ...args] : args,
   {
     stdio: fd === null ? "inherit" : ["inherit", fd, fd],
     detached: process.platform !== "win32",
