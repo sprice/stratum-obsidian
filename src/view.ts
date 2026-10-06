@@ -590,13 +590,16 @@ export class StratumView extends ItemView {
       label: string;
     }>,
   ): void {
+    const label = container.createSpan({ text: `${PLUGIN_NAME} panels` });
+    label.id = `${this.tabIdPrefix}-tablist-label`;
+    label.hidden = true;
     const tabBar = container.createDiv({ cls: "stratum-tab-bar" });
     tabBar.setCssProps({
-      "--stratum-tab-count": String(tabs.length),
+      "--stratum-tab-count": String(Math.min(3, tabs.length)),
       "--stratum-compact-tab-count": String(Math.min(2, tabs.length)),
     });
     tabBar.setAttr("role", "tablist");
-    tabBar.setAttr("aria-label", `${PLUGIN_NAME} panels`);
+    tabBar.setAttr("aria-labelledby", label.id);
 
     tabs.forEach((tab, index) => {
       const button = tabBar.createEl("button", {

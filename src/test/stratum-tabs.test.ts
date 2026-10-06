@@ -126,6 +126,13 @@ class Element {
     this.children.push(child);
     return child;
   }
+  createSpan(options?: { text?: string }) {
+    const child = new Element("span");
+    child.text = options?.text ?? "";
+    child.doc = this.doc;
+    this.children.push(child);
+    return child;
+  }
   setAttr(key: string, value: string) {
     this.attrs[key] = value;
   }
@@ -278,7 +285,14 @@ for (const desktop of [true, false]) {
     f.view.render();
     const bar = () =>
       f.content.all().find((el) => el.attrs.role === "tablist")!;
-    assert.equal(bar().cssProps["--stratum-tab-count"], desktop ? "5" : "4");
+    assert.equal(bar().attrs["aria-label"], undefined);
+    assert.equal(bar().attrs.title, undefined);
+    const label = f.content.querySelector(
+      `#${bar().attrs["aria-labelledby"]}`,
+    )!;
+    assert.equal(label.text, "Stratum panels");
+    assert.equal(label.hidden, true);
+    assert.equal(bar().cssProps["--stratum-tab-count"], "3");
     assert.equal(bar().cssProps["--stratum-compact-tab-count"], "2");
     f.plugin.settings.enabledTabs = { ...allOff(), reader: true };
     f.view.render();
