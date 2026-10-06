@@ -73,6 +73,11 @@
 	outline-offset: -2px;
 }
 
+/* Panel layout classes must not override the native hidden state. */
+.stratum-tab-content > [hidden] {
+	display: none;
+}
+
 .stratum-tab-content {
 	min-width: 0;
 	min-height: 0;

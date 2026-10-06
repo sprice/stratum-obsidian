@@ -247,7 +247,7 @@ export class CollectionBrowserView extends ItemView {
     details: HTMLElement,
     choice: ReturnType<typeof buildCollectionChoices>[number] | undefined,
     container: HTMLElement,
-  ): void {
+  ): ToggleComponent | null {
     details.empty();
     if (!choice)
       details.createDiv({
@@ -265,7 +265,7 @@ export class CollectionBrowserView extends ItemView {
         cls: "stratum-collection-toggle",
       });
       label.createSpan({ text: "Include subcollections" });
-      new ToggleComponent(label)
+      return new ToggleComponent(label)
         .setValue(this.state.includeSubcollections)
         .setTooltip("Include subcollections")
         .onChange((value) => {
@@ -276,6 +276,7 @@ export class CollectionBrowserView extends ItemView {
           this.refreshOtherControls(container);
         });
     }
+    return null;
   }
   private renderControls(
     container: HTMLElement,
@@ -397,6 +398,7 @@ export class CollectionBrowserView extends ItemView {
     });
     let optionsSignature = "";
     let detailsSignature = "";
+    let subcollections: ToggleComponent | null = null;
     controls.update = () => {
       const choices = buildCollectionChoices(
         this.papers,
@@ -450,12 +452,16 @@ export class CollectionBrowserView extends ItemView {
       const nextDetailsSignature = JSON.stringify([
         Boolean(choice),
         hasChildren,
-        this.state.includeSubcollections,
       ]);
       if (detailsSignature !== nextDetailsSignature) {
-        this.renderCollectionDetails(collectionDetails, choice, container);
+        subcollections = this.renderCollectionDetails(
+          collectionDetails,
+          choice,
+          container,
+        );
         detailsSignature = nextDetailsSignature;
       }
+      subcollections?.setValue(this.state.includeSubcollections);
     };
     controls.update();
     this.updateControlStatus();

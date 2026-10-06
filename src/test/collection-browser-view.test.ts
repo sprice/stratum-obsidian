@@ -190,6 +190,25 @@ test("sidebar controls filter main-pane results and preserve state through refre
             return this;
           }
         },
+        ToggleComponent: class {
+          toggleEl: Element;
+          constructor(container: Element) {
+            this.toggleEl = container.createEl("input", {
+              attr: { "aria-label": "Include subcollections" },
+            });
+          }
+          setValue(value: boolean) {
+            this.toggleEl.value = String(value);
+            return this;
+          }
+          setTooltip() {
+            return this;
+          }
+          onChange(callback: (value: boolean) => void) {
+            this.toggleEl.change = (value) => callback(value === "true");
+            return this;
+          }
+        },
         DropdownComponent: class {
           selectEl: Element;
           constructor(container: Element) {
@@ -424,6 +443,53 @@ test("sidebar controls filter main-pane results and preserve state through refre
   assert.equal(
     sidebar.querySelector('select[aria-label="Choose layout"]'),
     layoutBeforeRecovery,
+  );
+  Object.assign(plugin.settings.collectionCatalogs, {
+    "user:1": {
+      libraryName: "Synthetic library",
+      updatedAt: 1,
+      collections: [
+        {
+          key: "PARENT",
+          name: "Parent",
+          parentCollectionKey: null,
+          displayName: "Parent",
+        },
+        {
+          key: "CHILD",
+          name: "Child",
+          parentCollectionKey: "PARENT",
+          displayName: "Parent / Child",
+        },
+      ],
+    },
+  });
+  await view.setState(
+    { ...view.getState(), collection: JSON.stringify(["user:1", "PARENT"]) },
+    {} as never,
+  );
+  const toggle = sidebar.querySelector(
+    'input[aria-label="Include subcollections"]',
+  );
+  assert.ok(toggle);
+  toggle.focus();
+  toggle.value = "false";
+  toggle.change!("false");
+  events.get("changed")!();
+  assert.equal(
+    sidebar.querySelector('input[aria-label="Include subcollections"]'),
+    toggle,
+  );
+  assert.equal(sidebar.doc.activeElement, toggle);
+  assert.equal(toggle.value, "false");
+  assert.equal(
+    peerSidebar.querySelector('input[aria-label="Include subcollections"]')
+      .value,
+    "false",
+  );
+  await view.setState(
+    { ...view.getState(), collection: "unfiled" },
+    {} as never,
   );
   unmount();
   const detachedInput = sidebar.querySelector("input");
