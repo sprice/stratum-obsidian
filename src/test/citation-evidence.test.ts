@@ -74,6 +74,7 @@ function fixture() {
     settings: { enabledTabs: { reader: true, sources: true } },
     activeViewTab: "sources",
     readerNoteFile: null as unknown,
+    saveSettings: () => Promise.resolve(),
     register: (fn: () => void) => cleanup.push(fn),
     refreshViews() {},
     activateView: () => Promise.resolve(),
