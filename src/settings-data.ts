@@ -1,3 +1,4 @@
+import { DEFAULT_SOURCE_SUMMARY_TEMPLATE } from "./source-summary-template";
 import { DEFAULT_NOTES_TEMPLATE } from "./literature-note-template";
 import { INITIAL_CITATION_STYLES } from "./citation-style-defaults";
 import {
@@ -61,6 +62,7 @@ export interface StratumSettings {
   collectionCatalogs: CollectionCatalogs;
   notesFolder: string;
   notesTemplate: string;
+  sourceSummaryTemplate: string;
   filenameFormat: LiteratureNoteFilenameFormat;
   bulkSyncEnabled: boolean;
   bulkSyncPreferenceInitialized: boolean;
@@ -98,6 +100,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   collectionCatalogs: {},
   notesFolder: DEFAULT_NOTE_FOLDER,
   notesTemplate: DEFAULT_NOTES_TEMPLATE,
+  sourceSummaryTemplate: DEFAULT_SOURCE_SUMMARY_TEMPLATE,
   filenameFormat: "readable",
   bulkSyncEnabled: false,
   bulkSyncPreferenceInitialized: false,

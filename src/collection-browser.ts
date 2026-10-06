@@ -10,6 +10,9 @@ import {
 import {
   ItemView,
   Keymap,
+  Menu,
+  TFile,
+  setIcon,
   ToggleComponent,
   debounce,
   type ViewStateResult,
@@ -113,6 +116,7 @@ export class CollectionBrowserView extends ItemView {
   private resultCount = 0;
   private statusMessage = "";
   private results!: HTMLElement;
+  private destinationLabel?: HTMLElement;
   private controls = new Set<BrowserControls>();
   private contentReady = false;
   constructor(
@@ -153,6 +157,12 @@ export class CollectionBrowserView extends ItemView {
         this.updateShowResultsVisibility();
       }),
     );
+    if (this.plugin.sourceSummaries)
+      this.register(
+        this.plugin.sourceSummaries.subscribe(() =>
+          this.updateDestinationLabel(),
+        ),
+      );
     const refresh = debounce(() => this.render(), 200, true);
     this.register(onCollectionCatalogChange(this.plugin, refresh));
     this.registerEvent(this.app.metadataCache.on("changed", refresh));
@@ -184,6 +194,8 @@ export class CollectionBrowserView extends ItemView {
     this.papers = getCollectionPapers(this.plugin);
     this.contentEl.empty();
     this.contentEl.addClass("stratum-collection-browser");
+    this.destinationLabel = this.contentEl.createDiv({ cls: "stratum-meta" });
+    this.updateDestinationLabel();
     this.results = this.contentEl.createDiv({
       cls: "stratum-collection-results",
     });
@@ -571,8 +583,17 @@ export class CollectionBrowserView extends ItemView {
     this.results.scrollTop = this.state.scrollTop;
     this.results.scrollLeft = this.state.scrollLeft;
   }
+  private updateDestinationLabel(): void {
+    const status = this.plugin.sourceSummaries?.destinationStatus();
+    this.destinationLabel?.setText(
+      status?.name
+        ? `Insert into: ${status.name}`
+        : "Open a working note in editing view to insert a source summary.",
+    );
+  }
   private renderTitle(row: HTMLElement, paper: CollectionPaper): void {
-    const link = row.createEl("a", {
+    const heading = row.createDiv({ cls: "stratum-source-summary-heading" });
+    const link = heading.createEl("a", {
       cls: "internal-link stratum-collection-title",
       text: paper.title,
       href: paper.path,
@@ -585,6 +606,29 @@ export class CollectionBrowserView extends ItemView {
         Keymap.isModEvent(event) || "tab",
       );
     };
+    const actions = heading.createEl("button", {
+      cls: "clickable-icon stratum-source-summary-actions",
+      attr: { "aria-label": "Source actions", type: "button" },
+    });
+    setIcon(actions, "ellipsis");
+    actions.addEventListener("click", (event) => {
+      const controller = this.plugin.sourceSummaries;
+      const status = controller?.destinationStatus();
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item
+          .setTitle("Insert source summary")
+          .setIcon("text-cursor-input")
+          .setDisabled(!controller || !!status?.error)
+          .onClick(() => {
+            const file = this.app.vault.getAbstractFileByPath(paper.path);
+            if (file instanceof TFile) controller?.insert(file);
+          }),
+      );
+      if (status?.error)
+        menu.addItem((item) => item.setTitle(status.error!).setDisabled(true));
+      menu.showAtMouseEvent(event);
+    });
     link.addEventListener("click", open);
     link.addEventListener("auxclick", (event) => {
       if (event.button === 1) open(event);

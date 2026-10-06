@@ -1,3 +1,7 @@
+import {
+  SOURCE_SUMMARY_VARIABLES,
+  validateSourceSummaryTemplate,
+} from "./source-summary-template";
 import { STRATUM_TABS, readEnabledTabs } from "./stratum-tabs";
 import { openTabChooser } from "./settings-tab-chooser";
 import {
@@ -57,6 +61,35 @@ export class StratumSettingTab extends PluginSettingTab {
           throw error;
         }
         this.plugin.refreshViews();
+      },
+    ).open();
+  }
+
+  async openSourceSummaryTemplateEditor(): Promise<void> {
+    const { NoteTemplateModal } = await import("./note-template-modal");
+    if (this.plugin.isUnloaded) return;
+    new NoteTemplateModal(
+      this.app,
+      this.plugin.settings.sourceSummaryTemplate,
+      async (template) => {
+        if (this.plugin.isUnloaded) throw new Error("Plugin was unloaded.");
+        const previous = this.plugin.settings.sourceSummaryTemplate;
+        this.plugin.settings.sourceSummaryTemplate = template;
+        try {
+          await this.plugin.saveSettings();
+        } catch (error) {
+          this.plugin.settings.sourceSummaryTemplate = previous;
+          throw error;
+        }
+      },
+      {
+        title: "Source summary template",
+        description: [
+          "Starting content for source summaries you insert into your notes.",
+          "Changes apply to future insertions. Existing summaries remain yours to edit.",
+        ],
+        variables: SOURCE_SUMMARY_VARIABLES,
+        validate: validateSourceSummaryTemplate,
       },
     ).open();
   }
@@ -259,6 +292,25 @@ export class StratumSettingTab extends PluginSettingTab {
           .addButton((button) =>
             button.setButtonText("Edit template").onClick(() => {
               void this.openNoteTemplateEditor().catch(
+                () => new Notice("Could not open the template editor."),
+              );
+            }),
+          );
+      },
+    );
+
+    this.defineSetting(
+      defaultsSection,
+      "Source summary template",
+      (setting) => {
+        setting
+          .setName("Source summary template")
+          .setDesc(
+            "Starting content when inserting a source summary into a note.",
+          )
+          .addButton((button) =>
+            button.setButtonText("Edit template").onClick(() => {
+              void this.openSourceSummaryTemplateEditor().catch(
                 () => new Notice("Could not open the template editor."),
               );
             }),

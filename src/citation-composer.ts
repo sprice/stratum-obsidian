@@ -2,6 +2,7 @@ import { CitationComposer } from "./citation-composer-modal";
 import { Notice, TFile, type Editor } from "obsidian";
 import type StratumPlugin from "./plugin";
 import {
+  LiteratureNoteSearchModal,
   buildLiteratureNoteEntries,
   type LiteratureNoteEntry,
 } from "./library-search-modal";
@@ -23,7 +24,7 @@ import {
 } from "./citation-model";
 
 interface ComposerSession {
-  active: Set<CitationComposer>;
+  active: Set<{ close(): void }>;
   disposed: boolean;
 }
 const sessions = new WeakMap<StratumPlugin, ComposerSession>();
@@ -120,8 +121,8 @@ export async function openCitationComposer(
     draft.items.push(citationItem(key));
   }
   const entriesSignature = citationEntriesSignature(entries);
-  const unchanged = () =>
-    modal.isActive &&
+  const noteUnchanged = () =>
+    !session.disposed &&
     editor.getValue() === original &&
     citationEntriesSignature(buildLiteratureNoteEntries(plugin)) ===
       entriesSignature &&
@@ -129,6 +130,7 @@ export async function openCitationComposer(
       const view = leaf.view as unknown as { editor?: Editor; file?: TFile };
       return view.editor === editor && view.file === file;
     });
+  const unchanged = () => modal.isActive && noteUnchanged();
   const modal = new CitationComposer(
     plugin,
     preferCitedSources(entries, original, bibliography),
@@ -179,7 +181,47 @@ export async function openCitationComposer(
     },
     index.label,
   );
-  session.active.add(modal);
-  modal.onDismiss = () => session.active.delete(modal);
-  modal.open();
+  const openDetails = () => {
+    session.active.add(modal);
+    modal.onDismiss = () => session.active.delete(modal);
+    modal.open();
+  };
+  if (initial || existing) {
+    openDetails();
+    return;
+  }
+  class InitialSourcePicker extends LiteratureNoteSearchModal {
+    onClose(): void {
+      session.active.delete(this);
+      super.onClose();
+    }
+  }
+  const picker = new InitialSourcePicker(
+    plugin.app,
+    preferCitedSources(entries, original, bibliography),
+    (entry) => {
+      if (session.disposed) return;
+      if (!noteUnchanged()) {
+        new Notice(
+          "The original note or sources changed. Reopen the citation command.",
+        );
+        return;
+      }
+      try {
+        const key = resolveKey(entry);
+        selected.set(key, entry);
+        draft.items.push(citationItem(key));
+        openDetails();
+      } catch (error) {
+        new Notice(
+          error instanceof Error
+            ? error.message
+            : "Cannot safely resolve this citation key.",
+        );
+      }
+    },
+    index.label,
+  );
+  session.active.add(picker);
+  picker.open();
 }

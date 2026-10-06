@@ -32,6 +32,7 @@ function createSettings(params: {
     collectionCatalogs: {},
     notesFolder: "Literature Notes",
     notesTemplate: "## My Notes",
+    sourceSummaryTemplate: "{{title_with_link}}",
     filenameFormat: "readable",
     bulkSyncEnabled: true,
     bulkSyncPreferenceInitialized: true,

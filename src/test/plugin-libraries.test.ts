@@ -46,6 +46,7 @@ function createMockPlugin(params?: {
     collectionCatalogs: {},
     notesFolder: "Notes/Literature Notes",
     notesTemplate: "## My Notes",
+    sourceSummaryTemplate: "{{title_with_link}}",
     filenameFormat: "readable",
     bulkSyncEnabled: false,
     bulkSyncPreferenceInitialized: true,
