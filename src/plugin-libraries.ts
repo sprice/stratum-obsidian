@@ -242,6 +242,8 @@ export function clearLibrarySearchState(plugin: StratumPlugin): void {
   plugin.isSearchingLibrary = false;
   plugin.highlightedLibrarySearchIndex = -1;
   plugin.selectedLibraryResult = null;
+  plugin.selectedLibraryNoteFile = null;
+  plugin.libraryNoteActionError = null;
   plugin.isSelectedLibraryAbstractExpanded = false;
 }
 

@@ -1,5 +1,8 @@
 import type { ZoteroSearchResult } from "./backend-client";
 import type StratumPlugin from "./plugin";
+import type { CachedMetadata, TFile } from "obsidian";
+import { getLiteratureNoteMatchPriority } from "./literature-note-matching";
+import { getSelectedSearchLibrary } from "./plugin-libraries";
 
 const LIBRARY_PICKER_CLOSE_DELAY_MS = 120;
 
@@ -72,7 +75,15 @@ export function selectLibrarySearchResult(
   result: ZoteroSearchResult,
 ): void {
   cancelLibraryPickerClose(plugin);
-  plugin.librarySearchQuery = result.title;
+  plugin.libraryNoteActionError = null;
+  const library = getSelectedSearchLibrary(plugin);
+  plugin.selectedLibraryNoteFile = library
+    ? plugin.findExistingLiteratureNoteFile({
+        libraryType: library.type,
+        libraryId: library.id,
+        itemKey: result.key,
+      })
+    : null;
   plugin.isLibraryPickerOpen = false;
   plugin.highlightedLibrarySearchIndex = -1;
   plugin.selectedLibraryResult = result;
@@ -85,6 +96,8 @@ export function clearSelectedLibraryResult(
   options?: { resetQuery?: boolean },
 ): void {
   plugin.selectedLibraryResult = null;
+  plugin.selectedLibraryNoteFile = null;
+  plugin.libraryNoteActionError = null;
   plugin.isSelectedLibraryAbstractExpanded = false;
   if (options?.resetQuery) {
     plugin.librarySearchQuery = "";
@@ -119,4 +132,34 @@ export function syncSelectedLibraryResult(
   if (refreshedSelection) {
     plugin.selectedLibraryResult = refreshedSelection;
   }
+}
+
+// Recheck only events involving the selected source, avoiding a vault scan for
+// every unrelated edit while keeping create/update controls current.
+export function refreshSelectedLibraryNoteForFile(
+  plugin: StratumPlugin,
+  file: TFile,
+  cache?: CachedMetadata | null,
+): boolean {
+  const selected = plugin.selectedLibraryResult;
+  const library = getSelectedSearchLibrary(plugin);
+  if (!selected || !library) return false;
+  const identity = {
+    libraryType: library.type,
+    libraryId: library.id,
+    itemKey: selected.key,
+  };
+  const isCurrentFile = plugin.selectedLibraryNoteFile?.path === file.path;
+  const frontmatter =
+    cache?.frontmatter ??
+    plugin.app.metadataCache.getFileCache(file)?.frontmatter;
+  if (
+    !isCurrentFile &&
+    getLiteratureNoteMatchPriority(frontmatter, identity) === null
+  )
+    return false;
+  const next = plugin.findExistingLiteratureNoteFile(identity);
+  if (next === plugin.selectedLibraryNoteFile) return false;
+  plugin.selectedLibraryNoteFile = next;
+  return true;
 }

@@ -61,6 +61,7 @@ import {
   scheduleLibraryPickerClose,
   selectHighlightedLibraryResult,
   selectLibrarySearchResult,
+  refreshSelectedLibraryNoteForFile,
   toggleSelectedLibraryAbstract,
 } from "./plugin-library-selection";
 import {
@@ -162,6 +163,12 @@ export default class StratumPlugin extends Plugin {
   highlightedLibrarySearchIndex = -1;
   selectedLibraryResult: ZoteroSearchResult | null = null;
   isSelectedLibraryAbstractExpanded = false;
+  selectedLibraryNoteFile: TFile | null = null;
+  libraryNoteActionError: {
+    key: string;
+    libraryIdentity: string;
+    message: string;
+  } | null = null;
   activeNoteActionKey: string | null = null;
   publish: PublishController | null = null;
   sources!: SourcesController;
@@ -414,11 +421,22 @@ export default class StratumPlugin extends Plugin {
     this.registerEvent(
       this.app.metadataCache.on("changed", (file, _data, cache) => {
         syncItemFileMapForFile(this, file, cache);
+        if (
+          refreshSelectedLibraryNoteForFile(this, file, cache) &&
+          this.activeViewTab === "search"
+        )
+          this.refreshViews();
       }),
     );
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         handleItemFileRename(this, file, oldPath);
+        if (
+          file instanceof TFile &&
+          refreshSelectedLibraryNoteForFile(this, file) &&
+          this.activeViewTab === "search"
+        )
+          this.refreshViews();
         if (file instanceof TFile && this.readerNoteFile?.path === oldPath) {
           this.readerNoteFile = file;
           if (this.activeViewTab === "reader") {
@@ -430,6 +448,12 @@ export default class StratumPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         handleItemFileDelete(this, file);
+        if (
+          file instanceof TFile &&
+          refreshSelectedLibraryNoteForFile(this, file) &&
+          this.activeViewTab === "search"
+        )
+          this.refreshViews();
         if (file instanceof TFile && this.readerNoteFile?.path === file.path) {
           this.readerNoteFile = null;
           if (this.activeViewTab === "reader") {

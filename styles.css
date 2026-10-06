@@ -423,46 +423,46 @@
 
 .stratum-selected-paper {
 	padding: 1rem;
-	border: 1px solid
-		color-mix(
-			in srgb,
-			var(--color-accent) 22%,
-			var(--background-modifier-border)
-		);
-	border-radius: 14px;
-	background: color-mix(
-		in srgb,
-		var(--background-secondary) 88%,
-		var(--color-accent) 12%
-	);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	min-width: 0;
 }
 
-.stratum-selected-label {
-	margin: 0 0 0.35rem;
-	color: var(--color-accent);
-	font-size: 0.78rem;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+.stratum-selected-open-note {
+	margin-inline-start: auto;
 }
 
 .stratum-selected-title {
 	margin: 0 0 0.35rem;
-	font-size: 1.02rem;
-	font-weight: 700;
-	line-height: 1.35;
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.stratum-selected-paper > .stratum-inline-action {
+	margin-top: 0.75rem;
 }
 
 .stratum-selected-abstract {
 	margin-top: 0.85rem;
 	padding-top: 0.85rem;
-	border-top: 1px solid
-		color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+	border-top: 1px solid var(--background-modifier-border);
 }
 
-.stratum-selected-abstract-label {
-	margin: 0 0 0.3rem;
-	font-weight: 700;
+.stratum-selected-abstract summary {
+	cursor: pointer;
+	color: var(--text-muted);
+}
+
+.stratum-selected-abstract summary:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 3px;
+}
+
+.stratum-selected-abstract p {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 .stratum-inline-button {
@@ -471,10 +471,11 @@
 }
 
 .stratum-selected-note {
-	margin-top: 0.85rem;
-	padding-top: 0.85rem;
-	border-top: 1px solid
-		color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+	margin: 0.5rem 0;
+}
+
+.stratum-selected-doi {
+	overflow-wrap: anywhere;
 }
 
 .stratum-reader-header {

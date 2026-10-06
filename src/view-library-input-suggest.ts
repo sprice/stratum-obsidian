@@ -22,6 +22,13 @@ export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchR
   }
 
   protected getSuggestions(query: string): ZoteroSearchResult[] {
+    if (
+      !this.inputEl.isConnected ||
+      this.inputEl.disabled ||
+      this.view.plugin.isUnloaded ||
+      this.view.plugin.activeNoteActionKey
+    )
+      return [];
     const snapshot = this.view.plugin.library.fetchSuggestions(query);
     if (snapshot.pending && snapshot.pending !== this.watchedPendingSearch) {
       this.watchedPendingSearch = snapshot.pending;
@@ -31,6 +38,13 @@ export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchR
         }
 
         this.watchedPendingSearch = null;
+        if (
+          !this.inputEl.isConnected ||
+          this.inputEl.disabled ||
+          this.view.plugin.isUnloaded ||
+          this.view.plugin.activeNoteActionKey
+        )
+          return;
         this.onStateChange();
         if (this.inputEl.value !== query) {
           return;
@@ -49,7 +63,13 @@ export class LibraryPaperInputSuggest extends AbstractInputSuggest<ZoteroSearchR
   }
 
   selectSuggestion(value: ZoteroSearchResult): void {
-    this.setValue(value.title);
+    if (
+      !this.inputEl.isConnected ||
+      this.inputEl.disabled ||
+      this.view.plugin.isUnloaded ||
+      this.view.plugin.activeNoteActionKey
+    )
+      return;
     this.close();
     this.onStateChange();
     void this.view.plugin.library.selectResult(value);

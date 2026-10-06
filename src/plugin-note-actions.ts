@@ -41,15 +41,22 @@ export async function createLiteratureNote(
     return;
   }
 
-  if (!plugin.backend.hasSession()) {
-    new Notice(`${PLUGIN_NAME}: sign in before creating a literature note.`);
-    return;
-  }
+  plugin.libraryNoteActionError = null;
 
-  if (!(await ensureZoteroConnection(plugin, { refresh: true }))) {
-    new Notice(
-      `${PLUGIN_NAME}: Connect Zotero before creating a literature note.`,
-    );
+  const actionLibrary = getSelectedSearchLibrary(plugin);
+  const showError = (message: string) => {
+    if (actionLibrary) {
+      plugin.libraryNoteActionError = {
+        key: result.key,
+        libraryIdentity: actionLibrary.identity,
+        message,
+      };
+    }
+    plugin.refreshViews();
+  };
+
+  if (!plugin.backend.hasSession()) {
+    showError("Sign in before creating a literature note.");
     return;
   }
 
@@ -58,10 +65,19 @@ export async function createLiteratureNote(
   plugin.highlightedLibrarySearchIndex = -1;
   plugin.refreshViews();
 
+  let savedNote = false;
   try {
+    if (!(await ensureZoteroConnection(plugin, { refresh: true }))) {
+      showError("Connect Zotero in settings, then try again.");
+      return;
+    }
+
     const selectedLibrary = getSelectedSearchLibrary(plugin);
-    if (!selectedLibrary) {
-      throw new Error("Select a Zotero library before creating a note.");
+    if (
+      !selectedLibrary ||
+      selectedLibrary.identity !== actionLibrary?.identity
+    ) {
+      throw new Error("The selected Zotero library is no longer available.");
     }
     const detail = await requireZoteroItemDetailForNoteSync(plugin, {
       library: selectedLibrary,
@@ -99,6 +115,8 @@ export async function createLiteratureNote(
       enrichmentMode: "load",
     });
 
+    savedNote = true;
+    plugin.selectedLibraryNoteFile = writeResult.file;
     await plugin.app.workspace.getLeaf(true).openFile(writeResult.file);
     plugin.library.clearSelection({ resetQuery: true });
     new Notice(
@@ -108,24 +126,22 @@ export async function createLiteratureNote(
     );
   } catch (error) {
     console.error("stratum: failed to create literature note", error);
+    let message = savedNote
+      ? "The literature note was saved, but could not be opened. Please try Open note."
+      : "Could not create or update the literature note. Please try again.";
     if (error instanceof ZoteroTokenInvalidError) {
       markZoteroTokenInvalid(plugin);
-      new Notice(
-        `${PLUGIN_NAME}: Zotero connection is no longer valid. Please reconnect in settings.`,
-      );
+      message = "Reconnect Zotero in settings, then try again.";
     } else if (error instanceof ZoteroNotConnectedError) {
       markZoteroDisconnected(plugin);
-      new Notice(
-        `${PLUGIN_NAME}: Zotero is not connected. Please connect it again in settings.`,
-      );
-    } else {
-      new Notice(
-        `${PLUGIN_NAME}: ${
-          error instanceof Error
-            ? error.message
-            : "Literature note creation failed."
-        }`,
-      );
+      message = "Connect Zotero in settings, then try again.";
+    }
+    if (actionLibrary) {
+      plugin.libraryNoteActionError = {
+        key: result.key,
+        libraryIdentity: actionLibrary.identity,
+        message,
+      };
     }
   } finally {
     plugin.activeNoteActionKey = null;

@@ -59,11 +59,7 @@ import {
   getSelectedSyncLibrary,
   isLocalSyncSupported,
 } from "./plugin-local-sync";
-import {
-  ABSTRACT_TEASER_LENGTH,
-  getAbstractTeaser,
-  getSettingsManager,
-} from "./view-helpers";
+import { getSettingsManager } from "./view-helpers";
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 import {
   type BulkLibrarySyncState,
@@ -71,7 +67,7 @@ import {
   getBulkLibrarySyncButtonLabel,
   getBulkLibrarySyncStatusMessage as getBulkSyncStatusMessage,
 } from "./zotero-sync";
-import { normalizeDoi } from "./doi";
+import { renderSelectedLibraryPaper } from "./view-library-selection";
 import { refreshReaderLiteratureNote } from "./plugin-note-refresh";
 
 const BULK_SYNC_COMPLETION_STATUS_DELAY_MS = 4_000;
@@ -876,14 +872,6 @@ export class StratumView extends ItemView {
         return;
       }
 
-      if (this.plugin.activeNoteActionKey) {
-        feedbackContainer.createEl("p", {
-          cls: "stratum-meta stratum-combobox-status",
-          text: "Creating or updating the selected literature note...",
-        });
-        return;
-      }
-
       if (this.plugin.librarySearchQuery.trim() && !isReadyQuery) {
         feedbackContainer.createEl("p", {
           cls: "stratum-meta stratum-combobox-status",
@@ -950,6 +938,12 @@ export class StratumView extends ItemView {
       }
 
       this.plugin.library.setQuery(value);
+      selectedContainer.empty();
+      renderSelectedLibraryPaper(
+        this.plugin,
+        selectedContainer,
+        changeSelection,
+      );
       if (!isLibrarySearchQueryReady(value)) {
         this.paperSuggest?.close();
       }
@@ -979,88 +973,15 @@ export class StratumView extends ItemView {
     });
     renderSearchFeedback();
 
-    if (this.plugin.selectedLibraryResult) {
-      const selected = this.plugin.selectedLibraryResult;
-      const selectedCard = searchSection.createDiv({
-        cls: "stratum-selected-paper",
-      });
-      selectedCard.createEl("p", {
-        cls: "stratum-selected-label",
-        text: "Selected paper",
-      });
-      selectedCard.createEl("p", {
-        cls: "stratum-selected-title",
-        text: selected.title,
-      });
-      selectedCard.createEl("p", {
-        cls: "stratum-combobox-meta",
-        text: [selected.creators.join(", "), selected.year, selected.itemType]
-          .filter(Boolean)
-          .join(" · "),
-      });
-
-      if (selected.doi) {
-        selectedCard.createEl("p", {
-          cls: "stratum-meta",
-          text: `DOI: ${normalizeDoi(selected.doi) ?? selected.doi}`,
-        });
-      }
-
-      if (selected.abstract) {
-        const abstractPreview = selectedCard.createDiv({
-          cls: "stratum-selected-abstract",
-        });
-        abstractPreview.createEl("p", {
-          cls: "stratum-selected-abstract-label",
-          text: "Abstract",
-        });
-        abstractPreview.createEl("p", {
-          cls: "stratum-meta",
-          text: this.plugin.isSelectedLibraryAbstractExpanded
-            ? selected.abstract
-            : getAbstractTeaser(selected.abstract),
-        });
-
-        if (selected.abstract.length > ABSTRACT_TEASER_LENGTH) {
-          const toggleAbstractButton = createStratumButton(abstractPreview, {
-            className: "stratum-inline-button",
-            text: this.plugin.isSelectedLibraryAbstractExpanded
-              ? "Hide full abstract"
-              : "Show full abstract",
-          });
-          toggleAbstractButton.addEventListener("click", () => {
-            this.plugin.library.toggleAbstract();
-          });
-        }
-      }
-
-      const selectedActions = selectedCard.createDiv({
-        cls: "stratum-actions",
-      });
-      const createButton = createStratumButton(selectedActions, {
-        primary: true,
-        text:
-          this.plugin.activeNoteActionKey === selected.key
-            ? "Working..."
-            : this.plugin.isBulkLibrarySyncRunning()
-              ? "Bulk sync running..."
-              : "Create or update literature note",
-      });
-      if (
-        this.plugin.activeNoteActionKey ||
-        this.plugin.isBulkLibrarySyncRunning()
-      ) {
-        createButton.disabled = true;
-      }
-      createButton.addEventListener("click", () => {
-        void this.plugin.library.createNote(selected);
-      });
-
-      selectedCard.createEl("p", {
-        cls: "stratum-meta stratum-selected-note",
-        text: "Safe updates rewrite only managed sections and leave your own notes alone.",
-      });
-    }
+    const changeSelection = () => {
+      this.plugin.library.clearSelection();
+      // clearSelection rebuilds this tab. Focus the newly mounted search input.
+      this.contentEl
+        .querySelector<HTMLInputElement>("#stratum-paper-search")
+        ?.focus();
+    };
+    const selectedContainer = searchSection.createDiv();
+    renderSelectedLibraryPaper(this.plugin, selectedContainer, changeSelection);
   }
 
   private renderSyncTab(container: HTMLElement): void {
