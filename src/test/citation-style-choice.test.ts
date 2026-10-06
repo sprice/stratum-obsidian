@@ -24,7 +24,16 @@ function fixture(prepareGate?: Promise<void>) {
   };
   const runtime = loadRuntime<typeof Choice>(
     "citation-style-choice.ts",
-    {},
+    {
+      parseYaml: (text: string): Record<string, unknown> => {
+        const result: Record<string, unknown> = {};
+        for (const line of text.split("\n")) {
+          const [key, value] = line.split(": ");
+          result[key] = value;
+        }
+        return result;
+      },
+    },
     {},
     "node",
     {
@@ -113,6 +122,8 @@ test("selector shows the effective style, initially APA, and includes installed 
     f.file as never,
     "---\nstratum_citation_style: apa\n---\nDraft text",
   );
+  assert.equal(inherited.inherited, true);
+  assert.equal(explicit.inherited, false);
   assert.equal(inherited.selected, "apa");
   assert.equal(explicit.selected, "apa");
   assert.deepEqual(
@@ -213,4 +224,13 @@ test("returning to the default waits for an earlier slow style selection", async
   assert.equal(f.frontmatter.stratum_citation_language, undefined);
   assert.equal(f.frontmatter.title, "Synthetic draft");
   assert.equal(f.invalidations, 2);
+});
+
+test("resetting only the style preserves the independent language override", async () => {
+  const f = fixture();
+  await f.runtime.resetNoteCitationStyle(f.plugin as never, f.file as never);
+  assert.equal(f.frontmatter.stratum_citation_style, undefined);
+  assert.equal(f.frontmatter.stratum_citation_language, "en-GB");
+  assert.equal(f.frontmatter.title, "Synthetic draft");
+  assert.equal(f.invalidations, 1);
 });

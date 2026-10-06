@@ -29,9 +29,14 @@ export class SourcesPanel extends Component {
   private documentButton!: HTMLButtonElement;
   private pin!: HTMLButtonElement;
   private summary!: HTMLElement;
+  private context!: HTMLElement;
+  private pinStatus!: HTMLElement;
+  private attention!: HTMLButtonElement;
+  private attentionOnly = false;
   private tools!: HTMLElement;
   private citationStatus!: HTMLElement;
   private citationRevision = 0;
+  private citationControlsKey: string | null = null;
   private citationStyleSaving = false;
   private recovering = new Set<string>();
   private recoveryErrors = new Map<string, string>();
@@ -53,21 +58,25 @@ export class SourcesPanel extends Component {
     this.container.addClass("stratum-sources");
     const header = this.container.createDiv({ cls: "stratum-sources-header" });
     header.createEl("h3", { text: "Review citations" });
-    this.pin = header.createEl("button", { cls: "clickable-icon" });
-    this.pin.type = "button";
-    setIcon(this.pin, "pin");
-    this.pin.addEventListener("click", () => this.sources.togglePin());
     this.container.createEl("p", {
       cls: "stratum-placeholder",
       text: "Review sources cited or linked in your note",
     });
-    this.documentButton = this.container.createEl("button", {
+    this.context = this.container.createDiv({ cls: "stratum-sources-context" });
+    this.documentButton = this.context.createEl("button", {
       cls: "stratum-sources-document",
     });
     this.documentButton.type = "button";
     this.documentButton.addEventListener("click", () => {
       void this.sources.returnToDocument();
     });
+    this.pinStatus = this.context.createDiv({
+      cls: "stratum-sources-pin-status",
+    });
+    this.pin = this.context.createEl("button", { cls: "clickable-icon" });
+    this.pin.type = "button";
+    setIcon(this.pin, "pin");
+    this.pin.addEventListener("click", () => this.sources.togglePin());
     this.citationStatus = this.container.createDiv({
       cls: "stratum-citation-status",
     });
@@ -78,18 +87,19 @@ export class SourcesPanel extends Component {
     );
     this.summary = this.container.createDiv({ cls: "stratum-sources-summary" });
     this.summary.setAttr("role", "status");
+    this.attention = createStratumButton(this.summary, {
+      text: "Needs attention",
+    });
+    this.attention.addEventListener("click", () => {
+      this.attentionOnly = !this.attentionOnly;
+      this.state.scroll = 0;
+      this.renderRows();
+    });
     const tools = this.container.createDiv({ cls: "stratum-sources-tools" });
     this.tools = tools;
-    createStratumSearch(tools, {
-      ariaLabel: "Search citations",
-      placeholder: "Search citations…",
-      value: this.state.query,
-      onChange: (value) => {
-        this.state.query = value;
-        this.renderRows();
-      },
-    });
-    const sort = createStratumSelect(tools, {
+    const display = tools.createDiv({ cls: "stratum-sources-display" });
+    const sort = createStratumSelect(display, {
+      label: "Sort",
       ariaLabel: "Sort citations",
       value: this.state.sort,
       choices: [],
@@ -114,7 +124,12 @@ export class SourcesPanel extends Component {
       this.saveState();
       this.renderRows();
     });
-    const layout = createStratumSelect(tools, {
+    const viewGroup = display.createDiv({ cls: "stratum-sources-view-group" });
+    viewGroup.createDiv({ text: "View", cls: "stratum-control-label" });
+    const viewControls = viewGroup.createDiv({
+      cls: "stratum-sources-view-controls",
+    });
+    const layout = createStratumSelect(viewControls, {
       ariaLabel: "Citations layout",
       value: this.state.layout,
       choices: [],
@@ -122,7 +137,7 @@ export class SourcesPanel extends Component {
     layout.createEl("option", { value: "list", text: "List" });
     layout.createEl("option", { value: "table", text: "Table" });
     layout.value = this.state.layout;
-    const columns = createStratumButton(tools, {
+    const columns = createStratumButton(viewControls, {
       text: "Columns",
       tooltip: "Choose table columns",
     });
@@ -156,6 +171,16 @@ export class SourcesPanel extends Component {
       this.saveState();
       this.renderRows();
     });
+    createStratumSearch(tools, {
+      label: "Search",
+      ariaLabel: "Search citations",
+      placeholder: "Title, author, year, or citation key",
+      value: this.state.query,
+      onChange: (value) => {
+        this.state.query = value;
+        this.renderRows();
+      },
+    });
     this.list = this.container.createDiv({ cls: "stratum-sources-results" });
     this.list.tabIndex = 0;
     this.list.setAttr(
@@ -183,10 +208,16 @@ export class SourcesPanel extends Component {
         !this.citationStatus.isConnected
       )
         return;
+      const controlsKey = JSON.stringify({
+        choices,
+        saving: this.citationStyleSaving,
+      });
+      if (this.citationControlsKey === controlsKey) return;
+      this.citationControlsKey = controlsKey;
       this.citationStatus.empty();
       if (!choices) return;
       const dropdown = createStratumDropdown(this.citationStatus, {
-        label: "Citation style for this note",
+        label: "Citation style",
         ariaLabel: "Citation style for this note",
         value: choices.selected,
         choices: choices.options.map((option) => ({
@@ -194,6 +225,11 @@ export class SourcesPanel extends Component {
           label: option.title,
         })),
       });
+      if (choices.inherited)
+        this.citationStatus.createDiv({
+          cls: "stratum-sources-style-origin",
+          text: "Using default",
+        });
       let selected = choices.selected;
       dropdown.setDisabled(this.citationStyleSaving);
       dropdown.setValue(selected).onChange(async (value) => {
@@ -220,6 +256,7 @@ export class SourcesPanel extends Component {
       this.renderCitationSettingsButton();
     } catch (error) {
       if (revision !== this.citationRevision) return;
+      this.citationControlsKey = null;
       this.citationStatus.setText(
         error instanceof Error
           ? error.message
@@ -229,10 +266,11 @@ export class SourcesPanel extends Component {
     }
   }
   private renderCitationSettingsButton(): void {
-    const button = createStratumButton(this.citationStatus, {
-      className: "stratum-citation-settings-button",
-      text: "Manage citation styles",
+    const button = this.citationStatus.createEl("button", {
+      cls: "clickable-icon stratum-citation-settings-button",
+      attr: { "aria-label": "Manage citation styles" },
     });
+    setIcon(button, "settings");
     button.type = "button";
     button.title = "Open citation settings";
     button.addEventListener("click", () => {
@@ -254,10 +292,11 @@ export class SourcesPanel extends Component {
         ? active.dataset.sourceAction
         : undefined;
     const file = this.sources.document;
-    this.documentButton.textContent = file
-      ? `Citations for: ${file.basename}`
-      : "";
-    this.documentButton.hidden = !this.sources.showDocumentLink;
+    this.documentButton.textContent = file ? file.basename : "";
+    this.context.hidden = !file;
+    this.documentButton.hidden = !file;
+    this.pinStatus.setText(this.sources.pinned ? "Pinned" : "");
+    this.pinStatus.hidden = !this.sources.pinned;
     this.documentButton.disabled = !file;
     this.documentButton.title = file
       ? "Return to this note"
@@ -281,7 +320,22 @@ export class SourcesPanel extends Component {
       if (row.health?.reference && !row.health.problem)
         this.recoveryErrors.delete(row.id);
     const problems = rows.filter(sourceNeedsAttention).length;
-    this.summary.textContent = `${rows.length} ${rows.length === 1 ? "source" : "sources"}${problems ? ` · ${problems} ${problems === 1 ? "needs" : "need"} attention` : ""}${this.sources.pinned ? " · Pinned" : ""}`;
+    this.summary.setAttribute(
+      "aria-label",
+      `${rows.length} ${rows.length === 1 ? "source" : "sources"}${problems ? ` · ${problems} ${problems === 1 ? "needs" : "need"} attention` : ""}${this.sources.pinned ? " · Pinned" : ""}`,
+    );
+    let count = this.summary.querySelector<HTMLElement>(
+      ".stratum-sources-count",
+    );
+    if (!count)
+      count = this.summary.createDiv({ cls: "stratum-sources-count" });
+    count.setText(`${rows.length} ${rows.length === 1 ? "source" : "sources"}`);
+    if (!problems) this.attentionOnly = false;
+    this.attention.hidden = !problems;
+    this.attention.setText(
+      `${problems} ${problems === 1 ? "needs" : "need"} attention`,
+    );
+    this.attention.setAttr("aria-pressed", String(this.attentionOnly));
     this.list.empty();
     if (this.sources.referenceError)
       this.list.createEl("p", {
@@ -300,16 +354,18 @@ export class SourcesPanel extends Component {
       return;
     }
     const query = this.state.query.trim().toLocaleLowerCase();
-    const filtered = rows.filter((row) =>
-      [
-        row.entry?.title,
-        row.entry?.authors.join(" "),
-        row.entry?.year,
-        ...row.keys,
-      ]
-        .join(" ")
-        .toLocaleLowerCase()
-        .includes(query),
+    const filtered = rows.filter(
+      (row) =>
+        (!this.attentionOnly || sourceNeedsAttention(row)) &&
+        [
+          row.entry?.title,
+          row.entry?.authors.join(" "),
+          row.entry?.year,
+          ...row.keys,
+        ]
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(query),
     );
     if (this.state.sort !== "appearance")
       filtered.sort((a, b) => {
@@ -326,7 +382,9 @@ export class SourcesPanel extends Component {
     }
     if (!filtered.length)
       this.list.createEl("p", {
-        text: "No matching citations.",
+        text: this.attentionOnly
+          ? "No matching sources need attention."
+          : "No matching citations.",
         cls: "stratum-sources-empty",
       });
     this.list.scrollTop = this.state.scroll;
@@ -409,13 +467,6 @@ export class SourcesPanel extends Component {
     const item = list.createEl(compact ? "div" : "li");
     const entry = row.entry;
     if (entry) {
-      if (!compact)
-        item.createDiv({
-          cls: "stratum-sources-meta",
-          text: [entry.authors.join(", ") || "Unknown author", entry.year]
-            .filter(Boolean)
-            .join(" · "),
-        });
       const title = item.createEl("button", {
         cls: "stratum-sources-title",
         text: entry.title,
@@ -426,14 +477,27 @@ export class SourcesPanel extends Component {
       title.addEventListener("click", () => {
         void this.sources.openSource(entry.file);
       });
+      if (!compact) {
+        const authors = item.createDiv({
+          cls: "stratum-sources-meta",
+          text: [
+            entry.authors.length > 3
+              ? `${entry.authors.slice(0, 2).join(", ")} et al.`
+              : entry.authors.join(", ") || "Unknown author",
+            entry.year,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        });
+        authors.title = entry.authors.join(", ");
+      }
     }
-    const keys = item.createDiv({ cls: "stratum-sources-keys" });
-    for (const key of row.keys) {
-      keys.createEl("code", {
-        cls: "stratum-sources-key",
-        text: `@${key}`,
-      });
-    }
+    const renderKeys = (parent: HTMLElement) => {
+      const keys = parent.createDiv({ cls: "stratum-sources-keys" });
+      for (const key of row.keys)
+        keys.createEl("code", { cls: "stratum-sources-key", text: `@${key}` });
+    };
+    if (sourceNeedsAttention(row)) renderKeys(item);
     renderSourceHealth(item, row, {
       busy: this.recovering.has(row.id),
       error: this.recoveryErrors.get(row.id),
@@ -456,6 +520,7 @@ export class SourcesPanel extends Component {
     const details = item.createEl("details");
     details.open = this.state.expanded.has(row.id);
     const summary = details.createEl("summary", {
+      cls: "stratum-sources-occurrences",
       text: [
         citations
           ? `${citations} ${citations === 1 ? "citation" : "citations"}`
@@ -466,6 +531,7 @@ export class SourcesPanel extends Component {
         .join(" · "),
     });
     summary.dataset.sourceAction = `${row.id}:occurrences`;
+    if (!sourceNeedsAttention(row)) renderKeys(details);
     details.addEventListener("toggle", () => {
       if (details.open) this.state.expanded.add(row.id);
       else this.state.expanded.delete(row.id);
@@ -473,11 +539,29 @@ export class SourcesPanel extends Component {
     row.occurrences.forEach((occurrence, index) => {
       const button = details.createEl("button", {
         cls: "stratum-sources-excerpt",
-        text: occurrence.excerpt,
       });
       button.type = "button";
       button.dataset.sourceAction = `${row.id}:occurrence:${index}`;
-      button.title = "Show this occurrence in your note";
+      const excerpt = button.createSpan({ cls: "stratum-sources-passage" });
+      const match =
+        occurrence.excerptFrom === undefined
+          ? -1
+          : occurrence.from - occurrence.excerptFrom;
+      const end = match + occurrence.to - occurrence.from;
+      if (match >= 0 && end > match && end <= occurrence.excerpt.length) {
+        excerpt.createSpan({ text: occurrence.excerpt.slice(0, match) });
+        excerpt.createEl("mark", {
+          text: occurrence.excerpt.slice(match, end),
+        });
+        excerpt.createSpan({
+          text: occurrence.excerpt.slice(end),
+        });
+      } else excerpt.setText(occurrence.excerpt);
+      button.createSpan({
+        text: "Go to passage",
+        cls: "stratum-sources-passage-action",
+      });
+      button.title = "Go to passage in your note";
       button.addEventListener("click", () => {
         void this.sources.returnToDocument(occurrence);
       });

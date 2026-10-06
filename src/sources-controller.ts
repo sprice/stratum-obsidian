@@ -70,6 +70,12 @@ export class SourcesController extends Component {
     if (!this.plugin.isUnloaded)
       await setNoteCitationStyle(this.plugin, file, style, language);
   }
+  async useDefaultCitationStyle(path: string): Promise<void> {
+    const file = this.document;
+    if (!file || file.path !== path || this.plugin.isUnloaded) return;
+    const { resetNoteCitationStyle } = await import("./citation-style-choice");
+    await resetNoteCitationStyle(this.plugin, file);
+  }
   async manageCitationStyles(): Promise<void> {
     if (this.plugin.isUnloaded) return;
     const settings = getSettingsManager(this.plugin.app);

@@ -7,6 +7,7 @@ import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
 import { readSourceTableState } from "../source-table";
 import type { SourceRow } from "../document-sources";
+import { parseSourceOccurrences } from "../source-occurrences";
 
 class Element {
   children: Element[] = [];
@@ -48,16 +49,23 @@ class Element {
   }
   createEl(
     tag: string,
-    options?: { text?: string; value?: string; attr?: Record<string, string> },
+    options?: {
+      text?: string;
+      value?: string;
+      cls?: string;
+      attr?: Record<string, string>;
+    },
   ) {
     const element = new Element(tag, options?.text);
     element.value = options?.value ?? "";
     element.attrs = options?.attr ?? {};
+    if (options?.cls) element.attrs.class = options.cls;
     this.children.push(element);
     return element;
   }
-  createDiv(options?: { text?: string }) {
+  createDiv(options?: { text?: string; cls?: string }) {
     const element = new Element("div", options?.text);
+    if (options?.cls) element.attrs.class = options.cls;
     this.children.push(element);
     return element;
   }
@@ -66,6 +74,18 @@ class Element {
   }
   all(): Element[] {
     return [this, ...this.children.flatMap((child) => child.all())];
+  }
+  querySelector<T>(selector: string): T | null {
+    return (
+      (this.all().find(
+        (element) => element.attrs.class === selector.slice(1),
+      ) as T) ?? null
+    );
+  }
+  createSpan(options?: { text?: string }) {
+    const element = new Element("span", options?.text);
+    this.children.push(element);
+    return element;
   }
   querySelectorAll() {
     return this.all().filter((element) => element.dataset.sourceAction);
@@ -107,6 +127,7 @@ for (const failSave of [false, true]) {
     const { SourcesPanel } = loadRuntime<typeof import("../view-sources")>(
       "view-sources.ts",
       {
+        setIcon() {},
         ButtonComponent: ButtonComponentMock,
         Component: class {},
         Modal: class {},
@@ -166,6 +187,14 @@ for (const failSave of [false, true]) {
       control.selectEl.attrs["aria-label"],
       "Citation style for this note",
     );
+    await (
+      panel as unknown as { renderCitationStatus(): Promise<void> }
+    ).renderCitationStatus();
+    assert.equal(
+      Dropdown.instances.length,
+      1,
+      "unchanged style controls remain mounted",
+    );
     control.setValue("ieee");
     const saving = control.change("ieee");
     assert.equal(control.disabled, true);
@@ -193,7 +222,7 @@ for (const failSave of [false, true]) {
     assert.equal(notices.length, failSave ? 1 : 0);
     status
       .all()
-      .find((el) => el.text === "Manage citation styles")!
+      .find((el) => el.attrs["aria-label"] === "Manage citation styles")!
       .trigger("click");
     assert.equal(settingsOpened, 1);
   });
@@ -244,9 +273,9 @@ test("native table preserves source navigation and diagnostics and sorts custom 
     id: "unknown",
     keys: ["unknown2026"],
     issue: "unresolved",
-    occurrences: [
-      { kind: "citation", excerpt: "[@unknown2026]" },
-    ] as SourceRow["occurrences"],
+    occurrences: parseSourceOccurrences(
+      "  unknown2026 before [@unknown2026] then [@{unknown2026}].",
+    ),
   };
   let opened = "",
     navigations = 0,
@@ -300,6 +329,25 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   );
   const action = (id: string) =>
     root.all().find((el) => el.dataset.sourceAction === id)!;
+  const contextLink = root
+    .all()
+    .find((el) => el.attrs.class === "stratum-sources-document")!;
+  assert.equal(contextLink.hidden, false);
+  assert.equal(contextLink.textContent, "Synthetic draft");
+  const attention = root
+    .all()
+    .find(
+      (el) =>
+        el.attrs["aria-pressed"] === "false" && el.text === "1 needs attention",
+    )!;
+  attention.trigger("click");
+  assert.equal(root.all().find((el) => el.tag === "tbody")!.children.length, 1);
+  assert.equal(
+    root.all().some((el) => el.dataset.sourceAction === "A:open"),
+    false,
+  );
+  attention.trigger("click");
+  assert.equal(root.all().find((el) => el.tag === "tbody")!.children.length, 3);
   action("A:open").trigger("click");
   assert.equal(opened, "A.md");
   action("A:occurrence:0").trigger("click");
@@ -344,6 +392,18 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   layout.value = "list";
   layout.trigger("change");
   assert.equal(state.layout, "list");
+  const repeatedPassage = action("unknown:occurrence:1");
+  assert.equal(
+    repeatedPassage.all().find((el) => el.tag === "mark")!.text,
+    "@{unknown2026}",
+  );
+  assert.ok(
+    repeatedPassage
+      .all()
+      .some(
+        (el) => el.tag === "span" && el.text.includes("[@unknown2026] then ["),
+      ),
+  );
   assert.ok(root.all().some((el) => el.tag === "li"));
   assert.equal(
     root.all().some((el) => el.tag === "table"),
@@ -405,4 +465,93 @@ test("native table preserves source navigation and diagnostics and sorts custom 
   refreshRows();
   assert.equal(pin.hidden, true);
   nextPanel.onunload();
+});
+
+test("diagnostics distinguish duplicate notes from conflicting ownership and retain missing-note warnings", () => {
+  const { renderSourceHealth, sourceNeedsAttention } = loadRuntime<
+    typeof import("../view-source-health")
+  >("view-source-health.ts", { ButtonComponent: ButtonComponentMock });
+  const duplicate: SourceRow = {
+    id: "duplicate",
+    keys: ["example2024"],
+    issue: "ambiguous",
+    occurrences: [],
+    health: {
+      key: "example2024",
+      identity: "user/1/EXAMPLE1",
+      candidates: ["user/1/EXAMPLE1"],
+      notes: [
+        {
+          identity: "user/1/EXAMPLE1",
+          title: "Example",
+          file: { path: "Sources/Example.md" },
+        },
+        {
+          identity: "user/1/EXAMPLE1",
+          title: "Duplicate",
+          file: { path: "Sources/Duplicate.md" },
+        },
+      ] as NonNullable<SourceRow["health"]>["notes"],
+    },
+  };
+  const render = (row: SourceRow) => {
+    const root = new Element();
+    renderSourceHealth(root as never, row, {
+      busy: false,
+      recover() {},
+      repair() {},
+      show() {},
+    });
+    return root;
+  };
+  assert.ok(
+    render(duplicate)
+      .all()
+      .some((el) => el.text === "Multiple literature notes"),
+  );
+  assert.equal(
+    render(duplicate)
+      .all()
+      .some((el) => el.text === "Conflicting sources"),
+    false,
+  );
+  const missing: SourceRow = {
+    ...duplicate,
+    issue: undefined,
+    health: {
+      ...duplicate.health!,
+      notes: [],
+      reference: { id: "example2024", type: "article" },
+    },
+  };
+  assert.equal(sourceNeedsAttention(missing), true);
+  assert.ok(
+    render(missing)
+      .all()
+      .some((el) => el.text.includes("Cached data still formats")),
+  );
+  const conflicting: SourceRow = {
+    ...duplicate,
+    health: { ...duplicate.health!, problem: "conflicting-key" },
+  };
+  assert.ok(
+    render(conflicting)
+      .all()
+      .some((el) => el.text === "Conflicting sources"),
+  );
+  const diagnostic = render(conflicting).children[0];
+  assert.equal(diagnostic.children[0].text, "Conflicting sources");
+  const controls = diagnostic
+    .all()
+    .filter((el) => el.tag === "button" || el.tag === "summary");
+  assert.deepEqual(
+    controls.map((el) => el.text),
+    [
+      "Repair citation",
+      "Show citation in paper",
+      "Details",
+      "Review matching sources",
+    ],
+    "Keyboard and screen-reader order must follow the displayed action-before-details layout",
+  );
 });

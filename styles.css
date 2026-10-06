@@ -668,7 +668,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-sources-header { display: flex; align-items: center; justify-content: space-between; }
 .stratum-sources-header > [hidden] { display: none; }
 .stratum-sources-header h3 { margin: 0; }
-.stratum-sources-header [aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
+.stratum-sources-context button[aria-pressed="true"] { color: var(--interactive-accent); }
+.stratum-sources-context button[aria-pressed="true"] svg { fill: currentColor; stroke: currentColor; }
 .stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .stratum-sources-document { align-self: flex-start; max-width: 100%; min-height: 0; padding: var(--size-2-1) 0; border: 0; box-shadow: none; background: transparent; color: var(--link-color); font-size: var(--font-ui-small); text-decoration: underline; cursor: pointer; }
 .stratum-sources-document:hover { background: transparent; color: var(--link-color-hover); }
@@ -851,3 +852,118 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   .stratum-library-filters { grid-template-columns: minmax(0, 1fr); }
 }
 .stratum-publish-list { flex: 1 1 8rem; box-sizing: border-box; min-height: 8rem; min-width: 0; overflow-y: auto; padding: var(--size-4-3); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
+
+/* Citations: keep the writing context and source list visually distinct. */
+.stratum-sources { gap: var(--size-4-4); overflow-y: auto; }
+.stratum-sources > :not(.stratum-sources-results) { flex-shrink: 0; }
+.stratum-sources .stratum-sources-results { flex: 1 0 8rem; min-height: 8rem; }
+.stratum-sources-context { display: flex; align-items: center; gap: var(--size-4-2); min-width: 0; }
+.stratum-sources-context .stratum-sources-document { flex: 1; min-width: 0; text-align: left; }
+.stratum-sources-pin-status, .stratum-sources-style-origin { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.stratum-sources-context [hidden], .stratum-sources-summary[hidden] { display: none; }
+.stratum-citation-status { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--size-4-1) var(--size-4-2); align-items: end; }
+.stratum-citation-status > .stratum-control-field { grid-column: 1; grid-row: 1; }
+.stratum-citation-status > .stratum-citation-settings-button { grid-column: 2; grid-row: 1; margin: 0; align-self: end; height: var(--input-height); }
+.stratum-citation-status > p { grid-column: 1 / -1; }
+.stratum-sources-secondary { height: auto; min-height: 0; padding: var(--size-2-1) var(--size-4-1); font-size: var(--font-ui-smaller); }
+.stratum-sources-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex-wrap: wrap; }
+.stratum-sources-count { order: -1; }
+.stratum-sources-summary button { height: auto; font-size: var(--font-ui-small); }
+.stratum-sources-summary button[aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
+.stratum-sources-tools { display: flex; flex-direction: column; gap: var(--size-4-4); }
+.stratum-sources-display { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--size-4-3); align-items: end; }
+.stratum-sources-view-group { min-width: 0; display: flex; flex-direction: column; gap: var(--size-4-1); }
+.stratum-control-label { color: var(--text-muted); font-size: var(--font-ui-small); }
+.stratum-sources-view-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--size-4-2); }
+.stratum-sources-tools select { width: 100%; }
+.stratum-sources-view-controls button { width: 100%; min-width: 0; }
+@container stratum-sidebar (max-width: 28rem) { .stratum-sources-display { grid-template-columns: minmax(0, 1fr); } }
+.stratum-sources button.stratum-sources-title:not(.clickable-icon) {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: var(--size-2-1);
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--link-color);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-medium);
+  line-height: 1.5;
+  white-space: normal;
+  text-align: left;
+  cursor: pointer;
+}
+.stratum-sources button.stratum-sources-title:not(.clickable-icon):hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--link-color-hover);
+  text-decoration: underline;
+}
+.stratum-sources summary.stratum-sources-occurrences {
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: var(--input-height);
+  padding: var(--size-4-2) var(--size-4-1);
+  margin-top: var(--size-4-1);
+  border-radius: var(--radius-s);
+}
+@media (hover: hover) {
+  .stratum-sources summary.stratum-sources-occurrences:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+}
+.stratum-sources-meta { margin-top: var(--size-4-1); line-height: 1.5; }
+.stratum-sources-list > li { padding: var(--size-4-4) 0; }
+.stratum-sources-results summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-1) 0; }
+.stratum-sources-health { display: flex; flex-direction: column; gap: var(--size-4-2); margin-block: var(--size-4-2); padding: var(--size-4-2); border-left: 2px solid var(--text-warning); }
+.stratum-sources-health-actions { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
+.stratum-sources-health-actions button { font-size: var(--font-ui-small); height: auto; white-space: normal; }
+.stratum-sources-health-details p { margin-block: var(--size-4-2); }
+.stratum-sources-excerpt { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); padding: var(--size-4-2); background: var(--background-secondary); box-shadow: none; border: 1px solid var(--background-modifier-border); line-height: 1.5; }
+.stratum-sources-passage { text-align: left; }
+.stratum-sources-passage mark { color: var(--text-normal); background: var(--text-highlight-bg); }
+.stratum-sources-passage-action { font-size: var(--font-ui-smaller); color: var(--text-accent); }
+
+.stratum-sources button:focus-visible, .stratum-sources summary:focus-visible { outline-offset: -2px; }
+
+.stratum-sources-summary button[hidden] { display: none; }
+
+/* The writing-note context is a quiet link, independent of the pin action. */
+.stratum-sources .stratum-sources-context button.stratum-sources-document:not(.clickable-icon) {
+  display: block;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: var(--size-2-1);
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--link-color);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-normal);
+  line-height: 1.5;
+  white-space: normal;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.stratum-sources .stratum-sources-context button.stratum-sources-document:not(.clickable-icon):hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--link-color-hover);
+  text-decoration: underline;
+}
+.stratum-sources-context .stratum-sources-pin-status { margin-left: auto; }
+.stratum-sources-context .stratum-sources-pin-status[hidden] + .clickable-icon { margin-left: auto; }

@@ -5,6 +5,7 @@ export function sourceNeedsAttention(row: SourceRow): boolean {
   return Boolean(
     row.issue ||
     row.health?.problem ||
+    (row.health?.identity && row.health.notes.length !== 1) ||
     row.health?.notes.some((note) => note.sourceUnavailable),
   );
 }
@@ -20,11 +21,36 @@ export function renderSourceHealth(
     show: () => void;
   },
 ): void {
+  if (!sourceNeedsAttention(row) && !options.error) return;
   const health = row.health;
+  const issue = el.createDiv({ cls: "stratum-sources-health" });
+  const problem = health?.problem ?? row.issue;
+  issue.createDiv({
+    cls: "stratum-sources-issue",
+    text:
+      problem === "unknown-key" || problem === "unresolved"
+        ? "Citation key not found"
+        : health?.identity && !health.problem && health.notes.length > 1
+          ? "Multiple literature notes"
+          : problem === "conflicting-key" || problem === "ambiguous"
+            ? "Conflicting sources"
+            : problem === "missing-data"
+              ? "Citation data missing"
+              : health?.notes.some((note) => note.sourceUnavailable)
+                ? "Source unavailable in Zotero"
+                : health?.notes && health.notes.length > 1
+                  ? "Multiple literature notes"
+                  : "Literature note missing",
+  });
+  const actions = issue.createDiv({ cls: "stratum-sources-health-actions" });
+  const info = issue.createEl("details", {
+    cls: "stratum-sources-health-details",
+  });
+  info.createEl("summary", { text: "Details" });
   const message = (text: string) =>
-    el.createEl("p", { cls: "stratum-sources-issue", text });
+    info.createEl("p", { cls: "stratum-sources-issue", text });
   const action = (text: string, suffix: string, callback: () => void) => {
-    const button = createStratumButton(el, { text });
+    const button = createStratumButton(actions, { text });
     button.type = "button";
     button.dataset.sourceAction = `${row.id}:${suffix}`;
     button.addEventListener("click", callback);
@@ -75,7 +101,7 @@ export function renderSourceHealth(
     health &&
     (health.problem === "conflicting-key" || health.notes.length > 1)
   ) {
-    const details = el.createEl("details");
+    const details = info.createEl("details");
     details.createEl("summary", { text: "Review matching sources" });
     const list = details.createEl("ul");
     for (const identity of health.candidates) {
@@ -114,7 +140,10 @@ export function renderSourceHealth(
     health?.problem === "conflicting-key"
   )
     action("Repair citation", "repair", options.repair);
-  if (options.error) message(options.error);
+  if (options.error) {
+    message(options.error);
+    info.open = true;
+  }
   if (sourceNeedsAttention(row)) {
     action("Show citation in paper", "show-problem", options.show);
   }
