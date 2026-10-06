@@ -94,6 +94,15 @@ export function browseCollections(plugin: StratumPlugin): Promise<void> {
   return request;
 }
 
+interface BrowserControls {
+  container: HTMLElement;
+  render: () => void;
+  update?: () => void;
+  count?: HTMLElement;
+  message?: HTMLElement;
+  showResults?: HTMLButtonElement;
+}
+
 export class CollectionBrowserView extends ItemView {
   navigation = true;
   private state: CollectionBrowserState = readBrowserState(
@@ -104,14 +113,7 @@ export class CollectionBrowserView extends ItemView {
   private resultCount = 0;
   private statusMessage = "";
   private results!: HTMLElement;
-  private controls = new Set<{
-    container: HTMLElement;
-    render: () => void;
-    count?: HTMLElement;
-    message?: HTMLElement;
-    showResults?: HTMLButtonElement;
-    collectionDetails?: HTMLElement;
-  }>();
+  private controls = new Set<BrowserControls>();
   private contentReady = false;
   constructor(
     leaf: WorkspaceLeaf,
@@ -220,48 +222,26 @@ export class CollectionBrowserView extends ItemView {
     return this.contentReady;
   }
   mountControls(container: HTMLElement): () => void {
-    const controls: {
-      container: HTMLElement;
-      render: () => void;
-      count?: HTMLElement;
-      message?: HTMLElement;
-      showResults?: HTMLButtonElement;
-      collectionDetails?: HTMLElement;
-    } = { container, render: () => this.renderControls(container, controls) };
+    const controls: BrowserControls = {
+      container,
+      render: () => this.renderControls(container, controls),
+    };
     this.controls.add(controls);
     controls.render();
     return () => {
       this.controls.delete(controls);
     };
   }
+  refreshControls(): void {
+    for (const controls of this.controls) controls.update?.();
+    this.updateControlStatus();
+  }
   private refreshOtherControls(source: HTMLElement): void {
     for (const controls of this.controls)
       if (controls.container !== source) controls.render();
   }
   private refreshCollectionControls(): void {
-    const choice = buildCollectionChoices(
-      this.papers,
-      this.plugin.settings.collectionCatalogs,
-    ).find((entry) => entry.id === this.state.collection);
-    for (const controls of this.controls) {
-      const switcher = controls.container.querySelector<HTMLSelectElement>(
-        'select[aria-label="Choose collection"]',
-      );
-      if (switcher) {
-        if (choice) switcher.querySelector("option:disabled")?.remove();
-        switcher.value = this.state.collection;
-      }
-      const search = controls.container.querySelector<HTMLInputElement>(
-        'input[aria-label="Search literature notes"]',
-      );
-      if (search) search.value = this.state.query;
-      if (controls.collectionDetails)
-        this.renderCollectionDetails(
-          controls.collectionDetails,
-          choice,
-          controls.container,
-        );
-    }
+    for (const controls of this.controls) controls.update?.();
   }
   private renderCollectionDetails(
     details: HTMLElement,
@@ -299,26 +279,14 @@ export class CollectionBrowserView extends ItemView {
   }
   private renderControls(
     container: HTMLElement,
-    controls: {
-      count?: HTMLElement;
-      message?: HTMLElement;
-      showResults?: HTMLButtonElement;
-      collectionDetails?: HTMLElement;
-    },
+    controls: BrowserControls,
   ): void {
-    const focused = container.doc.activeElement;
-    const searchInput = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Search literature notes"]',
-    );
-    const hadSearchFocus = focused === searchInput && searchInput !== null;
-    const selection = hadSearchFocus
-      ? ([searchInput.selectionStart, searchInput.selectionEnd] as const)
-      : null;
-    const choices = buildCollectionChoices(
-      this.papers,
-      this.plugin.settings.collectionCatalogs,
-    );
-    const choice = choices.find((entry) => entry.id === this.state.collection);
+    // Metadata and workspace updates must not remount interactive controls:
+    // recreating a select resets its theme focus/hover transition.
+    if (controls.update) {
+      controls.update();
+      return;
+    }
     container.empty();
     const header = container.createDiv({
       cls: "stratum-collection-header",
@@ -328,21 +296,7 @@ export class CollectionBrowserView extends ItemView {
       label: "Collection",
       ariaLabel: "Choose collection",
       value: this.state.collection,
-      choices: [
-        ...(!choice
-          ? [
-              {
-                value: this.state.collection,
-                label: "Collection unavailable",
-                disabled: true,
-              },
-            ]
-          : []),
-        ...choices.map((option) => ({
-          value: option.id,
-          label: option.key ? option.context : option.name,
-        })),
-      ],
+      choices: [],
     });
     const tools = filters.createDiv({ cls: "stratum-collection-tools" });
     switcher.addEventListener("change", () => {
@@ -358,10 +312,9 @@ export class CollectionBrowserView extends ItemView {
       this.renderResults();
       this.refreshCollectionControls();
     });
-    controls.collectionDetails = header.createDiv({
+    const collectionDetails = header.createDiv({
       cls: "stratum-collection-details",
     });
-    this.renderCollectionDetails(controls.collectionDetails, choice, container);
     const search = createStratumSearch(header, {
       label: "Search",
       ariaLabel: "Search literature notes",
@@ -377,10 +330,6 @@ export class CollectionBrowserView extends ItemView {
         this.refreshOtherControls(container);
       },
     });
-    if (hadSearchFocus) {
-      search.inputEl.focus();
-      if (selection) search.inputEl.setSelectionRange(...selection);
-    }
     const layout = createStratumSelect(tools, {
       label: "View",
       ariaLabel: "Choose layout",
@@ -446,6 +395,69 @@ export class CollectionBrowserView extends ItemView {
         this.results.querySelector<HTMLAnchorElement>("a")?.focus();
       }
     });
+    let optionsSignature = "";
+    let detailsSignature = "";
+    controls.update = () => {
+      const choices = buildCollectionChoices(
+        this.papers,
+        this.plugin.settings.collectionCatalogs,
+      );
+      const choice = choices.find(
+        (entry) => entry.id === this.state.collection,
+      );
+      const options = [
+        ...(!choice
+          ? [
+              {
+                value: this.state.collection,
+                label: "Collection unavailable",
+                disabled: true,
+              },
+            ]
+          : []),
+        ...choices.map((entry) => ({
+          value: entry.id,
+          label: entry.key ? entry.context : entry.name,
+          disabled: false,
+        })),
+      ];
+      const nextOptionsSignature = JSON.stringify(options);
+      if (optionsSignature !== nextOptionsSignature) {
+        switcher.empty();
+        for (const option of options) {
+          switcher.createEl("option", {
+            value: option.value,
+            text: option.label,
+          }).disabled = option.disabled;
+        }
+        optionsSignature = nextOptionsSignature;
+      }
+      if (switcher.value !== this.state.collection)
+        switcher.value = this.state.collection;
+      if (layout.value !== this.state.layout) layout.value = this.state.layout;
+      if (search.inputEl.value !== this.state.query)
+        search.setValue(this.state.query);
+      columns.hidden = this.state.layout !== "table";
+      const catalog = choice?.libraryIdentity
+        ? this.plugin.settings.collectionCatalogs[choice.libraryIdentity]
+        : null;
+      const hasChildren = Boolean(
+        choice?.key &&
+        catalog?.collections.some(
+          (entry) => entry.parentCollectionKey === choice.key,
+        ),
+      );
+      const nextDetailsSignature = JSON.stringify([
+        Boolean(choice),
+        hasChildren,
+        this.state.includeSubcollections,
+      ]);
+      if (detailsSignature !== nextDetailsSignature) {
+        this.renderCollectionDetails(collectionDetails, choice, container);
+        detailsSignature = nextDetailsSignature;
+      }
+    };
+    controls.update();
     this.updateControlStatus();
   }
   private updateControlStatus(): void {

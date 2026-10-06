@@ -297,6 +297,9 @@ test("sidebar controls filter main-pane results and preserve state through refre
     sidebar.all().find((el) => el.text === "Columns")?.attrs.title,
     "Choose table columns",
   );
+  const stableControls = sidebar.querySelectorAll("select");
+  const stableOptions = stableControls[0].children.slice();
+  const stableColumns = sidebar.all().find((el) => el.text === "Columns");
   const showItems = sidebar.all().find((el) => el.text === "Show items")!;
   assert.ok(showItems.className.includes("mod-cta"));
   assert.equal(showItems.hidden, false);
@@ -304,6 +307,20 @@ test("sidebar controls filter main-pane results and preserve state through refre
   await Promise.resolve();
   assert.equal(revealed, 1, "Show items reveals the existing browser");
   assert.equal(showItems.hidden, true);
+  // A metadata refresh can arrive after revealing the browser. It must update
+  // results without replacing the controls and restarting their transitions.
+  await Promise.resolve().then(() => events.get("resolved")!());
+  sidebar.querySelectorAll("select").forEach((select, index) => {
+    assert.equal(select, stableControls[index]);
+  });
+  stableControls[0].children.forEach((option, index) => {
+    assert.equal(option, stableOptions[index]);
+  });
+  assert.equal(
+    sidebar.all().find((el) => el.text === "Columns"),
+    stableColumns,
+  );
+
   root.shown = false;
   for (const listener of leafListeners) listener({ view: null });
   assert.equal(showItems.hidden, false);
@@ -332,6 +349,10 @@ test("sidebar controls filter main-pane results and preserve state through refre
   const refreshedInput = sidebar.querySelector(
     'input[aria-label="Search literature notes"]',
   );
+  assert.equal(refreshedInput, input);
+  sidebar.querySelectorAll("select").forEach((select, index) => {
+    assert.equal(select, stableControls[index]);
+  });
   assert.equal(refreshedInput.value, "synthetic");
   assert.equal(sidebar.doc.activeElement, refreshedInput);
   assert.equal(refreshed.scrollLeft, 420);
@@ -409,6 +430,14 @@ test("sidebar controls filter main-pane results and preserve state through refre
   events.get("changed")!();
   assert.equal(sidebar.querySelector("input"), detachedInput);
   const remount = view.mountControls(sidebar as never);
+  // Returning to Browse mounts new controls; later metadata must retain them.
+  const remountedSelects = sidebar.querySelectorAll("select");
+  remountedSelects[1].focus();
+  await Promise.resolve().then(() => events.get("changed")!());
+  sidebar.querySelectorAll("select").forEach((select, index) => {
+    assert.equal(select, remountedSelects[index]);
+  });
+  assert.equal(sidebar.doc.activeElement, remountedSelects[1]);
   assert.equal(
     sidebar.querySelector('select[aria-label="Choose collection"]')?.value,
     "unfiled",
@@ -515,13 +544,15 @@ test("browsing creates a main-pane tab and selects the sidebar Browse panel", as
   assert.equal((saved?.state as Record<string, unknown>).collection, "all");
 });
 
-test("Browse joins sidebar tabs and switching panels detaches controls without closing results", async () => {
+test("Browse preserves mounted controls across tab switches and releases stale targets", async () => {
   const root = new Element();
   let mounted = 0;
   let unmounted = 0;
   let opened = 0;
   let leafChanged: ((leaf: { view: unknown }) => void) | undefined;
   class Browser {
+    refreshControls() {}
+    leaf = { view: this };
     isReady() {
       return true;
     }
@@ -541,6 +572,14 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   const app = {
     workspace: {
       getLeavesOfType: () => [{ view: browser }],
+      revealLeaf: (leaf: { view: unknown }) => {
+        assert.equal(leaf, selectedBrowser.leaf);
+        opened++;
+        return Promise.resolve().then(() => {
+          root.doc.activeElement = null;
+          leafChanged!(leaf);
+        });
+      },
       requestSaveLayout() {},
       on(_event: string, callback: (leaf: { view: unknown }) => void) {
         leafChanged = callback;
@@ -626,27 +665,49 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   focusedInput.focus();
   focusedInput.setSelectionRange(2, 4);
   view.render();
+  assert.equal(root.querySelector("input"), focusedInput);
+  assert.equal(mounted, 1, "whole-plugin refresh must retain Browse controls");
   assert.equal(root.doc.activeElement, root.querySelector("input"));
   assert.equal(root.querySelector("input").selectionStart, 2);
   assert.equal(root.querySelector("input").selectionEnd, 4);
   const currentTabs = root.all().filter((el) => el.attrs.role === "tab");
   currentTabs[4].listeners.get("click")!();
   assert.equal(plugin.activeViewTab, "sources");
-  assert.equal(unmounted, 2);
-  assert.equal(root.querySelector("input"), null);
+  assert.equal(unmounted, 0);
+  assert.equal(root.querySelector("input"), focusedInput);
+  const browsePanel = root
+    .all()
+    .find((el) => el.className === "stratum-browse-tab")!;
+  assert.equal(browsePanel.hidden, true);
   const readsBeforeSwitch = targetReads;
   selectedBrowser = new Browser();
   leafChanged!({ view: selectedBrowser });
   assert.equal(targetReads, readsBeforeSwitch + 1);
-  assert.equal(mounted, 2, "Track browser changes without rerendering Sources");
+  assert.equal(mounted, 1, "Track browser changes without rerendering Sources");
   root
     .all()
     .find((el) => el.text === "Browse")!
     .listeners.get("click")!();
   assert.equal(plugin.activeViewTab, "browse");
   assert.equal(opened, 1);
-  assert.equal(mounted, 3);
+  assert.equal(mounted, 2);
+  const inputAfterTabSwitch = root.querySelector("input");
   for (let i = 0; i < 3; i++) await Promise.resolve();
+  assert.equal(mounted, 2, "revealing results must not rebuild Browse again");
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  // An in-flight request from the previous panel may complete after reveal.
+  await Promise.resolve().then(() => plugin.refreshViews());
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  assert.equal(mounted, 2, "late global refresh must not remount Browse");
+  leafChanged!({ view: null });
+  await app.workspace.revealLeaf(selectedBrowser.leaf);
+  await Promise.resolve().then(() => plugin.refreshViews());
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  assert.equal(
+    mounted,
+    2,
+    "late global refresh after Show items retains controls",
+  );
   root
     .all()
     .find((el) => el.text === "Citations")!
@@ -658,10 +719,13 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   for (let i = 0; i < 3; i++) await Promise.resolve();
   assert.equal(root.doc.activeElement?.text, "Browse");
   assert.equal(plugin.activeViewTab, "browse");
-  assert.equal(opened, 2);
+  assert.equal(opened, 3);
+  assert.equal(root.querySelector("input"), inputAfterTabSwitch);
+  assert.equal(mounted, 2, "returning to the same browser reuses the controls");
+  assert.equal(browsePanel.hidden, false);
   selectedBrowser = new Browser();
   leafChanged!({ view: selectedBrowser });
-  assert.equal(mounted, 5);
+  assert.equal(mounted, 3);
   const clickTab = (text: string) =>
     root
       .all()
@@ -705,11 +769,11 @@ test("Browse joins sidebar tabs and switching panels detaches controls without c
   assert.equal(app.workspace.getLeavesOfType()[0].view, browser);
   assert.equal(
     opened,
-    2,
+    3,
     "Hiding Browse does not open or replace its workspace pane",
   );
   await view.onClose();
-  assert.equal(unmounted, 5);
+  assert.equal(unmounted, 3);
 });
 
 for (const stage of ["sidebar", "browser", "reveal"] as const) {

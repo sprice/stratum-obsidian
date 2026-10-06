@@ -114,6 +114,8 @@ export class StratumView extends ItemView {
   plugin: StratumPlugin;
   private unmountBrowseControls: (() => void) | null = null;
   private browseBrowser: CollectionBrowserView | null = null;
+  private renderedTabsKey: string | null = null;
+  private tabContent: HTMLElement | null = null;
   private publishPanel: PublishPanel | null = null;
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
@@ -200,6 +202,8 @@ export class StratumView extends ItemView {
     this.unmountBrowseControls?.();
     this.unmountBrowseControls = null;
     this.browseBrowser = null;
+    this.renderedTabsKey = null;
+    this.tabContent = null;
     if (this.publishPanel) {
       this.removeChild(this.publishPanel);
       this.publishPanel = null;
@@ -290,8 +294,12 @@ export class StratumView extends ItemView {
     const previous = this.plugin.activeViewTab;
     if (!selectStratumTab(this.plugin, tab)) return;
     if (tab === "browse") {
-      this.plugin.refreshViews();
-      void browseCollections(this.plugin).then(() => {
+      const browser = getCollectionBrowserView(this.plugin);
+      if (previous !== tab) this.plugin.refreshViews();
+      const reveal = browser
+        ? this.app.workspace.revealLeaf(browser.leaf)
+        : browseCollections(this.plugin);
+      void reveal.then(() => {
         if (preserveTabFocus && this.plugin.activeViewTab === tab)
           this.focusTab(tab);
       });
@@ -422,6 +430,22 @@ export class StratumView extends ItemView {
   }
 
   render(): void {
+    const enabledTabs = readEnabledTabs(this.plugin.settings.enabledTabs);
+    enabledTabs.publish = enabledTabs.publish && !!this.plugin.publish;
+    this.plugin.activeViewTab = resolveActiveTab(
+      this.plugin.activeViewTab,
+      enabledTabs,
+      isLocalSyncSupported(),
+    );
+    const visibleTabs = getVisibleTabs(enabledTabs, isLocalSyncSupported());
+    const tabsKey = JSON.stringify(visibleTabs);
+    const reuseShell = this.renderedTabsKey === tabsKey && !!this.tabContent;
+    const keepBrowse =
+      reuseShell &&
+      !!this.unmountBrowseControls &&
+      !!this.browseBrowser?.isReady() &&
+      (this.plugin.activeViewTab !== "browse" ||
+        this.browseBrowser === getCollectionBrowserView(this.plugin));
     const focused = this.contentEl.doc.activeElement;
     const focusedTabId = focused?.id.startsWith(`${this.tabIdPrefix}-tab-`)
       ? focused.id
@@ -433,9 +457,11 @@ export class StratumView extends ItemView {
       browseSearch && focused === browseSearch
         ? ([browseSearch.selectionStart, browseSearch.selectionEnd] as const)
         : null;
-    this.unmountBrowseControls?.();
-    this.unmountBrowseControls = null;
-    this.browseBrowser = null;
+    if (!keepBrowse) {
+      this.unmountBrowseControls?.();
+      this.unmountBrowseControls = null;
+      this.browseBrowser = null;
+    }
     if (this.publishPanel) {
       this.removeChild(this.publishPanel);
       this.publishPanel = null;
@@ -451,13 +477,6 @@ export class StratumView extends ItemView {
     this.readerSuggest = null;
     this.clearReaderMarkdownComponent();
 
-    const enabledTabs = readEnabledTabs(this.plugin.settings.enabledTabs);
-    enabledTabs.publish = enabledTabs.publish && !!this.plugin.publish;
-    this.plugin.activeViewTab = resolveActiveTab(
-      this.plugin.activeViewTab,
-      enabledTabs,
-      isLocalSyncSupported(),
-    );
     if (this.plugin.activeViewTab !== "publish" && this.plugin.publish)
       this.plugin.publish.selectedFormat = "";
 
@@ -468,48 +487,62 @@ export class StratumView extends ItemView {
     }
 
     const { contentEl } = this;
-    contentEl.empty();
     contentEl.addClass("stratum-view");
-
-    const shell = contentEl.createDiv({ cls: "stratum-shell" });
-    const visibleTabs = getVisibleTabs(enabledTabs, isLocalSyncSupported());
-    if (visibleTabs.length === 0) {
-      const empty = shell.createDiv({ cls: "stratum-empty-state" });
-      empty.createEl("h2", { text: `No ${PLUGIN_NAME} tabs enabled` });
-      empty.createEl("p", {
-        text: `All tabs available on this device are disabled. Enable a tab in ${PLUGIN_NAME} settings to show it here.`,
-      });
-      this.renderSettingsButton(empty);
-      return;
+    if (!reuseShell) {
+      contentEl.empty();
+      const shell = contentEl.createDiv({ cls: "stratum-shell" });
+      this.renderedTabsKey = tabsKey;
+      this.tabContent = null;
+      if (visibleTabs.length === 0) {
+        const empty = shell.createDiv({ cls: "stratum-empty-state" });
+        empty.createEl("h2", { text: `No ${PLUGIN_NAME} tabs enabled` });
+        empty.createEl("p", {
+          text: `All tabs available on this device are disabled. Enable a tab in ${PLUGIN_NAME} settings to show it here.`,
+        });
+        this.renderSettingsButton(empty);
+        return;
+      }
+      this.renderTabBar(shell, visibleTabs);
+      this.tabContent = shell.createDiv({ cls: "stratum-tab-content" });
     }
-
-    this.renderTabBar(shell, visibleTabs);
-
-    const tabContent = shell.createDiv({ cls: "stratum-tab-content" });
+    const tabContent = this.tabContent!;
     for (const tab of visibleTabs) {
-      const panel = tabContent.createDiv({
-        cls:
-          tab.id === "browse"
-            ? "stratum-browse-tab"
-            : tab.id === "sources"
-              ? "stratum-sources-tab"
-              : tab.id === "reader"
-                ? "stratum-reader-tab"
-                : tab.id === "sync"
-                  ? "stratum-sync-tab"
-                  : "stratum-search-tab",
-      });
-      panel.id = `${this.tabIdPrefix}-panel-${tab.id}`;
+      const panelId = `${this.tabIdPrefix}-panel-${tab.id}`;
+      const panel =
+        tabContent.querySelector<HTMLElement>(`#${panelId}`) ??
+        tabContent.createDiv({
+          cls:
+            tab.id === "browse"
+              ? "stratum-browse-tab"
+              : tab.id === "sources"
+                ? "stratum-sources-tab"
+                : tab.id === "reader"
+                  ? "stratum-reader-tab"
+                  : tab.id === "sync"
+                    ? "stratum-sync-tab"
+                    : "stratum-search-tab",
+        });
+      panel.id = panelId;
       panel.setAttr("role", "tabpanel");
       panel.setAttr("aria-labelledby", `${this.tabIdPrefix}-tab-${tab.id}`);
       panel.hidden = this.plugin.activeViewTab !== tab.id;
 
-      if (panel.hidden) {
-        continue;
+      const button = contentEl.querySelector<HTMLElement>(
+        `#${this.tabIdPrefix}-tab-${tab.id}`,
+      );
+      if (button) {
+        button.className = panel.hidden ? "" : "is-active";
+        button.setAttr("aria-selected", String(!panel.hidden));
+        button.tabIndex = panel.hidden ? -1 : 0;
       }
+      // Keep Browse attached, merely hidden, so its controls never go through
+      // another initial style/layout pass when returning from another tab.
+      if (tab.id !== "browse" || !keepBrowse) panel.empty();
+      if (panel.hidden) continue;
 
       if (tab.id === "browse") {
-        this.renderBrowseTab(panel);
+        if (keepBrowse) this.browseBrowser?.refreshControls();
+        else this.renderBrowseTab(panel);
       } else if (tab.id === "search") {
         this.renderSearchTab(panel);
       } else if (tab.id === "sync") {
@@ -541,7 +574,7 @@ export class StratumView extends ItemView {
         );
       target?.focus();
     }
-    if (browseSelection) {
+    if (browseSelection && this.plugin.activeViewTab === "browse") {
       const search = this.contentEl.querySelector<HTMLInputElement>(
         'input[aria-label="Search literature notes"]',
       );
