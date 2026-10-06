@@ -6,6 +6,13 @@ import type * as Index from "../plugin-note-index";
 import { normalizeZoteroItemDetail } from "../zotero-item-detail-normalizer";
 import { findExistingLiteratureNoteMatch } from "../literature-note-matching";
 import { loadRuntime } from "./runtime-harness";
+import { composeLiteratureNoteBody } from "../literature-note-layout";
+import {
+  MANAGED_START,
+  MANAGED_END,
+  SYNC_BOUNDARY,
+  USER_BOUNDARY_CALLOUT,
+} from "../literature-note-content-types";
 
 const identity = { libraryType: "user", libraryId: "1", itemKey: "ABCD1234" };
 const frontmatter = {
@@ -196,6 +203,28 @@ test("deleted-item marking preserves edits and rejects a replaced note", async (
     }),
     /no longer matches/,
   );
+});
+
+test("already-deleted mixed layout still migrates and subsequent marking is unchanged", async () => {
+  const fm = {
+    ...frontmatter,
+    stratum_note_layout: 2,
+    zotero_status: "deleted",
+  };
+  const managed = `${MANAGED_START}\nSynthetic source\n${MANAGED_END}\n`;
+  const fixture = vaultFixture(
+    `---\n${JSON.stringify(fm)}\n---\n${composeLiteratureNoteBody("## My Notes\n\n", managed)}\n${USER_BOUNDARY_CALLOUT}\n\nRetain my research\n`,
+  );
+  const params = { app: fixture.app, file: fixture.file, identity };
+  assert.equal((await note.markLiteratureNoteDeleted(params)).changed, true);
+  assert.ok(fixture.current.includes("Retain my research"));
+  assert.ok(
+    fixture.current.indexOf("Retain my research") <
+      fixture.current.indexOf(SYNC_BOUNDARY),
+  );
+  const migrated = fixture.current;
+  assert.equal((await note.markLiteratureNoteDeleted(params)).changed, false);
+  assert.equal(fixture.current, migrated);
 });
 
 test("a stale cached file path is discarded and repaired by identity", () => {

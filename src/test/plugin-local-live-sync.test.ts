@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type * as LiveSync from "../plugin-local-live-sync";
+import type StratumPlugin from "../plugin";
+import { loadRuntime } from "./runtime-harness";
+import { composeLiteratureNoteBody } from "../literature-note-layout";
+import {
+  MANAGED_START,
+  MANAGED_END,
+  USER_BOUNDARY_CALLOUT,
+} from "../literature-note-content-types";
 import {
   getTrackedLibraryRefreshCandidates,
   isWatchedZoteroDataFile,
@@ -188,4 +197,66 @@ test("unchanged sources are refreshed for layout migration within the selected l
     }),
     [],
   );
+});
+
+test("actual mixed layout overrides cached version 2 for unchanged-source migration", async () => {
+  class FakeFile {
+    path = "Papers/Synthetic.md";
+  }
+  const file = new FakeFile();
+  const runtime = loadRuntime<typeof LiveSync>("plugin-local-live-sync.ts", {
+    TFile: FakeFile,
+    Platform: {},
+    parseYaml: JSON.parse,
+  });
+  const fm = { stratum_note_layout: 2 };
+  const managed = `${MANAGED_START}\nSynthetic source\n${MANAGED_END}\n`;
+  const modern = `---\n${JSON.stringify(fm)}\n---\n${composeLiteratureNoteBody("## My Notes\n\n", managed)}`;
+  let content = `${modern}\n${USER_BOUNDARY_CALLOUT}\n\nMy research\n`;
+  const plugin = {
+    settings: {
+      itemFileMap: {
+        "user/1/UNCHANGED": {
+          filePath: file.path,
+          zoteroItemKey: "UNCHANGED",
+          zoteroVersion: 10,
+        },
+        "group/2/OTHER": {
+          filePath: "Papers/Other.md",
+          zoteroItemKey: "OTHER",
+          zoteroVersion: 10,
+        },
+      },
+    },
+    app: {
+      vault: {
+        getAbstractFileByPath: (path: string) => {
+          assert.equal(path, file.path);
+          return file;
+        },
+        cachedRead: () => Promise.resolve(content),
+      },
+      metadataCache: { getFileCache: () => ({ frontmatter: fm }) },
+    },
+  } as unknown as StratumPlugin;
+  const library = {
+    type: "user" as const,
+    id: "1",
+    identity: "user:1",
+    name: "Synthetic",
+  };
+  for (const needsMigration of [true, false]) {
+    const metadata = await runtime.getTrackedNoteMetadata(plugin, library);
+    const candidates = getTrackedLibraryRefreshCandidates({
+      itemFileMap: plugin.settings.itemFileMap,
+      library,
+      previousItemVersions: { UNCHANGED: 10 },
+      currentItemVersions: { UNCHANGED: 10 },
+      ...metadata,
+    });
+    assert.equal(candidates.length, needsMigration ? 1 : 0);
+    if (needsMigration)
+      assert.equal(candidates[0].identity, "user/1/UNCHANGED");
+    content = modern;
+  }
 });

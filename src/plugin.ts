@@ -279,6 +279,7 @@ export default class StratumPlugin extends Plugin {
 
     const { CitationService } = await import("./citation-service");
     const { citationEditor } = await import("./citation-editor");
+    const { literatureNoteEditor } = await import("./literature-note-editor");
     const { registerCitationReading } = await import("./citation-reading");
     if (this.isUnloaded) return;
     const { refreshCitationData } = await import("./citation-refresh");
@@ -287,6 +288,7 @@ export default class StratumPlugin extends Plugin {
     this.citations = new CitationService(this);
     this.addChild(this.citations);
     this.registerEditorExtension(citationEditor(this.citations));
+    this.registerEditorExtension(literatureNoteEditor());
     registerCitationReading(this.citations);
 
     this.sources = this.addChild(new SourcesController(this));

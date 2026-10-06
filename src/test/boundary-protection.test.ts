@@ -1,4 +1,8 @@
 import { SYNC_BOUNDARY } from "../literature-note-content-types";
+import {
+  composeLiteratureNoteBody,
+  requireLiteratureNoteLayout,
+} from "../literature-note-layout";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -113,6 +117,44 @@ function extractUserSection(content: string): string | null {
   const to = content.indexOf(SYNC_BOUNDARY);
   return from >= 0 && to > from ? content.slice(from, to) : null;
 }
+
+test("mixed layout preserves bottom writing through refresh and deletion", () => {
+  const personal =
+    "\nMigration research  \n- [x] Read\n- [ ] Compare\n[[Companion]]\n\n> A quotation\n\n^migration-check\n\n";
+  const managed = `${MANAGED_START}\nOld source\n${MANAGED_END}\n`;
+  const mixed = `---\nstratum_note_layout: 2\n---\n${composeLiteratureNoteBody("## My Notes\n\nReplaceable header\n\n", managed)}\n${USER_BOUNDARY_CALLOUT}\n${personal}`;
+  const parseYaml = () => ({ stratum_note_layout: 2 });
+  const refresh = (existingContent: string) =>
+    buildLiteratureNoteContent({
+      stratumVersion: "0.3.6",
+      detail: createDetail(),
+      filenameStem: "Synthetic paper",
+      existingContent,
+      parseYaml,
+      stringifyYaml: stringifyForTest,
+      htmlToMarkdown: (html) => html,
+    });
+  const deletion = (existingContent: string) =>
+    markLiteratureNoteAsDeletedContent({
+      existingContent,
+      parseYaml,
+      stringifyYaml: stringifyForTest,
+    });
+  const refreshed = refresh(mixed);
+  for (const output of [
+    refreshed,
+    refresh(refreshed),
+    deletion(mixed),
+    deletion(refreshed),
+  ]) {
+    const body = output.slice(output.indexOf("\n---\n") + 5);
+    const layout = requireLiteratureNoteLayout(body, 2);
+    assert.equal(layout.personal, `## My Notes\n${personal}`);
+    assert.doesNotMatch(output, /Replaceable header|\[!stratum\]/);
+    assert.ok(output.indexOf(personal) < output.indexOf(SYNC_BOUNDARY));
+    assert.equal(output.split(personal).length, 2);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Core boundary: user content below [!stratum] callout survives sync

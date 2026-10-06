@@ -1,6 +1,13 @@
-import { NOTE_LAYOUT_KEY, NOTE_LAYOUT_VERSION } from "./literature-note-layout";
-import { Platform, TFile } from "obsidian";
-import { getTrackedChildItemKeysFromFrontmatter } from "./literature-note-frontmatter";
+import {
+  NOTE_LAYOUT_KEY,
+  NOTE_LAYOUT_VERSION,
+  readLiteratureNoteLayout,
+} from "./literature-note-layout";
+import { Platform, TFile, parseYaml } from "obsidian";
+import {
+  getTrackedChildItemKeysFromFrontmatter,
+  splitFrontmatterContent,
+} from "./literature-note-frontmatter";
 import { log } from "./log";
 import { getLibraryAutoSyncState } from "./plugin-libraries";
 import {
@@ -339,13 +346,13 @@ function resolveTrackedRefreshFile(
   });
 }
 
-function getTrackedNoteMetadata(
+export async function getTrackedNoteMetadata(
   plugin: StratumPlugin,
   library: LiveSyncLibrary,
-): {
+): Promise<{
   trackedChildKeysByIdentity: Record<string, string[]>;
   layoutMigrationIdentities: Set<string>;
-} {
+}> {
   const prefix = `${library.type}/${library.id}/`;
   const trackedChildKeysByIdentity: Record<string, string[]> = {};
   const layoutMigrationIdentities = new Set<string>();
@@ -375,6 +382,19 @@ function getTrackedNoteMetadata(
       Number(frontmatter[NOTE_LAYOUT_KEY]) !== NOTE_LAYOUT_VERSION
     ) {
       layoutMigrationIdentities.add(identity);
+    } else if (frontmatter) {
+      // Master retains the new frontmatter version when it restores its old
+      // bottom callout. Inspect tracked notes through Obsidian's read cache so
+      // an unchanged source can still migrate that mixed layout.
+      const { body, frontmatter: actualFrontmatter } = splitFrontmatterContent(
+        await plugin.app.vault.cachedRead(file),
+        parseYaml,
+      );
+      if (
+        readLiteratureNoteLayout(body, actualFrontmatter[NOTE_LAYOUT_KEY])
+          ?.legacy
+      )
+        layoutMigrationIdentities.add(identity);
     }
     trackedChildKeysByIdentity[identity] =
       getTrackedChildItemKeysFromFrontmatter(frontmatter);
@@ -424,7 +444,7 @@ async function runLocalLiveSyncFlush(plugin: StratumPlugin): Promise<void> {
         library,
         previousItemVersions,
         currentItemVersions: versionsResponse.itemVersions,
-        ...getTrackedNoteMetadata(plugin, library),
+        ...(await getTrackedNoteMetadata(plugin, library)),
       });
 
       log("live-sync", "refreshing changed literature notes", {

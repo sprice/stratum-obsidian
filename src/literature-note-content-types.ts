@@ -4,7 +4,7 @@ export const SYNC_BOUNDARY = "<!-- stratum:sync-boundary -->";
 export const SYNC_NOTICE = [
   SYNC_BOUNDARY,
   "> [!warning] Synced source content",
-  "> Everything below this notice is managed by Stratum and may be updated during sync. Keep your own writing above it.",
+  "> This notice and everything below it are managed by Stratum and may be updated during sync. Keep this notice in place and write your own notes above it.",
 ].join("\n");
 export const USER_BOUNDARY_CALLOUT_TYPE = "stratum";
 export const USER_BOUNDARY_CALLOUT_TITLE = "My Notes";

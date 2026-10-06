@@ -14,6 +14,46 @@ import {
 import { markLiteratureNoteAsDeletedContent } from "../literature-note-content";
 
 const managed = `${MANAGED_START}\nSynthetic source\n${MANAGED_END}\n`;
+test("existing notice copy remains recognized without cached layout metadata", () => {
+  const personal = "## My Notes\n\nPreserve my research\n\n";
+  const body = `${personal}${SYNC_BOUNDARY}\n> [!warning] Synced source content\n> Everything below this notice is managed by Stratum and may be updated during sync. Keep your own writing above it.\n\n${managed}`;
+  assert.equal(requireLiteratureNoteLayout(body, undefined).personal, personal);
+});
+for (const version of [undefined, 2]) {
+  test(`mixed layout migrates the legacy personal suffix despite version ${version}`, () => {
+    const personal =
+      "\nResearch  \r\n- [x] Read\r\n[[Companion]]\r\n^research\r\n\r\n";
+    const mixed = `${composeLiteratureNoteBody("## My Notes\n\nReplaceable old header\n\n", managed)}\n${USER_BOUNDARY_CALLOUT}\n${personal}`;
+    const layout = requireLiteratureNoteLayout(mixed, version);
+    assert.equal(layout.personal, `## My Notes\n${personal}`);
+    const migrated = composeLiteratureNoteBody(layout.personal, managed);
+    assert.doesNotMatch(migrated, /Replaceable old header|\[!stratum\]/);
+    const next = requireLiteratureNoteLayout(migrated, 2);
+    assert.equal(composeLiteratureNoteBody(next.personal, managed), migrated);
+  });
+}
+
+test("legacy callout examples above the new boundary or inside source stay examples", () => {
+  const personal = `## My Notes\n\n${USER_BOUNDARY_CALLOUT}\n\nMy example\n\n`;
+  const source = `${MANAGED_START}\n${USER_BOUNDARY_CALLOUT}\n\nSource example\n${MANAGED_END}\n`;
+  const layout = requireLiteratureNoteLayout(
+    composeLiteratureNoteBody(personal, source),
+    2,
+  );
+  assert.equal(layout.personal, personal);
+  assert.equal(layout.managed, source);
+});
+
+test("a complete legacy layout example in new personal writing stays personal", () => {
+  const personal = `## My Notes\n\nLegacy example:\n${managed}\n${USER_BOUNDARY_CALLOUT}\n\nExample writing\n\n`;
+  const layout = requireLiteratureNoteLayout(
+    composeLiteratureNoteBody(personal, managed),
+    2,
+  );
+  assert.equal(layout.personal, personal);
+  assert.equal(layout.managed, managed);
+  assert.equal(layout.legacy, false);
+});
 for (const personal of [
   "\n## Research\n\nWriting  \n- [ ] Task\n^block-id\n\n",
   "\r\nWriting with CRLF  \r\n\r\n",

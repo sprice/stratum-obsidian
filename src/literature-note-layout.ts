@@ -8,15 +8,18 @@ import {
 
 export const NOTE_LAYOUT_VERSION = 2;
 export const NOTE_LAYOUT_KEY = "stratum_note_layout";
+// Recognize existing notices independently of changes to their explanatory copy.
+const SYNC_NOTICE_HEADER = `${SYNC_BOUNDARY}\n> [!warning] Synced source content\n`;
 
 export interface LiteratureNoteLayout {
   /** Includes the My Notes heading and all personal text, without normalization. */
   personal: string;
   managed: string;
+  legacy: boolean;
 }
 
 /** Locate reserved boundaries outside fenced code examples. */
-function boundaryLines(
+export function boundaryLines(
   body: string,
 ): { text: string; from: number; to: number }[] {
   const lines: { text: string; from: number; to: number }[] = [];
@@ -53,7 +56,20 @@ export function readLiteratureNoteLayout(
   const legacyBoundaries = lines.filter((line) =>
     USER_BOUNDARY_PATTERN.test(line.text),
   );
-  const sourceStart = lines.find((line) => line.text === MANAGED_START);
+  const activeSyncBoundary = synced.find(
+    (line) =>
+      Number(version) === NOTE_LAYOUT_VERSION ||
+      ((!legacyBoundaries[0] || line.from < legacyBoundaries[0].from) &&
+        body
+          .slice(line.from)
+          .replace(/\r\n/g, "\n")
+          .startsWith(SYNC_NOTICE_HEADER)),
+  );
+  const sourceStart = lines.find(
+    (line) =>
+      line.text === MANAGED_START &&
+      (!activeSyncBoundary || line.from > activeSyncBoundary.from),
+  );
   const sourceEnd =
     sourceStart &&
     lines.find(
@@ -61,10 +77,9 @@ export function readLiteratureNoteLayout(
     );
   // Source text can contain callout syntax. Prefer the boundary after the
   // generated block, while retaining migration of notes with damaged markers.
-  const legacyBoundary =
-    (sourceEnd &&
-      legacyBoundaries.find((line) => line.from > sourceEnd.from)) ??
-    legacyBoundaries[0];
+  const trailingLegacyBoundary =
+    sourceEnd && legacyBoundaries.find((line) => line.from > sourceEnd.from);
+  const legacyBoundary = trailingLegacyBoundary ?? legacyBoundaries[0];
   // Recognize the new notice without cached metadata, but never promote an
   // example below the old personal boundary to a writable boundary.
   const newLayout =
@@ -72,9 +87,15 @@ export function readLiteratureNoteLayout(
     synced.some(
       (line) =>
         (!legacyBoundary || line.from < legacyBoundary.from) &&
-        body.slice(line.from).replace(/\r\n/g, "\n").startsWith(SYNC_NOTICE),
+        body
+          .slice(line.from)
+          .replace(/\r\n/g, "\n")
+          .startsWith(SYNC_NOTICE_HEADER),
     );
-  if (newLayout) {
+  // Master can retain version 2 and the new notice while appending its old
+  // callout after the managed block. That intact callout still owns the
+  // boundary: only its personal suffix is stable, regardless of metadata.
+  if (newLayout && !trailingLegacyBoundary) {
     if (synced.length !== 1) return null;
     const boundary = synced[0];
     const tail = body.slice(boundary.to);
@@ -83,6 +104,7 @@ export function readLiteratureNoteLayout(
     return {
       personal: body.slice(0, boundary.from),
       managed: tail.slice(managedStart),
+      legacy: false,
     };
   }
   const boundary = legacyBoundary;
@@ -97,7 +119,11 @@ export function readLiteratureNoteLayout(
   }
   return {
     personal: `## My Notes\n${body.slice(end)}`,
-    managed: body.slice(0, boundary.from),
+    managed: body.slice(
+      newLayout && sourceStart ? sourceStart.from : 0,
+      boundary.from,
+    ),
+    legacy: true,
   };
 }
 
