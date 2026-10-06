@@ -31,7 +31,7 @@ const detail = normalizeZoteroItemDetail({
   collections: [],
 });
 const content = (fm: Record<string, unknown>, body = "My original notes") =>
-  `---\n${JSON.stringify(fm)}\n---\n\n${body}\n`;
+  `---\n${JSON.stringify(fm)}\n---\n\n> [!stratum]- My Notes\n> This block and everything above it is managed by Stratum. Write your notes below.\n\n${body}\n`;
 class FakeFile {
   path = "Literature Notes/custom.md";
   name = "custom.md";
@@ -595,4 +595,54 @@ test("image sync resolves an existing note before deciding whether its embed is 
   assert.match(fixture.current, /!\[Selected area\]/);
   assert.doesNotMatch(fixture.current, /Area image unavailable/);
   assert.match(fixture.current, /My original notes/);
+});
+
+test("later syncs preserve edits made above the new boundary during the atomic write", async () => {
+  const fixture = vaultFixture();
+  const params = {
+    stratumVersion: "0.2.1",
+    app: fixture.app,
+    existingFile: fixture.file,
+    detail,
+    filenameFormat: "readable" as const,
+    notesFolder: "Literature Notes",
+  };
+  await note.createOrUpdateLiteratureNote(params);
+  fixture.beforeProcess = () => {
+    fixture.current = fixture.current.replace(
+      "## My Notes\n",
+      "## My Notes\nConcurrent personal edit  \n",
+    );
+  };
+  await note.createOrUpdateLiteratureNote({
+    ...params,
+    detail: {
+      ...detail,
+      item: { ...detail.item, version: detail.item.version + 1 },
+    },
+  });
+  assert.ok(fixture.current.includes("Concurrent personal edit  \n"));
+  assert.ok(
+    fixture.current.indexOf("Concurrent personal edit  \n") <
+      fixture.current.indexOf("<!-- stratum:sync-boundary -->"),
+  );
+  assert.match(fixture.current, /My original notes/);
+});
+
+test("missing required boundary never writes the note", async () => {
+  const original = `---\n${JSON.stringify(frontmatter)}\n---\nPersonal writing`;
+  const fixture = vaultFixture(original);
+  await assert.rejects(
+    note.createOrUpdateLiteratureNote({
+      stratumVersion: "0.2.1",
+      app: fixture.app,
+      existingFile: fixture.file,
+      detail,
+      filenameFormat: "readable",
+      notesFolder: "Literature Notes",
+    }),
+    /boundary is missing or damaged/,
+  );
+  assert.equal(fixture.writes, 0);
+  assert.equal(fixture.current, original);
 });

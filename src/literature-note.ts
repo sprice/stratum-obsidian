@@ -1,4 +1,5 @@
 import { assertSupportedZoteroItem } from "./zotero-item-support";
+import { NOTE_LAYOUT_KEY, NOTE_LAYOUT_VERSION } from "./literature-note-layout";
 import { TFile, htmlToMarkdown, parseYaml, stringifyYaml } from "obsidian";
 import type { App } from "obsidian";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
@@ -158,7 +159,11 @@ export async function markLiteratureNoteDeleted(params: {
       throw new Error("Note sync was cancelled.");
     assertNoteIdentity(existingContent, params.identity);
     const { frontmatter } = splitFrontmatterContent(existingContent, parseYaml);
-    if (frontmatter.zotero_status === "deleted") return existingContent;
+    if (
+      frontmatter.zotero_status === "deleted" &&
+      frontmatter[NOTE_LAYOUT_KEY] === NOTE_LAYOUT_VERSION
+    )
+      return existingContent;
     changed = true;
     return markLiteratureNoteAsDeletedContent({
       existingContent,

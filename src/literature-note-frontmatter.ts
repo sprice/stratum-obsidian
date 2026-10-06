@@ -1,3 +1,4 @@
+import { NOTE_LAYOUT_VERSION } from "./literature-note-layout";
 import { creatorName } from "./zotero-schema";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { normalizeDoi } from "./doi";
@@ -343,6 +344,7 @@ export function renderFrontmatterContent(
     ...nativeFrontmatter,
     ...(filenameStem ? { stratum_filename_stem: filenameStem } : {}),
     stratum_note_type: "literature-note",
+    stratum_note_layout: NOTE_LAYOUT_VERSION,
     stratum_version: stratumVersion,
     ...(detail.annotations.some((a) => a.imagePath)
       ? {

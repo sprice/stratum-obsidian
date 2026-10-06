@@ -1,11 +1,15 @@
+import {
+  composeLiteratureNoteBody,
+  requireLiteratureNoteLayout,
+  NOTE_LAYOUT_KEY,
+  NOTE_LAYOUT_VERSION,
+} from "./literature-note-layout";
 import { withPreservedAnnotationImages } from "./annotation-image-paths";
 import type { ZoteroItemDetail, OpenAlexEnrichment } from "./backend-client";
 import { getNormalizedDoiLookupKey as normalizeDoi } from "./doi";
 import {
   MANAGED_START,
   MANAGED_END,
-  USER_BOUNDARY_CALLOUT,
-  USER_BOUNDARY_PATTERN,
   ZOTERO_STATUS_FRONTMATTER_KEY,
   type HtmlToMarkdownTransformer,
   type YamlParser,
@@ -23,34 +27,6 @@ import {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function upsertManagedBlock(body: string, managedBlock: string): string {
-  const managedPattern = new RegExp(
-    `^${escapeRegExp(MANAGED_START)}\\r?$[\\s\\S]*?^${escapeRegExp(MANAGED_END)}\\r?$(?:\\r?\\n)*`,
-    "m",
-  );
-  const match = managedPattern.exec(body);
-  const boundary = USER_BOUNDARY_PATTERN.exec(body);
-  // Markers in personal writing are examples, never writable boundaries.
-  if (match && (!boundary || match.index + match[0].length <= boundary.index)) {
-    return body.replace(managedPattern, () => `${managedBlock}\n\n`);
-  }
-
-  const trimmedBody = body.trim();
-  if (!trimmedBody) {
-    return `${managedBlock}\n\n${USER_BOUNDARY_CALLOUT}\n\n`;
-  }
-
-  return `${managedBlock}\n\n${trimmedBody}\n`;
-}
-
-function ensureUserBoundary(body: string): string {
-  if (USER_BOUNDARY_PATTERN.test(body)) {
-    return body;
-  }
-
-  return `${body.trimEnd()}\n\n${USER_BOUNDARY_CALLOUT}\n\n`;
 }
 
 function normalizeLegacyEnrichmentSection(section: string): string {
@@ -114,6 +90,10 @@ export function buildLiteratureNoteContent(params: {
       params.existingContent,
       params.parseYaml,
     );
+    const layout = requireLiteratureNoteLayout(
+      body,
+      frontmatter[NOTE_LAYOUT_KEY],
+    );
     const preserveManagedEnrichment =
       enrichmentWasProvided &&
       params.enrichment === undefined &&
@@ -127,21 +107,20 @@ export function buildLiteratureNoteContent(params: {
       zoteroStatus,
       params.enrichment,
       preserveManagedEnrichment
-        ? extractPreservedManagedSections(params.existingContent)
+        ? extractPreservedManagedSections(layout.managed)
         : undefined,
     );
     const nextFrontmatter = renderFrontmatterContent(
       detail,
-      frontmatter,
+      { ...frontmatter, [NOTE_LAYOUT_KEY]: NOTE_LAYOUT_VERSION },
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
       params.stratumVersion,
       params.enrichment,
     );
-    const nextBody = ensureUserBoundary(upsertManagedBlock(body, managedBlock));
-    const result =
-      `${nextFrontmatter}\n${nextBody.trimStart()}`.trimEnd() + "\n";
+    const nextBody = composeLiteratureNoteBody(layout.personal, managedBlock);
+    const result = `${nextFrontmatter}${nextBody}`;
     const withoutTimestamp = (content: string) =>
       content.replace(/^zotero_synced_at:.*\r?$/gm, "");
     return withoutTimestamp(result) === withoutTimestamp(params.existingContent)
@@ -159,17 +138,14 @@ export function buildLiteratureNoteContent(params: {
   return [
     renderFrontmatterContent(
       params.detail,
-      {},
+      { [NOTE_LAYOUT_KEY]: NOTE_LAYOUT_VERSION },
       params.filenameStem,
       zoteroStatus,
       params.stringifyYaml,
       params.stratumVersion,
       params.enrichment,
     ),
-    managedBlock,
-    "",
-    USER_BOUNDARY_CALLOUT,
-    "",
+    composeLiteratureNoteBody("## My Notes\n\n", managedBlock),
   ].join("\n");
 }
 
@@ -182,8 +158,13 @@ export function markLiteratureNoteAsDeletedContent(params: {
     params.existingContent,
     params.parseYaml,
   );
+  const layout = requireLiteratureNoteLayout(
+    body,
+    frontmatter[NOTE_LAYOUT_KEY],
+  );
   const nextFrontmatter = {
     ...frontmatter,
+    [NOTE_LAYOUT_KEY]: NOTE_LAYOUT_VERSION,
     [ZOTERO_STATUS_FRONTMATTER_KEY]: "deleted",
     zotero_synced_at: new Date().toISOString(),
   } satisfies Record<string, unknown>;
@@ -191,21 +172,17 @@ export function markLiteratureNoteAsDeletedContent(params: {
     "> [!warning] This item was removed from Zotero",
     "> The source item is no longer in your Zotero library. This note is preserved but will no longer receive updates.",
   ].join("\n");
-  const boundary = USER_BOUNDARY_PATTERN.exec(body);
-  const managed = boundary ? body.slice(0, boundary.index) : body;
-  const personal = boundary ? body.slice(boundary.index) : "";
+  const managed = layout.managed;
   const warningPattern = new RegExp(`${escapeRegExp(deletedNotice)}\\n*`, "m");
   const startPattern = new RegExp(`^${escapeRegExp(MANAGED_START)}\\r?$`, "m");
   const nextManaged = startPattern.test(managed)
     ? managed
         .replace(warningPattern, "")
         .replace(startPattern, () => `${MANAGED_START}\n${deletedNotice}\n`)
-    : `${deletedNotice}\n\n${managed}`;
-  const nextBody = nextManaged + personal;
+    : `${MANAGED_START}\n${deletedNotice}\n\n${managed.trimEnd()}\n${MANAGED_END}`;
+  const nextBody = composeLiteratureNoteBody(layout.personal, nextManaged);
 
-  return `---\n${params.stringifyYaml(nextFrontmatter).trim()}\n---\n\n${nextBody.trimStart()}`
-    .trimEnd()
-    .concat("\n");
+  return `---\n${params.stringifyYaml(nextFrontmatter).trim()}\n---\n${nextBody}`;
 }
 
 export {

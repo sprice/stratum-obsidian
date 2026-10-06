@@ -173,7 +173,7 @@ function stringifyForTest(value: Record<string, unknown>): string {
     .join("\n");
 }
 
-test("buildLiteratureNoteContent preserves invalid frontmatter during updates", () => {
+test("buildLiteratureNoteContent replaces invalid owned frontmatter and preserves personal writing", () => {
   const existingContent = [
     "---",
     "aliases: [broken",
@@ -199,7 +199,7 @@ test("buildLiteratureNoteContent preserves invalid frontmatter during updates", 
   });
 
   assert.match(output, /zotero_item_identity: user\/123456\/ABCD1234/);
-  assert.match(output, /aliases: \[broken/);
+  assert.doesNotMatch(output, /aliases: \[broken/);
   assert.match(output, /Personal analysis lives here\./);
 });
 
@@ -247,7 +247,7 @@ test("buildLiteratureNoteContent emits native metadata and omits empty managed s
   assert.match(output, /> \[!abstract\]\+ Abstract/);
   assert.doesNotMatch(output, /## Zotero Notes/);
   assert.doesNotMatch(output, /## Highlights/);
-  assert.match(output, /\[!stratum\]/);
+  assert.match(output, /\[!warning\] Synced source content/);
 });
 
 test("buildLiteratureNoteContent renders Zotero notes as foldable callouts", () => {
@@ -719,7 +719,7 @@ test("buildLiteratureNoteContent removes stale managed frontmatter keys on updat
   );
   assert.match(output, /custom_property: Keep me/);
   assert.match(output, /User notes stay here\./);
-  assert.match(output, /\[!stratum\]/);
+  assert.match(output, /\[!warning\] Synced source content/);
 });
 
 test("findExistingLiteratureNoteMatch prefers exact library-aware matches in the preferred folder", () => {
@@ -1193,7 +1193,11 @@ test("sync replaces collection keys, records unfiled membership, and preserves M
         : /zotero_collection_keys: \[\]/,
     );
     assert.doesNotMatch(output, /zotero_collection_keys: \[OLD\]/);
-    assert.ok(output.endsWith("My personal argument with [[Other note]].\n"));
+    assert.ok(output.includes("My personal argument with [[Other note]].\n"));
+    assert.ok(
+      output.indexOf("My personal argument") <
+        output.indexOf("<!-- stratum:sync-boundary -->"),
+    );
   }
 });
 
@@ -1212,7 +1216,10 @@ test("note frontmatter records and replaces the importing plugin version", () =>
   const readFrontmatter = (content: string) =>
     JSON.parse(content.split("---")[1]) as Record<string, unknown>;
   assert.equal(readFrontmatter(initial).stratum_version, "0.2.1");
-  const existingContent = initial + "\nMy personal notes.\n";
+  const existingContent = initial.replace(
+    "## My Notes\n",
+    "## My Notes\n\nMy personal notes.\n",
+  );
   const refreshed = buildLiteratureNoteContent({
     ...params,
     stratumVersion: "0.3.0",

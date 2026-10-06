@@ -1,5 +1,11 @@
 export const MANAGED_START = "<!-- stratum:managed:start -->";
 export const MANAGED_END = "<!-- stratum:managed:end -->";
+export const SYNC_BOUNDARY = "<!-- stratum:sync-boundary -->";
+export const SYNC_NOTICE = [
+  SYNC_BOUNDARY,
+  "> [!warning] Synced source content",
+  "> Everything below this notice is managed by Stratum and may be updated during sync. Keep your own writing above it.",
+].join("\n");
 export const USER_BOUNDARY_CALLOUT_TYPE = "stratum";
 export const USER_BOUNDARY_CALLOUT_TITLE = "My Notes";
 export const USER_BOUNDARY_PATTERN = /^ {0,3}>[ \t]*\[!stratum\]/im;
@@ -62,6 +68,7 @@ export const MANAGED_FRONTMATTER_KEYS = new Set([
   "stratum_filename_stem",
   "stratum_managed_aliases",
   "stratum_note_type",
+  "stratum_note_layout",
   "stratum_version",
   "stratum_annotation_images",
   "zotero_annotation_keys",

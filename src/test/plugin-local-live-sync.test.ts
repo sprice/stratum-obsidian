@@ -157,3 +157,35 @@ test("getTrackedLibraryRefreshCandidates returns notes whose parent or tracked c
     },
   ]);
 });
+
+test("unchanged sources are refreshed for layout migration within the selected library", () => {
+  const params = {
+    itemFileMap: {
+      "user/1/UNCHANGED": {
+        filePath: "Papers/Synthetic.md",
+        zoteroItemKey: "UNCHANGED",
+        zoteroVersion: 10,
+      },
+      "group/2/OTHER": {
+        filePath: "Papers/Other.md",
+        zoteroItemKey: "OTHER",
+        zoteroVersion: 10,
+      },
+    },
+    library: { type: "user" as const, id: "1" },
+    previousItemVersions: { UNCHANGED: 10 },
+    currentItemVersions: { UNCHANGED: 10 },
+    layoutMigrationIdentities: new Set(["user/1/UNCHANGED", "group/2/OTHER"]),
+  };
+  assert.deepEqual(
+    getTrackedLibraryRefreshCandidates(params).map((entry) => entry.identity),
+    ["user/1/UNCHANGED"],
+  );
+  assert.deepEqual(
+    getTrackedLibraryRefreshCandidates({
+      ...params,
+      layoutMigrationIdentities: new Set(),
+    }),
+    [],
+  );
+});

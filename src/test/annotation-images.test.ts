@@ -675,8 +675,10 @@ test("managed image embeds survive enrichment refresh while My Notes stays untou
     stringifyYaml: JSON.stringify,
     htmlToMarkdown: (html: string) => html,
   };
-  const original =
-    buildLiteratureNoteContent(params) + "\nMy private writing stays here.\n";
+  const original = buildLiteratureNoteContent(params).replace(
+    "## My Notes\n",
+    "## My Notes\n\nMy private writing stays here.\n",
+  );
   assert.match(
     original,
     /!\[Selected area\]\(<Literature%20Notes\/Attachments\//,

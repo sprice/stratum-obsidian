@@ -1,3 +1,4 @@
+import { NOTE_LAYOUT_KEY, NOTE_LAYOUT_VERSION } from "./literature-note-layout";
 import { Platform, TFile } from "obsidian";
 import { getTrackedChildItemKeysFromFrontmatter } from "./literature-note-frontmatter";
 import { log } from "./log";
@@ -338,12 +339,16 @@ function resolveTrackedRefreshFile(
   });
 }
 
-function getTrackedChildKeysByIdentity(
+function getTrackedNoteMetadata(
   plugin: StratumPlugin,
   library: LiveSyncLibrary,
-): Record<string, string[]> {
+): {
+  trackedChildKeysByIdentity: Record<string, string[]>;
+  layoutMigrationIdentities: Set<string>;
+} {
   const prefix = `${library.type}/${library.id}/`;
   const trackedChildKeysByIdentity: Record<string, string[]> = {};
+  const layoutMigrationIdentities = new Set<string>();
 
   for (const [identity, entry] of Object.entries(plugin.settings.itemFileMap)) {
     if (!identity.startsWith(prefix)) {
@@ -365,11 +370,17 @@ function getTrackedChildKeysByIdentity(
 
     const frontmatter =
       plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+    if (
+      frontmatter &&
+      Number(frontmatter[NOTE_LAYOUT_KEY]) !== NOTE_LAYOUT_VERSION
+    ) {
+      layoutMigrationIdentities.add(identity);
+    }
     trackedChildKeysByIdentity[identity] =
       getTrackedChildItemKeysFromFrontmatter(frontmatter);
   }
 
-  return trackedChildKeysByIdentity;
+  return { trackedChildKeysByIdentity, layoutMigrationIdentities };
 }
 
 async function runLocalLiveSyncFlush(plugin: StratumPlugin): Promise<void> {
@@ -413,10 +424,7 @@ async function runLocalLiveSyncFlush(plugin: StratumPlugin): Promise<void> {
         library,
         previousItemVersions,
         currentItemVersions: versionsResponse.itemVersions,
-        trackedChildKeysByIdentity: getTrackedChildKeysByIdentity(
-          plugin,
-          library,
-        ),
+        ...getTrackedNoteMetadata(plugin, library),
       });
 
       log("live-sync", "refreshing changed literature notes", {

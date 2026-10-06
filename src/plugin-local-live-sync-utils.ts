@@ -51,6 +51,7 @@ export function getTrackedLibraryRefreshCandidates(params: {
   previousItemVersions: Record<string, number>;
   currentItemVersions: Record<string, number>;
   trackedChildKeysByIdentity?: Record<string, string[]>;
+  layoutMigrationIdentities?: ReadonlySet<string>;
 }): TrackedRefreshCandidate[] {
   const prefix = `${params.library.type}/${params.library.id}/`;
   const candidates: TrackedRefreshCandidate[] = [];
@@ -61,6 +62,7 @@ export function getTrackedLibraryRefreshCandidates(params: {
     }
 
     if (
+      params.layoutMigrationIdentities?.has(identity) ||
       hasTrackedItemVersionChanged(
         entry.zoteroItemKey,
         params.previousItemVersions,

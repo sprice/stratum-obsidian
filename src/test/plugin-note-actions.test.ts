@@ -118,3 +118,83 @@ test("existing note still requires confirmation and cancellation does not write"
   assert.equal(fixture.writes(), 0);
   assert.equal(fixture.plugin.libraryNoteActionError, null);
 });
+
+for (const format of ["wiki", "markdown"] as const) {
+  test(`literature-note insertion uses Obsidian's ${format} link output and the writing note's path`, () => {
+    const sourceFile = {
+      path: "Papers/Synthetic source.md",
+      basename: "Synthetic source",
+    };
+    const draft = { path: "Drafts/Paper.md" };
+    const entry = { file: sourceFile, preferredLinkText: "Smith 2024" };
+    const output =
+      format === "wiki"
+        ? "[[Papers/Synthetic source|Smith 2024]]"
+        : "[Smith 2024](../Papers/Synthetic%20source.md)";
+    let choose!: (selected: typeof entry) => void;
+    let inserted = "";
+    const editor = {
+      replaceSelection: (text: string) => {
+        inserted = text;
+      },
+    };
+    const plugin = {
+      app: {
+        workspace: {
+          activeEditor: { editor, file: draft } as {
+            editor: typeof editor;
+            file: typeof draft;
+          } | null,
+        },
+        fileManager: {
+          generateMarkdownLink: (
+            file: typeof sourceFile,
+            sourcePath: string,
+            subpath: string,
+            alias: string,
+          ) => {
+            assert.equal(file, sourceFile);
+            assert.equal(sourcePath, draft.path);
+            assert.equal(subpath, "");
+            assert.equal(alias, entry.preferredLinkText);
+            return output;
+          },
+        },
+      },
+    };
+    const runtime = loadRuntime<typeof import("../plugin-note-actions")>(
+      "plugin-note-actions.ts",
+      { Notice: class {} },
+      {},
+      "node",
+      {
+        "./plugin-note-sync": {},
+        "./plugin-sync-helpers": {},
+        "./plugin-libraries": {},
+        "./literature-note-update-modal": {},
+        "./literature-note": {},
+        "./plugin-tabs": {},
+        "./citation-composer": {},
+        "./library-search-modal": {
+          buildLiteratureNoteEntries: () => [entry],
+          LiteratureNoteSearchModal: class {
+            constructor(
+              _app: unknown,
+              _entries: unknown,
+              onSelect: typeof choose,
+            ) {
+              choose = onSelect;
+            }
+            open() {}
+          },
+        },
+      },
+    );
+    runtime.insertLiteratureNoteLink(plugin as never, editor as never);
+    // Opening a modal can temporarily clear activeEditor. Retain the origin
+    // rather than generating a relative link as though it were at vault root.
+    plugin.app.workspace.activeEditor = null;
+    choose(entry);
+    assert.equal(inserted, output);
+  });
+}

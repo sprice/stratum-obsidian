@@ -8,6 +8,7 @@ import {
 } from "./stratum-tabs";
 import type { CitationService } from "./citation-service";
 import { CitationSuggest } from "./citation-suggest";
+import { registerZoteroOpenCommands } from "./zotero-open-commands";
 import { SourcesController } from "./sources-controller";
 import {
   browseCollections,
@@ -348,6 +349,7 @@ export default class StratumPlugin extends Plugin {
       name: "Open literature note",
       callback: () => openLiteratureNoteFromModal(this),
     });
+    registerZoteroOpenCommands(this);
 
     this.addCommand({
       id: "open-literature-note-in-panel",

@@ -18,8 +18,8 @@ remain distinct even when their item keys match. Titles, authors, years, DOIs,
 and citation keys are metadata, not substitutes for that identity.
 
 An Obsidian link targets a filename or path, not Zotero frontmatter. The plugin's
-insert-link command currently emits `[[basename|display text]]`, or
-`[[basename]]` when no display text is needed. Changing an alias or display label
+insert-link command delegates to Obsidian to honor the preferred link format
+and target-path setting, with optional display text. Changing an alias or display label
 does not repair a changed target. Users can also write folder-qualified links,
 Markdown links, and embeds themselves.
 
@@ -54,10 +54,14 @@ broken.
    status. A Zotero duplicate merge that changes item identity needs deliberate
    handling; it is not automatically the same recreation case.
 6. **Existing user writing remains protected.** Refreshing or rebuilding managed
-   sections of an existing file must preserve user content below the Stratum
-   boundary, user aliases, and supported user frontmatter. Regeneration after
+   sections of an existing file must preserve user content above the synced-source
+   notice, user aliases, and supported user frontmatter. Regeneration after
    the user deletes the entire file cannot recover writing that existed only
    in that file. Recovery of deleted personal writing requires a vault backup.
+   Legacy notes migrate during sync: everything after the complete intact
+   My Notes callout moves to the top without rewriting the personal text.
+   The old callout and everything above it are managed; the new synced-source
+   notice and everything below it are managed.
 
 The guaranteed recreation case concerns the note target. Heading and block
 references additionally depend on the referenced content still existing. Do
@@ -69,7 +73,7 @@ have disappeared from Zotero.
 | Area | Existing behavior | Contract limit |
 | --- | --- | --- |
 | Identity lookup | Frontmatter and `itemFileMap` associate files with library identity and item key. Cached paths and legacy matching reject conflicting explicit identities; updates recheck actual file contents. | A legacy item key without library metadata is still ambiguous. Existing legacy notes remain eligible for compatibility. |
-| Inserted links | The link command inserts the file basename with optional display text. | A same-named file elsewhere in the vault can make an unqualified target ambiguous. Folder-qualified targets need consideration when guaranteeing resolution. |
+| Inserted links | Obsidian generates the link using the preferred format and target-path setting, with optional display text. | Existing manually written unqualified links can still be ambiguous. Folder-qualified targets need consideration when guaranteeing resolution after recreation. |
 | Fresh filenames | Readable names use authors, year, and a shortened title. The citekey format uses a generated fallback. | These are derived from current metadata and settings, not a permanent assignment to an identity. |
 | Name collisions | Creation tries the first available generated name, then alphabetic suffixes, with an ASCII fallback when needed. Existing paths are skipped. | The assignment depends on availability and processing order. Concurrent bulk workers and different catalog orders can assign different names on a rebuild. A collision must not overwrite or retarget another paper. |
 | Existing names | Existing files retain their paths on refresh, including previously generated and manually chosen names. | The name still lives in the note being deleted; no durable naming history restores it after deletion. |
@@ -121,8 +125,8 @@ after each operation, rather than checking only whether a target exists.
   rules, and manually renaming a literature note. Verify the applicable name
   migration and reconstruction behavior.
 - Repeat refresh tests with Obsidian's automatic link updates enabled and
-  disabled. Check custom aliases and writing below the boundary are preserved
-  in existing files.
+  disabled. Check custom aliases and writing above the synced-source notice
+  are preserved in existing files.
 - Verify local and cloud metadata for the same identity produce compatible
   targets. Verify deleting an item in Zotero retains its existing vault note.
 - Verify an occupied path never overwrites an unrelated file or silently makes
