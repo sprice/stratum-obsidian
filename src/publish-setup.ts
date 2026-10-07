@@ -1,3 +1,9 @@
+import {
+  createStratumDisclosure,
+  createStratumSummary,
+  styleStratumComponent,
+  createStratumAction,
+} from "./ui-controls";
 import { Modal, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
 import { choosePublishExecutable, publishPlatform } from "./publish-desktop";
@@ -52,8 +58,8 @@ export class PublishSetupModal extends Modal {
       this.rows.set(tool, { badge, detail, path: detail });
     }
     this.help = contentEl.createDiv({ cls: "stratum-publish-install" });
-    const advanced = contentEl.createEl("details");
-    advanced.createEl("summary", { text: "Advanced" });
+    const advanced = createStratumDisclosure(contentEl);
+    createStratumSummary(advanced, { text: "Advanced" });
     advanced.createEl("p", {
       cls: "stratum-publish-meta",
       text: "Tools are found automatically. Choose a location only for a custom installation.",
@@ -65,6 +71,7 @@ export class PublishSetupModal extends Modal {
       const setting = new Setting(advanced)
         .setName(label)
         .addText((input) => {
+          styleStratumComponent(input);
           inputEl = input.inputEl;
           this.controls.push(inputEl);
           input
@@ -82,6 +89,7 @@ export class PublishSetupModal extends Modal {
           });
         })
         .addButton((button) => {
+          styleStratumComponent(button);
           this.controls.push(button.buttonEl);
           button
             .setButtonText("Browse…")
@@ -102,7 +110,7 @@ export class PublishSetupModal extends Modal {
         });
       this.rows.get(tool)!.path = setting.descEl;
     }
-    const reset = advanced.createEl("button", {
+    const reset = createStratumAction(advanced, {
       text: "Use automatic detection",
     });
     this.controls.push(reset);
@@ -128,12 +136,12 @@ export class PublishSetupModal extends Modal {
     const actions = contentEl.createDiv({
       cls: "stratum-publish-actions stratum-publish-setup-actions",
     });
-    this.secondary = actions.createEl("button");
+    this.secondary = createStratumAction(actions);
     this.secondary.addEventListener("click", () => {
       if (publish.checking) publish.cancel();
       else void publish.check(true);
     });
-    this.primary = actions.createEl("button", { cls: "mod-cta" });
+    this.primary = createStratumAction(actions, { cls: "mod-cta" });
     this.primary.addEventListener("click", () => {
       if (publish.readiness?.word && publish.readiness.pdf) this.close();
       else void publish.check(true);
@@ -190,8 +198,8 @@ export class PublishSetupModal extends Modal {
         link.setAttr("rel", "noopener noreferrer");
       }
       if (publishPlatform().platform === "darwin") {
-        const brew = this.help.createEl("details");
-        brew.createEl("summary", { text: "Homebrew installation" });
+        const brew = createStratumDisclosure(this.help);
+        createStratumSummary(brew, { text: "Homebrew installation" });
         const command = `brew install ${missing.join(" ")}`;
         brew.createEl("code", { text: command });
       }

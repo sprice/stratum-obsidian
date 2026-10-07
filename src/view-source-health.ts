@@ -1,4 +1,8 @@
-import { createStratumButton } from "./ui-controls";
+import {
+  createStratumDisclosure,
+  createStratumSummary,
+  createStratumButton,
+} from "./ui-controls";
 import type { SourceRow } from "./document-sources";
 
 export function sourceNeedsAttention(row: SourceRow): boolean {
@@ -50,10 +54,10 @@ export function renderSourceHealth(
       cls: "stratum-sources-issue stratum-sources-fetch-error",
       text: options.error,
     });
-  const info = issue.createEl("details", {
+  const info = createStratumDisclosure(issue, {
     cls: "stratum-sources-health-details",
   });
-  info.createEl("summary", { text: "Details" });
+  createStratumSummary(info, { text: "Details" });
   const message = (text: string) =>
     info.createEl("p", { cls: "stratum-sources-issue", text });
   const action = (text: string, suffix: string, callback: () => void) => {
@@ -108,8 +112,8 @@ export function renderSourceHealth(
     health &&
     (health.problem === "conflicting-key" || health.notes.length > 1)
   ) {
-    const details = info.createEl("details");
-    details.createEl("summary", { text: "Review matching sources" });
+    const details = createStratumDisclosure(info);
+    createStratumSummary(details, { text: "Review matching sources" });
     const list = details.createEl("ul");
     for (const identity of health.candidates) {
       const notes = health.notes.filter(

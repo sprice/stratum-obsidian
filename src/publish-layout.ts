@@ -48,3 +48,22 @@ function Div(el)
   end
 end
 `;
+
+export function publicationFilter(options: PublishOptions): string {
+  return PUBLICATION_FILTER.replaceAll(
+    "begin{center}",
+    `begin{${options.openingAlignment === "left" ? "flushleft" : "center"}}`,
+  )
+    .replaceAll(
+      "end{center}",
+      `end{${options.openingAlignment === "left" ? "flushleft" : "center"}}`,
+    )
+    .replaceAll(
+      "begin{quote}",
+      options.abstractWidth === "inset" ? "begin{quote}" : "begingroup",
+    )
+    .replaceAll(
+      "end{quote}",
+      options.abstractWidth === "inset" ? "end{quote}" : "endgroup",
+    );
+}

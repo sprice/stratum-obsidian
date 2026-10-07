@@ -1,3 +1,4 @@
+import { createStratumInput } from "./ui-controls";
 import { Notice, Scope, type Keymap } from "obsidian";
 
 export interface ChecklistItem {
@@ -94,7 +95,7 @@ export function openChecklist(
     );
   let pending = false;
   const search = options.searchable
-    ? panel.createEl("input", {
+    ? createStratumInput(panel, {
         type: "search",
         placeholder: "Search styles or journals",
         attr: { "aria-label": "Search citation styles" },
@@ -134,7 +135,7 @@ export function openChecklist(
       const label = list.createEl("label", {
         cls: "stratum-tab-chooser-option",
       });
-      const input = label.createEl("input", { type: "checkbox" });
+      const input = createStratumInput(label, { type: "checkbox" });
       input.checked = item.checked;
       input.disabled = Boolean(item.disabled);
       if (item.disabled) label.addClass("is-disabled");

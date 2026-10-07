@@ -154,19 +154,17 @@ test("academic rendering builds one opening, indents Abstract, and promotes pape
   );
   assert.match(result.html, /Keywords: testing/);
   assert.match(result.html, /<h1>Introduction<\/h1>/);
-  await assert.rejects(
-    () =>
-      renderPublication(
-        {} as never,
-        '---\n{"title":"Synthetic title"}\n---\n\n# Synthetic title',
-        "Example.md",
-        "Example",
-        undefined,
-        new AbortController().signal,
-        preferences,
-      ),
-    /body repeats the title/,
+  // A repeated title is a warning: publishing keeps the body heading.
+  const repeated = await renderPublication(
+    {} as never,
+    '---\n{"title":"Synthetic title"}\n---\n\n# Synthetic title',
+    "Example.md",
+    "Example",
+    undefined,
+    new AbortController().signal,
+    preferences,
   );
+  assert.match(repeated.html, /stratum-publish-title/);
 });
 
 test("academic body titles stay first, references match section level, and general headings are unchanged", async () => {
@@ -243,4 +241,215 @@ test("academic body titles stay first, references match section level, and gener
   );
   assert.match(general.html, /<body><h1>Synthetic heading<\/h1>/);
   assert.match(general.html, /<h2 class="unnumbered">References<\/h2>/);
+});
+
+test("template mappings publish renamed fields, exclude private metadata, and permit optional titles", async () => {
+  const { renderPublication } = loadRuntime<typeof import("../publish-render")>(
+    "publish-render.ts",
+    {
+      parseYaml: JSON.parse,
+      Component: class {
+        load() {}
+        unload() {}
+      },
+      TFile: class {},
+      MarkdownRenderer: {
+        render: (_app: unknown, _markdown: string, root: Element) => {
+          root.append("<h2>Introduction</h2><p>Synthetic body.</p>");
+          return Promise.resolve();
+        },
+      },
+    },
+    { createDiv: () => new Element() },
+    "browser",
+    { "./publish-document": publishDocument, "./publish-math": publishMath },
+  );
+  const { readNotePreferences } = await import("../publish-options");
+  const { readPublishingProperties } = await import("../publish-properties");
+  const preferences = readNotePreferences({
+    documentType: "general",
+    docx: { titleSource: "properties" },
+  });
+  const fields = readPublishingProperties([
+    { key: "paper_title", use: "title", required: false },
+    { key: "writers", use: "authors", type: "list" },
+    { key: "secret", use: "metadata" },
+  ]);
+  const source =
+    '---\n{"paper_title":"Mapped title","title":"Unmapped title","writers":["Synthetic author"],"secret":"Private metadata"}\n---\n\n## Introduction';
+  const result = await renderPublication(
+    {} as never,
+    source,
+    "Example.md",
+    "Example",
+    undefined,
+    new AbortController().signal,
+    preferences,
+    fields,
+  );
+  assert.match(result.html, /Mapped title/);
+  assert.match(result.html, /Synthetic author/);
+  assert.doesNotMatch(result.html, /Unmapped title|Private metadata/);
+  preferences.docx.titleSource = "body";
+  const noTitle = await renderPublication(
+    {} as never,
+    '---\n{"writers":["Synthetic author"]}\n---\n## Introduction',
+    "Example.md",
+    "Example",
+    undefined,
+    new AbortController().signal,
+    preferences,
+    fields,
+  );
+  assert.match(noTitle.html, /Synthetic author/);
+  assert.doesNotMatch(noTitle.html, /stratum-publish-title/);
+});
+
+test("abstract display choices change export output without changing source text", async () => {
+  const { renderPublication } = loadRuntime<typeof import("../publish-render")>(
+    "publish-render.ts",
+    {
+      Component: class {
+        load() {}
+        unload() {}
+      },
+      TFile: class {},
+      MarkdownRenderer: {
+        render: (_app: unknown, _markdown: string, root: Element) => {
+          root.append(
+            "<h1>Abstract</h1><p>Synthetic summary.</p><h1>Introduction</h1><p>Retained body.</p>",
+          );
+          return Promise.resolve();
+        },
+      },
+    },
+    { createDiv: () => new Element() },
+    "browser",
+    { "./publish-document": publishDocument, "./publish-math": publishMath },
+  );
+  const { readNotePreferences } = await import("../publish-options");
+  const { publicationProperties } = await import("../publish-properties");
+  const preferences = readNotePreferences({ documentType: "general" });
+  const source =
+    "# Abstract\n\nSynthetic summary.\n\n# Introduction\n\nRetained body.";
+  const render = () =>
+    renderPublication(
+      {} as never,
+      source,
+      "Example.md",
+      "Example",
+      undefined,
+      new AbortController().signal,
+      preferences,
+      publicationProperties(preferences.docx),
+    );
+  assert.match((await render()).html, /stratum-publish-abstract/);
+  preferences.docx.showAbstract = false;
+  const hidden = await render();
+  assert.doesNotMatch(hidden.html, /Abstract|Synthetic summary/);
+  assert.match(hidden.html, /Introduction|Retained body/);
+  assert.match(source, /Synthetic summary/);
+});
+
+test("documents without published properties ignore unreadable YAML", async () => {
+  const { renderPublication } = loadRuntime<typeof import("../publish-render")>(
+    "publish-render.ts",
+    {
+      parseYaml: JSON.parse,
+      Component: class {
+        load() {}
+        unload() {}
+      },
+      TFile: class {},
+      MarkdownRenderer: {
+        render: (_app: unknown, _markdown: string, root: Element) => {
+          root.append("<p>Synthetic body.</p>");
+          return Promise.resolve();
+        },
+      },
+    },
+    { createDiv: () => new Element() },
+    "browser",
+    { "./publish-document": publishDocument, "./publish-math": publishMath },
+  );
+  const { readNotePreferences } = await import("../publish-options");
+  const preferences = readNotePreferences({ documentType: "general" });
+  const result = await renderPublication(
+    {} as never,
+    "---\n{unreadable\n---\n\nSynthetic body.",
+    "Example.md",
+    "Example",
+    undefined,
+    new AbortController().signal,
+    preferences,
+    [],
+  );
+  assert.match(result.html, /Synthetic body/);
+});
+
+test("repeated titles keep the body heading and keywords follow the abstract", async () => {
+  const renderer = (html: string) =>
+    loadRuntime<typeof import("../publish-render")>(
+      "publish-render.ts",
+      {
+        parseYaml: JSON.parse,
+        Component: class {
+          load() {}
+          unload() {}
+        },
+        TFile: class {},
+        MarkdownRenderer: {
+          render: (_app: unknown, _markdown: string, root: Element) => {
+            root.append(html);
+            return Promise.resolve();
+          },
+        },
+      },
+      { createDiv: () => new Element() },
+      "browser",
+      { "./publish-document": publishDocument, "./publish-math": publishMath },
+    ).renderPublication;
+  const { readNotePreferences, DEFAULT_ACADEMIC_OPTIONS } =
+    await import("../publish-options");
+  const { publicationProperties } = await import("../publish-properties");
+  const preferences = readNotePreferences({ documentType: "academic" });
+  const definitions = publicationProperties(DEFAULT_ACADEMIC_OPTIONS);
+  assert.ok(definitions.some((field) => field.key === "keywords"));
+  const render = (html: string, properties: object) =>
+    renderer(html)(
+      {} as never,
+      `---\n${JSON.stringify(properties)}\n---\n\nSynthetic source.`,
+      "Example.md",
+      "Example",
+      undefined,
+      new AbortController().signal,
+      preferences,
+      definitions,
+    );
+  const repeated = await render(
+    "<h1>Synthetic title</h1><h2>Abstract</h2><p>Synthetic summary.</p><h2>Introduction</h2><p>Body.</p>",
+    { title: "Synthetic title", keywords: ["alpha", "beta"] },
+  );
+  assert.equal((repeated.html.match(/Synthetic title/g) ?? []).length, 2);
+  assert.match(
+    repeated.html,
+    /stratum-publish-abstract">[\s\S]*?Synthetic summary\.<\/p><\/div><div class="stratum-publish-keywords"><p>Keywords: alpha, beta<\/p><\/div>/,
+  );
+  assert.ok(
+    repeated.html.indexOf("Keywords:") < repeated.html.indexOf("Introduction"),
+  );
+  assert.doesNotMatch(repeated.html, /stratum-publish-keywords-->|<!--/);
+  const withoutAbstract = await render("<h2>Introduction</h2><p>Body.</p>", {
+    title: "Synthetic title",
+    keywords: ["alpha"],
+  });
+  assert.match(
+    withoutAbstract.html,
+    /stratum-publish-title[\s\S]*?Keywords: alpha[\s\S]*?Introduction/,
+  );
+  const empty = await render("<h2>Introduction</h2><p>Body.</p>", {
+    title: "Synthetic title",
+    keywords: [],
+  });
+  assert.doesNotMatch(empty.html, /Keywords/);
 });

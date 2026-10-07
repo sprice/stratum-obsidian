@@ -1,3 +1,4 @@
+import { createStratumAction } from "./ui-elements";
 import type { CollectionPaper } from "./collection-browser-model";
 import {
   compareSourceValues,
@@ -60,7 +61,7 @@ export function renderCollectionTable(
         : "none",
     );
     const label = key === "source" ? "Source" : sourceColumnLabel(key);
-    const button = cell.createEl("button", { text: label });
+    const button = createStratumAction(cell, { text: label });
     button.type = "button";
     button.dataset.collectionSort = key;
     button.title = `Sort by ${label.toLocaleLowerCase()}`;

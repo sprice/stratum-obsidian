@@ -1,18 +1,21 @@
-import { readEnabledTabs } from "./stratum-tabs";
-import { selectStratumTab } from "./plugin-tabs";
-import { SourceColumnsModal } from "./source-columns-modal";
-import { renderCollectionTable, sortCollectionTable } from "./collection-table";
 import {
+  styleStratumComponent,
+  createStratumAction,
+  createStratumIconButton,
   createStratumButton,
   createStratumSearch,
   createStratumSelect,
 } from "./ui-controls";
+import { readEnabledTabs } from "./stratum-tabs";
+import { selectStratumTab } from "./plugin-tabs";
+import { SourceColumnsModal } from "./source-columns-modal";
+import { renderCollectionTable, sortCollectionTable } from "./collection-table";
+
 import {
   ItemView,
   Keymap,
   Menu,
   TFile,
-  setIcon,
   ToggleComponent,
   debounce,
   type ViewStateResult,
@@ -277,7 +280,7 @@ export class CollectionBrowserView extends ItemView {
         cls: "stratum-collection-toggle",
       });
       label.createSpan({ text: "Include subcollections" });
-      return new ToggleComponent(label)
+      return styleStratumComponent(new ToggleComponent(label))
         .setValue(this.state.includeSubcollections)
         .setTooltip("Include subcollections")
         .onChange((value) => {
@@ -568,7 +571,7 @@ export class CollectionBrowserView extends ItemView {
       }
     }
     if (papers.length > this.state.visibleCount) {
-      const more = this.results.createEl("button", {
+      const more = createStratumAction(this.results, {
         text: "Show more papers",
       });
       more.addEventListener("click", () => {
@@ -606,11 +609,11 @@ export class CollectionBrowserView extends ItemView {
         Keymap.isModEvent(event) || "tab",
       );
     };
-    const actions = heading.createEl("button", {
-      cls: "clickable-icon stratum-source-summary-actions",
-      attr: { "aria-label": "Source actions", type: "button" },
+    const actions = createStratumIconButton(heading, {
+      icon: "ellipsis",
+      ariaLabel: "Source actions",
+      className: "stratum-source-summary-actions",
     });
-    setIcon(actions, "ellipsis");
     actions.addEventListener("click", (event) => {
       const controller = this.plugin.sourceSummaries;
       const status = controller?.destinationStatus();

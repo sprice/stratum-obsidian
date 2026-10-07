@@ -1,3 +1,4 @@
+import { readPublishingTemplates } from "./publish-templates";
 import {
   DEFAULT_SOURCE_SUMMARY_TEMPLATE,
   DIVIDED_SOURCE_SUMMARY_TEMPLATE,
@@ -7,11 +8,6 @@ import {
 import { validateNotesTemplate } from "./literature-note-template";
 import { readAvailableCitationStyles } from "./citation-style-defaults";
 import { readPublishReadinessCache } from "./publish-readiness";
-import {
-  readPublishOptions,
-  readAcademicDefaults,
-  DEFAULT_ACADEMIC_OPTIONS,
-} from "./publish-options";
 import { readEnabledTabs, readLastActiveTab } from "./stratum-tabs";
 import {
   loadCitationResources,
@@ -441,15 +437,8 @@ function readStoredSettings(value: unknown): Omit<
   nextSettings.publishReadinessCache = readPublishReadinessCache(
     value.publishReadinessCache,
   );
-  nextSettings.publishingDefaults = readPublishOptions(
-    value.publishingDefaults,
-  );
-  nextSettings.academicPublishingDefaults = readPublishOptions(
-    value.academicPublishingDefaults,
-    DEFAULT_ACADEMIC_OPTIONS,
-  );
-  nextSettings.academicProperties = readAcademicDefaults(
-    value.academicProperties,
+  nextSettings.publishingTemplates = readPublishingTemplates(
+    value.publishingTemplates,
   );
   for (const key of ["pandocPath", "tectonicPath"] as const) {
     if (typeof value[key] === "string" && !value[key].includes("\0"))

@@ -1,4 +1,14 @@
 import {
+  addPublishingProperties,
+  mappedPublishingProperties,
+  publishingPropertyProblem,
+  publicationProperties,
+} from "./publish-properties";
+import {
+  readPublishingTemplates,
+  selectedPublishingTemplate,
+} from "./publish-templates";
+import {
   Component,
   FileSystemAdapter,
   MarkdownView,
@@ -30,16 +40,10 @@ import { readPublishReadinessCache } from "./publish-readiness";
 import {
   readPublishOptions,
   readNotePreferences,
-  readAcademicDefaults,
-  DEFAULT_ACADEMIC_OPTIONS,
   type NotePublishPreferences,
   type PublishOptions,
 } from "./publish-options";
-import {
-  publicationFrontmatter,
-  academicMetadata,
-  addAcademicProperties,
-} from "./publish-academic";
+import { publicationFrontmatter, academicMetadata } from "./publish-academic";
 
 export class PublishController extends Component {
   document: TFile | null = null;
@@ -51,6 +55,7 @@ export class PublishController extends Component {
   progress = "";
   error = "";
   errorMessage = "";
+  fontError: PublishFontError | null = null;
   private errorTimer: number | null = null;
   selectedFormat: PublishFormat | "" = "";
   historyScope: "note" | "all" = "note";
@@ -245,15 +250,52 @@ export class PublishController extends Component {
       (n) =>
         n.path === this.document?.path && n.ctime === this.document?.stat.ctime,
     );
-    return readNotePreferences(
-      note?.preferences,
-      readPublishOptions(this.plugin.settings.publishingDefaults),
-      readPublishOptions(
-        this.plugin.settings.academicPublishingDefaults,
-        DEFAULT_ACADEMIC_OPTIONS,
-      ),
+    return this.preferencesFor(note?.preferences);
+  }
+  get publishingTemplates() {
+    return readPublishingTemplates(this.plugin.settings.publishingTemplates);
+  }
+  private preferencesFor(value: unknown): NotePublishPreferences {
+    const previous = readNotePreferences(value);
+    const template = selectedPublishingTemplate(
+      this.publishingTemplates,
+      previous.templateId,
+    );
+    return {
+      ...readNotePreferences(value, template?.layout, template?.layout),
+      ...(template ? { documentType: template.documentType } : {}),
+    };
+  }
+  get selectedTemplate() {
+    return selectedPublishingTemplate(
+      this.publishingTemplates,
+      this.notePreferences.templateId,
     );
   }
+  get propertyDefinitions() {
+    return publicationProperties(this.layout, this.selectedTemplate?.prefill);
+  }
+  get noteProperties(): Record<string, unknown> {
+    const text = this.currentText();
+    return text
+      ? publicationFrontmatter(text).properties
+      : this.document
+        ? (this.plugin.app.metadataCache?.getFileCache(this.document)
+            ?.frontmatter ?? {})
+        : {};
+  }
+  get propertiesMissing(): boolean {
+    try {
+      return (
+        this.propertyDefinitions.some(
+          (field) => !Object.hasOwn(this.noteProperties, field.key),
+        ) ?? false
+      );
+    } catch {
+      return false;
+    }
+  }
+
   get layout(): PublishOptions {
     return this.notePreferences[this.selectedFormat || "docx"];
   }
@@ -268,20 +310,31 @@ export class PublishController extends Component {
             : {},
           body: "",
         };
-    return academicMetadata(properties, body);
+    return academicMetadata(
+      mappedPublishingProperties(properties, this.propertyDefinitions),
+      body,
+    );
+  }
+  /** A repeated title is a layout choice, not a conversion error. */
+  get duplicateTitleWarning(): boolean {
+    if (!this.selectedTemplate || this.layout.titleSource !== "properties")
+      return false;
+    try {
+      return this.academicInfo.duplicateTitle;
+    } catch {
+      return false;
+    }
   }
   get academicProblem(): string {
-    if (this.notePreferences.documentType !== "academic") return "";
+    if (!this.selectedTemplate) return "Choose a template before publishing.";
+    // Without published properties, the note's YAML does not affect the document.
+    if (!this.propertyDefinitions.length) return "";
     try {
-      const metadata = this.academicInfo;
-      if (!metadata.title)
-        return "Add a nonempty title property to prepare this academic paper.";
-      if (
-        metadata.duplicateTitle &&
-        this.notePreferences.opening === "properties"
-      )
-        return "The body repeats the title property. Use title from body, or remove the repeated opening yourself.";
-      return "";
+      // Reading the note's properties also reports unreadable YAML.
+      return publishingPropertyProblem(
+        this.noteProperties,
+        this.propertyDefinitions,
+      );
     } catch (error) {
       return error instanceof Error
         ? error.message
@@ -302,33 +355,29 @@ export class PublishController extends Component {
         file.basename,
         file.stat.ctime,
       );
-      const defaults = readPublishOptions(
-        this.plugin.settings.publishingDefaults,
-      );
-      const academic = readPublishOptions(
-        this.plugin.settings.academicPublishingDefaults,
-        DEFAULT_ACADEMIC_OPTIONS,
-      );
-      const current = readNotePreferences(note.preferences, defaults, academic);
+      const current = this.preferencesFor(note.preferences);
       if (layoutPatch)
         current[layoutPatch.format] = readPublishOptions({
           ...current[layoutPatch.format],
           ...layoutPatch.patch,
         });
-      if (patch.documentType && patch.documentType !== current.documentType) {
-        const oldDefaults =
-          current.documentType === "academic" ? academic : defaults;
-        const base = patch.documentType === "academic" ? academic : defaults;
-        for (const format of ["pdf", "docx"] as const)
-          if (
-            !note.preferences ||
-            JSON.stringify(current[format]) === JSON.stringify(oldDefaults)
-          )
-            current[format] = { ...base };
+      if (patch.templateId) {
+        const template = this.publishingTemplates.templates.find(
+          (t) => t.id === patch.templateId,
+        );
+        if (!template)
+          throw new Error("This publishing template is no longer available.");
+        patch = {
+          ...patch,
+          documentType: template.documentType,
+          opening: template.layout.titleSource,
+          pdf: { ...template.layout },
+          docx: { ...template.layout },
+        };
       }
       await this.store.setPreferences(
         note.id,
-        readNotePreferences({ ...current, ...patch }, defaults, academic),
+        this.preferencesFor({ ...current, ...patch }),
       );
       await this.reload();
     });
@@ -348,9 +397,22 @@ export class PublishController extends Component {
     this.selectedFormat = format;
     return this.updatePreferences({ format });
   }
-  updateLayout(patch: Partial<PublishOptions>): Promise<void> {
+  async updateLayout(patch: Partial<PublishOptions>): Promise<void> {
+    if (!this.document || this.busy) return;
     const format = this.selectedFormat || "docx";
-    return this.updatePreferences({}, { format, patch });
+    const error = this.fontError;
+    const previous = this.layout;
+    await this.updatePreferences({}, { format, patch });
+    if (
+      error &&
+      this.fontError === error &&
+      ((patch.bodyFont !== undefined && patch.bodyFont !== previous.bodyFont) ||
+        (patch.titleFont !== undefined &&
+          patch.titleFont !== previous.titleFont))
+    ) {
+      this.clearError();
+      this.emit();
+    }
   }
   async prepareAcademic(): Promise<void> {
     const file = this.document;
@@ -358,13 +420,17 @@ export class PublishController extends Component {
     this.preparing = this.preferencesSaving = true;
     this.emit();
     try {
-      const defaults = readAcademicDefaults(
-        this.plugin.settings.academicProperties,
-      );
+      const template = this.selectedTemplate;
+      if (!template)
+        throw new Error("Choose a template before adding properties.");
       await this.plugin.app.fileManager.processFrontMatter(
         file,
         (properties: Record<string, unknown>) =>
-          addAcademicProperties(properties, file.basename, defaults),
+          addPublishingProperties(
+            properties,
+            file.basename,
+            this.propertyDefinitions,
+          ),
       );
       this.sourceText = await this.plugin.app.vault.read(file);
     } catch (error) {
@@ -415,6 +481,11 @@ export class PublishController extends Component {
         ? error.message
         : "Publishing failed. Please try again.";
     this.errorMessage = message;
+    if (error instanceof PublishFontError) {
+      this.fontError = error;
+      this.emit();
+      return;
+    }
     this.errorTimer = window.setTimeout(() => {
       this.errorTimer = null;
       this.error = "";
@@ -428,6 +499,7 @@ export class PublishController extends Component {
     this.errorTimer = null;
     this.error = "";
     this.errorMessage = "";
+    this.fontError = null;
   }
   async reload(): Promise<void> {
     const revision = ++this.loadRevision;
@@ -615,8 +687,16 @@ export class PublishController extends Component {
       title = file.basename,
       ctime = file.stat.ctime,
       format = this.selectedFormat;
-    const publishing = this.notePreferences;
+    // Rendering and conversion must use the same format's layout.
+    const publishing = {
+      ...this.notePreferences,
+      format,
+      opening: this.layout.titleSource,
+    };
     const layout = { ...publishing[format] };
+    const propertyDefinitions = this.propertyDefinitions.map((field) => ({
+      ...field,
+    }));
     const view = this.leaf?.view;
     // Reading and editing use the same source snapshot, including unsaved editor text.
     const source =
@@ -649,6 +729,7 @@ export class PublishController extends Component {
         formatted,
         aborter.signal,
         publishing,
+        propertyDefinitions,
       );
       converting = true;
       const bytes = await convertPublication(
@@ -676,10 +757,13 @@ export class PublishController extends Component {
             documentType: publishing.documentType,
             opening: publishing.opening,
             layout,
-            ...(publishing.documentType === "academic"
+            ...(propertyDefinitions?.some((field) => field.use !== "metadata")
               ? {
                   metadata: academicMetadata(
-                    publicationFrontmatter(text).properties,
+                    mappedPublishingProperties(
+                      publicationFrontmatter(text).properties,
+                      propertyDefinitions ?? [],
+                    ),
                   ),
                 }
               : {}),

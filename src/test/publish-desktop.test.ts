@@ -13,7 +13,10 @@ import type * as Desktop from "../publish-desktop";
 import { preparePublication } from "../publish-document";
 import { formatCitationDocument } from "../citation-format";
 import assets from "../csl/assets.json";
-import { DEFAULT_PUBLISH_OPTIONS } from "../publish-options";
+import {
+  DEFAULT_ACADEMIC_OPTIONS,
+  DEFAULT_PUBLISH_OPTIONS,
+} from "../publish-options";
 import { preparePublishMath } from "../publish-math";
 const require = createRequire(import.meta.url);
 function runtime(
@@ -113,6 +116,11 @@ test(
       assert.match(styles, /w:ascii="Arial"/);
       assert.match(styles, /w:sz w:val="56"/);
       assert.match(styles, /w:line="360"/);
+      assert.match(styles, /w:styleId="Title"[\s\S]*?<w:jc w:val="left"/);
+      assert.match(
+        styles,
+        /w:styleId="Abstract"[\s\S]*?<w:ind w:left="0" w:right="0"/,
+      );
       assert.match(xml("word/stratum-footer.xml"), / PAGE /);
       // Section children must keep WordprocessingML order.
       assert.match(
@@ -180,10 +188,49 @@ test(
         120_000,
         { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "Synthetic Missing Font" },
       ),
-      /“Synthetic Missing Font” is not available for PDF publishing/,
+      /“Synthetic Missing Font” isn’t available on this computer/,
     );
   },
 );
+
+test("PDF font preflight reports both missing fonts before starting conversion", async () => {
+  const desktop = loadRuntime<typeof Desktop>(
+    "publish-desktop.ts",
+    { Platform: { isDesktopApp: true, isDesktop: true } },
+    {
+      window: {
+        queryLocalFonts: () => Promise.resolve([{ family: "Example Serif" }]),
+        require: () => {
+          throw new Error("Conversion must not start");
+        },
+      },
+    },
+  );
+  await assert.rejects(
+    desktop.convertPublication(
+      "",
+      [],
+      "pdf",
+      { pandoc: "", tectonic: "" },
+      undefined,
+      1000,
+      {
+        ...DEFAULT_PUBLISH_OPTIONS,
+        bodyFont: "Missing body",
+        titleFont: "Missing title",
+      },
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof desktop.PublishFontError);
+      assert.deepEqual(Array.from(error.fonts), [
+        "Missing body",
+        "Missing title",
+      ]);
+      assert.match(error.message, /aren’t available/);
+      return true;
+    },
+  );
+});
 
 test("installed font enumeration uses family names and does not run desktop processes when local access works", async () => {
   const desktop = loadRuntime<typeof Desktop>(
@@ -204,6 +251,58 @@ test("installed font enumeration uses family names and does not run desktop proc
     "Example Sans",
     "Example Serif",
   ]);
+});
+
+test("font discovery is cached for the session and refreshed once when a selected font is missing", async () => {
+  let discoveries = 0;
+  let families = [{ family: "Example Serif" }];
+  const desktop = loadRuntime<typeof Desktop>(
+    "publish-desktop.ts",
+    { Platform: { isDesktopApp: true, isDesktop: true } },
+    {
+      window: {
+        queryLocalFonts: () => {
+          discoveries++;
+          return Promise.resolve(families);
+        },
+        require: () => {
+          throw new Error("Conversion reached");
+        },
+      },
+    },
+  );
+  await desktop.installedPublishFonts();
+  await desktop.installedPublishFonts();
+  assert.equal(discoveries, 1);
+  // A font installed after the first discovery is found by one refresh.
+  families = [...families, { family: "New Serif" }];
+  await assert.rejects(
+    desktop.convertPublication(
+      "",
+      [],
+      "pdf",
+      { pandoc: "", tectonic: "" },
+      undefined,
+      1000,
+      { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "New Serif" },
+    ),
+    /Conversion reached/,
+  );
+  assert.equal(discoveries, 2);
+  // A cached hit does not run discovery again.
+  await assert.rejects(
+    desktop.convertPublication(
+      "",
+      [],
+      "pdf",
+      { pandoc: "", tectonic: "" },
+      undefined,
+      1000,
+      { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "Example Serif" },
+    ),
+    /Conversion reached/,
+  );
+  assert.equal(discoveries, 2);
 });
 
 test("mobile cannot load or execute desktop dependencies", () => {
@@ -636,5 +735,83 @@ test(
       { pandoc, tectonic },
     );
     assert.equal(new Uint8Array(bytes)[0], 0x50);
+  },
+);
+
+// Poppler reports its version with -v; --version exits with an error.
+const pdftotext =
+  [
+    process.env.STRATUM_TEST_PDFTOTEXT,
+    "pdftotext",
+    "/opt/homebrew/bin/pdftotext",
+    "/usr/local/bin/pdftotext",
+  ].find((candidate) => {
+    if (!candidate) return false;
+    try {
+      execFileSync(candidate, ["-v"], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  }) ?? "";
+const keywordPaper = `<html><body><div class="stratum-publish-title"><p>Synthetic keyword paper</p></div><div class="stratum-publish-abstract"><h1 class="unnumbered">Abstract</h1><p>Synthetic summary.</p></div><div class="stratum-publish-keywords"><p>Keywords: alpha, beta</p></div><h1>Introduction</h1><p>Synthetic body.</p></body></html>`;
+
+test(
+  "real Word export keeps keywords after the abstract",
+  { skip: !hasPandoc },
+  async () => {
+    const bytes = await runtime().convertPublication(
+      keywordPaper,
+      [],
+      "docx",
+      { pandoc, tectonic },
+      undefined,
+      120_000,
+      DEFAULT_ACADEMIC_OPTIONS,
+    );
+    const directory = await mkdtemp(join(tmpdir(), "stratum-keywords-test-"));
+    try {
+      const output = join(directory, "Synthetic.docx");
+      await writeFile(output, new Uint8Array(bytes));
+      const main = execFileSync(
+        "python3",
+        [
+          "-c",
+          "import zipfile,sys; print(zipfile.ZipFile(sys.argv[1]).read('word/document.xml').decode())",
+          output,
+        ],
+        { encoding: "utf8" },
+      );
+      const summary = main.indexOf("Synthetic summary.");
+      const keywords = main.indexOf("Keywords: alpha, beta");
+      assert.ok(summary >= 0 && keywords > summary);
+      assert.ok(keywords < main.indexOf("Introduction"));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "real PDF export keeps keywords after the abstract",
+  { skip: !pandoc || !tectonic || !pdftotext },
+  async () => {
+    const bytes = await runtime().convertPublication(
+      keywordPaper,
+      [],
+      "pdf",
+      { pandoc, tectonic },
+      undefined,
+      120_000,
+      DEFAULT_ACADEMIC_OPTIONS,
+    );
+    const text = execFileSync(pdftotext, ["-", "-"], {
+      input: new Uint8Array(bytes),
+      encoding: "utf8",
+    }).replace(/\s+/g, " ");
+    const summary = text.indexOf("Synthetic summary.");
+    const keywords = text.indexOf("Keywords: alpha, beta");
+    assert.ok(summary >= 0 && keywords > summary, text);
+    assert.ok(keywords < text.indexOf("Introduction"), text);
   },
 );

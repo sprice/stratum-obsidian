@@ -85,6 +85,7 @@ test("browser preferences restore independently and validate column sort without
 
 class Element {
   children: Element[] = [];
+  addClass() {}
   dataset: Record<string, string> = {};
   attrs: Record<string, string> = {};
   listeners = new Map<string, () => void>();

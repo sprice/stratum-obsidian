@@ -1,7 +1,11 @@
 import {
+  createStratumIconButton,
+  createStratumInput,
+  createStratumSelectElement,
+} from "./ui-controls";
+import {
   ItemView,
   loadPdfJs,
-  setIcon,
   type ViewStateResult,
   type WorkspaceLeaf,
 } from "obsidian";
@@ -122,18 +126,17 @@ export class PublishPreviewView extends ItemView {
       attr: { "aria-label": "PDF controls" },
     });
     const button = (icon: string, label: string, action: () => void) => {
-      const element = toolbar.createEl("button", {
-        cls: "clickable-icon",
-        attr: { "aria-label": label, title: label },
+      const element = createStratumIconButton(toolbar, {
+        icon,
+        ariaLabel: label,
       });
-      setIcon(element, icon);
       element.addEventListener("click", action);
       return element;
     };
     this.previous = button("chevron-left", "Previous page", () =>
       this.changePage(this.page - 1),
     );
-    this.pageInput = toolbar.createEl("input", {
+    this.pageInput = createStratumInput(toolbar, {
       type: "number",
       attr: { min: "1", "aria-label": "Page number" },
     });
@@ -144,7 +147,7 @@ export class PublishPreviewView extends ItemView {
     this.next = button("chevron-right", "Next page", () =>
       this.changePage(this.page + 1),
     );
-    this.zoomSelect = toolbar.createEl("select", {
+    this.zoomSelect = createStratumSelectElement(toolbar, {
       attr: { "aria-label": "Zoom" },
     });
     for (const [value, text] of [

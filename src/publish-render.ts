@@ -1,10 +1,19 @@
+import {
+  mappedPublishingProperties,
+  publishingPropertyProblem,
+  type PublishingProperty,
+} from "./publish-properties";
 import { preparePublishMath, protectTexDelimiters } from "./publish-math";
 import {
   academicMetadata,
   academicOpening,
   publicationFrontmatter,
 } from "./publish-academic";
-import type { NotePublishPreferences } from "./publish-options";
+import {
+  DEFAULT_ACADEMIC_OPTIONS,
+  DEFAULT_PUBLISH_OPTIONS,
+  type NotePublishPreferences,
+} from "./publish-options";
 import { publishImage } from "./publish-image";
 import { Component, MarkdownRenderer, TFile, type App } from "obsidian";
 import type { FormattedDocument } from "./citation-format";
@@ -25,20 +34,43 @@ export async function renderPublication(
   result: FormattedDocument | undefined,
   signal: AbortSignal,
   preferences?: NotePublishPreferences,
+  definitions?: PublishingProperty[],
 ): Promise<{ html: string; assets: PublishAsset[] }> {
   const prepared = preparePublication(text, result);
-  const academic = preferences?.documentType === "academic";
+  const options = preferences
+    ? preferences[preferences.format || "docx"]
+    : DEFAULT_PUBLISH_OPTIONS;
+  const design = definitions
+    ? options
+    : preferences?.documentType === "academic"
+      ? DEFAULT_ACADEMIC_OPTIONS
+      : DEFAULT_PUBLISH_OPTIONS;
+  const openingSource = definitions
+    ? options.titleSource
+    : preferences?.opening;
+
+  const academic =
+    preferences?.documentType === "academic" ||
+    !!definitions?.some((field) => field.use !== "metadata");
   const { properties, body: sourceBody } = academic
     ? publicationFrontmatter(text)
     : { properties: {}, body: "" };
-  const metadata = academicMetadata(properties, sourceBody);
-  if (academic && !metadata.title)
+  if (definitions?.length) {
+    const problem = publishingPropertyProblem(
+      publicationFrontmatter(text).properties,
+      definitions,
+    );
+    if (problem) throw new Error(problem);
+  }
+  const metadata = academicMetadata(
+    definitions
+      ? mappedPublishingProperties(properties, definitions)
+      : properties,
+    sourceBody,
+  );
+  if (academic && !definitions && !metadata.title)
     throw new Error(
       "Add a nonempty title property before publishing an academic paper.",
-    );
-  if (academic && preferences?.opening !== "body" && metadata.duplicateTitle)
-    throw new Error(
-      "The body repeats the title property. Choose Use title from body, or remove the repeated title and author lines yourself.",
     );
   const assets: PublishAsset[] = [];
   const imagePaths = new Map<string, string>();
@@ -157,10 +189,13 @@ export async function renderPublication(
   try {
     let body = await render(prepared.markdown);
     let demoted = false;
+    // Keywords follow the abstract when present, otherwise the opening.
+    const keywordSlot = "<!--stratum-publish-keywords-->";
+    let keywords = "";
     if (academic) {
-      // Take the body's title before inserting keywords so it stays first.
+      // Take the body's title before placing keywords so it stays first.
       let opening = "";
-      if (preferences?.opening === "body")
+      if (openingSource === "body")
         body = body.replace(
           /^\s*<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1>/i,
           (_match, title: string) => {
@@ -168,20 +203,16 @@ export async function renderPublication(
             return "";
           },
         );
-      else opening = protectTexDelimiters(academicOpening(metadata));
-      const keywords = metadata.keywords.length
+      if (openingSource === "body")
+        opening += protectTexDelimiters(
+          academicOpening({ ...metadata, title: "" }, false),
+        );
+      else
+        opening = protectTexDelimiters(academicOpening(metadata, !definitions));
+      keywords = metadata.keywords.length
         ? `<div class="stratum-publish-keywords"><p>Keywords: ${protectTexDelimiters(escapeHtml(metadata.keywords.join(", ")))}</p></div>`
         : "";
-      const abstract =
-        /<h2(?:\s[^>]*)?>Abstract<\/h2>([\s\S]*?)(?=<h[12]\b|$)/i;
-      body =
-        opening +
-        (abstract.test(body)
-          ? body.replace(
-              abstract,
-              `<div class="stratum-publish-abstract"><h2 class="unnumbered">Abstract</h2>$1</div>${keywords}`,
-            )
-          : keywords + body);
+      body = opening + keywordSlot + body;
       // With a separate title block, second-level Markdown headings become paper sections.
       demoted = !/<h1\b/i.test(body);
       if (demoted)
@@ -191,6 +222,20 @@ export async function renderPublication(
             `${prefix}${Number(level) - 1}${boundary}`,
         );
     }
+    const abstract =
+      /<h([12])(?:\s[^>]*)?>Abstract<\/h\1>([\s\S]*?)(?=<h[12]\b|$)/i;
+    body = body.replace(abstract, (_match, level: string, content: string) =>
+      design.showAbstract
+        ? `<div class="stratum-publish-abstract"><h${level} class="unnumbered">Abstract</h${level}>${content}</div>${keywordSlot}`
+        : "",
+    );
+    // Only the last slot is used: after a shown abstract, otherwise after the opening.
+    const slot = body.lastIndexOf(keywordSlot);
+    if (slot >= 0)
+      body =
+        body.slice(0, slot).replaceAll(keywordSlot, "") +
+        keywords +
+        body.slice(slot + keywordSlot.length).replaceAll(keywordSlot, "");
     const notes: string[] = [];
     for (const note of prepared.notes)
       notes.push(

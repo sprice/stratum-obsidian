@@ -14,6 +14,7 @@ class Element {
   value = "";
   hidden = false;
   disabled = false;
+  open = false;
   scrollTop = 0;
   cls = "";
   listeners = new Map<string, () => void>();
@@ -53,11 +54,20 @@ class Element {
   all(): Element[] {
     return [this, ...this.children.flatMap((child) => child.all())];
   }
+  querySelectorAll() {
+    return [];
+  }
+  focused = false;
+  focus() {
+    this.focused = true;
+  }
+  scrollIntoView() {}
 }
 
 function setup() {
   const root = new Element();
   const settingsCalls: string[] = [];
+  const focusedFonts: string[] = [];
   let update!: () => void;
   const publish = {
     plugin: {
@@ -69,10 +79,17 @@ function setup() {
         },
       },
     },
-    notePreferences: readNotePreferences(undefined),
+    notePreferences: readNotePreferences({ templateId: "general" }),
+    get layout() {
+      return this.notePreferences[
+        this.selectedFormat === "pdf" ? "pdf" : "docx"
+      ];
+    },
     academicInfo: { title: "", duplicateTitle: false, bothAuthors: false },
     academicProblem: "",
+    duplicateTitleWarning: false,
     preferencesSaving: false,
+    propertiesMissing: false,
     prepareAcademic: () => Promise.resolve(),
     citationStyleChoices: () => Promise.resolve(null),
     updatePreferences: () => Promise.resolve(),
@@ -94,6 +111,7 @@ function setup() {
     progress: "",
     error: "",
     errorMessage: "",
+    fontError: null as { fonts: string[] } | null,
     sourceNote: () => null,
     subscribe(callback: () => void) {
       update = callback;
@@ -113,11 +131,50 @@ function setup() {
       },
       Modal: class {},
       setIcon() {},
+      setTooltip() {},
+    },
+    {},
+    "browser",
+    {
+      "./publish-customize": {
+        renderPublishCustomization: () => (key: string) =>
+          focusedFonts.push(key),
+      },
     },
   );
   new PublishPanel(root as never, publish as never).onload();
-  return { root, publish, settingsCalls, update: () => update() };
+  return { root, publish, settingsCalls, focusedFonts, update: () => update() };
 }
+
+test("missing PDF fonts offer recovery in note customization and focus the affected selector", () => {
+  const { root, publish, focusedFonts, update } = setup();
+  publish.selectedFormat = "pdf";
+  publish.notePreferences.pdf.bodyFont = "Missing body";
+  publish.fontError = { fonts: ["Missing body", "Missing title"] };
+  publish.error = "Missing fonts. Choose another font to publish this PDF.";
+  update();
+  const choose = root.all().find((el) => el.text === "Choose font")!;
+  assert.equal(choose.disabled, false);
+  choose.listeners.get("click")!();
+  assert.deepEqual(focusedFonts, ["bodyFont"]);
+  assert.equal(
+    root
+      .all()
+      .find(
+        (el) =>
+          el.tag === "details" &&
+          el.all().some((child) => child.text === "Customize…"),
+      )!.open,
+    true,
+  );
+  publish.fontError = { fonts: ["Missing title"] };
+  update();
+  root
+    .all()
+    .find((el) => el.text === "Choose font")!
+    .listeners.get("click")!();
+  assert.deepEqual(focusedFonts, ["bodyFont", "titleFont"]);
+});
 
 test("ready publishing hides setup and status, and reflects a completed export's reset", () => {
   const { root, publish, update } = setup();
@@ -296,6 +353,9 @@ test("history scope switches documents and survives controller updates", () => {
 test("academic setup keeps history accessible and opens defaults through the gear", () => {
   const { root, publish, update, settingsCalls } = setup();
   publish.notePreferences.documentType = "academic";
+  publish.notePreferences.templateId = "academic";
+  publish.notePreferences.docx.titleSource = "properties";
+  publish.propertiesMissing = true;
   publish.academicProblem = "Add a nonempty title property.";
   update();
   assert.equal(
@@ -304,16 +364,19 @@ test("academic setup keeps history accessible and opens defaults through the gea
   );
   assert.equal(
     root.all().find((el) => el.text === "Create document")!.hidden,
-    true,
+    false,
   );
   assert.equal(
     root.all().find((el) => el.cls === "stratum-publish-history")!.hidden,
     false,
   );
-  const gear = root.all().find((el) => el.cls === "clickable-icon")!;
+  const gear = root
+    .all()
+    .find((el) => el.cls.split(" ").includes("clickable-icon"))!;
   gear.listeners.get("click")!();
   assert.deepEqual(settingsCalls, ["open", "stratum"]);
   publish.academicInfo.title = "Synthetic paper";
+  publish.propertiesMissing = false;
   publish.academicProblem = "";
   update();
   assert.equal(
@@ -325,4 +388,79 @@ test("academic setup keeps history accessible and opens defaults through the gea
     false,
   );
   assert.equal(gear.hidden, false);
+});
+
+test("a note chooses from all templates without a document type selector", () => {
+  const { root, publish, update } = setup();
+  publish.notePreferences.templateId = undefined;
+  update();
+  const select = root.all().filter((el) => el.tag === "select")[0];
+  assert.equal(select.value, "");
+  assert.deepEqual(
+    select.children.map((el) => el.text),
+    ["Choose template", "General documents", "Academic papers"],
+  );
+  assert.equal(
+    root.all().find((el) => el.text === "Create document")!.hidden,
+    true,
+  );
+});
+
+test("repeated titles warn without blocking and review the opening choices", () => {
+  const { root, publish, focusedFonts, update } = setup();
+  publish.notePreferences = readNotePreferences({ templateId: "academic" });
+  publish.notePreferences.docx.titleSource = "properties";
+  publish.notePreferences.pdf.titleSource = "properties";
+  publish.academicInfo = {
+    title: "Synthetic title",
+    duplicateTitle: true,
+    bothAuthors: false,
+  };
+  publish.duplicateTitleWarning = true;
+  publish.selectedFormat = "pdf";
+  update();
+  const warning = root
+    .all()
+    .find((el) => el.text === "Title may appear twice.")!;
+  assert.equal(
+    root.all().find((el) => el.children.includes(warning))!.hidden,
+    false,
+  );
+  const create = root.all().find((el) => el.text === "Create PDF document")!;
+  assert.equal(create.disabled, false);
+  const review = () =>
+    root
+      .all()
+      .find((el) => el.text === "Review opening")!
+      .listeners.get("click")!();
+  review();
+  assert.deepEqual(focusedFonts, ["opening"]);
+  assert.equal(
+    root
+      .all()
+      .find(
+        (el) =>
+          el.tag === "details" &&
+          el.all().some((child) => child.text === "Customize…"),
+      )!.open,
+    true,
+  );
+  // Before a file type is chosen, the panel's title choice is the opening control.
+  publish.selectedFormat = "";
+  update();
+  review();
+  const titleBlock = root
+    .all()
+    .find(
+      (el) =>
+        el.tag === "select" &&
+        el.children.some((option) => option.text === "Use title from body"),
+    )!;
+  assert.equal(titleBlock.focused, true);
+  publish.duplicateTitleWarning = false;
+  update();
+  assert.equal(
+    root.all().find((el) => el.children.includes(warning))!.hidden,
+    true,
+  );
 });

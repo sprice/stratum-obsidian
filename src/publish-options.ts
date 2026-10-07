@@ -8,6 +8,14 @@ export interface PublishOptions {
   margin: number;
   lineSpacing: number;
   numberSections: boolean;
+  titleSource: "body" | "properties";
+  openingAlignment: "left" | "center";
+  showAuthors: boolean;
+  showAffiliations: boolean;
+  showDate: boolean;
+  showKeywords: boolean;
+  showAbstract: boolean;
+  abstractWidth: "normal" | "inset";
 }
 export interface AcademicDefaults {
   authors: string[];
@@ -17,6 +25,7 @@ export interface AcademicDefaults {
 }
 export interface NotePublishPreferences {
   documentType: DocumentType;
+  templateId?: string;
   opening: "properties" | "body";
   format: "pdf" | "docx" | "";
   pdf: PublishOptions;
@@ -32,10 +41,25 @@ export const DEFAULT_PUBLISH_OPTIONS: PublishOptions = {
   margin: 1,
   lineSpacing: 1.15,
   numberSections: false,
+  titleSource: "body",
+  openingAlignment: "left",
+  showAuthors: false,
+  showAffiliations: false,
+  showDate: false,
+  showKeywords: false,
+  showAbstract: true,
+  abstractWidth: "normal",
 };
 export const DEFAULT_ACADEMIC_OPTIONS: PublishOptions = {
   ...DEFAULT_PUBLISH_OPTIONS,
   lineSpacing: 1.5,
+  titleSource: "properties",
+  openingAlignment: "center",
+  showAuthors: true,
+  showAffiliations: true,
+  showDate: true,
+  showKeywords: true,
+  abstractWidth: "inset",
 };
 export const DEFAULT_ACADEMIC_PROPERTIES: AcademicDefaults = {
   authors: [],
@@ -85,6 +109,33 @@ export function readPublishOptions(
         : defaults.paperSize,
     margin: number("margin", 0.4, 2),
     lineSpacing: number("lineSpacing", 1, 2.5),
+    titleSource:
+      v.titleSource === "body" || v.titleSource === "properties"
+        ? v.titleSource
+        : defaults.titleSource,
+    openingAlignment:
+      v.openingAlignment === "left" || v.openingAlignment === "center"
+        ? v.openingAlignment
+        : defaults.openingAlignment,
+    abstractWidth:
+      v.abstractWidth === "normal" || v.abstractWidth === "inset"
+        ? v.abstractWidth
+        : defaults.abstractWidth,
+    showAuthors:
+      typeof v.showAuthors === "boolean" ? v.showAuthors : defaults.showAuthors,
+    showAffiliations:
+      typeof v.showAffiliations === "boolean"
+        ? v.showAffiliations
+        : defaults.showAffiliations,
+    showDate: typeof v.showDate === "boolean" ? v.showDate : defaults.showDate,
+    showKeywords:
+      typeof v.showKeywords === "boolean"
+        ? v.showKeywords
+        : defaults.showKeywords,
+    showAbstract:
+      typeof v.showAbstract === "boolean"
+        ? v.showAbstract
+        : defaults.showAbstract,
     numberSections:
       typeof v.numberSections === "boolean"
         ? v.numberSections
@@ -113,6 +164,7 @@ export function readNotePreferences(
   const base = documentType === "academic" ? academic : defaults;
   return {
     documentType,
+    ...(typeof v.templateId === "string" ? { templateId: v.templateId } : {}),
     opening: v.opening === "body" ? "body" : "properties",
     format: v.format === "pdf" || v.format === "docx" ? v.format : "",
     pdf: readPublishOptions(v.pdf, base),

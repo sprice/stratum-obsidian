@@ -2,7 +2,7 @@
 import { Platform } from "obsidian";
 import { readPublishOptions, type PublishOptions } from "./publish-options";
 import { configureDocx } from "./publish-docx";
-import { PUBLICATION_FILTER, publicationHeader } from "./publish-layout";
+import { publicationFilter, publicationHeader } from "./publish-layout";
 import type { PublishFormat } from "./publish-model";
 export interface PublishAsset {
   name: string;
@@ -133,8 +133,22 @@ export function publishPlatform(): {
     homebrew: process.platform === "darwin",
   };
 }
-/** Discover font names only on explicit request; never upload font data. */
-export async function installedPublishFonts(): Promise<string[]> {
+let fontDiscovery: Promise<string[]> | null = null;
+/**
+ * Discover font names on request and reuse them for the session; never upload font data.
+ * Native discovery can take many seconds, so callers refresh only after a miss.
+ */
+export function installedPublishFonts(refresh = false): Promise<string[]> {
+  if (refresh || !fontDiscovery) {
+    const pending = discoverPublishFonts();
+    fontDiscovery = pending;
+    pending.catch(() => {
+      if (fontDiscovery === pending) fontDiscovery = null;
+    });
+  }
+  return fontDiscovery;
+}
+async function discoverPublishFonts(): Promise<string[]> {
   const local = host() as HostWindow & {
     queryLocalFonts?: () => Promise<{ family: string }[]>;
   };
@@ -203,10 +217,13 @@ export async function installedPublishFonts(): Promise<string[]> {
 }
 /** A selected font is unavailable to PDF typesetting; the tools themselves still work. */
 export class PublishFontError extends Error {
-  constructor(font: string) {
+  readonly fonts: string[];
+  constructor(font: string | string[]) {
+    const fonts = [...new Set(typeof font === "string" ? [font] : font)];
     super(
-      `The font “${font}” is not available for PDF publishing. Install it, or choose another font in Customize.`,
+      `${fonts.map((name) => `“${name}”`).join(" and ")} ${fonts.length === 1 ? "isn’t" : "aren’t"} available on this computer. Choose another font to publish this PDF.`,
     );
+    this.fonts = fonts;
   }
 }
 /** No shell, bounded output, cancellable, and no note content in logs. */
@@ -406,6 +423,29 @@ export async function convertPublication(
   timeout = 120_000,
   layout?: PublishOptions,
 ): Promise<ArrayBuffer> {
+  const options = layout ? readPublishOptions(layout) : undefined;
+  if (format === "pdf" && options) {
+    const selected = [...new Set([options.bodyFont, options.titleFont])].filter(
+      Boolean,
+    );
+    if (selected.length) {
+      // If discovery fails, let the PDF engine perform its authoritative check.
+      const missing = async (refresh: boolean) => {
+        const installed = await installedPublishFonts(refresh).catch(
+          () => null,
+        );
+        const available = new Set(installed?.map((font) => font.toLowerCase()));
+        return installed
+          ? selected.filter((font) => !available.has(font.toLowerCase()))
+          : [];
+      };
+      // A cached list can predate a newly installed font; check again before failing.
+      if ((await missing(false)).length) {
+        const unavailable = await missing(true);
+        if (unavailable.length) throw new PublishFontError(unavailable);
+      }
+    }
+  }
   const { fs, path, os } = modules();
   const directory = await fs.mkdtemp(
     path.join(os.tmpdir(), "stratum-publish-"),
@@ -432,11 +472,10 @@ export async function convertPublication(
       output,
     ];
     args.push("--log=diagnostics.json");
-    const options = layout ? readPublishOptions(layout) : undefined;
     if (options) {
       await fs.writeFile(
         path.join(directory, "layout.lua"),
-        PUBLICATION_FILTER,
+        publicationFilter(options),
         { mode: 0o600 },
       );
       args.push("--lua-filter=layout.lua");

@@ -1,3 +1,4 @@
+import { createStratumAction } from "./ui-controls";
 import { MarkdownRenderer, sanitizeHTMLToDom, type Component } from "obsidian";
 import type { CitationService } from "./citation-service";
 import type { FormattedDocument } from "./citation-format";
@@ -80,7 +81,7 @@ export async function renderDocumentNotes(
         attr: { "aria-label": "Return to note reference" },
       });
     if (citations.length) {
-      const button = li.createEl("button", {
+      const button = createStratumAction(li, {
         text: "↗",
         cls: "stratum-citation-evidence",
         attr: {

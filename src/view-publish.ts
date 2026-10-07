@@ -1,5 +1,16 @@
-import { createStratumSelect, createStratumButton } from "./ui-controls";
-import { Component, Modal, setIcon, type App } from "obsidian";
+import { publicationProperties } from "./publish-properties";
+import {
+  readPublishingTemplates,
+  selectedPublishingTemplate,
+} from "./publish-templates";
+import {
+  createStratumIconButton,
+  createStratumDisclosure,
+  createStratumSummary,
+  createStratumSelect,
+  createStratumButton,
+} from "./ui-controls";
+import { Component, Modal, type App } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import {
   formatLabel,
@@ -54,7 +65,8 @@ export class PublishPanel extends Component {
   private type!: HTMLSelectElement;
   private cancel!: HTMLButtonElement;
   private configuration!: HTMLElement;
-  private documentType!: HTMLSelectElement;
+  private template!: HTMLSelectElement;
+  private templateGear!: HTMLButtonElement;
   private academic!: HTMLElement;
   private prepare!: HTMLButtonElement;
   private academicMessage!: HTMLElement;
@@ -63,6 +75,8 @@ export class PublishPanel extends Component {
   private citationRevision = 0;
   private citationKey = "";
   private customize!: HTMLDetailsElement;
+  private focusControl?: (key: "bodyFont" | "titleFont" | "opening") => void;
+  private titleWarning!: HTMLElement;
   private customization!: HTMLElement;
   private customizationKey = "";
   private alive = true;
@@ -82,22 +96,21 @@ export class PublishPanel extends Component {
     this.configuration = this.body.createDiv({
       cls: "stratum-publish-configuration",
     });
-    this.documentType = createStratumSelect(this.configuration, {
-      label: "Document type",
-      ariaLabel: "Document type",
-      value: this.publish.notePreferences.documentType,
-      choices: [
-        { value: "general", label: "General document" },
-        { value: "academic", label: "Academic paper" },
-      ],
+    const templateRow = this.configuration.createDiv({
+      cls: "stratum-publish-template-row",
     });
-    this.documentType.addEventListener("change", () => {
+    this.template = createStratumSelect(templateRow, {
+      label: "Template",
+      ariaLabel: "Choose template",
+      value: "",
+      choices: [],
+    });
+    this.template.addEventListener("change", () => {
       void this.publish
-        .updatePreferences({
-          documentType: this.documentType.value as "general" | "academic",
-        })
+        .updatePreferences({ templateId: this.template.value })
         .catch(() => {});
     });
+
     this.academic = this.configuration.createDiv({
       cls: "stratum-publish-academic",
     });
@@ -111,15 +124,11 @@ export class PublishPanel extends Component {
     this.prepare.addEventListener("click", () => {
       void this.publish.prepareAcademic();
     });
-    const gear = preparation.createEl("button", {
-      cls: "clickable-icon",
-      attr: {
-        type: "button",
-        "aria-label": "Edit academic publishing defaults",
-        title: "Edit academic publishing defaults",
-      },
+    const gear = createStratumIconButton(templateRow, {
+      icon: "settings",
+      ariaLabel: "Configure publishing template",
     });
-    setIcon(gear, "settings");
+    this.templateGear = gear;
     gear.addEventListener("click", () => {
       const settings = getSettingsManager(this.publish.plugin.app);
       settings?.open();
@@ -130,6 +139,19 @@ export class PublishPanel extends Component {
       cls: "stratum-publish-meta",
       attr: { role: "status" },
     });
+    this.titleWarning = this.academic.createDiv({
+      cls: "stratum-publish-actions",
+      attr: { role: "status" },
+    });
+    this.titleWarning.createEl("p", {
+      text: "Title may appear twice.",
+      cls: "stratum-publish-meta",
+    });
+    const review = createStratumButton(this.titleWarning, {
+      text: "Review opening",
+      tooltip: "Show the title and opening choices",
+    });
+    review.addEventListener("click", () => this.reviewOpening());
     this.opening = createStratumSelect(this.academic, {
       label: "Title block",
       ariaLabel: "Academic title block",
@@ -141,8 +163,8 @@ export class PublishPanel extends Component {
     });
     this.opening.addEventListener("change", () => {
       void this.publish
-        .updatePreferences({
-          opening: this.opening.value as "properties" | "body",
+        .updateLayout({
+          titleSource: this.opening.value as "properties" | "body",
         })
         .catch(() => {});
     });
@@ -173,10 +195,10 @@ export class PublishPanel extends Component {
     this.create.addEventListener("click", () => {
       void this.publish.create();
     });
-    this.customize = this.body.createEl("details", {
+    this.customize = createStratumDisclosure(this.body, {
       cls: "stratum-publish-customization",
     });
-    this.customize.createEl("summary", { text: "Customize…" });
+    createStratumSummary(this.customize, { text: "Customize…" });
     this.customization = this.customize.createDiv();
     this.customize.addEventListener("toggle", () => this.updateCustomization());
     this.status = this.body.createDiv({
@@ -217,10 +239,19 @@ export class PublishPanel extends Component {
     const hasNote = publish.document?.extension === "md";
     this.configuration.hidden = !hasNote;
     const preferences = publish.notePreferences;
-    this.documentType.value = preferences.documentType;
-    this.documentType.disabled = publish.busy || publish.preferencesSaving;
-    const academic = preferences.documentType === "academic";
-    this.academic.hidden = !academic;
+    const templates = readPublishingTemplates(
+      publish.plugin.settings?.publishingTemplates,
+    );
+    const template = selectedPublishingTemplate(
+      templates,
+      preferences.templateId,
+    );
+    const definitions = publicationProperties(
+      publish.layout,
+      template?.prefill,
+    );
+    const academic = !!definitions.some((field) => field.use === "title");
+    this.academic.hidden = !template || !definitions.length;
     let title = "",
       duplicateTitle = false,
       bothAuthors = false;
@@ -231,24 +262,36 @@ export class PublishPanel extends Component {
         /* The actionable problem is displayed below. */
       }
     }
-    this.prepare.hidden = !!title;
+    this.prepare.hidden = !publish.propertiesMissing;
     this.prepare.disabled = publish.busy || publish.preferencesSaving;
-    this.opening.value = preferences.opening;
-    this.opening.hidden = !title;
+    this.opening.value = publish.layout.titleSource;
+    this.opening.hidden = !academic || !title;
     this.opening.disabled = publish.busy || publish.preferencesSaving;
-    this.academicMessage.setText(
+    this.titleWarning.hidden = !publish.duplicateTitleWarning;
+    const academicMessage =
       publish.academicProblem ||
-        (preferences.opening === "body"
+      (!academic
+        ? "Only properties with a published use appear in the document."
+        : publish.layout.titleSource === "body"
           ? "The body supplies the opening. No title block will be generated."
-          : "Title and authors come from properties. Begin the body with an optional Abstract section or your introduction.") +
-          (bothAuthors
-            ? " Both author and authors exist; authors takes precedence."
-            : "") +
-          (duplicateTitle && preferences.opening === "body"
-            ? " The existing body title is retained."
-            : ""),
-    );
-    const prepared = !academic || !!title;
+          : "The title block comes from the template’s mapped properties. Begin the body with an optional Abstract section or your introduction.") +
+        (bothAuthors
+          ? " Both author and authors exist; authors takes precedence."
+          : "") +
+        (duplicateTitle && publish.layout.titleSource === "body"
+          ? " The existing body title is retained."
+          : "");
+    this.academicMessage.setText(academicMessage);
+    this.academicMessage.hidden = !academicMessage;
+    this.templateGear.disabled =
+      !template || publish.busy || publish.preferencesSaving;
+    this.template.empty();
+    this.template.createEl("option", { value: "", text: "Choose template" });
+    for (const choice of templates.templates)
+      this.template.createEl("option", { value: choice.id, text: choice.name });
+    this.template.value = template?.id ?? "";
+    this.template.disabled = publish.busy || publish.preferencesSaving;
+    const prepared = !!template;
     this.controls.hidden = !hasNote;
     this.type.hidden = !prepared;
     this.create.hidden = !prepared;
@@ -285,9 +328,24 @@ export class PublishPanel extends Component {
     if (message) this.status.createEl("p", { text: message });
     if (publish.error)
       this.status.createEl("p", {
-        text: `${publish.errorMessage}: ${publish.error}`,
+        text: publish.fontError
+          ? publish.error
+          : `${publish.errorMessage}: ${publish.error}`,
         cls: "stratum-publish-error",
       });
+    if (publish.fontError && !this.customize.hidden) {
+      const choose = createStratumButton(this.status, { text: "Choose font" });
+      choose.disabled = publish.busy || publish.preferencesSaving;
+      choose.addEventListener("click", () => {
+        this.customize.open = true;
+        this.updateCustomization();
+        const bodyMissing = publish.fontError?.fonts.some(
+          (font) =>
+            font.toLowerCase() === publish.layout.bodyFont.toLowerCase(),
+        );
+        this.focusControl?.(bodyMissing ? "bodyFont" : "titleFont");
+      });
+    }
     const listContext = showAll
       ? "all"
       : `note:${publish.document?.path ?? ""}`;
@@ -335,6 +393,17 @@ export class PublishPanel extends Component {
     }
     this.list.scrollTop = scrollTop;
   }
+  /** Repeated titles are allowed; this shows where to change the opening. */
+  private reviewOpening(): void {
+    if (!this.customize.hidden) {
+      this.customize.open = true;
+      this.updateCustomization();
+      this.focusControl?.("opening");
+      return;
+    }
+    this.opening.scrollIntoView({ block: "center" });
+    this.opening.focus();
+  }
   private updateCustomization(): void {
     if (!this.customize?.open || this.customize.hidden) return;
     const key = JSON.stringify({
@@ -345,7 +414,7 @@ export class PublishPanel extends Component {
     if (key !== this.customizationKey) {
       this.customizationKey = key;
       this.customization.empty();
-      renderPublishCustomization(
+      this.focusControl = renderPublishCustomization(
         this.customization,
         this.publish.layout,
         (patch) => this.publish.updateLayout(patch),
@@ -409,11 +478,11 @@ export class PublishPanel extends Component {
     action: () => void | Promise<void>,
     disabled = false,
   ): void {
-    const button = container.createEl("button", {
-      cls: "clickable-icon",
-      attr: { "aria-label": `${label}: ${document.filename}`, title: label },
+    const button = createStratumIconButton(container, {
+      icon,
+      ariaLabel: `${label}: ${document.filename}`,
+      tooltip: label,
     });
-    setIcon(button, icon);
     button.disabled = disabled;
     button.addEventListener("click", () => {
       button.disabled = true;

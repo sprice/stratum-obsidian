@@ -80,15 +80,18 @@ export function addAcademicProperties(
   if (!Object.hasOwn(properties, "date") && defaults.date)
     properties.date = defaults.date;
 }
-export function academicOpening(metadata: AcademicMetadata): string {
-  if (!metadata.title)
+export function academicOpening(
+  metadata: AcademicMetadata,
+  requireTitle = true,
+): string {
+  if (requireTitle && !metadata.title)
     throw new Error(
       "Add a nonempty title property before publishing an academic paper.",
     );
   const block = (cls: string, text: string) =>
     `<div class="stratum-publish-${cls}"><p>${escapeHtml(text)}</p></div>`;
   return (
-    block("title", metadata.title) +
+    (metadata.title ? block("title", metadata.title) : "") +
     (metadata.authors.length
       ? block("authors", metadata.authors.join(", "))
       : "") +

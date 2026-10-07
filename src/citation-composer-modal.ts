@@ -1,3 +1,8 @@
+import {
+  styleStratumComponent,
+  createStratumDisclosure,
+  createStratumSummary,
+} from "./ui-controls";
 import { Modal, Notice, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
 import {
@@ -51,7 +56,7 @@ export class CitationComposer extends Modal {
     el.addClass("stratum-citation-composer");
     this.setTitle("Insert or edit citation");
     new Setting(el).setName("Citation form").addDropdown((input) =>
-      input
+      styleStratumComponent(input)
         .addOptions({
           parenthetical: "Parenthetical",
           narrative: "Narrative (author in sentence)",
@@ -72,7 +77,7 @@ export class CitationComposer extends Modal {
         .setName("Locator")
         .setDesc("Use the published page number, not the PDF page count.")
         .addDropdown((input) =>
-          input
+          styleStratumComponent(input)
             .addOptions(locatorLabels)
             .setValue(item.label)
             .onChange((value) => {
@@ -81,7 +86,7 @@ export class CitationComposer extends Modal {
             }),
         )
         .addText((input) =>
-          input
+          styleStratumComponent(input)
             .setPlaceholder("E.g. 42–44 or xiv")
             .setValue(item.locator)
             .onChange((value) => {
@@ -89,16 +94,16 @@ export class CitationComposer extends Modal {
               this.updatePreview();
             }),
         );
-      const details = card.createEl("details", {
+      const details = createStratumDisclosure(card, {
         cls: "stratum-citation-details",
       });
       details.open = Boolean(item.prefix || item.suffix || item.suppressAuthor);
-      details.createEl("summary", { text: "More options" });
+      createStratumSummary(details, { text: "More options" });
       for (const field of ["prefix", "suffix"] as const)
         new Setting(details)
           .setName(field === "prefix" ? "Prefix" : "Suffix")
           .addText((input) =>
-            input
+            styleStratumComponent(input)
               .setValue(item[field])
               .setPlaceholder(
                 field === "prefix" ? "e.g. see also" : "e.g. for discussion",
@@ -112,14 +117,16 @@ export class CitationComposer extends Modal {
         .setName("Suppress author")
         .setDesc("For when you have already written the author’s name.")
         .addToggle((input) =>
-          input.setValue(item.suppressAuthor).onChange((value) => {
-            item.suppressAuthor = value;
-            this.updatePreview();
-          }),
+          styleStratumComponent(input)
+            .setValue(item.suppressAuthor)
+            .onChange((value) => {
+              item.suppressAuthor = value;
+              this.updatePreview();
+            }),
         );
       new Setting(card)
         .addButton((button) =>
-          button
+          styleStratumComponent(button)
             .setButtonText("Move up")
             .setDisabled(index === 0)
             .onClick(() => {
@@ -131,60 +138,66 @@ export class CitationComposer extends Modal {
             }),
         )
         .addButton((button) =>
-          button.setButtonText("Remove").onClick(() => {
-            this.draft.items.splice(index, 1);
-            if (
-              !this.draft.items.some((candidate) => candidate.key === item.key)
-            )
-              this.selected.delete(item.key);
-            this.render();
-          }),
+          styleStratumComponent(button)
+            .setButtonText("Remove")
+            .onClick(() => {
+              this.draft.items.splice(index, 1);
+              if (
+                !this.draft.items.some(
+                  (candidate) => candidate.key === item.key,
+                )
+              )
+                this.selected.delete(item.key);
+              this.render();
+            }),
         );
     });
     new Setting(el).addButton((button) =>
-      button.setButtonText("Add source").onClick(() => {
-        this.picker = new LiteratureNoteSearchModal(
-          this.app,
-          this.entries,
-          (entry) => {
-            if (!this.isActive || this.busy) return;
-            if (
-              this.draft.items.some(
-                (item) =>
-                  this.selected.get(item.key)?.file.path === entry.file.path,
-              )
-            ) {
-              new Notice("This source is already in the citation.");
-              return;
-            }
-            let key: string;
-            try {
-              key = this.resolveKey(entry);
-            } catch (error) {
-              new Notice(
-                error instanceof Error
-                  ? error.message
-                  : "Cannot safely resolve this citation key.",
-              );
-              return;
-            }
-            if (
-              this.selected.has(key) &&
-              this.selected.get(key)?.file.path !== entry.file.path
-            ) {
-              new Notice(
-                "These sources share a citation key. Give them unique keys in Zotero first.",
-              );
-              return;
-            }
-            this.selected.set(key, entry);
-            this.draft.items.push(citationItem(key));
-            this.render();
-          },
-          this.keyLabel,
-        );
-        this.picker.open();
-      }),
+      styleStratumComponent(button)
+        .setButtonText("Add source")
+        .onClick(() => {
+          this.picker = new LiteratureNoteSearchModal(
+            this.app,
+            this.entries,
+            (entry) => {
+              if (!this.isActive || this.busy) return;
+              if (
+                this.draft.items.some(
+                  (item) =>
+                    this.selected.get(item.key)?.file.path === entry.file.path,
+                )
+              ) {
+                new Notice("This source is already in the citation.");
+                return;
+              }
+              let key: string;
+              try {
+                key = this.resolveKey(entry);
+              } catch (error) {
+                new Notice(
+                  error instanceof Error
+                    ? error.message
+                    : "Cannot safely resolve this citation key.",
+                );
+                return;
+              }
+              if (
+                this.selected.has(key) &&
+                this.selected.get(key)?.file.path !== entry.file.path
+              ) {
+                new Notice(
+                  "These sources share a citation key. Give them unique keys in Zotero first.",
+                );
+                return;
+              }
+              this.selected.set(key, entry);
+              this.draft.items.push(citationItem(key));
+              this.render();
+            },
+            this.keyLabel,
+          );
+          this.picker.open();
+        }),
     );
     el.createEl("h3", { text: "Markdown preview" });
     this.preview = el.createEl("pre", { cls: "stratum-citation-preview" });
@@ -194,10 +207,12 @@ export class CitationComposer extends Modal {
     });
     new Setting(el)
       .addButton((button) =>
-        button.setButtonText("Cancel").onClick(() => this.close()),
+        styleStratumComponent(button)
+          .setButtonText("Cancel")
+          .onClick(() => this.close()),
       )
       .addButton((button) =>
-        button
+        styleStratumComponent(button)
           .setButtonText("Save citation")
           .setCta()
           .onClick(() => {

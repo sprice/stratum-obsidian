@@ -24,6 +24,7 @@ class Element {
   empty() {
     this.children = [];
   }
+  addClass() {}
   focus() {}
 }
 class Button {

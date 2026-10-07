@@ -128,7 +128,7 @@ export function configureDocx(
         opening ||
         ["Normal", "BodyText", "FirstParagraph", "Abstract"].includes(id ?? "")
       ) {
-        const paragraph = `<w:pPr>${spacing}${opening ? '<w:jc w:val="center"/>' : ""}${id === "Abstract" ? '<w:ind w:left="360" w:right="360"/>' : ""}</w:pPr>`;
+        const paragraph = `<w:pPr>${spacing}${opening ? `<w:jc w:val="${options.openingAlignment}"/>` : ""}${id === "Abstract" ? `<w:ind w:left="${options.abstractWidth === "inset" ? 360 : 0}" w:right="${options.abstractWidth === "inset" ? 360 : 0}"/>` : ""}</w:pPr>`;
         updated = updated.includes("<w:pPr>")
           ? updated.replace(/<w:pPr>[\s\S]*?<\/w:pPr>/, paragraph)
           : updated.replace("<w:rPr>", paragraph + "<w:rPr>");

@@ -25,6 +25,10 @@ class Element {
     this.text = options.text ?? "";
   }
   addClass() {}
+  setAttribute(key: string, value: string) {
+    this.options.attr ??= {};
+    this.options.attr[key] = value;
+  }
   css: Record<string, string> = {};
   setCssProps(properties: Record<string, string>) {
     this.css = properties;
@@ -134,6 +138,7 @@ function setup() {
         }
       },
       setIcon() {},
+      setTooltip() {},
       loadPdfJs: () =>
         Promise.resolve({
           getDocument: ({ data }: { data: Uint8Array }) => {

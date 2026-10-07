@@ -1,3 +1,4 @@
+import { styleStratumComponent } from "./ui-controls";
 import {
   MarkdownView,
   Modal,
@@ -116,7 +117,7 @@ class CitationRepair extends Modal {
           : "Choose the source this citation should refer to.",
       )
       .addButton((b) =>
-        b
+        styleStratumComponent(b)
           .setButtonText(this.entry ? "Change source" : "Choose source")
           .onClick(() => {
             const index = citationKeyIndex(this.entries, this.bibliography);
@@ -137,6 +138,7 @@ class CitationRepair extends Modal {
       (o) => o.kind === "citation" && o.target === this.oldKey,
     );
     new Setting(el).setName("Occurrences to repair").addDropdown((d) => {
+      styleStratumComponent(d);
       occurrences.forEach((o, i) => {
         d.addOption(String(i), `${i + 1}: ${o.excerpt}`);
       });
@@ -181,9 +183,13 @@ class CitationRepair extends Modal {
       );
     }
     new Setting(el)
-      .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
       .addButton((b) =>
-        b
+        styleStratumComponent(b)
+          .setButtonText("Cancel")
+          .onClick(() => this.close()),
+      )
+      .addButton((b) =>
+        styleStratumComponent(b)
           .setButtonText("Apply repair")
           .setCta()
           .setDisabled(!plan)

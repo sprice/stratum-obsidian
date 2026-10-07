@@ -1,3 +1,11 @@
+import {
+  createStratumAction,
+  createStratumDisclosure,
+  createStratumSummary,
+  createStratumButton,
+  createStratumSelect,
+  createStratumSearch,
+} from "./ui-controls";
 import { PublishPanel } from "./view-publish";
 import {
   getVisibleTabs,
@@ -14,11 +22,7 @@ import {
   CollectionBrowserView,
   getCollectionBrowserView,
 } from "./collection-browser";
-import {
-  createStratumButton,
-  createStratumSelect,
-  createStratumSearch,
-} from "./ui-controls";
+
 import {
   Component,
   Notice,
@@ -533,7 +537,9 @@ export class StratumView extends ItemView {
         `#${this.tabIdPrefix}-tab-${tab.id}`,
       );
       if (button) {
-        button.className = panel.hidden ? "" : "is-active";
+        button.className = panel.hidden
+          ? "stratum-control-button"
+          : "stratum-control-button is-active";
         button.setAttr("aria-selected", String(!panel.hidden));
         button.tabIndex = panel.hidden ? -1 : 0;
       }
@@ -605,7 +611,7 @@ export class StratumView extends ItemView {
     tabBar.setAttr("aria-labelledby", label.id);
 
     tabs.forEach((tab, index) => {
-      const button = tabBar.createEl("button", {
+      const button = createStratumAction(tabBar, {
         cls: this.plugin.activeViewTab === tab.id ? "is-active" : "",
         text: tab.label,
       });
@@ -1322,8 +1328,8 @@ export class StratumView extends ItemView {
         reportKey = nextReportKey;
         reportContainer.empty();
         if (unsupported.length) {
-          const report = reportContainer.createEl("details");
-          report.createEl("summary", {
+          const report = createStratumDisclosure(reportContainer);
+          createStratumSummary(report, {
             text: `${unsupported.length} unsupported Zotero items skipped`,
           });
           report.createEl("p", {

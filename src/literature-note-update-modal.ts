@@ -1,3 +1,4 @@
+import { createStratumAction } from "./ui-controls";
 import { Modal } from "obsidian";
 import type { App, TFile } from "obsidian";
 import type { LiteratureNoteSummary } from "./literature-note";
@@ -54,7 +55,7 @@ class LiteratureNoteUpdateModal extends Modal {
     });
 
     const actions = contentEl.createDiv({ cls: "stratum-actions" });
-    const updateButton = actions.createEl("button", {
+    const updateButton = createStratumAction(actions, {
       cls: "mod-cta",
       text: "Update existing note",
     });
@@ -63,7 +64,7 @@ class LiteratureNoteUpdateModal extends Modal {
       this.close();
     });
 
-    const openButton = actions.createEl("button", {
+    const openButton = createStratumAction(actions, {
       text: "Open existing note",
     });
     openButton.addEventListener("click", () => {
@@ -71,7 +72,7 @@ class LiteratureNoteUpdateModal extends Modal {
       this.close();
     });
 
-    const cancelButton = actions.createEl("button", {
+    const cancelButton = createStratumAction(actions, {
       text: "Cancel",
     });
     cancelButton.addEventListener("click", () => {
