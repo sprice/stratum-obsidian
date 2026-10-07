@@ -464,3 +464,24 @@ test("repeated titles warn without blocking and review the opening choices", () 
     true,
   );
 });
+
+test("Reset defaults re-applies the note's template and follows Customize visibility", () => {
+  const { root, publish, update } = setup();
+  const calls: unknown[] = [];
+  (
+    publish as { updatePreferences: (patch: unknown) => Promise<void> }
+  ).updatePreferences = (patch) => {
+    calls.push(patch);
+    return Promise.resolve();
+  };
+  const reset = () => root.all().find((el) => el.text === "Reset defaults")!;
+  update();
+  assert.equal(reset().hidden, true, "Hidden until a format is chosen");
+  publish.selectedFormat = "pdf";
+  update();
+  assert.equal(reset().hidden, false);
+  reset().listeners.get("click")!();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    { templateId: "general" },
+  ]);
+});

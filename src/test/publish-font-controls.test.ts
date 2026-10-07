@@ -278,3 +278,39 @@ test("failed discovery offers retry and rejected font saves restore the previous
   assert.equal(select.disabled, false);
   assert.equal(errors, 1);
 });
+
+test("Latin Modern lists one recommended text family under its familiar name", async () => {
+  for (const [fonts, value] of [
+    [
+      ["Zebra font", "LMRoman12", "LMSans10", "LMRoman10", "LMMono10"],
+      "LMRoman10",
+    ],
+    [["LMRoman10", "Latin Modern Roman", "Zebra font"], "Latin Modern Roman"],
+    [["LM Roman 12", "LM Roman 10", "LM Sans 10", "Zebra font"], "LM Roman 10"],
+  ] as const) {
+    const controls = runtime(() => Promise.resolve([...fonts, "Georgia"]));
+    const fields = new Element();
+    controls.renderPublishFontControls(
+      fields as never,
+      new Element() as never,
+      { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: value },
+      () => Promise.resolve(),
+      (error) => {
+        throw error;
+      },
+    )();
+    await settle();
+    const select = fields.children[0];
+    assert.deepEqual(select.choices, [
+      { value: "", text: "Default font" },
+      { value: "Georgia", text: "Georgia" },
+      { value, text: "Latin Modern Roman" },
+      { value: "Zebra font", text: "Zebra font" },
+    ]);
+    assert.deepEqual(
+      select.children.map((child) => child.tag),
+      ["option", "option", "option", "hr", "option"],
+    );
+    assert.equal(select.value, value);
+  }
+});

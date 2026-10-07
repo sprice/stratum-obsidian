@@ -52,7 +52,7 @@ export function readBibliographyBindings(text: string): BibliographyBinding[] {
   return result;
 }
 
-export function sourceIdentity(entry: LiteratureNoteEntry): string {
+function sourceIdentity(entry: LiteratureNoteEntry): string {
   return entry.identity || `file:${entry.file.path}`;
 }
 

@@ -34,6 +34,7 @@ export class CitationComposer extends Modal {
     private keyLabel: (entry: LiteratureNoteEntry) => string,
   ) {
     super(plugin.app);
+    this.modalEl.addClass("stratum-modal");
   }
   onOpen(): void {
     this.isActive = true;
@@ -70,6 +71,7 @@ export class CitationComposer extends Modal {
     this.draft.items.forEach((item, index) => {
       const card = el.createDiv({ cls: "stratum-citation-source" });
       card.createEl("h3", {
+        cls: "stratum-card-title",
         text: this.selected.get(item.key)?.title ?? item.key,
       });
       card.createEl("code", { text: `@${item.key}` });
@@ -199,7 +201,10 @@ export class CitationComposer extends Modal {
           this.picker.open();
         }),
     );
-    el.createEl("h3", { text: "Markdown preview" });
+    el.createEl("h3", {
+      cls: "stratum-subheading",
+      text: "Markdown preview",
+    });
     this.preview = el.createEl("pre", { cls: "stratum-citation-preview" });
     this.error = el.createDiv({
       cls: "stratum-citation-error",

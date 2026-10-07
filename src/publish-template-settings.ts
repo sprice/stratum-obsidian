@@ -13,12 +13,10 @@ import {
 } from "./publish-templates";
 import { createStratumButton, styleStratumComponent } from "./ui-controls";
 
-export function publishingTemplatesFor(
-  plugin: StratumPlugin,
-): PublishingTemplates {
+function publishingTemplatesFor(plugin: StratumPlugin): PublishingTemplates {
   return readPublishingTemplates(plugin.settings.publishingTemplates);
 }
-export async function savePublishingTemplates(
+async function savePublishingTemplates(
   plugin: StratumPlugin,
   state: PublishingTemplates,
 ): Promise<void> {
@@ -35,13 +33,14 @@ export async function savePublishingTemplates(
   plugin.refreshViews();
 }
 /** Deleting a custom template asks first; notes and published documents are kept. */
-export class DeletePublishingTemplateModal extends Modal {
+class DeletePublishingTemplateModal extends Modal {
   constructor(
     app: App,
     private name: string,
     private confirm: () => Promise<void>,
   ) {
     super(app);
+    this.modalEl.addClass("stratum-modal");
   }
   onOpen(): void {
     this.setTitle(`Delete “${this.name}” template?`);
@@ -74,13 +73,14 @@ export class DeletePublishingTemplateModal extends Modal {
 const fail = (_error: unknown) =>
   new Notice("Could not save publishing templates. Try again.");
 
-export function renderPublishingTemplate(
+function renderPublishingTemplate(
   container: HTMLElement,
   plugin: StratumPlugin,
   template: PublishingTemplate,
   refresh: () => void,
   academicTarget: (properties: HTMLDetailsElement, row: HTMLElement) => void,
   rename: (name: string) => void,
+  reopen: () => void,
 ): void {
   const details = container;
   const update = async (patch: Partial<PublishingTemplate>) => {
@@ -179,7 +179,31 @@ export function renderPublishingTemplate(
           }
         }),
     );
-  if (!isBuiltInTemplate(template.id))
+  if (isBuiltInTemplate(template.id))
+    new Setting(details)
+      .setName("Reset defaults")
+      .setDesc(
+        "Restore this template's layout and fields. The name and prefill details are kept.",
+      )
+      .addButton((button) =>
+        styleStratumComponent(button)
+          .setButtonText("Reset defaults")
+          .onClick(async () => {
+            const defaults = readPublishingTemplates(undefined).templates.find(
+              (t) => t.id === template.id,
+            )!;
+            try {
+              await update({
+                layout: defaults.layout,
+                properties: defaults.properties,
+              });
+              reopen();
+            } catch (error) {
+              fail(error);
+            }
+          }),
+      );
+  else
     new Setting(details)
       .setName("Delete template")
       .setDesc(
@@ -219,6 +243,7 @@ export class PublishingTemplatesModal extends Modal {
     private academicDefaults = false,
   ) {
     super(plugin.app);
+    this.modalEl.addClass("stratum-modal");
   }
 
   onOpen(): void {
@@ -337,6 +362,7 @@ export class PublishingTemplatesModal extends Modal {
         }
       },
       (name) => this.setTitle(`Edit ${name} template`),
+      () => this.editTemplate(id),
     );
   }
 

@@ -703,8 +703,8 @@ test("template selection copies layouts and retains them after template edits or
   );
   await controller.updatePreferences({ templateId: "academic" });
   assert.equal(controller.notePreferences.documentType, "academic");
-  assert.equal(controller.notePreferences.pdf.lineSpacing, 1.5);
-  assert.equal(controller.notePreferences.docx.lineSpacing, 1.5);
+  assert.equal(controller.notePreferences.pdf.lineSpacing, 1);
+  assert.equal(controller.notePreferences.docx.lineSpacing, 1);
 });
 
 test("preparation and required fields follow a general template without changing body content", async () => {

@@ -58,6 +58,7 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
       {
         TFile: File,
         FuzzySuggestModal: class {
+          modalEl = { addClass() {} };
           setPlaceholder() {}
           open() {
             picker = this as unknown as typeof picker;
@@ -69,6 +70,7 @@ test("composer writes to its captured editor and aborts stale or cancelled edits
           onClose() {}
         },
         Modal: class {
+          modalEl = { addClass() {} };
           open() {
             modal = this as unknown as typeof modal;
             modal!.isActive = true;

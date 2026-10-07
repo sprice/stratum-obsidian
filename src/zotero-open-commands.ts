@@ -57,7 +57,7 @@ function isZoteroItemUri(uri: string): boolean {
 }
 
 /** Only use attachment links from Stratum's managed Reference callout. */
-export function zoteroAttachmentLinks(content: string): ZoteroLink[] {
+function zoteroAttachmentLinks(content: string): ZoteroLink[] {
   const { frontmatter, body } = splitFrontmatterContent(content, parseYaml);
   const layout = readLiteratureNoteLayout(body, frontmatter[NOTE_LAYOUT_KEY]);
   if (!layout) return [];
@@ -89,6 +89,7 @@ class AttachmentPicker extends FuzzySuggestModal<ZoteroLink> {
     private links: ZoteroLink[],
   ) {
     super(plugin.app);
+    this.modalEl.addClass("stratum-modal");
     this.setPlaceholder("Choose an attachment to open in Zotero");
   }
   getItems(): ZoteroLink[] {

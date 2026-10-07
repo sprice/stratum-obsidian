@@ -169,6 +169,7 @@ export class LiteratureNoteSearchModal extends FuzzySuggestModal<LiteratureNoteE
       `@${buildCitekey(entry)}`,
   ) {
     super(app);
+    this.modalEl.addClass("stratum-modal");
     this.entries = entries;
     this.onSelect = onSelect;
     this.setPlaceholder(

@@ -13,23 +13,6 @@ export interface PublishingProperty {
   defaultValue: string;
   use: PublishedUse;
 }
-export const ACADEMIC_PROPERTY_DEFINITIONS: PublishingProperty[] = [
-  {
-    key: "title",
-    type: "text",
-    required: true,
-    defaultValue: "",
-    use: "title",
-  },
-  ...(["authors", "affiliations", "keywords"] as const).map((key) => ({
-    key,
-    type: "list" as const,
-    required: false,
-    defaultValue: "",
-    use: key,
-  })),
-  { key: "date", type: "date", required: false, defaultValue: "", use: "date" },
-];
 const safeKey = (key: unknown): key is string =>
   typeof key === "string" &&
   /^[a-zA-Z][a-zA-Z0-9_-]{0,99}$/.test(key) &&

@@ -61,7 +61,10 @@ export class SourcesPanel extends Component {
     this.active = true;
     this.container.addClass("stratum-sources");
     const header = this.container.createDiv({ cls: "stratum-sources-header" });
-    header.createEl("h3", { text: "Review citations" });
+    header.createEl("h3", {
+      cls: "stratum-section-heading",
+      text: "Review citations",
+    });
     this.container.createEl("p", {
       cls: "stratum-placeholder",
       text: "Review sources cited or linked in your note",

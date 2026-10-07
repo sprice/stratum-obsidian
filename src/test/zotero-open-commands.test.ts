@@ -78,6 +78,7 @@ function fixture() {
         }
       },
       FuzzySuggestModal: class {
+        modalEl = { addClass() {} };
         setPlaceholder() {}
         open() {
           pickers.push(this as never);

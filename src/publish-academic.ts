@@ -2,7 +2,7 @@ import { parseYaml } from "obsidian";
 import { escapeHtml } from "./citation-display";
 import { textList, type AcademicDefaults } from "./publish-options";
 
-export interface AcademicMetadata {
+interface AcademicMetadata {
   title: string;
   authors: string[];
   affiliations: string[];

@@ -75,6 +75,7 @@ class CitationRepair extends Modal {
     private entries: LiteratureNoteEntry[],
   ) {
     super(plugin.app);
+    this.modalEl.addClass("stratum-modal");
     this.entriesSignature = citationEntriesSignature(entries);
   }
   onOpen(): void {

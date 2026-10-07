@@ -28,15 +28,9 @@ import {
   toIdentity,
 } from "./literature-note-helpers";
 
-export type {
-  LiteratureNoteIdentity,
-  LiteratureNoteSummary,
-} from "./literature-note-content";
+export type { LiteratureNoteSummary } from "./literature-note-content";
 export { getLiteratureNoteSummary };
-export {
-  findExistingLiteratureNote,
-  isPathInsideFolder,
-} from "./literature-note-helpers";
+export { findExistingLiteratureNote } from "./literature-note-helpers";
 
 export interface LiteratureNoteWriteResult {
   created: boolean;
@@ -45,7 +39,7 @@ export interface LiteratureNoteWriteResult {
   summary: LiteratureNoteSummary;
 }
 
-export interface LiteratureNoteDeleteMarkResult {
+interface LiteratureNoteDeleteMarkResult {
   file: TFile;
   changed: boolean;
 }

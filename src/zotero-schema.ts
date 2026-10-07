@@ -58,7 +58,7 @@ export function resolveZoteroFields(
   return output;
 }
 
-export function zoteroSourceFields(
+function zoteroSourceFields(
   raw: Record<string, unknown>,
 ): Record<string, string> {
   const schema =

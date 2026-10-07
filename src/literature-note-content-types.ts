@@ -6,8 +6,8 @@ export const SYNC_NOTICE = [
   "> [!warning] Synced source content",
   "> This notice and everything below it are managed by Stratum and may be updated during sync. Keep this notice in place and write your own notes above it.",
 ].join("\n");
-export const USER_BOUNDARY_CALLOUT_TYPE = "stratum";
-export const USER_BOUNDARY_CALLOUT_TITLE = "My Notes";
+const USER_BOUNDARY_CALLOUT_TYPE = "stratum";
+const USER_BOUNDARY_CALLOUT_TITLE = "My Notes";
 export const USER_BOUNDARY_PATTERN = /^ {0,3}>[ \t]*\[!stratum\]/im;
 export const USER_BOUNDARY_CALLOUT = [
   `> [!${USER_BOUNDARY_CALLOUT_TYPE}]- ${USER_BOUNDARY_CALLOUT_TITLE}`,
@@ -22,7 +22,6 @@ export const ATTACHMENT_KEYS_FRONTMATTER_KEY = "zotero_attachment_keys";
 export const NOTE_KEYS_FRONTMATTER_KEY = "zotero_note_keys";
 export const ANNOTATION_KEYS_FRONTMATTER_KEY = "zotero_annotation_keys";
 export const ZOTERO_STATUS_FRONTMATTER_KEY = "zotero_status";
-export const ITEM_VERSION_FRONTMATTER_KEY = "zotero_item_version";
 
 export type ZoteroSyncStatus = "active" | "deleted";
 

@@ -45,12 +45,12 @@ export interface BulkLibrarySyncState {
   annotationImageWarning?: string;
 }
 
-export interface DeletedChildLookupCandidate {
+interface DeletedChildLookupCandidate {
   path: string;
   frontmatter?: Record<string, unknown> | null;
 }
 
-export const DEFAULT_ZOTERO_AUTO_SYNC_STATE: ZoteroAutoSyncState = {
+const DEFAULT_ZOTERO_AUTO_SYNC_STATE: ZoteroAutoSyncState = {
   libraryVersion: null,
   lastSuccessfulSyncAt: null,
   lastError: null,

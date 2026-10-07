@@ -11,7 +11,7 @@ import {
   buildDefaultZoteroAutoSyncState,
 } from "./zotero-sync";
 
-export const PERSONAL_LIBRARY_NAME = "My Library";
+const PERSONAL_LIBRARY_NAME = "My Library";
 
 export function buildLibraryIdentity(
   type: EnabledLibrary["type"],
@@ -52,7 +52,7 @@ export function sortEnabledLibraries(
   });
 }
 
-export function getEligibleLocalSyncLibraries(
+function getEligibleLocalSyncLibraries(
   plugin: StratumPlugin,
   libraries: EnabledLibrary[],
 ): EnabledLibrary[] {
@@ -147,7 +147,7 @@ export function reconcileEnabledLocalSyncLibraries(
   return changed;
 }
 
-export function getEnabledLibraryByIdentity(
+function getEnabledLibraryByIdentity(
   plugin: StratumPlugin,
   identity: string | null | undefined,
 ): EnabledLibrary | null {
@@ -162,7 +162,7 @@ export function getEnabledLibraryByIdentity(
   );
 }
 
-export function getKnownLibraryByIdentity(
+function getKnownLibraryByIdentity(
   plugin: StratumPlugin,
   identity: string | null | undefined,
 ): EnabledLibrary | null {
@@ -192,7 +192,7 @@ export function getPersonalLibrary(
   return buildPersonalLibrary(userId);
 }
 
-export function getPrimaryEnabledLibrary(
+function getPrimaryEnabledLibrary(
   plugin: StratumPlugin,
 ): EnabledLibrary | null {
   const personal = getPersonalLibrary(plugin);
@@ -267,7 +267,7 @@ export function setSelectedSearchLibrary(
   clearLibrarySearchState(plugin);
 }
 
-export function ensureLibraryStateInitialized(
+function ensureLibraryStateInitialized(
   plugin: StratumPlugin,
   library: EnabledLibrary,
 ): void {
@@ -335,7 +335,7 @@ export function syncLibraryStateMaps(plugin: StratumPlugin): void {
   }
 }
 
-export function setEnabledLibraries(
+function setEnabledLibraries(
   plugin: StratumPlugin,
   libraries: EnabledLibrary[],
 ): void {

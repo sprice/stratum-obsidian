@@ -87,10 +87,13 @@ function preferencesFixture(note = false) {
       Modal: class {
         constructor(public app: unknown) {}
         contentEl = el;
+        modalEl = { addClass() {} };
         setTitle() {}
         close() {}
       },
-      FuzzySuggestModal: class {},
+      FuzzySuggestModal: class {
+        modalEl = { addClass() {} };
+      },
       Notice: class {},
       Setting: class {
         setName() {
@@ -242,9 +245,11 @@ for (const fail of [false, true]) {
         Modal: class {
           constructor(public app: unknown) {}
           contentEl = element;
+          modalEl = { addClass() {} };
           setTitle() {}
         },
         FuzzySuggestModal: class {
+          modalEl = { addClass() {} };
           setPlaceholder() {}
           open() {
             choose = (

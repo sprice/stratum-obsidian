@@ -34,8 +34,8 @@ class Element {
   createDiv() {
     return this.append("div");
   }
-  createSpan() {
-    return this.append("span");
+  createSpan(options?: { text?: string }) {
+    return this.append("span", options);
   }
   addEventListener(event: string, callback: () => void) {
     this.listeners.set(event, callback);
@@ -133,6 +133,7 @@ test("setup rechecks stale detection on every open and offers PDF verification w
     {
       Modal: class {
         contentEl = new Element();
+        modalEl = { addClass() {} };
         setTitle() {}
         close() {}
       },
@@ -160,6 +161,9 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   callbacks.forEach((callback) => callback());
   assert.equal(content.find("Get Tectonic"), undefined);
   assert.ok(content.find("Detected"));
+  assert.ok(content.find("Found automatically"));
+  assert.ok(content.find("/synthetic/tectonic"));
+  assert.equal(content.find("Use automatic detection")!.hidden, true);
   assert.equal(content.find("Check again")!.hidden, true);
   content.find("Enable PDF")!.click();
   assert.deepEqual(checks, [false, true]);
@@ -193,6 +197,7 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   pathInput.value = "/different/pandoc";
   pathInput.listeners.get("change")!();
   assert.equal(publish.readiness, null);
+  assert.equal(content.find("Use automatic detection")!.hidden, false);
   assert.equal(
     sidebarReadiness,
     null,

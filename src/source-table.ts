@@ -10,7 +10,7 @@ export const SOURCE_COLUMNS: Record<string, string> = {
   findings: "Findings",
   limitations: "Limitations",
 };
-export const DEFAULT_SOURCE_COLUMNS = ["authors", "year", "reference_type"];
+const DEFAULT_SOURCE_COLUMNS = ["authors", "year", "reference_type"];
 export const MAX_SOURCE_COLUMNS = 8;
 export interface SourceTableState {
   layout: "list" | "table";

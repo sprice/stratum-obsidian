@@ -31,7 +31,7 @@ function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-export function stripCombiningMarks(value: string): string {
+function stripCombiningMarks(value: string): string {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
 }
 
@@ -240,14 +240,6 @@ export function getGeneratedFileStem(
   return format === "citekey"
     ? getGeneratedCitekeyStem(detail, collisionSuffix)
     : getReadableFileStem(detail, collisionSuffix);
-}
-
-export function getGeneratedFileName(
-  detail: ZoteroItemDetail,
-  format: LiteratureNoteFilenameFormat,
-  collisionSuffix = "",
-): string {
-  return `${getGeneratedFileStem(detail, format, collisionSuffix)}.md`;
 }
 
 export function getAsciiFallbackFileStem(stem: string): string {

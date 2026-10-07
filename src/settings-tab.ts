@@ -91,7 +91,7 @@ export class StratumSettingTab extends PluginSettingTab {
         title: "Source summary template",
         description: [
           "Starting content for source summaries you insert into your notes.",
-          "Changes apply to future insertions. Existing summaries remain yours to edit.",
+          "Changes apply to future insertions. Existing summaries remain unchanged.",
         ],
         variables: SOURCE_SUMMARY_VARIABLES,
         validate: validateSourceSummaryTemplate,

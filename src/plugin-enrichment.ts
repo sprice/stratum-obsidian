@@ -2,7 +2,7 @@ import type { OpenAlexEnrichment } from "./backend-client";
 import { getNormalizedDoiLookupKey } from "./doi";
 import type StratumPlugin from "./plugin";
 
-export interface LoadEnrichmentForNoteWriteParams {
+interface LoadEnrichmentForNoteWriteParams {
   doi: string | null;
 }
 

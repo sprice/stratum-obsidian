@@ -815,3 +815,48 @@ test(
     assert.ok(keywords < text.indexOf("Introduction"), text);
   },
 );
+
+test(
+  "LaTeX layout wraps only wide tables and lets bibliography URLs break",
+  { skip: !hasPandoc },
+  async () => {
+    const { publicationFilter } = await import("../publish-layout");
+    const directory = await mkdtemp(join(tmpdir(), "stratum-layout-"));
+    try {
+      await writeFile(
+        join(directory, "layout.lua"),
+        publicationFilter(DEFAULT_ACADEMIC_OPTIONS),
+      );
+      await writeFile(
+        join(directory, "document.html"),
+        `<table><thead><tr><th>Feature</th><th>First synthetic column</th><th>Second synthetic column</th><th>Third synthetic column</th></tr></thead><tbody><tr><td>Response</td><td>A long synthetic description</td><td>Another long synthetic description</td><td>A third long synthetic description</td></tr></tbody></table>
+<table><thead><tr><th>Group</th><th>Count</th></tr></thead><tbody><tr><td>Low</td><td>40</td></tr></tbody></table>
+<div class="csl-bib-body"><div id="ref-stratum-publish-footer-0" class="csl-entry">Example, A. (2024). Synthetic reference. https://doi.org/10.0000/synthetic.2024.</div>
+<div id="ref-stratum-publish-footer-1" class="csl-entry">Example, B. (2024). Linked reference. <a href="https://example.com/linked">https://example.com/linked</a></div></div>`,
+      );
+      const latex = execFileSync(
+        pandoc,
+        [
+          "--from=html",
+          "--to=latex",
+          "--lua-filter=layout.lua",
+          "document.html",
+        ],
+        { cwd: directory, encoding: "utf8", timeout: 30_000 },
+      );
+      assert.equal(
+        latex.match(/p\{\(/g)?.length,
+        4,
+        "Only the wide table gets wrapping columns",
+      );
+      assert.match(
+        latex,
+        /\\url\{https:\/\/doi\.org\/10\.0000\/synthetic\.2024\}\./,
+      );
+      assert.match(latex, /\\url\{https:\/\/example\.com\/linked\}/);
+      assert.doesNotMatch(latex, /\\href\{[^}]*\}\{\\url/);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);

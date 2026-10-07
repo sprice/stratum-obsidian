@@ -2,7 +2,7 @@ import { installedPublishFonts } from "./publish-desktop";
 import { fontName, type PublishOptions } from "./publish-options";
 import { createStratumButton, createStratumSelect } from "./ui-controls";
 
-export const COMMON_PAPER_FONTS = [
+const COMMON_PAPER_FONTS = [
   "Arial",
   "Cambria",
   "Charter",
@@ -24,15 +24,37 @@ const commonFonts = new Set<string>(
   COMMON_PAPER_FONTS.map((family) => family.toLowerCase()),
 );
 
+// Latin Modern installs one family per optical size and style. Offer only the
+// text size, under its familiar name; the saved value stays the installed family.
+// Builds name these families with or without spaces ("LMRoman10", "LM Roman 10").
+const FONT_LABELS = new Map([["lmroman10", "Latin Modern Roman"]]);
+const LATIN_MODERN_VARIANT = /^lm ?(roman|sans|mono)/i;
+const fontKey = (family: string) => family.toLowerCase().replace(/\s+/g, "");
+const fontLabel = (family: string) =>
+  FONT_LABELS.get(fontKey(family)) ?? family;
+
 function discoverFonts(): Promise<string[]> {
   return installedPublishFonts().then((fonts) => {
     const families = new Map<string, string>();
     for (const font of fonts) {
       const family = fontName(font);
-      if (family && !families.has(family.toLowerCase()))
-        families.set(family.toLowerCase(), family);
+      if (
+        !family ||
+        (LATIN_MODERN_VARIANT.test(family) && !FONT_LABELS.has(fontKey(family)))
+      )
+        continue;
+      const key = fontLabel(family).toLowerCase();
+      const existing = families.get(key);
+      // Keep the first match, except that a family named like a label replaces its alias.
+      if (
+        !existing ||
+        (existing.toLowerCase() !== key && family.toLowerCase() === key)
+      )
+        families.set(key, family);
     }
-    return [...families.values()].sort((a, b) => a.localeCompare(b));
+    return [...families.values()].sort((a, b) =>
+      fontLabel(a).localeCompare(fontLabel(b)),
+    );
   });
 }
 
@@ -78,20 +100,20 @@ export function renderPublishFontControls(
         select.createEl("option", {
           value: selected,
           text: installed
-            ? `${selected} · Unavailable on this computer`
-            : selected,
+            ? `${fontLabel(selected)} · Unavailable on this computer`
+            : fontLabel(selected),
         });
       const common = (installed ?? []).filter((family) =>
-        commonFonts.has(family.toLowerCase()),
+        commonFonts.has(fontLabel(family).toLowerCase()),
       );
       const other = (installed ?? []).filter(
-        (family) => !commonFonts.has(family.toLowerCase()),
+        (family) => !commonFonts.has(fontLabel(family).toLowerCase()),
       );
       for (const families of [common, other]) {
         if (families === other && common.length && other.length)
           select.createEl("hr");
         for (const family of families)
-          select.createEl("option", { value: family, text: family });
+          select.createEl("option", { value: family, text: fontLabel(family) });
       }
       select.value = selected;
     };

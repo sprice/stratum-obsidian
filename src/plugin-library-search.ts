@@ -25,7 +25,7 @@ const queuedSearchResolvers = new WeakMap<
   (results: ZoteroSearchResult[]) => void
 >();
 
-export type LibrarySearchSuggestionSnapshot = {
+type LibrarySearchSuggestionSnapshot = {
   results: ZoteroSearchResult[];
   pending: Promise<ZoteroSearchResult[]> | null;
 };

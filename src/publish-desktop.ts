@@ -8,7 +8,7 @@ export interface PublishAsset {
   name: string;
   bytes: ArrayBuffer;
 }
-export interface PublishTools {
+interface PublishTools {
   pandoc: string;
   tectonic: string;
 }
@@ -655,13 +655,6 @@ export async function choosePublishExecutable(
     properties: ["openFile"],
   });
   return result.canceled ? null : (result.filePaths[0] ?? null);
-}
-export async function openPublishedFile(path: string): Promise<void> {
-  const shell = host().electron?.remote?.shell;
-  if (!shell)
-    throw new Error("Opening files is unavailable in this Obsidian version.");
-  const error = await shell.openPath(path);
-  if (error) throw new Error(error);
 }
 export async function savePublishedCopy(
   bytes: ArrayBuffer,

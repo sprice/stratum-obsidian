@@ -20,7 +20,7 @@ export function getNormalizedNotesFolder(notesFolder?: string): string {
   return normalizePath(notesFolder?.trim() ?? "").replace(/\/+$/, "");
 }
 
-export function isPathInsideFolder(path: string, folder: string): boolean {
+function isPathInsideFolder(path: string, folder: string): boolean {
   if (!folder) {
     return !normalizePath(path).includes("/");
   }
@@ -29,7 +29,7 @@ export function isPathInsideFolder(path: string, folder: string): boolean {
   return normalizedPath === folder || normalizedPath.startsWith(`${folder}/`);
 }
 
-export function getLiteratureNoteCandidates(
+function getLiteratureNoteCandidates(
   app: App,
   preferredFolder?: string,
 ): LiteratureNoteCandidate[] {
@@ -54,27 +54,6 @@ export function getStoredFilenameStem(
 ): string | null {
   const value = frontmatter[FILENAME_STEM_FRONTMATTER_KEY];
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-export function getStoredZoteroVersion(
-  frontmatter: Record<string, unknown>,
-): number | null {
-  const values = [frontmatter.zotero_item_version, frontmatter.zotero_version];
-
-  for (const value of values) {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-
-    if (typeof value === "string") {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) {
-        return parsed;
-      }
-    }
-  }
-
-  return null;
 }
 
 export function findExistingLiteratureNote(

@@ -11,7 +11,7 @@ export const NOTE_LAYOUT_KEY = "stratum_note_layout";
 // Recognize existing notices independently of changes to their explanatory copy.
 const SYNC_NOTICE_HEADER = `${SYNC_BOUNDARY}\n> [!warning] Synced source content\n`;
 
-export interface LiteratureNoteLayout {
+interface LiteratureNoteLayout {
   /** Includes the My Notes heading and all personal text, without normalization. */
   personal: string;
   managed: string;

@@ -19,7 +19,7 @@ import {
   type ZoteroSyncStatus,
 } from "./literature-note-content-types";
 
-export function getItemIdentity(detail: ZoteroItemDetail): string {
+function getItemIdentity(detail: ZoteroItemDetail): string {
   return `${detail.library.type}/${detail.library.id}/${detail.item.key}`;
 }
 
