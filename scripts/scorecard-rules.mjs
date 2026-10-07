@@ -33,6 +33,8 @@ function unwrap(node) {
     node &&
     (ts.isParenthesizedExpression(node) ||
       ts.isAsExpression(node) ||
+      ts.isTypeAssertionExpression(node) ||
+      ts.isSatisfiesExpression(node) ||
       ts.isNonNullExpression(node))
   )
     node = node.expression;
@@ -42,11 +44,10 @@ function member(node) {
   node = unwrap(node);
   if (ts.isIdentifier(node)) return node.text;
   if (ts.isPropertyAccessExpression(node)) return node.name.text;
-  if (
-    ts.isElementAccessExpression(node) &&
-    ts.isStringLiteralLike(node.argumentExpression)
-  )
-    return node.argumentExpression.text;
+  if (ts.isElementAccessExpression(node)) {
+    const name = unwrap(node.argumentExpression);
+    if (name && ts.isStringLiteralLike(name)) return name.text;
+  }
   return null;
 }
 export function decodingFindings(text, file = "source.ts") {
@@ -63,8 +64,7 @@ export function decodingFindings(text, file = "source.ts") {
           : null;
       const encoding = unwrap(node.arguments?.[1]);
       const bufferDecode =
-        ((name === "from" && receiver === "Buffer") ||
-          (ts.isNewExpression(node) && name === "Buffer")) &&
+        ((name === "from" && receiver === "Buffer") || name === "Buffer") &&
         encoding &&
         ts.isStringLiteralLike(encoding) &&
         /^(base64|base64url)$/i.test(encoding.text);

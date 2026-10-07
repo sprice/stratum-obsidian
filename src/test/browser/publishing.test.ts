@@ -382,6 +382,7 @@ test("publishing tool paths stack without display contents and reduced motion di
       matched: number;
       duration: string;
       focusedDuration: string;
+      hoverDuration: string;
     }>(`(() => {
       const control = document.createElement('button');
       control.className = 'stratum-control-button';
@@ -389,22 +390,39 @@ test("publishing tool paths stack without display contents and reduced motion di
       document.body.append(control);
       // Activate the real reduced-motion declarations independent of host preferences.
       const changed = [];
+      const selectors = [];
       for (const sheet of document.styleSheets) {
         for (const rule of sheet.cssRules) {
-          if (rule instanceof CSSMediaRule && rule.conditionText === '(prefers-reduced-motion: reduce)') {
+          if (!(rule instanceof CSSMediaRule)) continue;
+          if (rule.conditionText === '(hover: hover)') {
+            changed.push([rule, rule.media.mediaText]);
+            rule.media.mediaText = 'all';
+            for (const nested of rule.cssRules) {
+              if (nested instanceof CSSStyleRule && nested.selectorText.includes(':hover')) {
+                selectors.push([nested, nested.selectorText]);
+                // A class has the same specificity as :hover; force that state deterministically.
+                nested.selectorText = nested.selectorText.replaceAll(':hover', '.synthetic-hover');
+              }
+            }
+          }
+          if (rule.conditionText === '(prefers-reduced-motion: reduce)') {
             changed.push([rule, rule.media.mediaText]);
             rule.media.mediaText = 'all';
           }
         }
       }
       const duration = getComputedStyle(control).transitionDuration;
+      control.classList.add('synthetic-hover');
+      const hoverDuration = getComputedStyle(control).transitionDuration;
       control.focus();
       const focusedDuration = getComputedStyle(control).transitionDuration;
+      for (const [rule, original] of selectors) rule.selectorText = original;
       for (const [rule, original] of changed) rule.media.mediaText = original;
       control.remove();
-      return { matched: changed.length, duration, focusedDuration };
+      return { matched: changed.length, duration, hoverDuration, focusedDuration };
     })()`);
     assert.ok(motion.matched > 0);
     assert.equal(motion.duration, "0s");
     assert.equal(motion.focusedDuration, "0s");
+    assert.equal(motion.hoverDuration, "0s");
   }));

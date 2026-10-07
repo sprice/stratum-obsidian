@@ -613,13 +613,14 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   outline-offset: -2px;
   transition: none;
 }
+/* Match the hover + enabled selector specificity so reduced motion wins. */
 @media (prefers-reduced-motion: reduce) {
-  .stratum-control-select.stratum-control-select,
-  .stratum-control-button.stratum-control-button,
-  .stratum-control-input.stratum-control-input,
-  .stratum-control-checkbox.stratum-control-checkbox,
-  .stratum-control-summary.stratum-control-summary,
-  .stratum-control-toggle.stratum-control-toggle {
+  .stratum-control-select.stratum-control-select.stratum-control-select,
+  .stratum-control-button.stratum-control-button.stratum-control-button,
+  .stratum-control-input.stratum-control-input.stratum-control-input,
+  .stratum-control-checkbox.stratum-control-checkbox.stratum-control-checkbox,
+  .stratum-control-summary.stratum-control-summary.stratum-control-summary,
+  .stratum-control-toggle.stratum-control-toggle.stratum-control-toggle {
     transition: none;
   }
 }
