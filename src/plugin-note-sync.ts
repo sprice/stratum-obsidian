@@ -31,9 +31,9 @@ import {
 } from "./zotero-local";
 import { isMissingZoteroItemError } from "./plugin-sync-helpers";
 
-export type NoteSyncSourcePreference = "auto" | "cloud" | "local";
+type NoteSyncSourcePreference = "auto" | "cloud" | "local";
 
-export type NoteSyncDetailLoadResult = {
+type NoteSyncDetailLoadResult = {
   detail: ZoteroItemDetail | null;
   usedLocal: boolean;
   localMissing: boolean;

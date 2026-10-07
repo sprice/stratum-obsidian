@@ -43,37 +43,23 @@ type AuthedRequestOptions = Omit<RequestUrlParam, "throw" | "url"> & {
   skipSessionClearOnAuthError?: boolean;
 };
 
-export type LibraryParam = {
+type LibraryParam = {
   type: "user" | "group";
   id: string;
 };
 
 export type {
-  AuthenticatedUserResponse,
-  AuthenticatedUserSummary,
-  BackendErrorPayload,
-  BackendAuthState,
   OpenAlexEnrichment,
   OpenAlexEnrichmentBatchResult,
-  OpenAlexEnrichmentBatchResponse,
-  OpenAlexEnrichmentStatus,
-  RefreshResponse,
   ZoteroCollectionSummary,
-  ZoteroLibraryCollectionsResponse,
-  ZoteroLibraryCatalogItem,
-  ZoteroLibraryCatalogPageResponse,
   ZoteroGroupSummary,
-  ZoteroLibraryIdentity,
   ZoteroConnectionState,
   ZoteroItemDetail,
-  ZoteroLibraryChangesResponse,
   ZoteroSearchMeta,
-  ZoteroSearchResponse,
   ZoteroSearchResult,
 } from "./backend-types";
 export {
   ZoteroNotConnectedError,
-  ZoteroRateLimitedError,
   ZoteroTokenInvalidError,
 } from "./zotero-errors";
 

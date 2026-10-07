@@ -151,6 +151,7 @@ function fixture(desktop = false, modern = true) {
   }
   class HostModal {
     contentEl = new Element();
+    modalEl = { addClass() {} };
     constructor() {
       modals.push(this);
     }
@@ -589,6 +590,7 @@ test("template management stays in its own screen, with academic properties in t
   assert.equal(custom.documentType, "academic");
   rows = Row.rendered;
   assert.ok(rows.some((row) => row.name === "Authors"));
+  assert.ok(!rows.some((row) => row.name === "Reset defaults"));
   assert.ok(
     !rows.some(
       (row) => row.name === "Property name" || row.name === "Published use",
@@ -643,4 +645,14 @@ test("template management stays in its own screen, with academic properties in t
     )!.name,
     "My academic paper",
   );
+  const academic = () =>
+    f.plugin.settings.publishingTemplates!.templates.find(
+      (template) => template.id === "academic",
+    )!;
+  academic().layout = { ...academic().layout, lineSpacing: 2, bodySize: 14 };
+  await Row.rendered.find((row) => row.name === "Reset defaults")!.control!
+    .click!();
+  assert.equal(academic().layout.lineSpacing, 1);
+  assert.equal(academic().layout.bodySize, 10);
+  assert.equal(academic().name, "My academic paper", "Reset keeps the name");
 });

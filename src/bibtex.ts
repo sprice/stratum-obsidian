@@ -7,7 +7,6 @@ import {
   resolveBibliographyCitekey,
   updateManagedBibliography,
 } from "./bibtex-managed";
-export { buildCitekey } from "./bibtex-format";
 const BIB_FILENAME = "stratum.bib";
 
 // Serialize creates as well as updates; two simultaneous citations must not

@@ -26,7 +26,7 @@ export function renderSelectedLibraryPaper(
   const syncing = plugin.isBulkLibrarySyncRunning();
   const section = container.createDiv({ cls: "stratum-selected-paper" });
   section.createEl("h3", {
-    cls: "stratum-selected-title",
+    cls: "stratum-card-title",
     text: selected.title,
   });
   section.createEl("p", {

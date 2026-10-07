@@ -19,6 +19,7 @@ class LiteratureNoteUpdateModal extends Modal {
     onResolve: (action: ExistingNoteAction) => void;
   }) {
     super(params.app);
+    this.modalEl.addClass("stratum-modal");
     this.file = params.file;
     this.title = params.title;
     this.summary = params.summary;
@@ -29,10 +30,8 @@ class LiteratureNoteUpdateModal extends Modal {
     const { contentEl, modalEl } = this;
     modalEl.addClass("stratum-update-modal");
     contentEl.empty();
+    this.setTitle("Update existing literature note?");
 
-    contentEl.createEl("h2", {
-      text: "Update existing literature note?",
-    });
     contentEl.createEl("p", {
       text: `A literature note already exists for “${this.title}”. Stratum will refresh the synced Zotero sections and preserve anything you’ve written outside those managed sections.`,
     });

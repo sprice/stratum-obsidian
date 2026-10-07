@@ -5,7 +5,7 @@ import type { AnnotationHttp } from "./annotation-node-api";
 export class BetterBibtexItemError extends Error {}
 
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
-export type BbtRequest = (url: string, body: string) => Promise<unknown>;
+type BbtRequest = (url: string, body: string) => Promise<unknown>;
 
 export async function requestBetterBibtex(
   url: string,

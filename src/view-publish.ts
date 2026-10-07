@@ -27,6 +27,7 @@ class DeletePublicationModal extends Modal {
     private document: PublishedDocument,
   ) {
     super(app);
+    this.modalEl.addClass("stratum-modal");
   }
   onOpen(): void {
     this.setTitle("Delete published document?");
@@ -75,6 +76,8 @@ export class PublishPanel extends Component {
   private citationRevision = 0;
   private citationKey = "";
   private customize!: HTMLDetailsElement;
+  private customizeRow!: HTMLElement;
+  private resetLayout!: HTMLButtonElement;
   private focusControl?: (key: "bodyFont" | "titleFont" | "opening") => void;
   private titleWarning!: HTMLElement;
   private customization!: HTMLElement;
@@ -88,7 +91,10 @@ export class PublishPanel extends Component {
   }
   onload(): void {
     this.body = this.container.createDiv({ cls: "stratum-publish-panel" });
-    this.body.createEl("h3", { text: "Publish note" });
+    this.body.createEl("h3", {
+      cls: "stratum-section-heading",
+      text: "Publish note",
+    });
     this.body.createEl("p", {
       cls: "stratum-placeholder",
       text: "Word or PDF documents created from your note",
@@ -195,12 +201,26 @@ export class PublishPanel extends Component {
     this.create.addEventListener("click", () => {
       void this.publish.create();
     });
-    this.customize = createStratumDisclosure(this.body, {
+    this.customizeRow = this.body.createDiv({
+      cls: "stratum-publish-customize-row",
+    });
+    this.customize = createStratumDisclosure(this.customizeRow, {
       cls: "stratum-publish-customization",
     });
     createStratumSummary(this.customize, { text: "Customize…" });
     this.customization = this.customize.createDiv();
     this.customize.addEventListener("toggle", () => this.updateCustomization());
+    this.resetLayout = createStratumButton(this.customizeRow, {
+      text: "Reset defaults",
+      tooltip: "Restore template settings",
+      className: "stratum-publish-reset",
+    });
+    this.resetLayout.addEventListener("click", () => {
+      // Re-selecting the template copies its current layout into this note.
+      const templateId = this.publish.notePreferences.templateId;
+      if (templateId)
+        void this.publish.updatePreferences({ templateId }).catch(() => {});
+    });
     this.status = this.body.createDiv({
       cls: "stratum-publish-status",
       attr: { role: "status", "aria-live": "polite" },
@@ -214,7 +234,10 @@ export class PublishPanel extends Component {
     this.cancel = createStratumButton(this.body, { text: "Cancel" });
     this.cancel.addEventListener("click", () => this.publish.cancel());
     const history = this.body.createDiv({ cls: "stratum-publish-history" });
-    history.createEl("h4", { text: "Published documents" });
+    history.createEl("h4", {
+      cls: "stratum-subheading",
+      text: "Published documents",
+    });
     this.scope = createStratumSelect(history, {
       label: "Show",
       ariaLabel: "Choose which documents to view",
@@ -296,6 +319,9 @@ export class PublishPanel extends Component {
     this.type.hidden = !prepared;
     this.create.hidden = !prepared;
     this.customize.hidden = !hasNote || !prepared || !publish.selectedFormat;
+    // Hide the row too, so an empty row does not add a gap to the panel.
+    this.customizeRow.hidden = this.resetLayout.hidden = this.customize.hidden;
+    this.resetLayout.disabled = publish.busy || publish.preferencesSaving;
     this.updateCustomization();
     void this.updateCitationStyle();
     const showAll = publish.historyScope === "all";

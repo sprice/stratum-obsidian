@@ -39,7 +39,7 @@
   box-shadow: none;
   background: transparent;
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: var(--font-semibold);
 }
 
 @container stratum-sidebar (max-width: 28rem) {
@@ -110,8 +110,8 @@
 .stratum-eyebrow {
   margin: 0 0 0.5rem;
   color: var(--color-accent);
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -123,10 +123,47 @@
   padding: 0.25rem 0;
 }
 
-.stratum-empty-state h2 {
+/* UI heading roles. Explicit typography keeps a theme's note-heading styles out of Stratum UI. */
+:is(.stratum-view, .stratum-modal)
+  :is(
+    .stratum-title,
+    .stratum-section-heading,
+    .stratum-card-title,
+    .stratum-subheading
+  ) {
   margin: 0;
-  font-size: 1.35rem;
-  line-height: 1.15;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-style: normal;
+  font-variant: normal;
+  letter-spacing: normal;
+  line-height: var(--line-height-tight);
+}
+
+:is(.stratum-view, .stratum-modal) .stratum-title {
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+}
+
+:is(.stratum-view, .stratum-modal) .stratum-section-heading {
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+}
+
+:is(.stratum-view, .stratum-modal) .stratum-card-title {
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+:is(.stratum-view, .stratum-modal) .stratum-subheading {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
+.stratum-modal .stratum-subheading {
+  margin-block: var(--size-4-4) var(--size-4-1);
 }
 
 .stratum-empty-state .stratum-meta {
@@ -207,20 +244,13 @@
 
 .stratum-meta {
   color: var(--text-muted);
-  font-size: 0.92rem;
+  font-size: var(--font-ui-medium);
   line-height: 1.5;
 }
 
 .stratum-placeholder {
   margin: 0;
   color: var(--text-muted);
-}
-
-.stratum-combobox {
-  position: relative;
-  margin-top: 1rem;
-  min-width: 0;
-  z-index: 12;
 }
 
 .stratum-search-control {
@@ -283,10 +313,6 @@
   overflow: visible;
 }
 
-.stratum-search-section h3 {
-  margin: 0;
-}
-
 .stratum-combobox-status {
   margin: 0;
 }
@@ -314,16 +340,6 @@
   min-height: 0;
 }
 
-.stratum-bulk-sync {
-  display: grid;
-  gap: 0.45rem;
-  margin-top: 1.5rem;
-}
-
-.stratum-bulk-sync .mod-cta {
-  justify-self: start;
-}
-
 .stratum-bulk-sync-status {
   margin: 0;
 }
@@ -335,19 +351,6 @@
 
 .stratum-bulk-sync-status.is-auto-fade.is-faded {
   opacity: 0;
-}
-
-.stratum-combobox-meta {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
 }
 
 .stratum-native-suggestion {
@@ -370,14 +373,6 @@
 
 .stratum-selected-open-note {
   margin-inline-start: auto;
-}
-
-.stratum-selected-title {
-  margin: 0 0 0.35rem;
-  font-size: var(--font-ui-medium);
-  font-weight: var(--font-semibold);
-  line-height: 1.4;
-  overflow-wrap: anywhere;
 }
 
 .stratum-selected-paper > .stratum-inline-action {
@@ -405,11 +400,6 @@
   overflow-wrap: anywhere;
 }
 
-.stratum-inline-button {
-  margin-top: 0.55rem;
-  align-self: flex-start;
-}
-
 .stratum-selected-note {
   margin: 0.5rem 0;
 }
@@ -426,8 +416,8 @@
 
 .stratum-reader-title {
   min-width: 0;
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-bold);
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -466,7 +456,7 @@
 .stratum-modal-meta {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--font-ui-small);
 }
 
 /* Stratum boundary callout — marks the end of managed content */
@@ -765,9 +755,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-sources-header > [hidden] {
   display: none;
 }
-.stratum-sources-header h3 {
-  margin: 0;
-}
 .stratum-sources-context button[aria-pressed="true"] {
   color: var(--interactive-accent);
 }
@@ -984,9 +971,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-citation-source code {
   overflow-wrap: anywhere;
 }
-.stratum-citation-source h3 {
-  margin: 0 0 var(--size-4-1);
-  font-size: var(--font-ui-medium);
+.stratum-modal .stratum-citation-source .stratum-card-title {
+  margin-block-end: var(--size-4-1);
 }
 .stratum-citation-details summary {
   color: var(--text-muted);
@@ -1067,7 +1053,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   background: transparent;
   box-shadow: none;
   vertical-align: baseline;
-  font-size: 0.8em;
+  font-size: var(--font-smallest);
 }
 .stratum-formatted-citation .stratum-citation-evidence:hover,
 .stratum-formatted-citation .stratum-citation-evidence:focus-visible,
@@ -1093,8 +1079,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-panel > :not(.stratum-publish-list) {
   flex-shrink: 0;
 }
-.stratum-publish-panel h3,
-.stratum-publish-panel h4,
 .stratum-publish-panel p {
   margin: 0;
 }
@@ -1130,11 +1114,51 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-template-row > button {
   margin: 0;
 }
-.stratum-publish-customization > summary,
-.stratum-publish-defaults > summary {
+.stratum-publish-customization > summary {
   cursor: pointer;
   color: var(--text-muted);
   padding: var(--size-4-2) 0;
+}
+/* "Customize…" shares its line with a flush-right reset; the options open full width. */
+.stratum-publish-customize-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.stratum-publish-customize-row > .stratum-publish-customization {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.stratum-publish-customize-row > .stratum-publish-customization > summary {
+  width: 50%;
+  box-sizing: border-box;
+  padding-block: 0;
+  line-height: var(--input-height);
+}
+.stratum-publish-customize-row > .stratum-publish-reset {
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+}
+/* Very narrow sidebars stack them: reset first, then Customize, both flush left. */
+@container stratum-sidebar (max-width: 16rem) {
+  .stratum-publish-customize-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--size-4-2);
+  }
+  .stratum-publish-customize-row > .stratum-publish-reset {
+    grid-row: 1;
+    grid-column: 1;
+    justify-self: start;
+  }
+  .stratum-publish-customize-row > .stratum-publish-customization {
+    grid-row: 2;
+    grid-column: 1;
+  }
+  .stratum-publish-customize-row > .stratum-publish-customization > summary {
+    width: auto;
+  }
 }
 .stratum-publish-customize {
   display: flex;
@@ -1148,12 +1172,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   gap: var(--size-4-3);
 }
 
-.stratum-publish-defaults {
-  flex: 1 1 100%;
-}
-.setting-item:has(> .stratum-publish-defaults) {
-  flex-wrap: wrap;
-}
 .stratum-publish-actions,
 .stratum-publish-row-actions {
   display: flex;
@@ -1246,12 +1264,44 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-setup .setting-item-description {
   overflow-wrap: anywhere;
 }
-.stratum-publish-setup .setting-item {
-  flex-wrap: wrap;
+/* Tool paths stack as name, full-width field, then the path in use. */
+.stratum-modal
+  .stratum-publish-setup
+  details
+  .setting-item:not(.setting-item-heading) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--size-4-1);
+  padding-block: var(--size-4-2);
+  border-top: none;
+}
+.stratum-publish-setup details .setting-item-info {
+  display: contents;
+}
+.stratum-publish-setup details .setting-item-name {
+  order: 1;
+}
+.stratum-publish-setup details .setting-item-control {
+  order: 2;
+  flex: none;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
   gap: var(--size-4-2);
 }
-.stratum-publish-setup .setting-item-control {
-  flex-wrap: wrap;
+.stratum-publish-setup details .setting-item-control input {
+  flex: 1;
+  min-width: 0;
+}
+.stratum-publish-setup details .setting-item-control button {
+  flex-shrink: 0;
+}
+.stratum-publish-setup details .setting-item-description {
+  order: 3;
+  padding-top: 0;
+}
+.stratum-publish-path {
+  display: block;
+  font-family: var(--font-monospace);
 }
 .stratum-publish-install a + a {
   margin-inline-start: var(--size-4-4);
@@ -1309,8 +1359,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   width: var(--pdf-width);
   height: var(--pdf-height);
   margin-inline: auto;
+  /* Rendered PDF pages are paper-white under every theme. */
   background: white;
-  box-shadow: 0 1px 6px #0003;
+  box-shadow: var(--shadow-s);
 }
 .stratum-pdf-page canvas {
   display: block;
@@ -1429,12 +1480,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 .stratum-citation-status > p {
   grid-column: 1 / -1;
-}
-.stratum-sources-secondary {
-  height: auto;
-  min-height: 0;
-  padding: var(--size-2-1) var(--size-4-1);
-  font-size: var(--font-ui-smaller);
 }
 .stratum-sources-summary {
   display: flex;
@@ -1679,7 +1724,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   border-radius: var(--radius-s);
   background: var(--background-primary);
   color: var(--text-normal);
-  font-size: 10px;
+  /* Fallback only: the preview sets a scaled size inline from the document settings. */
+  font-size: var(--font-ui-smaller);
 }
 .stratum-publish-design-page p {
   margin: 0.5em 0 1em;
@@ -1702,7 +1748,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   line-height: 1.4;
 }
 .stratum-publish-section > summary::marker {
-  font-size: 0.8em;
+  font-size: var(--font-smallest);
   color: var(--text-muted);
 }
 .stratum-publish-section-body {

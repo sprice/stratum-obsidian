@@ -36,7 +36,7 @@ export const languages: Record<string, string> = {
   "ja-JP": "Japanese",
 };
 const initial = assets as Record<string, string>;
-export function readStyle(xml: string): {
+function readStyle(xml: string): {
   title: string;
   parent: string | null;
   locale: string | null;

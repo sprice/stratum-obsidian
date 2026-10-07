@@ -14,7 +14,7 @@ export interface CollectionPaper {
   collectionNames: string[];
   properties?: Record<string, unknown>;
 }
-export interface CollectionChoice {
+interface CollectionChoice {
   id: string;
   name: string;
   context: string;

@@ -54,6 +54,12 @@ function fixture(
   const buttons: Button[] = [];
   class Modal {
     titleEl = { id: "" };
+    modalEl = {
+      classes: [] as string[],
+      addClass(cls: string) {
+        this.classes.push(cls);
+      },
+    };
     contentEl = new Element();
     closed = false;
     setTitle() {}
@@ -95,6 +101,11 @@ test("cancel does not save; save persists the edited Markdown", async () => {
     return Promise.resolve();
   };
   const cancelled = fixture(save);
+  assert.deepEqual(
+    (cancelled.modal as unknown as { modalEl: { classes: string[] } }).modalEl
+      .classes,
+    ["stratum-modal"],
+  );
   cancelled.input.value = "## Unsaved draft";
   await cancelled.button("Cancel").click();
   assert.equal(cancelled.closed, true);

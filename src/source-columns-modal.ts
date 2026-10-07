@@ -15,6 +15,7 @@ export class SourceColumnsModal extends Modal {
     private save: (columns: string[]) => void,
   ) {
     super(app);
+    this.modalEl.addClass("stratum-modal");
     this.selected = new Set(columns);
   }
   onOpen(): void {

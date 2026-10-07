@@ -19,10 +19,7 @@ function getNormalizedNotesFolder(plugin: StratumPlugin): string {
   return normalizePath(plugin.settings.notesFolder.trim()).replace(/\/+$/, "");
 }
 
-export function isPathInsideNotesFolder(
-  plugin: StratumPlugin,
-  path: string,
-): boolean {
+function isPathInsideNotesFolder(plugin: StratumPlugin, path: string): boolean {
   const normalizedFolder = getNormalizedNotesFolder(plugin);
   const normalizedPath = normalizePath(path);
   if (!normalizedFolder) {

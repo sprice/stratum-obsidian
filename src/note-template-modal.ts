@@ -18,6 +18,7 @@ export class NoteTemplateModal extends Modal {
     },
   ) {
     super(app);
+    this.modalEl.addClass("stratum-modal");
   }
   onOpen(): void {
     this.active = true;
@@ -38,7 +39,10 @@ export class NoteTemplateModal extends Modal {
       attr: { role: "alert" },
     });
     if (this.options) {
-      this.contentEl.createEl("h3", { text: "Available variables" });
+      this.contentEl.createEl("h3", {
+        cls: "stratum-subheading",
+        text: "Available variables",
+      });
       this.contentEl.createEl("p", {
         cls: "stratum-note-template-variables",
         text: Object.keys(this.options.variables)

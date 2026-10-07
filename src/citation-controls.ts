@@ -37,6 +37,7 @@ class StylePicker extends FuzzySuggestModal<CitationStyle> {
     private choose: (style: CitationStyle) => void,
   ) {
     super(plugin.app);
+    this.modalEl.addClass("stratum-modal");
     this.setPlaceholder("Search styles or journals");
   }
   getItems(): CitationStyle[] {
@@ -72,6 +73,7 @@ export class CitationPreferences extends Modal {
     private file: TFile | null = null,
   ) {
     super(plugin.app);
+    this.modalEl.addClass("stratum-modal");
     const prefs = file
       ? plugin.citations.preferences(file.path)
       : {

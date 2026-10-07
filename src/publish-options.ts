@@ -50,9 +50,13 @@ export const DEFAULT_PUBLISH_OPTIONS: PublishOptions = {
   showAbstract: true,
   abstractWidth: "normal",
 };
+// Matches the typical arXiv preprint: LaTeX's 10pt article class, a \LARGE
+// title (17.28pt), single spacing, and 1in margins.
 export const DEFAULT_ACADEMIC_OPTIONS: PublishOptions = {
   ...DEFAULT_PUBLISH_OPTIONS,
-  lineSpacing: 1.5,
+  bodySize: 10,
+  titleSize: 17.5,
+  lineSpacing: 1,
   titleSource: "properties",
   openingAlignment: "center",
   showAuthors: true,
@@ -60,12 +64,6 @@ export const DEFAULT_ACADEMIC_OPTIONS: PublishOptions = {
   showDate: true,
   showKeywords: true,
   abstractWidth: "inset",
-};
-export const DEFAULT_ACADEMIC_PROPERTIES: AcademicDefaults = {
-  authors: [],
-  affiliations: [],
-  date: "",
-  keywords: [],
 };
 const record = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v)

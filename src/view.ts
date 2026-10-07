@@ -501,7 +501,10 @@ export class StratumView extends ItemView {
       this.tabContent = null;
       if (visibleTabs.length === 0) {
         const empty = shell.createDiv({ cls: "stratum-empty-state" });
-        empty.createEl("h2", { text: `No ${PLUGIN_NAME} tabs enabled` });
+        empty.createEl("h2", {
+          cls: "stratum-title",
+          text: `No ${PLUGIN_NAME} tabs enabled`,
+        });
         empty.createEl("p", {
           text: `All tabs available on this device are disabled. Enable a tab in ${PLUGIN_NAME} settings to show it here.`,
         });
@@ -682,7 +685,10 @@ export class StratumView extends ItemView {
 
   private renderBrowseTab(container: HTMLElement): void {
     const section = container.createDiv({ cls: "stratum-search-section" });
-    section.createEl("h3", { text: "Browse notes" });
+    section.createEl("h3", {
+      cls: "stratum-section-heading",
+      text: "Browse notes",
+    });
     section.createEl("p", {
       cls: "stratum-placeholder",
       text: "Browse literature notes in your vault",
@@ -725,6 +731,7 @@ export class StratumView extends ItemView {
         text: PLUGIN_NAME,
       });
       emptyState.createEl("h2", {
+        cls: "stratum-title",
         text: "Finish setup in plugin settings.",
       });
       emptyState.createEl("p", {
@@ -744,7 +751,10 @@ export class StratumView extends ItemView {
     const searchSection = searchTab.createDiv({
       cls: "stratum-search-section",
     });
-    searchSection.createEl("h3", { text: "Search Zotero" });
+    searchSection.createEl("h3", {
+      cls: "stratum-section-heading",
+      text: "Search Zotero",
+    });
     searchSection.createEl("p", {
       cls: "stratum-placeholder",
       text: "Find Zotero items to create or update literature notes",
@@ -1049,6 +1059,7 @@ export class StratumView extends ItemView {
         text: PLUGIN_NAME,
       });
       emptyState.createEl("h2", {
+        cls: "stratum-title",
         text: `Finish sync setup in ${PLUGIN_NAME} settings.`,
       });
       emptyState.createEl("p", {
@@ -1075,6 +1086,7 @@ export class StratumView extends ItemView {
         text: PLUGIN_NAME,
       });
       emptyState.createEl("h2", {
+        cls: "stratum-title",
         text: "Checking local Zotero...",
       });
       emptyState.createEl("p", {
@@ -1096,6 +1108,7 @@ export class StratumView extends ItemView {
         text: PLUGIN_NAME,
       });
       emptyState.createEl("h2", {
+        cls: "stratum-title",
         text: "Local Zotero is not ready.",
       });
       emptyState.createEl("p", {
@@ -1116,6 +1129,7 @@ export class StratumView extends ItemView {
         text: PLUGIN_NAME,
       });
       emptyState.createEl("h2", {
+        cls: "stratum-title",
         text: "No local Zotero libraries found.",
       });
       emptyState.createEl("p", {
@@ -1134,6 +1148,7 @@ export class StratumView extends ItemView {
         text: PLUGIN_NAME,
       });
       emptyState.createEl("h2", {
+        cls: "stratum-title",
         text: "Bulk sync is off.",
       });
       emptyState.createEl("p", {
@@ -1149,7 +1164,10 @@ export class StratumView extends ItemView {
     const syncSection = syncTab.createDiv({
       cls: "stratum-search-section",
     });
-    syncSection.createEl("h3", { text: "Sync Zotero" });
+    syncSection.createEl("h3", {
+      cls: "stratum-section-heading",
+      text: "Sync Zotero",
+    });
     const reportContainer = syncSection.createDiv();
     syncSection.createEl("p", {
       cls: "stratum-placeholder",
@@ -1581,7 +1599,10 @@ export class StratumView extends ItemView {
     entries: LiteratureNoteEntry[],
   ): void {
     const picker = container.createDiv({ cls: "stratum-search-section" });
-    picker.createEl("h3", { text: "Read notes" });
+    picker.createEl("h3", {
+      cls: "stratum-section-heading",
+      text: "Read notes",
+    });
     picker.createEl("p", {
       cls: "stratum-placeholder",
       text: "Read literature notes alongside your writing",

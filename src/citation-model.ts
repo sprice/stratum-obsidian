@@ -129,7 +129,7 @@ export function parseCitation(raw: string): CitationDraft | null {
   }
 }
 
-export interface CitationMatch {
+interface CitationMatch {
   from: number;
   to: number;
   draft: CitationDraft | null;

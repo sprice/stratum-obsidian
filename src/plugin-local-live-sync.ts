@@ -135,7 +135,7 @@ export function getDefaultZoteroDataDir(options?: {
   return getSharedDefaultZoteroDataDir(options);
 }
 
-export function normalizeZoteroDataDir(
+function normalizeZoteroDataDir(
   value: string,
   options?: {
     platform?: RuntimePlatform;
@@ -165,7 +165,7 @@ export function normalizeZoteroDataDir(
   return pathModule.normalize(expanded);
 }
 
-export function validateZoteroDataDir(
+function validateZoteroDataDir(
   value: string,
   options?: {
     platform?: RuntimePlatform;
@@ -264,7 +264,7 @@ function closeLiveSyncWatcher(plugin: StratumPlugin): void {
   plugin.localLiveSyncWatching = false;
 }
 
-export function stopLocalLiveSync(
+function stopLocalLiveSync(
   plugin: StratumPlugin,
   options?: { clearError?: boolean },
 ): void {

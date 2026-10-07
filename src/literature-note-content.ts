@@ -210,17 +210,10 @@ export {
   FILENAME_STEM_FRONTMATTER_KEY,
   IDENTITY_FRONTMATTER_KEY,
   ITEM_KEY_FRONTMATTER_KEY,
-  ITEM_VERSION_FRONTMATTER_KEY,
-  LIBRARY_ID_FRONTMATTER_KEY,
-  LIBRARY_TYPE_FRONTMATTER_KEY,
   MANAGED_END,
   MANAGED_START,
   NOTE_KEYS_FRONTMATTER_KEY,
   USER_BOUNDARY_CALLOUT,
-  USER_BOUNDARY_CALLOUT_TITLE,
-  USER_BOUNDARY_CALLOUT_TYPE,
-  USER_BOUNDARY_PATTERN,
-  ZOTERO_STATUS_FRONTMATTER_KEY,
   type ExistingLiteratureNoteMatch,
   type HtmlToMarkdownTransformer,
   type LiteratureNoteCandidate,
@@ -230,23 +223,10 @@ export {
   type YamlStringifier,
   type ZoteroSyncStatus,
 } from "./literature-note-content-types";
+export { preprocessZoteroNoteHtml } from "./literature-note-content-html";
 export {
-  preprocessZoteroNoteHtml,
-  slugify,
-} from "./literature-note-content-html";
-export {
-  buildInlineTopicTags,
-  buildSourceUrl,
-  getItemIdentity,
-  getTrackedChildItemKeysFromFrontmatter,
-  humanizeItemType,
-  renderFrontmatterContent,
-  renderWikiList,
   splitFrontmatterContent,
   toStringList,
 } from "./literature-note-frontmatter";
 export { findExistingLiteratureNoteMatch } from "./literature-note-matching";
-export {
-  getLiteratureNoteSummary,
-  renderManagedBlock,
-} from "./literature-note-sections";
+export { getLiteratureNoteSummary } from "./literature-note-sections";

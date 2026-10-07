@@ -20,6 +20,7 @@ export class PublishSetupModal extends Modal {
   private secondary!: HTMLButtonElement;
   private help!: HTMLElement;
   private downloadNote!: HTMLElement;
+  private reset!: HTMLButtonElement;
   private controls: (HTMLInputElement | HTMLButtonElement)[] = [];
   private rows = new Map<
     Tool,
@@ -27,6 +28,7 @@ export class PublishSetupModal extends Modal {
   >();
   constructor(private plugin: StratumPlugin) {
     super(plugin.app);
+    this.modalEl.addClass("stratum-modal");
   }
   onOpen(): void {
     const publish = this.plugin.publish;
@@ -80,6 +82,7 @@ export class PublishSetupModal extends Modal {
             .onChange((value) => {
               this.plugin.settings[key] = value.trim();
               publish.invalidateSupport();
+              this.syncReset();
             });
           inputEl.setAttribute("aria-label", `${label} executable path`);
           inputEl.addEventListener("blur", () => {
@@ -101,6 +104,7 @@ export class PublishSetupModal extends Modal {
                 this.plugin.settings[key] = selected;
                 publish.invalidateSupport();
                 inputEl.value = selected;
+                this.syncReset();
                 await this.plugin.saveSettings();
                 await publish.check();
               } catch (error) {
@@ -113,13 +117,17 @@ export class PublishSetupModal extends Modal {
     const reset = createStratumAction(advanced, {
       text: "Use automatic detection",
     });
+    this.reset = reset;
     this.controls.push(reset);
     reset.addEventListener("click", () => {
       this.plugin.settings.pandocPath = this.plugin.settings.tectonicPath = "";
       publish.invalidateSupport();
+      this.syncReset();
       for (const control of this.controls)
         if (control.tagName === "INPUT")
           (control as HTMLInputElement).value = "";
+      // The reset button hides itself, so keep keyboard focus in the section.
+      this.controls.find((control) => control.tagName === "INPUT")?.focus();
       void this.plugin
         .saveSettings()
         .then(() => publish.check())
@@ -177,7 +185,16 @@ export class PublishSetupModal extends Modal {
           !!(tool === "pandoc" ? ready.wordError : ready.pdfError)) ||
           !!ready?.[tool].foundPath,
       );
-      row.path.setText(ready?.[tool].path || ready?.[tool].foundPath || "");
+      const path = ready?.[tool].path || ready?.[tool].foundPath || "";
+      row.path.empty();
+      if (path) {
+        row.path.createSpan({
+          text: this.hasCustomPath(tool)
+            ? "Custom path"
+            : "Found automatically",
+        });
+        row.path.createSpan({ cls: "stratum-publish-path", text: path });
+      }
       if (state.missing) missing.push(tool);
     }
     this.help.empty();
@@ -204,6 +221,7 @@ export class PublishSetupModal extends Modal {
         brew.createEl("code", { text: command });
       }
     }
+    this.syncReset();
     this.downloadNote.hidden = !!ready?.pdf;
     this.status.empty();
     if (publish.progress) this.status.createEl("p", { text: publish.progress });
@@ -221,6 +239,18 @@ export class PublishSetupModal extends Modal {
     this.secondary.disabled = publish.busy;
     for (const control of this.controls)
       control.disabled = publish.checking || publish.busy;
+  }
+  /** Mirrors detection: a bare tool name still means automatic lookup. */
+  private hasCustomPath(tool: Tool): boolean {
+    const value =
+      this.plugin.settings[
+        tool === "pandoc" ? "pandocPath" : "tectonicPath"
+      ].trim();
+    return !!value && value !== tool && value !== `${tool}.exe`;
+  }
+  private syncReset(): void {
+    this.reset.hidden =
+      !this.hasCustomPath("pandoc") && !this.hasCustomPath("tectonic");
   }
   onClose(): void {
     this.unsubscribe?.();

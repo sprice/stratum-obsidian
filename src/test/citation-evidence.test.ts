@@ -59,6 +59,7 @@ function fixture() {
         }
       },
       SuggestModal: class {
+        modalEl = { addClass() {} };
         setPlaceholder() {}
         open() {
           picker = this as unknown as typeof picker;

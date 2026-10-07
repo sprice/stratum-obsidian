@@ -12,7 +12,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 
-export interface PreparedPublication {
+interface PreparedPublication {
   markdown: string;
   notes: { id: string; markdown: string }[];
   bibliography: string;
@@ -140,7 +140,7 @@ interface MarkdownNode {
   position?: { start: { offset?: number }; end: { offset?: number } };
 }
 const parser = unified().use(remarkParse).use(remarkGfm);
-export function stripPublishComments(markdown: string): string {
+function stripPublishComments(markdown: string): string {
   const protectedRanges: { from: number; to: number }[] = [];
   const walk = (node: MarkdownNode) => {
     if (node.type === "code" || node.type === "inlineCode")

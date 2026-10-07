@@ -212,6 +212,7 @@ export async function openCitationEvidence(
         }
       }
       const picker = new SourceChoice(plugin.app);
+      picker.modalEl.addClass("stratum-modal");
       picker.setPlaceholder("Choose a cited source to open in reader");
       registerEvidence(plugin).add(picker);
       if (await current()) picker.open();
