@@ -516,7 +516,7 @@ export async function convertPublication(
     } catch (error) {
       const font =
         format === "pdf" && error instanceof Error
-          ? /fontspec Error: The font "([^"]+)" cannot be found/.exec(
+          ? /fontspec Error: The font "([^"]+)"\s*(?:\(fontspec\)\s*)?cannot be found/.exec(
               error.message,
             )?.[1]
           : undefined;

@@ -1169,6 +1169,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-status p + p {
   margin-top: var(--size-4-2);
 }
+.stratum-publish-status p + button {
+  margin-top: var(--size-4-3);
+}
 .stratum-publish-error {
   color: var(--text-error);
   white-space: pre-wrap;
