@@ -1,3 +1,4 @@
+import { createStratumTextarea, styleStratumComponent } from "./ui-controls";
 import { Modal, Setting, Notice, type App } from "obsidian";
 import { validateNotesTemplate } from "./literature-note-template";
 
@@ -27,7 +28,7 @@ export class NoteTemplateModal extends Modal {
       "Template changes apply when notes are created or updated. Any personal edits to the existing content are preserved.",
     ])
       this.contentEl.createEl("p", { text });
-    const input = this.contentEl.createEl("textarea", {
+    const input = createStratumTextarea(this.contentEl, {
       cls: "stratum-note-template-editor",
       attr: { "aria-labelledby": this.titleEl.id, spellcheck: "false" },
     });
@@ -48,10 +49,12 @@ export class NoteTemplateModal extends Modal {
     let saving = false;
     new Setting(this.contentEl)
       .addButton((button) =>
-        button.setButtonText("Cancel").onClick(() => this.close()),
+        styleStratumComponent(button)
+          .setButtonText("Cancel")
+          .onClick(() => this.close()),
       )
       .addButton((button) =>
-        button
+        styleStratumComponent(button)
           .setButtonText("Save")
           .setCta()
           .onClick(async () => {

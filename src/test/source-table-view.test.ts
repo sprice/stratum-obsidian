@@ -133,6 +133,7 @@ for (const failSave of [false, true]) {
       "view-sources.ts",
       {
         setIcon() {},
+        setTooltip() {},
         ButtonComponent: ButtonComponentMock,
         Component: class {},
         Modal: class {},
@@ -256,6 +257,7 @@ test("native table preserves source navigation and diagnostics and sorts custom 
         }
       },
       setIcon() {},
+      setTooltip() {},
     },
     { HTMLElement: Element },
   );

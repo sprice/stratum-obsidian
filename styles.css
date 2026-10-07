@@ -1,556 +1,556 @@
 .stratum-view {
-	padding: 1rem;
-	height: 100%;
-	box-sizing: border-box;
-	min-width: 0;
-	overflow: hidden;
+  padding: 1rem;
+  height: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .stratum-shell {
-	container: stratum-sidebar / inline-size;
-	display: grid;
-	grid-template-rows: auto minmax(0, 1fr);
-	gap: 1rem;
-	height: 100%;
-	min-height: 0;
-	min-width: 0;
-	overflow-x: hidden;
+  container: stratum-sidebar / inline-size;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .stratum-tab-bar {
-	display: grid;
-	grid-template-columns: repeat(var(--stratum-tab-count, 3), minmax(0, 1fr));
-	min-width: 0;
-	gap: var(--size-2-1);
-	padding: var(--size-2-1);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	background: var(--background-secondary);
+  display: grid;
+  grid-template-columns: repeat(var(--stratum-tab-count, 3), minmax(0, 1fr));
+  min-width: 0;
+  gap: var(--size-2-1);
+  padding: var(--size-2-1);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
 }
 
 .stratum-tab-bar > button {
-	min-width: 0;
-	height: auto;
-	white-space: normal;
-	overflow-wrap: anywhere;
-	padding: var(--size-4-2) var(--size-4-3);
-	border: 0;
-	border-radius: var(--radius-s);
-	box-shadow: none;
-	background: transparent;
-	color: var(--text-muted);
-	font-weight: 600;
+  min-width: 0;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: var(--size-4-2) var(--size-4-3);
+  border: 0;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 @container stratum-sidebar (max-width: 28rem) {
-	.stratum-tab-bar {
-		grid-template-columns: repeat(var(--stratum-compact-tab-count, 2), minmax(0, 1fr));
-	}
+  .stratum-tab-bar {
+    grid-template-columns: repeat(
+      var(--stratum-compact-tab-count, 2),
+      minmax(0, 1fr)
+    );
+  }
 }
 
 @container stratum-sidebar (max-width: 14rem) {
-	.stratum-tab-bar {
-		grid-template-columns: minmax(0, 1fr);
-	}
+  .stratum-tab-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .stratum-tab-bar > button:hover {
-	color: var(--text-normal);
-	background: color-mix(
-		in srgb,
-		var(--background-secondary) 78%,
-		var(--background-primary) 22%
-	);
+  color: var(--text-normal);
+  background: color-mix(
+    in srgb,
+    var(--background-secondary) 78%,
+    var(--background-primary) 22%
+  );
 }
 
 .stratum-tab-bar > button.is-active {
-	color: var(--text-on-accent);
-	background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
 }
 
 .stratum-tab-bar > button:focus-visible {
-	outline: 2px solid var(--background-modifier-border-focus);
-	outline-offset: -2px;
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: -2px;
 }
 
 /* Panel layout classes must not override the native hidden state. */
 .stratum-tab-content > [hidden] {
-	display: none;
+  display: none;
 }
 
 .stratum-tab-content {
-	min-width: 0;
-	min-height: 0;
-	overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .stratum-search-tab,
 .stratum-sync-tab,
 .stratum-reader-tab {
-	min-height: 0;
+  min-height: 0;
 }
 
 .stratum-search-tab,
 .stratum-sync-tab {
-	height: 100%;
-	overflow-y: auto;
-	overflow-x: hidden;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .stratum-reader-tab {
-	display: grid;
-	grid-template-rows: auto 1fr;
-	gap: 0.9rem;
-	height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0.9rem;
+  height: 100%;
 }
 
 .stratum-eyebrow {
-	margin: 0 0 0.5rem;
-	color: var(--color-accent);
-	font-size: 0.8rem;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+  margin: 0 0 0.5rem;
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .stratum-empty-state {
-	display: grid;
-	gap: 0.85rem;
-	align-content: start;
-	padding: 0.25rem 0;
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  padding: 0.25rem 0;
 }
 
 .stratum-empty-state h2 {
-	margin: 0;
-	font-size: 1.35rem;
-	line-height: 1.15;
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.15;
 }
 
 .stratum-empty-state .stratum-meta {
-	max-width: 42ch;
-	margin: 0;
+  max-width: 42ch;
+  margin: 0;
 }
 
 .stratum-empty-state button {
-	justify-self: start;
+  justify-self: start;
 }
 
 .stratum-tab-chooser-trigger::after {
-	content: "";
-	width: 0.4em;
-	height: 0.4em;
-	margin-left: 0.6em;
-	border-right: 1.5px solid currentColor;
-	border-bottom: 1.5px solid currentColor;
-	transform: translateY(-0.15em) rotate(45deg);
+  content: "";
+  width: 0.4em;
+  height: 0.4em;
+  margin-left: 0.6em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
 }
 
 .stratum-tab-chooser {
-	position: fixed;
-	z-index: calc(var(--layer-modal) + 1);
-	width: 240px;
-	padding: 6px;
-	overflow-y: auto;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	background: var(--background-primary);
-	color: var(--text-normal);
-	box-shadow: var(--shadow-s);
+  position: fixed;
+  z-index: calc(var(--layer-modal) + 1);
+  width: 240px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  box-shadow: var(--shadow-s);
 }
 
 .stratum-tab-chooser-option {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	min-height: 36px;
-	padding: 6px 10px;
-	border-radius: var(--radius-s);
-	cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
 }
 
 .stratum-tab-chooser-option:hover,
 .stratum-tab-chooser-option:focus-within {
-	background: var(--background-modifier-hover);
+  background: var(--background-modifier-hover);
 }
 
 .stratum-tab-chooser-option input {
-	margin: 0;
+  margin: 0;
 }
 
 .stratum-settings-inline-note,
 .stratum-settings-inline-error {
-	margin-top: 0.4rem;
+  margin-top: 0.4rem;
 }
 
 .stratum-settings-inline-error {
-	color: var(--text-error);
+  color: var(--text-error);
 }
 
 .stratum-interval-input {
-	width: 5.5rem;
+  width: 5.5rem;
 }
 
 .stratum-actions {
-	display: flex;
-	gap: 0.5rem;
-	flex-wrap: wrap;
-	align-items: center;
-	margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 1rem;
 }
 
 .stratum-actions > .stratum-note-template-button {
-	margin-inline-start: auto;
+  margin-inline-start: auto;
 }
 
 .stratum-meta {
-	color: var(--text-muted);
-	font-size: 0.92rem;
-	line-height: 1.5;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .stratum-placeholder {
-	margin: 0;
-	color: var(--text-muted);
+  margin: 0;
+  color: var(--text-muted);
 }
 
 .stratum-combobox {
-	position: relative;
-	margin-top: 1rem;
-	min-width: 0;
-	z-index: 12;
+  position: relative;
+  margin-top: 1rem;
+  min-width: 0;
+  z-index: 12;
 }
 
 .stratum-search-control {
-	margin-top: 1rem;
-	min-width: 0;
+  margin-top: 1rem;
+  min-width: 0;
 }
 
 .stratum-search-control .search-input-container {
-	width: 100%;
+  width: 100%;
 }
 
 .stratum-search-control .search-input {
-	width: 100%;
+  width: 100%;
 }
 
 .stratum-search-control.is-loading .search-input {
-	padding-inline-end: 2.4rem;
+  padding-inline-end: 2.4rem;
 }
 
 .stratum-search-control.is-loading::before {
-	display: none;
+  display: none;
 }
 
 .stratum-search-control.is-loading .search-input-clear-button {
-	display: none;
+  display: none;
 }
 
 .stratum-search-spinner {
-	position: absolute;
-	top: 50%;
-	inset-inline-end: var(--input-icon-inset);
-	display: none;
-	align-items: center;
-	justify-content: center;
-	width: 1rem;
-	height: 1rem;
-	transform: translateY(-50%);
-	pointer-events: none;
+  position: absolute;
+  top: 50%;
+  inset-inline-end: var(--input-icon-inset);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .stratum-search-spinner.is-visible {
-	display: flex;
+  display: flex;
 }
 
 .stratum-search-spinner::before {
-	content: "";
-	width: 0.9rem;
-	height: 0.9rem;
-	border: 2px solid
-		color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
-	border-top-color: var(--interactive-accent);
-	border-radius: 999px;
-	animation: stratum-spin 0.75s linear infinite;
+  content: "";
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid
+    color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+  border-top-color: var(--interactive-accent);
+  border-radius: 999px;
+  animation: stratum-spin 0.75s linear infinite;
 }
 
-
-
 .stratum-search-section {
-	display: grid;
-	gap: 0.75rem;
-	min-width: 0;
-	overflow: visible;
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  overflow: visible;
 }
 
 .stratum-search-section h3 {
-	margin: 0;
+  margin: 0;
 }
 
 .stratum-combobox-status {
-	margin: 0;
+  margin: 0;
 }
 
 .stratum-search-feedback {
-	display: grid;
-	gap: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
 }
 
 .stratum-cache-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-	margin-top: 0.75rem;
-	min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  min-width: 0;
 }
 
 .stratum-inline-action {
-	flex: 0 0 auto;
-	white-space: nowrap;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .stratum-search-cache {
-	min-height: 0;
+  min-height: 0;
 }
 
 .stratum-bulk-sync {
-	display: grid;
-	gap: 0.45rem;
-	margin-top: 1.5rem;
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1.5rem;
 }
 
 .stratum-bulk-sync .mod-cta {
-	justify-self: start;
+  justify-self: start;
 }
 
 .stratum-bulk-sync-status {
-	margin: 0;
+  margin: 0;
 }
 
 .stratum-bulk-sync-status.is-auto-fade {
-	opacity: 1;
-	transition: opacity 250ms ease;
+  opacity: 1;
+  transition: opacity 250ms ease;
 }
 
 .stratum-bulk-sync-status.is-auto-fade.is-faded {
-	opacity: 0;
+  opacity: 0;
 }
 
 .stratum-combobox-meta {
-	margin: 0;
-	color: var(--text-muted);
-	font-size: 0.88rem;
-	line-height: 1.45;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
 }
 
 .stratum-native-suggestion {
-	min-width: 0;
+  min-width: 0;
 }
 
 .stratum-native-suggestion-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .stratum-selected-paper {
-	padding: 1rem;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  min-width: 0;
 }
 
 .stratum-selected-open-note {
-	margin-inline-start: auto;
+  margin-inline-start: auto;
 }
 
 .stratum-selected-title {
-	margin: 0 0 0.35rem;
-	font-size: var(--font-ui-medium);
-	font-weight: var(--font-semibold);
-	line-height: 1.4;
-	overflow-wrap: anywhere;
+  margin: 0 0 0.35rem;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .stratum-selected-paper > .stratum-inline-action {
-	margin-top: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 .stratum-selected-abstract {
-	margin-top: 0.85rem;
-	padding-top: 0.85rem;
-	border-top: 1px solid var(--background-modifier-border);
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .stratum-selected-abstract summary {
-	cursor: pointer;
-	color: var(--text-muted);
+  cursor: pointer;
+  color: var(--text-muted);
 }
 
 .stratum-selected-abstract summary:focus-visible {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: 3px;
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 3px;
 }
 
 .stratum-selected-abstract p {
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .stratum-inline-button {
-	margin-top: 0.55rem;
-	align-self: flex-start;
+  margin-top: 0.55rem;
+  align-self: flex-start;
 }
 
 .stratum-selected-note {
-	margin: 0.5rem 0;
+  margin: 0.5rem 0;
 }
 
 .stratum-selected-doi {
-	overflow-wrap: anywhere;
+  overflow-wrap: anywhere;
 }
 
 .stratum-reader-header {
-	display: grid;
-	gap: 0.65rem;
-	min-width: 0;
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
 }
 
 .stratum-reader-title {
-	min-width: 0;
-	font-size: 1rem;
-	font-weight: 700;
-	line-height: 1.35;
-	overflow-wrap: anywhere;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .stratum-reader-actions {
-	display: flex;
-	flex-wrap: wrap;
-	min-width: 0;
-	flex: 0 0 auto;
-	gap: 0.5rem;
-	align-items: center;
-	justify-content: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .stratum-reader-content {
-	min-height: 0;
-	overflow-y: auto;
-	overflow-x: hidden;
-	padding-right: 0.1rem;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.1rem;
 }
 
 .stratum-reader-content > :first-child {
-	margin-top: 0;
+  margin-top: 0;
 }
 
 .stratum-error {
-	margin: 0;
-	color: var(--text-error);
+  margin: 0;
+  color: var(--text-error);
 }
 
 .stratum-update-modal .modal-content {
-	display: grid;
-	gap: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
 }
 
 .stratum-modal-meta {
-	margin: 0;
-	color: var(--text-muted);
-	font-size: 0.9rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 /* Stratum boundary callout — marks the end of managed content */
 .callout[data-callout="stratum"] {
-	--callout-color: var(--color-accent);
-	--callout-icon: lucide-pen-line;
+  --callout-color: var(--color-accent);
+  --callout-icon: lucide-pen-line;
 }
 
 /* Highlight callout colors — match Zotero's annotation palette */
 .callout[data-callout="stratum-yellow"] {
-	--stratum-callout-rgb: 255, 212, 0;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 255, 212, 0;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-red"] {
-	--stratum-callout-rgb: 255, 101, 101;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 255, 101, 101;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-green"] {
-	--stratum-callout-rgb: 92, 200, 130;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 92, 200, 130;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-blue"] {
-	--stratum-callout-rgb: 45, 165, 223;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 45, 165, 223;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-purple"] {
-	--stratum-callout-rgb: 167, 118, 220;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 167, 118, 220;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-magenta"] {
-	--stratum-callout-rgb: 232, 107, 171;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 232, 107, 171;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-orange"] {
-	--stratum-callout-rgb: 255, 165, 0;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 255, 165, 0;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-cyan"] {
-	--stratum-callout-rgb: 0, 200, 200;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 0, 200, 200;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 .callout[data-callout="stratum-gray"] {
-	--stratum-callout-rgb: 170, 170, 170;
-	--callout-color: var(--stratum-callout-rgb);
-	--callout-icon: lucide-highlighter;
+  --stratum-callout-rgb: 170, 170, 170;
+  --callout-color: var(--stratum-callout-rgb);
+  --callout-icon: lucide-highlighter;
 }
 
 @media (max-width: 700px) {
-
-	.stratum-cache-row {
-		align-items: flex-start;
-		flex-direction: column;
-	}
+  .stratum-cache-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @keyframes stratum-spin {
-	from {
-		transform: rotate(0deg);
-	}
+  from {
+    transform: rotate(0deg);
+  }
 
-	to {
-		transform: rotate(360deg);
-	}
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Hide internal sync-tracking properties from the Properties panel */
 .metadata-property[data-property-key^="zotero_"],
 .metadata-property[data-property-key^="stratum_"] {
-	display: none;
+  display: none;
 }
 
 .metadata-property[data-property-key="stratum_citation_language"],
@@ -558,94 +558,415 @@
 .metadata-property[data-property-key="zotero_status"],
 .metadata-property[data-property-key="zotero_library_type"],
 .metadata-property[data-property-key="zotero_synced_at"] {
-	display: flex;
+  display: flex;
 }
 
 /* Obsidian's full-color callout API; keep RGB channels for older versions. */
 body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
-	--callout-color: rgb(var(--stratum-callout-rgb));
+  --callout-color: rgb(var(--stratum-callout-rgb));
 }
 
 /* Shared Stratum controls keep Obsidian's native input and button styling. */
-.stratum-control-field { min-width: 0; display: flex; flex-direction: column; gap: var(--size-4-1); color: var(--text-muted); font-size: var(--font-ui-small); }
-.stratum-control-select { width: 100%; min-width: 0; color: var(--text-normal); }
-.stratum-control-select, .stratum-control-button { outline: 1px solid transparent; outline-offset: -1px; }
+.stratum-control-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.stratum-control-select {
+  width: 100%;
+  min-width: 0;
+  color: var(--text-normal);
+}
+/* Styled native setting and toolbar dropdowns keep their natural width. */
+.setting-item-control .stratum-control-select,
+.stratum-pdf-toolbar .stratum-control-select {
+  width: auto;
+}
+.stratum-control-field > .stratum-control-input {
+  width: 100%;
+  min-width: 0;
+}
+.stratum-control-select,
+.stratum-control-button,
+.stratum-control-input,
+.stratum-control-checkbox,
+.stratum-control-summary,
+.stratum-control-toggle {
+  outline: 1px solid transparent;
+  outline-offset: -1px;
+}
+.stratum-control-summary {
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
 @media (hover: hover) {
   .stratum-control-select:hover:not(:disabled),
-  .stratum-control-button:hover:not(:disabled) {
+  .stratum-control-button:hover:not(:disabled),
+  .stratum-control-input:hover:not(:disabled),
+  .stratum-control-checkbox:hover:not(:disabled),
+  .stratum-control-summary:hover,
+  .stratum-control-toggle:hover:not(.is-disabled) {
     outline-color: var(--background-modifier-border-hover);
     transition: outline-color 150ms ease;
   }
 }
-.stratum-control-select:focus-visible, .stratum-control-button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; transition: none; }
+.stratum-control-select:focus-visible,
+.stratum-control-button:focus-visible,
+.stratum-control-input:focus-visible,
+.stratum-control-checkbox:focus-visible,
+.stratum-control-summary:focus-visible,
+.stratum-control-toggle:focus-within {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stratum-control-select,
+  .stratum-control-button,
+  .stratum-control-input,
+  .stratum-control-checkbox,
+  .stratum-control-summary,
+  .stratum-control-toggle {
+    transition: none !important;
+  }
+}
 
 /* Collection browsing uses native colors and adapts to sidebars and mobile. */
-.stratum-collection-browser { display: flex; flex-direction: column; gap: var(--size-4-4); padding: var(--size-4-4); overflow: hidden; }
-.stratum-collection-header { display: flex; flex-direction: column; gap: var(--size-4-3); }
-.stratum-collection-details { display: flex; flex-direction: column; gap: var(--size-4-3); }
-.stratum-collection-details:empty { display: none; }
-.stratum-collection-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr); align-items: end; gap: var(--size-4-3); }
-.stratum-collection-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--size-4-2); }
-.stratum-collection-tools select, .stratum-collection-tools button { width: 100%; min-width: 0; }
-.stratum-collection-tools button { height: auto; min-height: var(--input-height); white-space: normal; }
-.stratum-collection-tools button[hidden] { display: none; }
-@container stratum-sidebar (max-width: 28rem) { .stratum-collection-filters { grid-template-columns: minmax(0, 1fr); } }
-.stratum-collection-summary { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); }
-.stratum-collection-show-items { min-width: 11rem; max-width: 100%; justify-content: center; }
-.stratum-collection-summary button[hidden] { display: none; }
-.stratum-collection-results:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
-.stratum-collection-context, .stratum-collection-meta { color: var(--text-muted); font-size: var(--font-smaller); overflow-wrap: anywhere; }
-.stratum-collection-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); font-size: var(--font-ui-small); }
-.stratum-collection-count { color: var(--text-muted); font-size: var(--font-ui-small); }
-.stratum-collection-results { overflow-y: auto; min-height: 0; flex: 1; }
-.stratum-collection-list { list-style: none; padding: 0; margin: 0; }
-.stratum-collection-list > li { padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
-.stratum-collection-title { display: block; overflow-wrap: anywhere; margin-bottom: var(--size-4-1); }
-.stratum-collection-title:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
-.stratum-browse-tab { overflow-y: auto; height: 100%; padding-inline: var(--size-4-2); }
+.stratum-collection-browser {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-4);
+  padding: var(--size-4-4);
+  overflow: hidden;
+}
+.stratum-collection-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+.stratum-collection-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+.stratum-collection-details:empty {
+  display: none;
+}
+.stratum-collection-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr);
+  align-items: end;
+  gap: var(--size-4-3);
+}
+.stratum-collection-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--size-4-2);
+}
+.stratum-collection-tools select,
+.stratum-collection-tools button {
+  width: 100%;
+  min-width: 0;
+}
+.stratum-collection-tools button {
+  height: auto;
+  min-height: var(--input-height);
+  white-space: normal;
+}
+.stratum-collection-tools button[hidden] {
+  display: none;
+}
+@container stratum-sidebar (max-width: 28rem) {
+  .stratum-collection-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.stratum-collection-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+}
+.stratum-collection-show-items {
+  min-width: 11rem;
+  max-width: 100%;
+  justify-content: center;
+}
+.stratum-collection-summary button[hidden] {
+  display: none;
+}
+.stratum-collection-results:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+.stratum-collection-context,
+.stratum-collection-meta {
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+  overflow-wrap: anywhere;
+}
+.stratum-collection-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  font-size: var(--font-ui-small);
+}
+.stratum-collection-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.stratum-collection-results {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+.stratum-collection-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.stratum-collection-list > li {
+  padding: var(--size-4-3) 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.stratum-collection-title {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: var(--size-4-1);
+}
+.stratum-collection-title:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+.stratum-browse-tab {
+  overflow-y: auto;
+  height: 100%;
+  padding-inline: var(--size-4-2);
+}
 
 /* Document sources stay compact and usable in narrow Obsidian sidebars. */
-.stratum-sources { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; min-height: 0; }
-.stratum-sources-header { display: flex; align-items: center; justify-content: space-between; }
-.stratum-sources-header > [hidden] { display: none; }
-.stratum-sources-header h3 { margin: 0; }
-.stratum-sources-context button[aria-pressed="true"] { color: var(--interactive-accent); }
-.stratum-sources-context button[aria-pressed="true"] svg { fill: currentColor; stroke: currentColor; }
-.stratum-sources-document, .stratum-sources-title, .stratum-sources-excerpt { display: block; height: auto; min-height: var(--input-height); white-space: normal; text-align: left; overflow-wrap: anywhere; }
-.stratum-sources-document { align-self: flex-start; max-width: 100%; min-height: 0; padding: var(--size-2-1) 0; border: 0; box-shadow: none; background: transparent; color: var(--link-color); font-size: var(--font-ui-small); text-decoration: underline; cursor: pointer; }
-.stratum-sources-document:hover { background: transparent; color: var(--link-color-hover); }
-.stratum-citation-settings-button { margin-top: var(--size-2-2); }
-.stratum-sources-document[hidden] { display: none; }
-.stratum-sources-summary, .stratum-sources-meta, .stratum-sources-empty { color: var(--text-muted); font-size: var(--font-ui-small); }
-.stratum-sources-tools { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
-.stratum-sources-tools[hidden] { display: none; }
-.stratum-sources-tools > .stratum-control-search { flex: 1 1 140px; }
-.stratum-sources-tools select { width: auto; max-width: 100%; flex: 0 1 auto; }
-.stratum-sources-tools button[hidden] { display: none; }
-.stratum-sources-results { flex: 1; min-height: 0; overflow-y: auto; }
-.stratum-source-table { border-collapse: collapse; width: 100%; font-size: var(--font-ui-small); }
-.stratum-source-table caption { text-align: left; color: var(--text-muted); padding: var(--size-4-2) 0; }
-.stratum-source-table th, .stratum-source-table td { text-align: left; vertical-align: top; min-width: 8em; max-width: 24em; padding: var(--size-4-2); border-bottom: 1px solid var(--background-modifier-border); overflow-wrap: anywhere; }
-.stratum-source-table th:first-child, .stratum-source-table td:first-child { min-width: 16em; }
-.stratum-source-table th { position: sticky; top: 0; background: var(--background-primary); z-index: 1; }
-.stratum-source-table th button { border: 0; box-shadow: none; background: transparent; font-weight: var(--font-semibold); white-space: normal; height: auto; min-height: var(--input-height); text-align: left; }
-.stratum-source-table th[aria-sort="ascending"] button::after { content: " ↑"; }
-.stratum-source-table th[aria-sort="descending"] button::after { content: " ↓"; }
-.stratum-source-table button:focus-visible, .stratum-sources-results:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
-.stratum-sources-list { list-style: none; padding: 0; margin: 0; }
-.stratum-sources-list > li { padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
-.stratum-sources-title { border: 0; box-shadow: none; background: transparent; padding: var(--size-4-1) 0; color: var(--text-normal); font-weight: var(--font-semibold); width: 100%; }
-.stratum-sources-title:hover { color: var(--text-accent); }
-.stratum-sources-keys { display: flex; flex-wrap: wrap; gap: var(--size-4-1); margin: var(--size-4-1) 0 var(--size-4-2); }
-.stratum-sources-key { white-space: normal; overflow-wrap: anywhere; max-width: 100%; text-align: left; font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-muted); background: var(--background-secondary); padding: var(--size-2-1) var(--size-4-1); border-radius: var(--radius-s); user-select: text; -webkit-user-select: text; cursor: text; }
-.stratum-sources-list summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-1) 0; }
-.stratum-sources-excerpt { width: 100%; margin-top: var(--size-4-2); font-size: var(--font-ui-small); }
-.stratum-sources-issue { color: var(--text-warning); font-size: var(--font-ui-small); }
-.stratum-sources button:focus-visible, .stratum-sources summary:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
-.stratum-suggestion-citekey { font-family: var(--font-monospace); font-size: var(--font-smallest); color: var(--text-muted); overflow-wrap: anywhere; }
-.stratum-tab-bar > button { padding-inline: var(--size-4-2); }
-.stratum-tab-content > [hidden] { display: none; }
-.stratum-sources-tab { height: 100%; min-height: 0; }
+.stratum-sources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  height: 100%;
+  min-height: 0;
+}
+.stratum-sources-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.stratum-sources-header > [hidden] {
+  display: none;
+}
+.stratum-sources-header h3 {
+  margin: 0;
+}
+.stratum-sources-context button[aria-pressed="true"] {
+  color: var(--interactive-accent);
+}
+.stratum-sources-context button[aria-pressed="true"] svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
+.stratum-sources-document,
+.stratum-sources-title,
+.stratum-sources-excerpt {
+  display: block;
+  height: auto;
+  min-height: var(--input-height);
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.stratum-sources-document {
+  align-self: flex-start;
+  max-width: 100%;
+  min-height: 0;
+  padding: var(--size-2-1) 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--link-color);
+  font-size: var(--font-ui-small);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.stratum-sources-document:hover {
+  background: transparent;
+  color: var(--link-color-hover);
+}
+.stratum-citation-settings-button {
+  margin-top: var(--size-2-2);
+}
+.stratum-sources-document[hidden] {
+  display: none;
+}
+.stratum-sources-summary,
+.stratum-sources-meta,
+.stratum-sources-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.stratum-sources-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+.stratum-sources-tools[hidden] {
+  display: none;
+}
+.stratum-sources-tools > .stratum-control-search {
+  flex: 1 1 140px;
+}
+.stratum-sources-tools select {
+  width: auto;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+.stratum-sources-tools button[hidden] {
+  display: none;
+}
+.stratum-sources-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.stratum-source-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--font-ui-small);
+}
+.stratum-source-table caption {
+  text-align: left;
+  color: var(--text-muted);
+  padding: var(--size-4-2) 0;
+}
+.stratum-source-table th,
+.stratum-source-table td {
+  text-align: left;
+  vertical-align: top;
+  min-width: 8em;
+  max-width: 24em;
+  padding: var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+  overflow-wrap: anywhere;
+}
+.stratum-source-table th:first-child,
+.stratum-source-table td:first-child {
+  min-width: 16em;
+}
+.stratum-source-table th {
+  position: sticky;
+  top: 0;
+  background: var(--background-primary);
+  z-index: 1;
+}
+.stratum-source-table th button {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  font-weight: var(--font-semibold);
+  white-space: normal;
+  height: auto;
+  min-height: var(--input-height);
+  text-align: left;
+}
+.stratum-source-table th[aria-sort="ascending"] button::after {
+  content: " ↑";
+}
+.stratum-source-table th[aria-sort="descending"] button::after {
+  content: " ↓";
+}
+.stratum-source-table button:focus-visible,
+.stratum-sources-results:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+.stratum-sources-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.stratum-sources-list > li {
+  padding: var(--size-4-3) 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.stratum-sources-title {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: var(--size-4-1) 0;
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  width: 100%;
+}
+.stratum-sources-title:hover {
+  color: var(--text-accent);
+}
+.stratum-sources-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  margin: var(--size-4-1) 0 var(--size-4-2);
+}
+.stratum-sources-key {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  text-align: left;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  padding: var(--size-2-1) var(--size-4-1);
+  border-radius: var(--radius-s);
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+.stratum-sources-list summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: var(--size-4-1) 0;
+}
+.stratum-sources-excerpt {
+  width: 100%;
+  margin-top: var(--size-4-2);
+  font-size: var(--font-ui-small);
+}
+.stratum-sources-issue {
+  color: var(--text-warning);
+  font-size: var(--font-ui-small);
+}
+.stratum-sources button:focus-visible,
+.stratum-sources summary:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+.stratum-suggestion-citekey {
+  font-family: var(--font-monospace);
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.stratum-tab-bar > button {
+  padding-inline: var(--size-4-2);
+}
+.stratum-tab-content > [hidden] {
+  display: none;
+}
+.stratum-sources-tab {
+  height: 100%;
+  min-height: 0;
+}
 
 .stratum-citation-composer .stratum-citation-source {
   border: 1px solid var(--background-modifier-border);
@@ -653,16 +974,39 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   padding: var(--size-4-3);
   margin-block: var(--size-4-3);
 }
-.stratum-citation-preview { white-space: pre-wrap; overflow-wrap: anywhere; }
-.stratum-citation-error { color: var(--text-error); }
-.stratum-citation-source code { overflow-wrap: anywhere; }
-.stratum-citation-source h3 { margin: 0 0 var(--size-4-1); font-size: var(--font-ui-medium); }
-.stratum-citation-details summary { color: var(--text-muted); cursor: pointer; padding-block: var(--size-4-2); }
-.stratum-citation-composer .setting-item { padding-block: var(--size-4-2); }
-.stratum-citation-composer { container-type: inline-size; }
+.stratum-citation-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.stratum-citation-error {
+  color: var(--text-error);
+}
+.stratum-citation-source code {
+  overflow-wrap: anywhere;
+}
+.stratum-citation-source h3 {
+  margin: 0 0 var(--size-4-1);
+  font-size: var(--font-ui-medium);
+}
+.stratum-citation-details summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  padding-block: var(--size-4-2);
+}
+.stratum-citation-composer .setting-item {
+  padding-block: var(--size-4-2);
+}
+.stratum-citation-composer {
+  container-type: inline-size;
+}
 @container (max-width: 26rem) {
-  .stratum-citation-composer .setting-item { flex-wrap: wrap; gap: var(--size-4-2); }
-  .stratum-citation-composer .setting-item-control { flex-wrap: wrap; }
+  .stratum-citation-composer .setting-item {
+    flex-wrap: wrap;
+    gap: var(--size-4-2);
+  }
+  .stratum-citation-composer .setting-item-control {
+    flex-wrap: wrap;
+  }
 }
 
 /* Citations remain source Markdown; these styles affect preview only. */
@@ -732,93 +1076,422 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   color: var(--interactive-accent);
 }
 
-.stratum-publish-tab { height: 100%; overflow-y: auto; }
-.stratum-publish-panel { height: 100%; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--size-4-3); padding-bottom: var(--size-4-4); }
-.stratum-publish-panel > :not(.stratum-publish-list) { flex-shrink: 0; }
-.stratum-publish-panel h3, .stratum-publish-panel h4, .stratum-publish-panel p { margin: 0; }
-.stratum-publish-controls { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--size-4-2); }
-.stratum-publish-controls select, .stratum-publish-controls button { width: 100%; min-width: 0; }
-.stratum-publish-controls button { height: auto; white-space: normal; }
-.stratum-publish-actions, .stratum-publish-row-actions { display: flex; align-items: center; gap: var(--size-4-2); flex-wrap: wrap; }
-.stratum-publish-status { font-size: var(--font-ui-small); color: var(--text-muted); overflow-wrap: anywhere; }
-.stratum-publish-status p + p { margin-top: var(--size-4-2); }
-.stratum-publish-error { color: var(--text-error); white-space: pre-wrap; max-height: 12rem; overflow: auto; }
-.stratum-publish-history { display: flex; flex-direction: column; align-items: stretch; gap: var(--size-4-3); margin-top: var(--size-4-4); }
-.stratum-publish-history .stratum-control-field { width: 50%; }
-.stratum-publish-row { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); padding: var(--size-4-3) 0; border-bottom: 1px solid var(--background-modifier-border); }
-.stratum-publish-document { min-width: 0; }
-.stratum-publish-filename { overflow-wrap: anywhere; font-size: var(--font-ui-small); }
-.stratum-publish-meta { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-top: var(--size-4-1); }
-.stratum-publish-row-actions { flex-shrink: 0; flex-wrap: nowrap; gap: var(--size-2-1); }
+.stratum-publish-tab {
+  height: 100%;
+  overflow-y: auto;
+  padding-inline: var(--size-4-2);
+}
+.stratum-publish-panel {
+  height: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  padding-bottom: var(--size-4-4);
+}
+.stratum-publish-panel > :not(.stratum-publish-list) {
+  flex-shrink: 0;
+}
+.stratum-publish-panel h3,
+.stratum-publish-panel h4,
+.stratum-publish-panel p {
+  margin: 0;
+}
+.stratum-publish-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--size-4-2);
+}
+.stratum-publish-controls select,
+.stratum-publish-controls button {
+  width: 100%;
+  min-width: 0;
+}
+.stratum-publish-controls button {
+  height: auto;
+  white-space: normal;
+}
+.stratum-publish-configuration,
+.stratum-publish-academic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+.stratum-publish-configuration .stratum-control-field {
+  width: 100%;
+}
+.stratum-publish-template-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--size-4-2);
+}
+.stratum-publish-template-row > button {
+  margin: 0;
+}
+.stratum-publish-customization > summary,
+.stratum-publish-defaults > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: var(--size-4-2) 0;
+}
+.stratum-publish-customize {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  padding-top: var(--size-4-2);
+}
+.stratum-publish-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--size-4-3);
+}
+
+.stratum-publish-defaults {
+  flex: 1 1 100%;
+}
+.setting-item:has(> .stratum-publish-defaults) {
+  flex-wrap: wrap;
+}
+.stratum-publish-actions,
+.stratum-publish-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  flex-wrap: wrap;
+}
+.stratum-publish-status {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.stratum-publish-status p + p {
+  margin-top: var(--size-4-2);
+}
+.stratum-publish-status p + button {
+  margin-top: var(--size-4-3);
+}
+.stratum-publish-error {
+  color: var(--text-error);
+  white-space: pre-wrap;
+  max-height: 12rem;
+  overflow: auto;
+}
+.stratum-publish-history {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--size-4-3);
+  margin-top: var(--size-4-4);
+}
+.stratum-publish-history .stratum-control-field {
+  width: 50%;
+}
+.stratum-publish-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  padding: var(--size-4-3) 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.stratum-publish-document {
+  min-width: 0;
+}
+.stratum-publish-filename {
+  overflow-wrap: anywhere;
+  font-size: var(--font-ui-small);
+}
+.stratum-publish-meta {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-top: var(--size-4-1);
+}
+.stratum-publish-row-actions {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  gap: var(--size-2-1);
+}
 /* Themes may override the browser's default hidden rule for buttons. */
-.stratum-publish-setup [hidden], .stratum-view .stratum-publish-panel [hidden] { display: none; }
-.stratum-publish-tools { border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
-.stratum-publish-tool { padding: var(--size-4-3); }
-.stratum-publish-tool + .stratum-publish-tool { border-top: 1px solid var(--background-modifier-border); }
-.stratum-publish-tool-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--size-4-3); }
-.stratum-publish-tool-state { color: var(--text-muted); font-size: var(--font-ui-small); flex-shrink: 0; }
-.stratum-publish-tool-state.is-ready { color: var(--text-success); }
-.stratum-publish-setup .stratum-publish-meta, .stratum-publish-setup .setting-item-description { overflow-wrap: anywhere; }
-.stratum-publish-setup .setting-item { flex-wrap: wrap; gap: var(--size-4-2); }
-.stratum-publish-setup .setting-item-control { flex-wrap: wrap; }
-.stratum-publish-install a + a { margin-inline-start: var(--size-4-4); }
-.stratum-publish-setup-actions { justify-content: flex-end; margin-top: var(--size-4-4); }
-.stratum-publish-setup details { margin: var(--size-4-3) 0; }
-.stratum-publish-setup summary { cursor: pointer; color: var(--text-muted); }
-.stratum-publish-setup code { display: block; margin-bottom: var(--size-4-2); }
+.stratum-publish-setup [hidden],
+.stratum-view .stratum-publish-panel [hidden] {
+  display: none;
+}
+.stratum-publish-tools {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+}
+.stratum-publish-tool {
+  padding: var(--size-4-3);
+}
+.stratum-publish-tool + .stratum-publish-tool {
+  border-top: 1px solid var(--background-modifier-border);
+}
+.stratum-publish-tool-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+}
+.stratum-publish-tool-state {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  flex-shrink: 0;
+}
+.stratum-publish-tool-state.is-ready {
+  color: var(--text-success);
+}
+.stratum-publish-setup .stratum-publish-meta,
+.stratum-publish-setup .setting-item-description {
+  overflow-wrap: anywhere;
+}
+.stratum-publish-setup .setting-item {
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+.stratum-publish-setup .setting-item-control {
+  flex-wrap: wrap;
+}
+.stratum-publish-install a + a {
+  margin-inline-start: var(--size-4-4);
+}
+.stratum-publish-setup-actions {
+  justify-content: flex-end;
+  margin-top: var(--size-4-4);
+}
+.stratum-publish-setup details {
+  margin: var(--size-4-3) 0;
+}
+.stratum-publish-setup summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.stratum-publish-setup code {
+  display: block;
+  margin-bottom: var(--size-4-2);
+}
 
-.workspace-leaf-content .view-content.stratum-pdf-preview { display: flex; flex-direction: column; height: 100%; padding: 0; }
-.stratum-pdf-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--size-4-2); padding: var(--size-4-2) var(--size-4-3); border-bottom: 1px solid var(--background-modifier-border); }
-.stratum-pdf-toolbar input { width: 4.5em; }
-.stratum-pdf-toolbar select { margin-inline-start: auto; }
-.stratum-pdf-status { padding: var(--size-4-1) var(--size-4-3); color: var(--text-muted); font-size: var(--font-ui-small); }
-.stratum-pdf-pages { flex: 1; min-height: 0; overflow: auto; padding: 16px; background: var(--background-secondary); }
-.stratum-pdf-page { position: relative; width: var(--pdf-width); height: var(--pdf-height); margin-inline: auto; background: white; box-shadow: 0 1px 6px #0003; }
-.stratum-pdf-page canvas { display: block; width: 100%; height: 100%; }
-.stratum-pdf-page .textLayer { user-select: text; }
+.workspace-leaf-content .view-content.stratum-pdf-preview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+}
+.stratum-pdf-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.stratum-pdf-toolbar input {
+  width: 4.5em;
+}
+.stratum-pdf-toolbar select {
+  margin-inline-start: auto;
+}
+.stratum-pdf-status {
+  padding: var(--size-4-1) var(--size-4-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.stratum-pdf-pages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: var(--background-secondary);
+}
+.stratum-pdf-page {
+  position: relative;
+  width: var(--pdf-width);
+  height: var(--pdf-height);
+  margin-inline: auto;
+  background: white;
+  box-shadow: 0 1px 6px #0003;
+}
+.stratum-pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.stratum-pdf-page .textLayer {
+  user-select: text;
+}
 
-.stratum-style-checklist { width: 560px; }
-.stratum-style-checklist > input { width: 100%; margin-bottom: var(--size-2-2); }
-.stratum-style-checklist .stratum-tab-chooser-option span { overflow-wrap: anywhere; }
-.stratum-checklist-badge { margin-left: auto; font-size: var(--font-ui-smaller); color: var(--text-muted); }
-.stratum-style-checklist .stratum-tab-chooser-option.is-disabled { cursor: default; }
+.stratum-style-checklist {
+  width: 560px;
+}
+.stratum-style-checklist > input {
+  width: 100%;
+  margin-bottom: var(--size-2-2);
+}
+.stratum-style-checklist .stratum-tab-chooser-option span {
+  overflow-wrap: anywhere;
+}
+.stratum-checklist-badge {
+  margin-left: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.stratum-style-checklist .stratum-tab-chooser-option.is-disabled {
+  cursor: default;
+}
 
 /* Reserve room for the native search focus ring inside clipping panels. */
-.stratum-control-search { min-width: 0; padding: var(--size-4-1); box-sizing: border-box; }
-.stratum-control-search .search-input-container { width: 100%; min-width: 0; }
-.stratum-control-search input { width: 100%; }
-.stratum-library-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--size-4-3); }
-.stratum-library-filters > :only-child { grid-column: 1 / -1; }
-@container stratum-sidebar (max-width: 28rem) {
-  .stratum-library-filters { grid-template-columns: minmax(0, 1fr); }
+.stratum-control-search {
+  min-width: 0;
+  padding: var(--size-4-1);
+  box-sizing: border-box;
 }
-.stratum-publish-list { flex: 1 1 8rem; box-sizing: border-box; min-height: 8rem; min-width: 0; overflow-y: auto; padding: var(--size-4-3); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
+.stratum-control-search .search-input-container {
+  width: 100%;
+  min-width: 0;
+}
+.stratum-control-search input {
+  width: 100%;
+}
+.stratum-library-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--size-4-3);
+}
+.stratum-library-filters > :only-child {
+  grid-column: 1 / -1;
+}
+@container stratum-sidebar (max-width: 28rem) {
+  .stratum-library-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.stratum-publish-list {
+  flex: 1 1 8rem;
+  box-sizing: border-box;
+  min-height: 8rem;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+}
 
 /* Citations: keep the writing context and source list visually distinct. */
-.stratum-sources { gap: var(--size-4-4); overflow-y: auto; }
-.stratum-sources > :not(.stratum-sources-results) { flex-shrink: 0; }
-.stratum-sources .stratum-sources-results { flex: 1 0 8rem; min-height: 8rem; }
-.stratum-sources-context { display: flex; align-items: center; gap: var(--size-4-2); min-width: 0; }
-.stratum-sources-context .stratum-sources-document { flex: 1; min-width: 0; text-align: left; }
-.stratum-sources-pin-status, .stratum-sources-style-origin { color: var(--text-muted); font-size: var(--font-ui-smaller); }
-.stratum-sources-context [hidden], .stratum-sources-summary[hidden] { display: none; }
-.stratum-citation-status { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--size-4-1) var(--size-4-2); align-items: end; }
-.stratum-citation-status > .stratum-control-field { grid-column: 1; grid-row: 1; }
-.stratum-citation-status > .stratum-citation-settings-button { grid-column: 2; grid-row: 1; margin: 0; align-self: end; height: var(--input-height); }
-.stratum-citation-status > p { grid-column: 1 / -1; }
-.stratum-sources-secondary { height: auto; min-height: 0; padding: var(--size-2-1) var(--size-4-1); font-size: var(--font-ui-smaller); }
-.stratum-sources-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex-wrap: wrap; }
-.stratum-sources-count { order: -1; }
-.stratum-sources-summary button { height: auto; font-size: var(--font-ui-small); }
-.stratum-sources-summary button[aria-pressed="true"] { color: var(--text-accent); background: var(--background-modifier-hover); }
-.stratum-sources-tools { display: flex; flex-direction: column; gap: var(--size-4-4); }
-.stratum-sources-display { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--size-4-3); align-items: end; }
-.stratum-sources-view-group { min-width: 0; display: flex; flex-direction: column; gap: var(--size-4-1); }
-.stratum-control-label { color: var(--text-muted); font-size: var(--font-ui-small); }
-.stratum-sources-view-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--size-4-2); }
-.stratum-sources-tools select { width: 100%; }
-.stratum-sources-view-controls button { width: 100%; min-width: 0; }
-@container stratum-sidebar (max-width: 28rem) { .stratum-sources-display { grid-template-columns: minmax(0, 1fr); } }
+.stratum-sources {
+  gap: var(--size-4-4);
+  overflow-y: auto;
+}
+.stratum-sources > :not(.stratum-sources-results) {
+  flex-shrink: 0;
+}
+.stratum-sources .stratum-sources-results {
+  flex: 1 0 8rem;
+  min-height: 8rem;
+}
+.stratum-sources-context {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-width: 0;
+}
+.stratum-sources-context .stratum-sources-document {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.stratum-sources-pin-status,
+.stratum-sources-style-origin {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.stratum-sources-context [hidden],
+.stratum-sources-summary[hidden] {
+  display: none;
+}
+.stratum-citation-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--size-4-1) var(--size-4-2);
+  align-items: end;
+}
+.stratum-citation-status > .stratum-control-field {
+  grid-column: 1;
+  grid-row: 1;
+}
+.stratum-citation-status > .stratum-citation-settings-button {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  align-self: end;
+  height: var(--input-height);
+}
+.stratum-citation-status > p {
+  grid-column: 1 / -1;
+}
+.stratum-sources-secondary {
+  height: auto;
+  min-height: 0;
+  padding: var(--size-2-1) var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+}
+.stratum-sources-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  flex-wrap: wrap;
+}
+.stratum-sources-count {
+  order: -1;
+}
+.stratum-sources-summary button {
+  height: auto;
+  font-size: var(--font-ui-small);
+}
+.stratum-sources-summary button[aria-pressed="true"] {
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
+}
+.stratum-sources-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-4);
+}
+.stratum-sources-display {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--size-4-3);
+  align-items: end;
+}
+.stratum-sources-view-group {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+}
+.stratum-control-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.stratum-sources-view-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--size-4-2);
+}
+.stratum-sources-tools select {
+  width: 100%;
+}
+.stratum-sources-view-controls button {
+  width: 100%;
+  min-width: 0;
+}
+@container stratum-sidebar (max-width: 28rem) {
+  .stratum-sources-display {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .stratum-sources button.stratum-sources-title:not(.clickable-icon) {
   display: block;
   width: fit-content;
@@ -860,24 +1533,76 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
     color: var(--text-normal);
   }
 }
-.stratum-sources-meta { margin-top: var(--size-4-1); line-height: 1.5; }
-.stratum-sources-list > li { padding: var(--size-4-4) 0; }
-.stratum-sources-results summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-1) 0; }
-.stratum-sources-health { display: flex; flex-direction: column; gap: var(--size-4-2); margin-block: var(--size-4-2); padding: var(--size-4-2); border-left: 2px solid var(--text-warning); }
-.stratum-sources-health-actions { display: flex; flex-wrap: wrap; gap: var(--size-4-2); }
-.stratum-sources-health-actions button { font-size: var(--font-ui-small); height: auto; white-space: normal; }
-.stratum-sources-health-details p { margin-block: var(--size-4-2); }
-.stratum-sources-excerpt { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); padding: var(--size-4-2); background: var(--background-secondary); box-shadow: none; border: 1px solid var(--background-modifier-border); line-height: 1.5; }
-.stratum-sources-passage { text-align: left; }
-.stratum-sources-passage mark { color: var(--text-normal); background: var(--text-highlight-bg); }
-.stratum-sources-passage-action { font-size: var(--font-ui-smaller); color: var(--text-accent); }
+.stratum-sources-meta {
+  margin-top: var(--size-4-1);
+  line-height: 1.5;
+}
+.stratum-sources-list > li {
+  padding: var(--size-4-4) 0;
+}
+.stratum-sources-results summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: var(--size-4-1) 0;
+}
+.stratum-sources-health {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin-block: var(--size-4-2);
+  padding: var(--size-4-2);
+  border-left: 2px solid var(--text-warning);
+}
+.stratum-sources-health-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+.stratum-sources-health-actions button {
+  font-size: var(--font-ui-small);
+  height: auto;
+  white-space: normal;
+}
+.stratum-sources-health-details p {
+  margin-block: var(--size-4-2);
+}
+.stratum-sources-excerpt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2);
+  background: var(--background-secondary);
+  box-shadow: none;
+  border: 1px solid var(--background-modifier-border);
+  line-height: 1.5;
+}
+.stratum-sources-passage {
+  text-align: left;
+}
+.stratum-sources-passage mark {
+  color: var(--text-normal);
+  background: var(--text-highlight-bg);
+}
+.stratum-sources-passage-action {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-accent);
+}
 
-.stratum-sources button:focus-visible, .stratum-sources summary:focus-visible { outline-offset: -2px; }
+.stratum-sources button:focus-visible,
+.stratum-sources summary:focus-visible {
+  outline-offset: -2px;
+}
 
-.stratum-sources-summary button[hidden] { display: none; }
+.stratum-sources-summary button[hidden] {
+  display: none;
+}
 
 /* The writing-note context is a quiet link, independent of the pin action. */
-.stratum-sources .stratum-sources-context button.stratum-sources-document:not(.clickable-icon) {
+.stratum-sources
+  .stratum-sources-context
+  button.stratum-sources-document:not(.clickable-icon) {
   display: block;
   flex: 0 1 auto;
   width: fit-content;
@@ -900,14 +1625,20 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   text-decoration: none;
   cursor: pointer;
 }
-.stratum-sources .stratum-sources-context button.stratum-sources-document:not(.clickable-icon):hover {
+.stratum-sources
+  .stratum-sources-context
+  button.stratum-sources-document:not(.clickable-icon):hover {
   background: transparent;
   box-shadow: none;
   color: var(--link-color-hover);
   text-decoration: underline;
 }
-.stratum-sources-context .stratum-sources-pin-status { margin-left: auto; }
-.stratum-sources-context .stratum-sources-pin-status[hidden] + .clickable-icon { margin-left: auto; }
+.stratum-sources-context .stratum-sources-pin-status {
+  margin-left: auto;
+}
+.stratum-sources-context .stratum-sources-pin-status[hidden] + .clickable-icon {
+  margin-left: auto;
+}
 .stratum-note-template-editor {
   width: 100%;
   min-height: 280px;
@@ -933,4 +1664,60 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 .stratum-source-summary-actions {
   flex-shrink: 0;
+}
+
+.stratum-publish-design-preview {
+  display: grid;
+  justify-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-3);
+}
+.stratum-publish-design-page {
+  width: min(100%, 18rem);
+  box-sizing: border-box;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 10px;
+}
+.stratum-publish-design-page p {
+  margin: 0.5em 0 1em;
+}
+.stratum-publish-design-abstract {
+  margin-block: 1em;
+}
+
+/* Publishing accordions keep shared hover/focus behavior with room for their forms. */
+.stratum-publish-section {
+  margin: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.stratum-publish-section > .stratum-control-summary {
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: var(--size-4-3) var(--size-4-2);
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
+  line-height: 1.4;
+}
+.stratum-publish-section > summary::marker {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+.stratum-publish-section-body {
+  padding: var(--size-4-3) var(--size-4-2) var(--size-4-4);
+}
+.stratum-publish-section-body > .setting-item:last-child {
+  padding-bottom: var(--size-4-3);
+}
+.stratum-publish-section-body > p:first-child {
+  margin-top: 0;
+}
+.stratum-publish-font-status[hidden],
+.stratum-publish-font-retry[hidden] {
+  display: none;
+}
+.stratum-publish-font-retry {
+  align-self: flex-start;
 }

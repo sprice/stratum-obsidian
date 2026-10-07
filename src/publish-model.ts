@@ -1,3 +1,10 @@
+import {
+  readNotePreferences,
+  readPublishOptions,
+  type NotePublishPreferences,
+  type PublishOptions,
+  type DocumentType,
+} from "./publish-options";
 export const VIEW_TYPE_PUBLISH_PREVIEW = "stratum-publish-preview";
 
 export type PublishFormat = "pdf" | "docx";
@@ -11,12 +18,25 @@ export interface PublishedDocument {
   createdAt: string;
   citationStyle: string;
   citationLanguage: string;
+  publishing?: {
+    documentType: DocumentType;
+    opening: "body" | "properties";
+    layout: PublishOptions;
+    metadata?: {
+      title: string;
+      authors: string[];
+      affiliations: string[];
+      date: string;
+      keywords: string[];
+    };
+  };
 }
 export interface PublishedNote {
   id: string;
   path: string | null;
   title: string;
   ctime: number;
+  preferences?: NotePublishPreferences;
 }
 export interface PublishCatalog {
   version: 1;
@@ -70,6 +90,17 @@ export function readCatalog(text: string): PublishCatalog {
       "The published document catalog contains invalid entries. Restore it from a backup before publishing.",
     );
   const catalog = value as unknown as PublishCatalog;
+  for (const note of catalog.notes)
+    if (note.preferences)
+      note.preferences = readNotePreferences(note.preferences);
+  for (const document of catalog.documents)
+    if (document.publishing) {
+      if (!record(document.publishing) || !record(document.publishing.layout))
+        throw new Error("Published document formatting could not be read.");
+      document.publishing.layout = readPublishOptions(
+        document.publishing.layout,
+      );
+    }
   if (
     new Set(catalog.notes.map((n) => n.id)).size !== catalog.notes.length ||
     new Set(catalog.documents.map((d) => d.id)).size !==

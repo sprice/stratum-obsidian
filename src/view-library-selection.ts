@@ -1,7 +1,11 @@
+import {
+  createStratumDisclosure,
+  createStratumSummary,
+  createStratumButton,
+} from "./ui-controls";
 import type StratumPlugin from "./plugin";
 import { getSelectedSearchLibrary } from "./plugin-libraries";
 import { normalizeDoi } from "./doi";
-import { createStratumButton } from "./ui-controls";
 
 function itemTypeLabel(value: string | null): string {
   if (!value) return "";
@@ -107,11 +111,11 @@ export function renderSelectedLibraryPaper(
   change.disabled = busy;
   change.addEventListener("click", changeSelection);
   if (selected.abstract) {
-    const details = section.createEl("details", {
+    const details = createStratumDisclosure(section, {
       cls: "stratum-selected-abstract",
     });
     details.open = plugin.isSelectedLibraryAbstractExpanded;
-    details.createEl("summary", { text: "Abstract" });
+    createStratumSummary(details, { text: "Abstract" });
     details.createEl("p", { cls: "stratum-meta", text: selected.abstract });
     details.addEventListener("toggle", () => {
       if (

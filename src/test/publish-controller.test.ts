@@ -1,3 +1,4 @@
+import { readNotePreferences } from "../publish-options";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate as settle } from "node:timers/promises";
@@ -34,7 +35,10 @@ const cachedSupport = () => ({
   tectonicPath: "",
   readiness: structuredClone(readySupport),
 });
-function setup(settings: Partial<StratumSettings> = {}) {
+class FontError extends Error {
+  fonts = ["Missing body"];
+}
+function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   let timerId = 0;
   const timers = new Map<number, { callback: () => void; delay: number }>();
   const calls = { detect: 0, probe: [] as string[], check: 0, save: 0 };
@@ -94,6 +98,7 @@ function setup(settings: Partial<StratumSettings> = {}) {
       MarkdownView: View,
       TFile: File,
       Notice: class {},
+      parseYaml: JSON.parse,
     },
     {
       AbortController,
@@ -125,6 +130,7 @@ function setup(settings: Partial<StratumSettings> = {}) {
         },
       },
       "./publish-desktop": {
+        PublishFontError: FontError,
         detectPublishTool: async (name: "pandoc" | "tectonic") => {
           calls.detect++;
           await behavior.detection;
@@ -182,8 +188,27 @@ function setup(settings: Partial<StratumSettings> = {}) {
       formatForPublication: () => Promise.resolve(undefined),
     },
     app: {
+      fileManager: {
+        processFrontMatter: (
+          file: File,
+          change: (properties: Record<string, unknown>) => void,
+        ) => {
+          const root = roots.find((root) => root.view.file === file)!;
+          const match = /^---\n(.*?)\n---\n/s.exec(root.view.text);
+          const properties = match
+            ? (JSON.parse(match[1]) as Record<string, unknown>)
+            : {};
+          change(properties);
+          root.view.text = `---\n${JSON.stringify(properties)}\n---\n${match ? root.view.text.slice(match[0].length) : root.view.text}`;
+          return Promise.resolve();
+        },
+      },
       vault: {
         adapter,
+        read: (file: File) =>
+          Promise.resolve(
+            roots.find((root) => root.view.file === file)?.view.text ?? "",
+          ),
         configDir: ".config",
         getAbstractFileByPath: (path: string) =>
           [first, second].find((file) => file.path === path) ?? null,
@@ -217,7 +242,23 @@ function setup(settings: Partial<StratumSettings> = {}) {
   };
   const controller = new PublishController(plugin as never);
   controller.onload();
-  controller.catalog = { version: 1, notes: [], documents: [] };
+  const catalog = {
+    version: 1 as const,
+    notes: selected
+      ? [
+          {
+            id: "synthetic-note",
+            path: first.path,
+            title: first.basename,
+            ctime: first.stat.ctime,
+            preferences: readNotePreferences({ templateId: "general" }),
+          },
+        ]
+      : [],
+    documents: [],
+  };
+  files.set(".config/stratum/published/catalog.json", JSON.stringify(catalog));
+  controller.catalog = catalog;
   controller.selectedFormat = "docx";
   controller.readiness ??= {
     word: true,
@@ -251,7 +292,7 @@ test("switching notes during publication preserves the click-time document and i
   await controller.create();
   release();
   await pending;
-  assert.equal(controller.selectedFormat, "");
+  assert.equal(controller.selectedFormat, "docx");
   assert.equal(rendered.length, 1);
   assert.equal(rendered[0].text, "Unsaved first note");
   assert.equal(rendered[0].path, "First.md");
@@ -544,6 +585,30 @@ test("explicit setup persists verified support for the next launch", async () =>
   assert.equal(plugin.settings.publishPdfSetupComplete, true);
 });
 
+test("publishing preferences serialize edits, retain independent formats, and follow supported moves", async () => {
+  const { controller } = setup();
+  await controller.updatePreferences({ templateId: "academic" });
+  await controller.selectFormat("docx");
+  await Promise.all([
+    controller.updateLayout({ bodyFont: "Georgia" }),
+    controller.updateLayout({ titleSize: 28 }),
+  ]);
+  assert.equal(controller.layout.bodyFont, "Georgia");
+  assert.equal(controller.layout.titleSize, 28);
+  await controller.selectFormat("pdf");
+  assert.equal(controller.layout.bodyFont, "");
+  await controller.updateLayout({ bodyFont: "Arial" });
+  await controller.store.move("First.md", "Papers/Renamed.md");
+  await controller.reload();
+  const stored = (await controller.store.list()).notes[0].preferences!;
+  assert.equal(stored.documentType, "academic");
+  assert.equal(stored.docx.bodyFont, "Georgia");
+  assert.equal(stored.docx.titleSize, 28);
+  assert.equal(stored.pdf.bodyFont, "Arial");
+  assert.equal(stored.format, "pdf");
+  assert.equal(controller.preferencesSaving, false);
+});
+
 test("publishing errors expire after five seconds without refreshes extending them", () => {
   const { controller, timers } = setup();
   controller.fail(new Error("Synthetic failure"));
@@ -563,4 +628,133 @@ test("publishing errors expire after five seconds without refreshes extending th
   assert.equal(timers.size, 1);
   controller.onunload();
   assert.equal(timers.size, 0);
+});
+
+test("font errors persist and clear only after a successful font change", async () => {
+  const { controller, timers } = setup();
+  controller.fail(new FontError("Missing font"));
+  assert.equal(timers.size, 0);
+  assert.ok(controller.fontError);
+  await controller.updateLayout({ bodySize: 11 });
+  assert.equal(controller.error, "Missing font");
+  await controller.updateLayout({ bodyFont: "Georgia" });
+  assert.equal(controller.error, "");
+  assert.equal(controller.fontError, null);
+  controller.fail(new Error("Unrelated export error"));
+  await controller.updateLayout({ bodyFont: "Arial" });
+  assert.equal(controller.error, "Unrelated export error");
+  controller.fail(new FontError("Missing font"));
+  controller.store.setPreferences = () =>
+    Promise.reject(new Error("Save failed"));
+  await assert.rejects(
+    controller.updateLayout({ bodyFont: "" }),
+    /Save failed/,
+  );
+  assert.equal(controller.error, "Save failed");
+  assert.equal(controller.layout.bodyFont, "Arial");
+});
+
+test("template selection copies layouts and retains them after template edits or deletion", async () => {
+  const { readPublishingTemplates } = await import("../publish-templates");
+  const state = readPublishingTemplates(undefined);
+  const custom = {
+    ...state.templates[0],
+    id: "draft-template",
+    name: "Draft",
+    layout: { ...state.templates[0].layout, bodyFont: "Georgia", bodySize: 11 },
+  };
+  const { controller, plugin } = setup(
+    {
+      publishingTemplates: readPublishingTemplates({
+        templates: [...state.templates, custom],
+      }),
+    },
+    false,
+  );
+  assert.equal(controller.notePreferences.templateId, undefined);
+  assert.equal(controller.canCreate(), false);
+  await controller.updatePreferences({ templateId: custom.id });
+  assert.equal(
+    (await controller.store.list()).notes[0].preferences?.templateId,
+    custom.id,
+  );
+  const updated = readPublishingTemplates({
+    templates: [
+      ...state.templates,
+      { ...custom, layout: { ...custom.layout, bodyFont: "Arial" } },
+    ],
+  });
+  Object.assign(plugin.settings, { publishingTemplates: updated });
+  assert.equal(
+    controller.layout.bodyFont,
+    "Georgia",
+    "template edits do not rewrite a note's saved layout",
+  );
+  Object.assign(plugin.settings, { publishingTemplates: state });
+  assert.equal(
+    controller.layout.bodyFont,
+    "Georgia",
+    "deleting a template leaves the saved layout intact",
+  );
+  assert.equal(
+    controller.canCreate(),
+    false,
+    "Deleted templates need a new selection",
+  );
+  await controller.updatePreferences({ templateId: "academic" });
+  assert.equal(controller.notePreferences.documentType, "academic");
+  assert.equal(controller.notePreferences.pdf.lineSpacing, 1.5);
+  assert.equal(controller.notePreferences.docx.lineSpacing, 1.5);
+});
+
+test("preparation and required fields follow a general template without changing body content", async () => {
+  const { readPublishingTemplates } = await import("../publish-templates");
+  const state = readPublishingTemplates({
+    templates: [
+      {
+        id: "general",
+        layout: { titleSource: "properties", showAuthors: true },
+        prefill: { authors: ["Synthetic reviewer"] },
+      },
+    ],
+  });
+  const { controller, leaf } = setup({ publishingTemplates: state });
+  await controller.updatePreferences({ templateId: "general" });
+  assert.match(controller.academicProblem, /title/);
+  assert.equal(controller.canCreate(), false);
+  assert.equal(controller.propertiesMissing, true);
+  await controller.prepareAcademic();
+  assert.equal(controller.academicProblem, "");
+  assert.equal(controller.canCreate(), true);
+  assert.equal(controller.propertiesMissing, false);
+  assert.match(leaf.view.text, /Synthetic reviewer/);
+  assert.ok(leaf.view.text.endsWith("Unsaved first note"));
+  leaf.view.text = leaf.view.text.replace(
+    "Synthetic reviewer",
+    "Existing reviewer",
+  );
+  await controller.prepareAcademic();
+  assert.match(leaf.view.text, /Existing reviewer/);
+});
+
+test("templates without published properties ignore unreadable note YAML", async () => {
+  const { controller, leaf } = setup();
+  await controller.updatePreferences({ templateId: "general" });
+  await controller.selectFormat("docx");
+  leaf.view.text = "---\n{unreadable\n---\n\nSynthetic body.";
+  assert.equal(controller.academicProblem, "");
+  assert.equal(controller.canCreate(), true);
+});
+
+test("a repeated title warns but does not block creation", async () => {
+  const { controller, leaf } = setup();
+  await controller.updatePreferences({ templateId: "academic" });
+  await controller.selectFormat("docx");
+  leaf.view.text =
+    '---\n{"title":"Synthetic title"}\n---\n\n# Synthetic title\n\nSynthetic body.';
+  assert.equal(controller.academicProblem, "");
+  assert.equal(controller.duplicateTitleWarning, true);
+  assert.equal(controller.canCreate(), true);
+  await controller.updateLayout({ titleSource: "body" });
+  assert.equal(controller.duplicateTitleWarning, false);
 });

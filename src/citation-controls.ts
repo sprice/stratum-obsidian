@@ -1,3 +1,4 @@
+import { styleStratumComponent } from "./ui-controls";
 import { openChecklist, type ChecklistItem } from "./settings-checklist";
 import {
   availableCitationStyles,
@@ -120,7 +121,7 @@ export class CitationPreferences extends Modal {
       .setName("Citation style")
       .setDesc(title)
       .addButton((button) =>
-        button
+        styleStratumComponent(button)
           .setButtonText(this.file ? "Choose style" : "Choose default style")
           .setDisabled(this.busy)
           .onClick(() => {
@@ -130,7 +131,7 @@ export class CitationPreferences extends Modal {
           }),
       )
       .addButton((button) =>
-        button
+        styleStratumComponent(button)
           .setButtonText("Choose available citation styles")
           .setDisabled(this.busy)
           .onClick(() => {
@@ -191,7 +192,7 @@ export class CitationPreferences extends Modal {
         "Used for labels and reference formatting; some styles specify their own language.",
       )
       .addDropdown((drop) =>
-        drop
+        styleStratumComponent(drop)
           .addOptions(languages)
           .setValue(this.language)
           .setDisabled(this.busy)
@@ -204,7 +205,7 @@ export class CitationPreferences extends Modal {
       .setName("Unused custom styles")
       .setDesc("Remove imported styles that no paper uses.")
       .addButton((button) =>
-        button
+        styleStratumComponent(button)
           .setButtonText("Remove unused styles")
           .setDisabled(this.busy)
           .onClick(async () => {
@@ -303,7 +304,7 @@ export class CitationPreferences extends Modal {
     const actions = new Setting(el);
     if (this.file)
       actions.addButton((button) =>
-        button
+        styleStratumComponent(button)
           .setButtonText("Use default style")
           .setDisabled(this.busy)
           .onClick(async () => {
@@ -324,7 +325,7 @@ export class CitationPreferences extends Modal {
           }),
       );
     actions.addButton((button) =>
-      button
+      styleStratumComponent(button)
         .setButtonText("Apply language")
         .setCta()
         .setDisabled(this.busy)

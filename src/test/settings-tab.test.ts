@@ -28,7 +28,11 @@ class Element {
   blur() {
     this.listeners.get("blur")?.();
   }
+  focus() {}
   empty() {}
+  createEl() {
+    return new Element();
+  }
   createDiv() {
     return new Element();
   }
@@ -80,6 +84,7 @@ class Row {
   descEl = new Element();
   settingEl = new Element();
   control?: Control;
+  controls: Control[] = [];
   heading = false;
   description = "";
   constructor() {
@@ -99,9 +104,12 @@ class Row {
   }
   addText(callback: (control: Control) => void) {
     this.control = new Control();
+    this.controls.push(this.control);
     callback(this.control);
     return this;
   }
+  addTextArea = (callback: (control: Control) => void) =>
+    this.addText(callback);
   addToggle = (callback: (control: Control) => void) => this.addText(callback);
   addDropdown = (callback: (control: Control) => void) =>
     this.addText(callback);
@@ -122,11 +130,44 @@ function fixture(desktop = false, modern = true) {
   class HostTab {
     containerEl = new Element();
   }
+  const modals: { open: () => void }[] = [];
+  const buttons: { text: string; buttonEl: Element }[] = [];
+  class HostButton {
+    buttonEl = new Element();
+    text = "";
+    constructor() {
+      buttons.push(this);
+    }
+    setButtonText(text: string) {
+      this.text = text;
+      return this;
+    }
+    setTooltip() {
+      return this;
+    }
+    setCta() {
+      return this;
+    }
+  }
+  class HostModal {
+    contentEl = new Element();
+    constructor() {
+      modals.push(this);
+    }
+    setTitle() {}
+    onOpen() {}
+    open() {
+      this.onOpen();
+    }
+    close() {}
+  }
   const platform = { isDesktopApp: desktop };
   const { StratumSettingTab } = loadRuntime<typeof SettingsTab>(
     "settings-tab.ts",
     {
       PluginSettingTab: HostTab,
+      Modal: HostModal,
+      ButtonComponent: HostButton,
       Setting: Row,
       SettingGroup: class {
         setHeading(heading: string) {
@@ -138,12 +179,17 @@ function fixture(desktop = false, modern = true) {
           return this;
         }
       },
+      Notice: class {},
       Platform: platform,
       requireApiVersion: () => modern,
     },
-    {},
+    { crypto: { randomUUID: () => "synthetic-template" } },
     "node",
     {
+      "./publish-customize": {
+        renderPublishCustomization() {},
+        PublishOptionError: class extends Error {},
+      },
       "./note-template-modal": {
         NoteTemplateModal: class {
           opened = false;
@@ -214,6 +260,8 @@ function fixture(desktop = false, modern = true) {
     tab,
     plugin,
     editors,
+    modals,
+    buttons,
     get chooser() {
       return chooser;
     },
@@ -410,7 +458,7 @@ for (const desktop of [true, false]) {
     assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
     assert.equal(f.plugin.settings.enabledTabs.publish, !desktop);
     assert.equal(
-      sections.some((section) => section.heading === "Stratum Publishing"),
+      sections.some((section) => section.heading === "Publishing"),
       desktop,
     );
     assert.equal(f.plugin.settings.enabledTabs.reader, false);
@@ -488,3 +536,111 @@ for (const modern of [true, false]) {
     assert.equal(f.plugin.settings.notesTemplate, "## Summary");
   });
 }
+
+test("template management stays in its own screen, with academic properties in the editor", async () => {
+  const f = fixture(true);
+  const sections = f.tab.getSettingDefinitions();
+  assert.ok(
+    !sections.some(
+      (section) =>
+        section.heading === "Publishing templates" ||
+        section.heading === "Academic defaults",
+    ),
+  );
+  const publishing = sections.find(
+    (section) => section.heading === "Publishing",
+  )!;
+  assert.deepEqual(
+    Array.from(publishing.items, (item) => item.name),
+    ["Publishing tools", "Publishing templates"],
+  );
+  Row.rendered = [];
+  const entry = new Row();
+  publishing.items
+    .find((item) => item.name === "Publishing templates")!
+    .render(entry as never);
+  assert.equal(
+    Row.rendered.length,
+    1,
+    "Main settings contain no template fields",
+  );
+  Row.rendered = [];
+  await entry.control!.click!();
+  let rows = Row.rendered;
+  assert.equal(f.modals.length, 1);
+  assert.deepEqual(
+    rows.filter((row) => row.name).map((row) => row.name),
+    ["General documents", "Academic papers"],
+  );
+  Row.rendered = [];
+  await rows.at(-1)!.control!.click!();
+  rows = Row.rendered;
+  await rows.find((row) => row.name === "Template name")!.control!.change!(
+    "Synthetic template",
+  );
+  await rows.find((row) => row.name === "Start from")!.control!.change!(
+    "academic",
+  );
+  Row.rendered = [];
+  await rows.at(-1)!.controls[1].click!();
+  const custom = f.plugin.settings.publishingTemplates!.templates.find(
+    (template) => template.id !== "general" && template.id !== "academic",
+  )!;
+  assert.equal(custom.documentType, "academic");
+  rows = Row.rendered;
+  assert.ok(rows.some((row) => row.name === "Authors"));
+  assert.ok(
+    !rows.some(
+      (row) => row.name === "Property name" || row.name === "Published use",
+    ),
+  );
+  await rows.find((row) => row.name === "Authors")!.control!.change!(
+    "Synthetic author",
+  );
+  assert.equal(
+    f.plugin.settings.publishingTemplates!.templates.find(
+      (template) => template.id === custom.id,
+    )!.prefill.authors[0],
+    "Synthetic author",
+  );
+  const deleteRow = rows.find((row) => row.name === "Delete template")!;
+  const confirmation = async (choice: "Cancel" | "Delete template") => {
+    f.buttons.length = 0;
+    await deleteRow.control!.click!();
+    assert.equal(
+      f.plugin.settings.publishingTemplates!.templates.length,
+      3,
+      "Opening the confirmation does not delete",
+    );
+    f.buttons
+      .find((button) => button.text === choice)!
+      .buttonEl.listeners.get("click")!();
+    for (let tick = 0; tick < 20; tick++)
+      await new Promise((resolve) => setImmediate(resolve));
+  };
+  await confirmation("Cancel");
+  assert.equal(f.plugin.settings.publishingTemplates!.templates.length, 3);
+  Row.rendered = [];
+  await confirmation("Delete template");
+  assert.deepEqual(
+    Array.from(
+      f.plugin.settings.publishingTemplates!.templates,
+      (template) => template.id,
+    ),
+    ["general", "academic"],
+    "Only the selected custom template is deleted",
+  );
+  rows = Row.rendered;
+  Row.rendered = [];
+  await rows.find((row) => row.name === "Academic papers")!.control!.click!();
+  assert.ok(Row.rendered.some((row) => row.name === "Authors"));
+  assert.ok(!Row.rendered.some((row) => row.name === "Delete template"));
+  await Row.rendered.find((row) => row.name === "Template name")!.control!
+    .change!("My academic paper");
+  assert.equal(
+    f.plugin.settings.publishingTemplates!.templates.find(
+      (template) => template.id === "academic",
+    )!.name,
+    "My academic paper",
+  );
+});

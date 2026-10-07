@@ -1,5 +1,16 @@
-import { createStratumSelect, createStratumButton } from "./ui-controls";
-import { Component, Modal, setIcon, type App } from "obsidian";
+import { publicationProperties } from "./publish-properties";
+import {
+  readPublishingTemplates,
+  selectedPublishingTemplate,
+} from "./publish-templates";
+import {
+  createStratumIconButton,
+  createStratumDisclosure,
+  createStratumSummary,
+  createStratumSelect,
+  createStratumButton,
+} from "./ui-controls";
+import { Component, Modal, type App } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import {
   formatLabel,
@@ -7,6 +18,7 @@ import {
   type PublishFormat,
 } from "./publish-model";
 import { getSettingsManager } from "./view-helpers";
+import { renderPublishCustomization } from "./publish-customize";
 
 class DeletePublicationModal extends Modal {
   constructor(
@@ -52,6 +64,22 @@ export class PublishPanel extends Component {
   private create!: HTMLButtonElement;
   private type!: HTMLSelectElement;
   private cancel!: HTMLButtonElement;
+  private configuration!: HTMLElement;
+  private template!: HTMLSelectElement;
+  private templateGear!: HTMLButtonElement;
+  private academic!: HTMLElement;
+  private prepare!: HTMLButtonElement;
+  private academicMessage!: HTMLElement;
+  private opening!: HTMLSelectElement;
+  private citations!: HTMLElement;
+  private citationRevision = 0;
+  private citationKey = "";
+  private customize!: HTMLDetailsElement;
+  private focusControl?: (key: "bodyFont" | "titleFont" | "opening") => void;
+  private titleWarning!: HTMLElement;
+  private customization!: HTMLElement;
+  private customizationKey = "";
+  private alive = true;
   constructor(
     private container: HTMLElement,
     private publish: PublishController,
@@ -65,6 +93,84 @@ export class PublishPanel extends Component {
       cls: "stratum-placeholder",
       text: "Word or PDF documents created from your note",
     });
+    this.configuration = this.body.createDiv({
+      cls: "stratum-publish-configuration",
+    });
+    const templateRow = this.configuration.createDiv({
+      cls: "stratum-publish-template-row",
+    });
+    this.template = createStratumSelect(templateRow, {
+      label: "Template",
+      ariaLabel: "Choose template",
+      value: "",
+      choices: [],
+    });
+    this.template.addEventListener("change", () => {
+      void this.publish
+        .updatePreferences({ templateId: this.template.value })
+        .catch(() => {});
+    });
+
+    this.academic = this.configuration.createDiv({
+      cls: "stratum-publish-academic",
+    });
+    const preparation = this.academic.createDiv({
+      cls: "stratum-publish-actions",
+    });
+    this.prepare = createStratumButton(preparation, {
+      text: "Add publishing properties",
+      tooltip: "Add missing publishing properties to this note",
+    });
+    this.prepare.addEventListener("click", () => {
+      void this.publish.prepareAcademic();
+    });
+    const gear = createStratumIconButton(templateRow, {
+      icon: "settings",
+      ariaLabel: "Configure publishing template",
+    });
+    this.templateGear = gear;
+    gear.addEventListener("click", () => {
+      const settings = getSettingsManager(this.publish.plugin.app);
+      settings?.open();
+      settings?.openTabById(this.publish.plugin.manifest.id);
+      this.publish.plugin.settingTab?.focusAcademicDefaults();
+    });
+    this.academicMessage = this.academic.createEl("p", {
+      cls: "stratum-publish-meta",
+      attr: { role: "status" },
+    });
+    this.titleWarning = this.academic.createDiv({
+      cls: "stratum-publish-actions",
+      attr: { role: "status" },
+    });
+    this.titleWarning.createEl("p", {
+      text: "Title may appear twice.",
+      cls: "stratum-publish-meta",
+    });
+    const review = createStratumButton(this.titleWarning, {
+      text: "Review opening",
+      tooltip: "Show the title and opening choices",
+    });
+    review.addEventListener("click", () => this.reviewOpening());
+    this.opening = createStratumSelect(this.academic, {
+      label: "Title block",
+      ariaLabel: "Academic title block",
+      value: this.publish.notePreferences.opening,
+      choices: [
+        { value: "properties", label: "Generate from properties" },
+        { value: "body", label: "Use title from body" },
+      ],
+    });
+    this.opening.addEventListener("change", () => {
+      void this.publish
+        .updateLayout({
+          titleSource: this.opening.value as "properties" | "body",
+        })
+        .catch(() => {});
+    });
+    this.citations = this.configuration.createDiv({
+      cls: "stratum-publish-citations",
+    });
     const controls = this.body.createDiv({ cls: "stratum-publish-controls" });
     this.controls = controls;
     this.type = createStratumSelect(controls, {
@@ -77,7 +183,9 @@ export class PublishPanel extends Component {
       ],
     });
     this.type.addEventListener("change", () => {
-      this.publish.selectedFormat = this.type.value as PublishFormat | "";
+      void this.publish
+        .selectFormat(this.type.value as PublishFormat | "")
+        .catch(() => {});
       this.update();
     });
     this.create = createStratumButton(controls, {
@@ -87,6 +195,12 @@ export class PublishPanel extends Component {
     this.create.addEventListener("click", () => {
       void this.publish.create();
     });
+    this.customize = createStratumDisclosure(this.body, {
+      cls: "stratum-publish-customization",
+    });
+    createStratumSummary(this.customize, { text: "Customize…" });
+    this.customization = this.customize.createDiv();
+    this.customize.addEventListener("toggle", () => this.updateCustomization());
     this.status = this.body.createDiv({
       cls: "stratum-publish-status",
       attr: { role: "status", "aria-live": "polite" },
@@ -123,18 +237,78 @@ export class PublishPanel extends Component {
   private update(): void {
     const publish = this.publish;
     const hasNote = publish.document?.extension === "md";
+    this.configuration.hidden = !hasNote;
+    const preferences = publish.notePreferences;
+    const templates = readPublishingTemplates(
+      publish.plugin.settings?.publishingTemplates,
+    );
+    const template = selectedPublishingTemplate(
+      templates,
+      preferences.templateId,
+    );
+    const definitions = publicationProperties(
+      publish.layout,
+      template?.prefill,
+    );
+    const academic = !!definitions.some((field) => field.use === "title");
+    this.academic.hidden = !template || !definitions.length;
+    let title = "",
+      duplicateTitle = false,
+      bothAuthors = false;
+    if (academic) {
+      try {
+        ({ title, duplicateTitle, bothAuthors } = publish.academicInfo);
+      } catch {
+        /* The actionable problem is displayed below. */
+      }
+    }
+    this.prepare.hidden = !publish.propertiesMissing;
+    this.prepare.disabled = publish.busy || publish.preferencesSaving;
+    this.opening.value = publish.layout.titleSource;
+    this.opening.hidden = !academic || !title;
+    this.opening.disabled = publish.busy || publish.preferencesSaving;
+    this.titleWarning.hidden = !publish.duplicateTitleWarning;
+    const academicMessage =
+      publish.academicProblem ||
+      (!academic
+        ? "Only properties with a published use appear in the document."
+        : publish.layout.titleSource === "body"
+          ? "The body supplies the opening. No title block will be generated."
+          : "The title block comes from the template’s mapped properties. Begin the body with an optional Abstract section or your introduction.") +
+        (bothAuthors
+          ? " Both author and authors exist; authors takes precedence."
+          : "") +
+        (duplicateTitle && publish.layout.titleSource === "body"
+          ? " The existing body title is retained."
+          : "");
+    this.academicMessage.setText(academicMessage);
+    this.academicMessage.hidden = !academicMessage;
+    this.templateGear.disabled =
+      !template || publish.busy || publish.preferencesSaving;
+    this.template.empty();
+    this.template.createEl("option", { value: "", text: "Choose template" });
+    for (const choice of templates.templates)
+      this.template.createEl("option", { value: choice.id, text: choice.name });
+    this.template.value = template?.id ?? "";
+    this.template.disabled = publish.busy || publish.preferencesSaving;
+    const prepared = !!template;
     this.controls.hidden = !hasNote;
+    this.type.hidden = !prepared;
+    this.create.hidden = !prepared;
+    this.customize.hidden = !hasNote || !prepared || !publish.selectedFormat;
+    this.updateCustomization();
+    void this.updateCitationStyle();
     const showAll = publish.historyScope === "all";
     this.scope.value = publish.historyScope;
     this.list.hidden = !hasNote && !showAll;
     this.type.value = publish.selectedFormat;
     this.create.setText(
       publish.selectedFormat
-        ? `Create ${formatLabel(publish.selectedFormat)} Doc`
+        ? `Create ${formatLabel(publish.selectedFormat)} document`
         : "Create document",
     );
     this.create.disabled = !publish.canCreate();
-    this.type.disabled = publish.busy;
+    this.type.disabled = publish.busy || publish.preferencesSaving;
     this.cancel.hidden = !publish.busy && !publish.checking;
     const needsSetup = !publish.readiness?.word || !publish.readiness.pdf;
     this.setup.hidden = !needsSetup || publish.checking || publish.busy;
@@ -154,9 +328,24 @@ export class PublishPanel extends Component {
     if (message) this.status.createEl("p", { text: message });
     if (publish.error)
       this.status.createEl("p", {
-        text: publish.errorMessage,
+        text: publish.fontError
+          ? publish.error
+          : `${publish.errorMessage}: ${publish.error}`,
         cls: "stratum-publish-error",
       });
+    if (publish.fontError && !this.customize.hidden) {
+      const choose = createStratumButton(this.status, { text: "Choose font" });
+      choose.disabled = publish.busy || publish.preferencesSaving;
+      choose.addEventListener("click", () => {
+        this.customize.open = true;
+        this.updateCustomization();
+        const bodyMissing = publish.fontError?.fonts.some(
+          (font) =>
+            font.toLowerCase() === publish.layout.bodyFont.toLowerCase(),
+        );
+        this.focusControl?.(bodyMissing ? "bodyFont" : "titleFont");
+      });
+    }
     const listContext = showAll
       ? "all"
       : `note:${publish.document?.path ?? ""}`;
@@ -204,6 +393,83 @@ export class PublishPanel extends Component {
     }
     this.list.scrollTop = scrollTop;
   }
+  /** Repeated titles are allowed; this shows where to change the opening. */
+  private reviewOpening(): void {
+    if (!this.customize.hidden) {
+      this.customize.open = true;
+      this.updateCustomization();
+      this.focusControl?.("opening");
+      return;
+    }
+    this.opening.scrollIntoView({ block: "center" });
+    this.opening.focus();
+  }
+  private updateCustomization(): void {
+    if (!this.customize?.open || this.customize.hidden) return;
+    const key = JSON.stringify({
+      path: this.publish.document?.path,
+      format: this.publish.selectedFormat,
+      layout: this.publish.layout,
+    });
+    if (key !== this.customizationKey) {
+      this.customizationKey = key;
+      this.customization.empty();
+      this.focusControl = renderPublishCustomization(
+        this.customization,
+        this.publish.layout,
+        (patch) => this.publish.updateLayout(patch),
+        (error) => this.publish.fail(error),
+        this.publish.selectedFormat || undefined,
+      );
+    }
+    for (const input of Array.from(
+      this.customization.querySelectorAll<
+        HTMLInputElement | HTMLSelectElement | HTMLButtonElement
+      >("input, select, button"),
+    ))
+      input.disabled = this.publish.busy || this.publish.preferencesSaving;
+  }
+  private async updateCitationStyle(): Promise<void> {
+    const revision = ++this.citationRevision;
+    if (!this.publish.document || this.publish.busy) return;
+    try {
+      const choices = await this.publish.citationStyleChoices();
+      if (!this.alive || revision !== this.citationRevision) return;
+      const key = JSON.stringify(choices);
+      if (key === this.citationKey) return;
+      this.citationKey = key;
+      this.citations.empty();
+      if (!choices) return;
+      const select = createStratumSelect(this.citations, {
+        label: "Citation style",
+        ariaLabel: "Citation style for this note",
+        value: choices.selected,
+        choices: choices.options.map((option) => ({
+          value: option.id,
+          label: option.title,
+        })),
+      });
+      select.addEventListener("change", () => {
+        select.disabled = true;
+        void this.publish
+          .changeCitationStyle(select.value)
+          .catch((error) => this.publish.fail(error))
+          .finally(() => {
+            select.disabled = false;
+            this.citationKey = "";
+            void this.updateCitationStyle();
+          });
+      });
+    } catch {
+      if (this.alive && revision === this.citationRevision) {
+        // Rebuild the selector once the note's properties can be read again.
+        this.citationKey = "";
+        this.citations.setText(
+          "Citation style could not be read. Check the note's properties.",
+        );
+      }
+    }
+  }
   private icon(
     container: HTMLElement,
     icon: string,
@@ -212,11 +478,11 @@ export class PublishPanel extends Component {
     action: () => void | Promise<void>,
     disabled = false,
   ): void {
-    const button = container.createEl("button", {
-      cls: "clickable-icon",
-      attr: { "aria-label": `${label}: ${document.filename}`, title: label },
+    const button = createStratumIconButton(container, {
+      icon,
+      ariaLabel: `${label}: ${document.filename}`,
+      tooltip: label,
     });
-    setIcon(button, icon);
     button.disabled = disabled;
     button.addEventListener("click", () => {
       button.disabled = true;
@@ -229,6 +495,8 @@ export class PublishPanel extends Component {
     });
   }
   onunload(): void {
+    this.alive = false;
+    this.citationRevision++;
     this.body?.remove();
   }
 }

@@ -370,9 +370,6 @@ and appear when you select their source note; each row offers open, save a copy,
 and confirmed delete actions. The tab is enabled by default. To hide it, open
 **Settings → Stratum → Stratum tabs → Choose visible tabs** and uncheck **Publish**.
 
-See [publishing documents](publishing.md) for setup, supported content, and storage
-details.
-
 ## Commands and hotkeys
 
 Open Obsidian's command palette and search for **Stratum**. Assign shortcuts under **Settings → Hotkeys**.

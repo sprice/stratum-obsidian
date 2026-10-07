@@ -1,3 +1,4 @@
+import { readPublishingTemplates } from "./publish-templates";
 import {
   DEFAULT_SOURCE_SUMMARY_TEMPLATE,
   DIVIDED_SOURCE_SUMMARY_TEMPLATE,
@@ -435,6 +436,9 @@ function readStoredSettings(value: unknown): Omit<
     nextSettings.publishPdfSetupComplete = value.publishPdfSetupComplete;
   nextSettings.publishReadinessCache = readPublishReadinessCache(
     value.publishReadinessCache,
+  );
+  nextSettings.publishingTemplates = readPublishingTemplates(
+    value.publishingTemplates,
   );
   for (const key of ["pandocPath", "tectonicPath"] as const) {
     if (typeof value[key] === "string" && !value[key].includes("\0"))

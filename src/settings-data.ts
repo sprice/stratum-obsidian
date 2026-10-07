@@ -1,3 +1,4 @@
+import type { PublishingTemplates } from "./publish-templates";
 import { DEFAULT_SOURCE_SUMMARY_TEMPLATE } from "./source-summary-template";
 import { DEFAULT_NOTES_TEMPLATE } from "./literature-note-template";
 import { INITIAL_CITATION_STYLES } from "./citation-style-defaults";
@@ -47,6 +48,7 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
+  publishingTemplates?: PublishingTemplates;
   publishReadinessCache: PublishReadinessCache | null;
   publishPdfSetupComplete: boolean;
   pandocPath: string;

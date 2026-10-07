@@ -1,11 +1,15 @@
 import {
+  createStratumAction,
+  createStratumIconButton,
+  createStratumDisclosure,
+  createStratumSummary,
   createStratumSelect,
   createStratumDropdown,
   createStratumSearch,
   createStratumButton,
 } from "./ui-controls";
 import { renderSourceHealth, sourceNeedsAttention } from "./view-source-health";
-import { Component, Notice, setIcon } from "obsidian";
+import { Component, Notice } from "obsidian";
 import type { SourcesController } from "./sources-controller";
 import type { SourceRow } from "./document-sources";
 import { SourceColumnsModal } from "./source-columns-modal";
@@ -63,7 +67,7 @@ export class SourcesPanel extends Component {
       text: "Review sources cited or linked in your note",
     });
     this.context = this.container.createDiv({ cls: "stratum-sources-context" });
-    this.documentButton = this.context.createEl("button", {
+    this.documentButton = createStratumAction(this.context, {
       cls: "stratum-sources-document",
     });
     this.documentButton.type = "button";
@@ -73,9 +77,10 @@ export class SourcesPanel extends Component {
     this.pinStatus = this.context.createDiv({
       cls: "stratum-sources-pin-status",
     });
-    this.pin = this.context.createEl("button", { cls: "clickable-icon" });
-    this.pin.type = "button";
-    setIcon(this.pin, "pin");
+    this.pin = createStratumIconButton(this.context, {
+      icon: "pin",
+      ariaLabel: "Pin document",
+    });
     this.pin.addEventListener("click", () => this.sources.togglePin());
     this.citationStatus = this.container.createDiv({
       cls: "stratum-citation-status",
@@ -262,13 +267,12 @@ export class SourcesPanel extends Component {
     }
   }
   private renderCitationSettingsButton(): void {
-    const button = this.citationStatus.createEl("button", {
-      cls: "clickable-icon stratum-citation-settings-button",
-      attr: { "aria-label": "Manage citation styles" },
+    const button = createStratumIconButton(this.citationStatus, {
+      icon: "settings",
+      ariaLabel: "Manage citation styles",
+      tooltip: "Open citation settings",
+      className: "stratum-citation-settings-button",
     });
-    setIcon(button, "settings");
-    button.type = "button";
-    button.title = "Open citation settings";
     button.addEventListener("click", () => {
       void this.sources.manageCitationStyles().catch(() => {
         new Notice("Could not open citation settings. Try again.");
@@ -408,7 +412,7 @@ export class SourcesPanel extends Component {
           : "none",
       );
       const label = key === "source" ? "Source" : sourceColumnLabel(key);
-      const button = cell.createEl("button", { text: label });
+      const button = createStratumAction(cell, { text: label });
       button.type = "button";
       button.dataset.sourceAction = `sort:${key}`;
       button.title = `Sort by ${label.toLocaleLowerCase()}`;
@@ -463,7 +467,7 @@ export class SourcesPanel extends Component {
     const item = list.createEl(compact ? "div" : "li");
     const entry = row.entry;
     if (entry) {
-      const title = item.createEl("button", {
+      const title = createStratumAction(item, {
         cls: "stratum-sources-title",
         text: entry.title,
       });
@@ -513,9 +517,9 @@ export class SourcesPanel extends Component {
       (o) => o.kind === "citation",
     ).length;
     const links = row.occurrences.length - citations;
-    const details = item.createEl("details");
+    const details = createStratumDisclosure(item);
     details.open = this.state.expanded.has(row.id);
-    const summary = details.createEl("summary", {
+    const summary = createStratumSummary(details, {
       cls: "stratum-sources-occurrences",
       text: [
         citations
@@ -533,7 +537,7 @@ export class SourcesPanel extends Component {
       else this.state.expanded.delete(row.id);
     });
     row.occurrences.forEach((occurrence, index) => {
-      const button = details.createEl("button", {
+      const button = createStratumAction(details, {
         cls: "stratum-sources-excerpt",
       });
       button.type = "button";

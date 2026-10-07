@@ -1,3 +1,4 @@
+import { createStratumAction } from "./ui-controls";
 import { selectStratumTab } from "./plugin-tabs";
 import { nativeFootnoteReference } from "./citation-footnotes";
 import {
@@ -136,7 +137,7 @@ class ReadingCitations extends MarkdownRenderChild {
             (c) => c.from >= edit.from && c.to <= edit.to,
           );
           if (citation) {
-            const button = span.createEl("button", {
+            const button = createStratumAction(span, {
               text: "↗",
               cls: "stratum-citation-evidence",
               attr: {
@@ -267,7 +268,7 @@ class ReadingCitations extends MarkdownRenderChild {
           cls: "stratum-reference-output",
           text: "References unavailable. Refresh citation data or check the Citations tab.",
         });
-        const button = error.createEl("button", { text: "Review citations" });
+        const button = createStratumAction(error, { text: "Review citations" });
         button.type = "button";
         button.addEventListener("click", () => {
           if (!selectStratumTab(this.service.plugin, "sources")) return;

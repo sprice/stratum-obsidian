@@ -1,3 +1,4 @@
+import { styleStratumComponent } from "./ui-controls";
 import { Modal, Setting, type App } from "obsidian";
 import {
   MAX_SOURCE_COLUMNS,
@@ -26,10 +27,12 @@ export class SourceColumnsModal extends Modal {
     const error = el.createEl("p", { attr: { role: "status" } });
     for (const [key, label] of Object.entries(SOURCE_COLUMNS))
       new Setting(el).setName(label).addToggle((toggle) =>
-        toggle.setValue(this.selected.has(key)).onChange((enabled) => {
-          if (enabled) this.selected.add(key);
-          else this.selected.delete(key);
-        }),
+        styleStratumComponent(toggle)
+          .setValue(this.selected.has(key))
+          .onChange((enabled) => {
+            if (enabled) this.selected.add(key);
+            else this.selected.delete(key);
+          }),
       );
     let custom = [...this.selected]
       .filter((key) => !Object.hasOwn(SOURCE_COLUMNS, key))
@@ -40,7 +43,7 @@ export class SourceColumnsModal extends Modal {
         "Comma-separated property names from your literature notes. Values come from properties; inline fields in the note body are not included.",
       )
       .addText((input) =>
-        input
+        styleStratumComponent(input)
           .setValue(custom)
           .setPlaceholder("Property names")
           .onChange((value) => {
@@ -48,7 +51,7 @@ export class SourceColumnsModal extends Modal {
           }),
       );
     new Setting(el).addButton((button) =>
-      button
+      styleStratumComponent(button)
         .setButtonText("Apply columns")
         .setCta()
         .onClick(() => {

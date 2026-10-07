@@ -1,3 +1,5 @@
+import { PublishingTemplatesModal } from "./publish-template-settings";
+import { styleStratumComponent } from "./ui-controls";
 import {
   SOURCE_SUMMARY_VARIABLES,
   validateSourceSummaryTemplate,
@@ -41,6 +43,9 @@ export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
   private closeTabChooser?: () => void;
   private templateRow?: HTMLElement;
+  focusAcademicDefaults(): void {
+    new PublishingTemplatesModal(this.plugin, true).open();
+  }
 
   async openNoteTemplateEditor(): Promise<void> {
     const { NoteTemplateModal } = await import("./note-template-modal");
@@ -202,11 +207,14 @@ export class StratumSettingTab extends PluginSettingTab {
       if (accountEmail) {
         accountSetting
           .addButton((button) =>
-            button.setButtonText("Manage").onClick(() => {
-              this.openDashboard();
-            }),
+            styleStratumComponent(button)
+              .setButtonText("Manage")
+              .onClick(() => {
+                this.openDashboard();
+              }),
           )
           .addButton((button) => {
+            styleStratumComponent(button);
             button.setButtonText("Log out").onClick(async () => {
               await this.plugin.signOutFromPlugin();
               this.refresh();
@@ -214,7 +222,7 @@ export class StratumSettingTab extends PluginSettingTab {
           });
       } else {
         accountSetting.addButton((button) =>
-          button
+          styleStratumComponent(button)
             .setButtonText("Sign in")
             .setCta()
             .onClick(async () => {
@@ -254,6 +262,7 @@ export class StratumSettingTab extends PluginSettingTab {
             : "Sign in to your Stratum account first.",
         )
         .addButton((button) => {
+          styleStratumComponent(button);
           const canConnectZotero = Boolean(accountEmail);
           const needsReconnect = tokenInvalid || !zoteroConnected;
           button
@@ -290,11 +299,13 @@ export class StratumSettingTab extends PluginSettingTab {
           .setName("Literature note template")
           .setDesc("Starting content for your literature notes from Zotero")
           .addButton((button) =>
-            button.setButtonText("Edit template").onClick(() => {
-              void this.openNoteTemplateEditor().catch(
-                () => new Notice("Could not open the template editor."),
-              );
-            }),
+            styleStratumComponent(button)
+              .setButtonText("Edit template")
+              .onClick(() => {
+                void this.openNoteTemplateEditor().catch(
+                  () => new Notice("Could not open the template editor."),
+                );
+              }),
           );
       },
     );
@@ -309,11 +320,13 @@ export class StratumSettingTab extends PluginSettingTab {
             "Starting content when inserting a source summary into a note.",
           )
           .addButton((button) =>
-            button.setButtonText("Edit template").onClick(() => {
-              void this.openSourceSummaryTemplateEditor().catch(
-                () => new Notice("Could not open the template editor."),
-              );
-            }),
+            styleStratumComponent(button)
+              .setButtonText("Edit template")
+              .onClick(() => {
+                void this.openSourceSummaryTemplateEditor().catch(
+                  () => new Notice("Could not open the template editor."),
+                );
+              }),
           );
       },
     );
@@ -326,6 +339,7 @@ export class StratumSettingTab extends PluginSettingTab {
           .setName("Literature notes folder")
           .setDesc("Default destination for generated literature notes.")
           .addText((text) => {
+            styleStratumComponent(text);
             text
               .setPlaceholder(DEFAULT_NOTE_FOLDER)
               .setValue(this.plugin.settings.notesFolder);
@@ -359,7 +373,7 @@ export class StratumSettingTab extends PluginSettingTab {
             "Choose how new literature notes are named. Existing filenames stay unchanged. Citation key filenames are generated from author, year, and title.",
           )
           .addDropdown((dropdown) =>
-            dropdown
+            styleStratumComponent(dropdown)
               .addOption("readable", "Readable format (author-year title)")
               .addOption("citekey", "Citation key format (@author2020title)")
               .setValue(this.plugin.settings.filenameFormat)
@@ -409,7 +423,7 @@ export class StratumSettingTab extends PluginSettingTab {
             .setName(group.name)
             .setDesc(group.type)
             .addToggle((toggle) =>
-              toggle
+              styleStratumComponent(toggle)
                 .setDisabled(
                   this.plugin.isBulkLibrarySyncRunning() ||
                     this.plugin.isZoteroAutoSyncRunning(),
@@ -434,17 +448,30 @@ export class StratumSettingTab extends PluginSettingTab {
     }
 
     if (Platform.isDesktopApp) {
-      const publishSection = this.createSection(sections, "Stratum Publishing");
+      const publishSection = this.createSection(sections, "Publishing");
       this.defineSetting(publishSection, "Publishing tools", (setting) => {
         setting
           .setDesc(
             "Check tool status, get installation help, or choose custom tool locations.",
           )
           .addButton((button) =>
-            button.setButtonText("Manage tools").onClick(async () => {
-              const { PublishSetupModal } = await import("./publish-setup");
-              new PublishSetupModal(this.plugin).open();
-            }),
+            styleStratumComponent(button)
+              .setButtonText("Manage tools")
+              .onClick(async () => {
+                const { PublishSetupModal } = await import("./publish-setup");
+                new PublishSetupModal(this.plugin).open();
+              }),
+          );
+      });
+      this.defineSetting(publishSection, "Publishing templates", (setting) => {
+        setting
+          .setDesc(
+            "Edit built-in templates, add your own, and customize their layouts.",
+          )
+          .addButton((button) =>
+            styleStratumComponent(button)
+              .setButtonText("Manage templates")
+              .onClick(() => new PublishingTemplatesModal(this.plugin).open()),
           );
       });
     }
@@ -457,7 +484,7 @@ export class StratumSettingTab extends PluginSettingTab {
           .setName("Bulk sync")
           .setDesc("Enable desktop bulk sync from your local Zotero app.")
           .addToggle((toggle) =>
-            toggle
+            styleStratumComponent(toggle)
               .setDisabled(
                 this.plugin.isCheckingBulkSyncReadiness ||
                   (!this.plugin.settings.bulkSyncEnabled &&
@@ -542,6 +569,7 @@ export class StratumSettingTab extends PluginSettingTab {
           .setName("Zotero local API port")
           .setDesc("Use 23119 unless you changed Zotero's local HTTP port.")
           .addText((text) => {
+            styleStratumComponent(text);
             text
               .setPlaceholder("23119")
               .setValue(String(this.plugin.settings.zoteroLocalApiPort));
@@ -584,6 +612,7 @@ export class StratumSettingTab extends PluginSettingTab {
             "Used for desktop live sync and reading area annotation images from Zotero’s cache.",
           )
           .addText((text) => {
+            styleStratumComponent(text);
             text
               .setPlaceholder(defaultZoteroDataDir)
               .setValue(this.plugin.settings.zoteroDataDir);
@@ -606,7 +635,7 @@ export class StratumSettingTab extends PluginSettingTab {
         "Reset Zotero data directory",
         (setting) => {
           setting.addButton((button) =>
-            button
+            styleStratumComponent(button)
               .setButtonText("Reset to default location")
               .onClick(async () => {
                 this.plugin.settings.zoteroDataDir = defaultZoteroDataDir;
@@ -626,10 +655,13 @@ export class StratumSettingTab extends PluginSettingTab {
           "Format citations and bibliographies in every paper without an override.",
         )
         .addButton((button) =>
-          button.setButtonText("Manage citation styles").onClick(async () => {
-            const { CitationPreferences } = await import("./citation-controls");
-            new CitationPreferences(this.plugin).open();
-          }),
+          styleStratumComponent(button)
+            .setButtonText("Manage citation styles")
+            .onClick(async () => {
+              const { CitationPreferences } =
+                await import("./citation-controls");
+              new CitationPreferences(this.plugin).open();
+            }),
         );
     });
     this.defineSetting(citations, "Citation reference data", (setting) => {
@@ -638,7 +670,7 @@ export class StratumSettingTab extends PluginSettingTab {
           "Get missing reference details from Zotero for imported notes.",
         )
         .addButton((button) =>
-          button
+          styleStratumComponent(button)
             .setButtonText("Fetch missing citation data")
             .onClick(async () => {
               const { refreshCitationData } =
@@ -672,6 +704,7 @@ export class StratumSettingTab extends PluginSettingTab {
       };
       updateSummary();
       setting.addButton((button) => {
+        styleStratumComponent(button);
         button.setButtonText("Choose visible tabs");
         button.buttonEl.addClass("stratum-tab-chooser-trigger");
         button.buttonEl.setAttribute("aria-haspopup", "dialog");

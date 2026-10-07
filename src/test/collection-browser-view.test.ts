@@ -173,6 +173,7 @@ test("sidebar controls filter main-pane results and preserve state through refre
         },
         Modal: class {},
         setIcon() {},
+        setTooltip() {},
         SearchComponent: class {
           inputEl: Element;
           constructor(header: Element) {
@@ -741,6 +742,12 @@ test("Browse preserves mounted controls across tab switches and releases stale t
   assert.equal(root.querySelector("input").selectionStart, 2);
   assert.equal(root.querySelector("input").selectionEnd, 4);
   const currentTabs = root.all().filter((el) => el.attrs.role === "tab");
+  assert.ok(
+    currentTabs.every((el) =>
+      el.className.split(" ").includes("stratum-control-button"),
+    ),
+    "tab refresh preserves shared focus and hover styling",
+  );
   currentTabs[4].listeners.get("click")!();
   assert.equal(plugin.activeViewTab, "sources");
   assert.equal(unmounted, 0);
@@ -813,15 +820,15 @@ test("Browse preserves mounted controls across tab switches and releases stale t
   clickTab("Publish");
   assert.equal(
     plugin.publish.selectedFormat,
-    "",
-    "returning to Publish clears the selection",
+    "pdf",
+    "returning to Publish preserves the controller selection",
   );
   plugin.publish.selectedFormat = "pdf";
   plugin.settings.enabledTabs.publish = false;
   plugin.settings.enabledTabs.browse = false;
   view.render();
   assert.equal(plugin.activeViewTab, "search");
-  assert.equal(plugin.publish.selectedFormat, "");
+  assert.equal(plugin.publish.selectedFormat, "pdf");
   assert.equal(
     root.all().some((el) => el.text === "Publish"),
     false,
@@ -829,7 +836,7 @@ test("Browse preserves mounted controls across tab switches and releases stale t
   plugin.settings.enabledTabs.publish = true;
   view.render();
   clickTab("Publish");
-  assert.equal(plugin.publish.selectedFormat, "");
+  assert.equal(plugin.publish.selectedFormat, "pdf");
   plugin.activeViewTab = "sources";
   view.render();
   assert.equal(
