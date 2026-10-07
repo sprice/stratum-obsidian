@@ -33,7 +33,14 @@ individual tool's `:verbose` script. Extra arguments are forwarded. Development
 and watch commands keep their live output.
 CI prints full failure diagnostics so they remain available in the job output.
 
-`pnpm lint:scorecard` also checks production source without ambient Node type
+`pnpm lint:scorecard` checks CSS and decoding regression rules through
+`pnpm lint:scorecard:rules`: no `display: contents`, no `!important`, and no
+direct runtime base64 decoding calls in production `src/` (tests and tooling
+are excluded). Decoding checks cover `atob`, `fromBase64`, `setFromBase64`,
+and Buffer construction with literal `base64` or `base64url` encodings,
+including literal computed method names. They do not trace aliases or dynamic
+encoding values. Base64 encoding is allowed. Store embedded assets as bytes.
+The same command also checks production source without ambient Node type
 definitions, catching unsafe types that local lint can miss. Both Node CI jobs
 run it, and releases require those jobs to pass. This approximates one scanner
 limitation; it does not predict the full scorecard. Capability notices such as

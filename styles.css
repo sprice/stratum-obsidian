@@ -614,13 +614,13 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .stratum-control-select,
-  .stratum-control-button,
-  .stratum-control-input,
-  .stratum-control-checkbox,
-  .stratum-control-summary,
-  .stratum-control-toggle {
-    transition: none !important;
+  .stratum-control-select.stratum-control-select,
+  .stratum-control-button.stratum-control-button,
+  .stratum-control-input.stratum-control-input,
+  .stratum-control-checkbox.stratum-control-checkbox,
+  .stratum-control-summary.stratum-control-summary,
+  .stratum-control-toggle.stratum-control-toggle {
+    transition: none;
   }
 }
 
@@ -1276,13 +1276,16 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   border-top: none;
 }
 .stratum-publish-setup details .setting-item-info {
-  display: contents;
+  flex: none;
+  margin: 0;
+  order: 1;
 }
 .stratum-publish-setup details .setting-item-name {
   order: 1;
 }
 .stratum-publish-setup details .setting-item-control {
   order: 2;
+  max-width: none;
   flex: none;
   flex-wrap: nowrap;
   justify-content: flex-start;

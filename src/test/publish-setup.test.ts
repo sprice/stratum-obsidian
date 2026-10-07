@@ -22,20 +22,24 @@ class Element {
   empty() {
     this.children = [];
   }
-  private append(tag: string, options?: { text?: string }) {
+  private createChild(tag: string, options?: { text?: string }) {
     const child = new Element(tag.toUpperCase());
     child.text = options?.text || "";
     this.children.push(child);
     return child;
   }
+  append(child: Element) {
+    this.children = this.children.filter((existing) => existing !== child);
+    this.children.push(child);
+  }
   createEl(tag: string, options?: { text?: string }) {
-    return this.append(tag, options);
+    return this.createChild(tag, options);
   }
   createDiv() {
-    return this.append("div");
+    return this.createChild("div");
   }
   createSpan(options?: { text?: string }) {
-    return this.append("span", options);
+    return this.createChild("span", options);
   }
   addEventListener(event: string, callback: () => void) {
     this.listeners.set(event, callback);
@@ -79,7 +83,9 @@ class Control {
 }
 class Setting {
   descEl = new Element();
+  settingEl: Element;
   constructor(private element: Element) {
+    this.settingEl = element;
     element.children.push(this.descEl);
   }
   setName() {
@@ -162,6 +168,18 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   assert.equal(content.find("Get Tectonic"), undefined);
   assert.ok(content.find("Detected"));
   assert.ok(content.find("Found automatically"));
+  const pathDescription = content.find("/synthetic/tectonic")!;
+  function parentOf(root: Element, target: Element): Element | undefined {
+    if (root.children.includes(target)) return root;
+    return root.children.map((child) => parentOf(child, target)).find(Boolean);
+  }
+  const description = parentOf(content, pathDescription)!;
+  const row = parentOf(content, description)!;
+  assert.ok(
+    row.children.indexOf(description) >
+      row.children.findIndex((child) => child.tagName === "INPUT"),
+    "Detected path follows the tool input in DOM order",
+  );
   assert.ok(content.find("/synthetic/tectonic"));
   assert.equal(content.find("Use automatic detection")!.hidden, true);
   assert.equal(content.find("Check again")!.hidden, true);

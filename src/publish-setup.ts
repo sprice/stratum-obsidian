@@ -112,6 +112,8 @@ export class PublishSetupModal extends Modal {
               }
             });
         });
+      // Keep the description after the input without flattening its parent with CSS.
+      setting.settingEl.append(setting.descEl);
       this.rows.get(tool)!.path = setting.descEl;
     }
     const reset = createStratumAction(advanced, {

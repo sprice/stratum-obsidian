@@ -35,7 +35,7 @@ jobs:
       - run: pnpm format:check
       - name: Obsidian lint (no errors or warnings)
         run: pnpm lint:review
-      - name: Scorecard type compatibility (without Node types)
+      - name: Scorecard CSS, decoding, and type compatibility
         run: pnpm lint:scorecard
       - run: pnpm test
       - run: pnpm test:browser

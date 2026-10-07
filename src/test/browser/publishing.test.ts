@@ -339,3 +339,72 @@ test("PDF-engine font errors use the same recovery and body default", () =>
     await choose("Body font", "", "bodyFont");
     assert.equal(await page.locator(".stratum-publish-error").count(), 0);
   }));
+
+test("publishing tool paths stack without display contents and reduced motion disables transitions", () =>
+  scenario("scorecard-css", async () => {
+    for (const width of [560, 240]) {
+      await page.setViewportSize(width, 900);
+      const layout = await page.evaluate(`(() => {
+        const modal = document.createElement('div');
+        modal.className = 'stratum-modal';
+        modal.style.padding = '16px';
+        modal.innerHTML = '<div class="stratum-publish-setup"><details open><summary>Advanced</summary><div class="setting-item"><div class="setting-item-info"><div class="setting-item-name">Pandoc</div></div><div class="setting-item-control"><input class="stratum-control-input" aria-label="Synthetic path"><button class="stratum-control-button">Browse</button></div><div class="setting-item-description">Found automatically<span class="stratum-publish-path">/synthetic/pandoc</span></div></div></details></div>';
+        document.body.append(modal);
+        const info = modal.querySelector('.setting-item-info');
+        const control = modal.querySelector('.setting-item-control');
+        const description = modal.querySelector('.setting-item-description');
+        const a = info.getBoundingClientRect();
+        const b = control.getBoundingClientRect();
+        const c = description.getBoundingClientRect();
+        const input = modal.querySelector('input');
+        input.focus();
+        const focused = document.activeElement === input;
+        const result = { ordered: a.bottom <= b.top && b.bottom <= c.top,
+          fits: b.right <= modal.getBoundingClientRect().right - 16,
+          fullWidth: Math.abs(b.width - a.width) < 1, focused,
+          display: getComputedStyle(info).display };
+        modal.remove();
+        return result;
+      })()`);
+      assert.deepEqual(
+        layout,
+        {
+          ordered: true,
+          fits: true,
+          fullWidth: true,
+          focused: true,
+          display: "block",
+        },
+        `Tool path layout at ${width}px`,
+      );
+    }
+    const motion = await page.evaluate<{
+      matched: number;
+      duration: string;
+      focusedDuration: string;
+    }>(`(() => {
+      const control = document.createElement('button');
+      control.className = 'stratum-control-button';
+      control.textContent = 'Synthetic motion check';
+      document.body.append(control);
+      // Activate the real reduced-motion declarations independent of host preferences.
+      const changed = [];
+      for (const sheet of document.styleSheets) {
+        for (const rule of sheet.cssRules) {
+          if (rule instanceof CSSMediaRule && rule.conditionText === '(prefers-reduced-motion: reduce)') {
+            changed.push([rule, rule.media.mediaText]);
+            rule.media.mediaText = 'all';
+          }
+        }
+      }
+      const duration = getComputedStyle(control).transitionDuration;
+      control.focus();
+      const focusedDuration = getComputedStyle(control).transitionDuration;
+      for (const [rule, original] of changed) rule.media.mediaText = original;
+      control.remove();
+      return { matched: changed.length, duration, focusedDuration };
+    })()`);
+    assert.ok(motion.matched > 0);
+    assert.equal(motion.duration, "0s");
+    assert.equal(motion.focusedDuration, "0s");
+  }));
