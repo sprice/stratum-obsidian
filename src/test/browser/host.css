@@ -1,0 +1,117 @@
+/* Synthetic host styling supplies Obsidian tokens; the plugin stylesheet is unchanged. */
+body {
+  --size-2-1: 2px;
+  --size-4-1: 4px;
+  --size-4-2: 8px;
+  --size-4-3: 12px;
+  --size-4-4: 16px;
+  --size-4-6: 24px;
+  --input-height: 34px;
+  --input-radius: 6px;
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --font-ui-small: 14px;
+  --font-ui-smaller: 12px;
+  --font-medium: 600;
+  --interactive-accent: #8b5cf6;
+  --text-accent: #a78bfa;
+  --text-on-accent: white;
+  --text-error: #f87171;
+  --text-warning: #eab308;
+  --background-modifier-border: #444;
+  --background-modifier-hover: #393939;
+  --background-modifier-form-field: #303030;
+  --background-primary: #252525;
+  --background-secondary: #303030;
+  --text-normal: #dedede;
+  --text-muted: #aaa;
+  --interactive-normal: #343434;
+  --interactive-hover: #414141;
+  margin: 0;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+}
+body.theme-light {
+  --background-primary: #fff;
+  --background-secondary: #f3f3f3;
+  --background-modifier-form-field: #f3f3f3;
+  --background-modifier-border: #d5d5d5;
+  --background-modifier-hover: #eee;
+  --text-normal: #252525;
+  --text-muted: #666;
+  --interactive-normal: #eee;
+  --interactive-hover: #e3e3e3;
+  --text-error: #c02f2f;
+}
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+#publish {
+  padding: 20px;
+  min-height: 100vh;
+  container: stratum-sidebar / inline-size;
+}
+button,
+select,
+input {
+  font: inherit;
+  color: var(--text-normal);
+  background: var(--interactive-normal);
+  border: 0;
+  border-radius: var(--input-radius);
+  min-height: var(--input-height);
+  padding: 6px 12px;
+}
+button {
+  cursor: pointer;
+}
+button.mod-cta {
+  background: var(--interactive-accent);
+  color: white;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.clickable-icon {
+  background: transparent;
+}
+select {
+  appearance: auto;
+}
+input {
+  width: 100%;
+}
+summary {
+  cursor: pointer;
+}
+h3 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+h4 {
+  font-size: 18px;
+}
+.setting-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.setting-item-info {
+  flex: 1;
+}
+.setting-item-description {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.setting-item-control {
+  max-width: 55%;
+}

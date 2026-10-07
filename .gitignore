@@ -29,3 +29,6 @@ citation-resources.json
 
 # Local design review configuration
 .impeccable/
+
+# Local browser test screenshots and diagnostics
+.test-artifacts/
