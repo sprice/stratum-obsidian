@@ -316,7 +316,7 @@ export class PublishPanel extends Component {
     if (aastex) {
       packagedMessage =
         publish.selectedFormat === "pdf"
-          ? "AASTeX controls PDF typography and bibliography."
+          ? "AASTeX controls PDF typography and bibliography. Cited PDFs download a verified bibliography style directly from AAS for each export; the temporary file is removed afterward."
           : "Word output is an editable review manuscript. AASTeX typography applies to PDF.";
       try {
         const view = publish.leaf?.view;

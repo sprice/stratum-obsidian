@@ -33,6 +33,7 @@ export interface PublicationPackage {
     compiler: "tectonic";
     class: string;
     bibliographyStyle: string;
+    bibliographyDownload: { url: string; sha256: string };
   };
   schema: {
     fields: PackageField[];
@@ -90,13 +91,7 @@ export function loadPublicationPackage(
     !manifest.outputs.includes("docx")
   )
     throw new Error("Unsupported publication package compiler or outputs.");
-  for (const key of [
-    "entry",
-    "schema",
-    "defaults",
-    "class",
-    "bibliographyStyle",
-  ]) {
+  for (const key of ["entry", "schema", "defaults", "class"]) {
     const path = manifest[key];
     if (
       typeof path !== "string" ||
@@ -110,9 +105,23 @@ export function loadPublicationPackage(
   const parsedManifest = manifest as unknown as PublicationPackage["manifest"];
   if (
     !parsedManifest.class.endsWith(".cls") ||
-    !parsedManifest.bibliographyStyle.endsWith(".bst")
+    typeof parsedManifest.bibliographyStyle !== "string" ||
+    !relativePath(parsedManifest.bibliographyStyle) ||
+    !parsedManifest.bibliographyStyle.endsWith(".bst") ||
+    Object.keys(assets).some((path) => path.endsWith(".bst"))
   )
-    throw new Error("Invalid publication package class or bibliography file.");
+    throw new Error(
+      "Invalid publication package class or external bibliography declaration.",
+    );
+  const download = manifest.bibliographyDownload;
+  if (
+    !object(download) ||
+    download.url !==
+      "https://journals.aas.org/wp-content/uploads/2026/06/aasjournalv7.1.bst" ||
+    typeof download.sha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(download.sha256)
+  )
+    throw new Error("Invalid publication package bibliography download.");
   const schema = json(assets, parsedManifest.schema);
   if (!object(schema) || !object(schema.rules) || !Array.isArray(schema.fields))
     throw new Error("Invalid publication package metadata schema.");

@@ -50,6 +50,37 @@ const pdftotext = installedTool("pdftotext", undefined, "-v");
 
 const sample = aastexPackage.files["examples/manuscript.md"];
 
+test("bibliography stays external and requires an approved URL and checksum", () => {
+  assert.equal(
+    Object.keys(aastexPackage.files).some((path) => path.endsWith(".bst")),
+    false,
+  );
+  const altered = (bibliographyDownload: unknown) => ({
+    ...aastexPackage.files,
+    "manifest.json": JSON.stringify({
+      ...aastexPackage.manifest,
+      bibliographyDownload,
+    }),
+  });
+  for (const declaration of [
+    undefined,
+    { url: "https://example.com/style.bst", sha256: "a".repeat(64) },
+    { ...aastexPackage.manifest.bibliographyDownload, sha256: "invalid" },
+  ])
+    assert.throws(
+      () => loadPublicationPackage(altered(declaration)),
+      /bibliography download/,
+    );
+  assert.throws(
+    () =>
+      loadPublicationPackage({
+        ...aastexPackage.files,
+        "vendor/extra.bst": "Unexpected bundled style",
+      }),
+    /external bibliography/,
+  );
+});
+
 test("note rendering consumes the chosen title and promotes section headings without changing the abstract", async () => {
   const rendered: string[] = [];
   const { renderAastexPublication } = loadRuntime<

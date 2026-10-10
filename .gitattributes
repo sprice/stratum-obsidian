@@ -1,3 +1,2 @@
 # Preserve pinned upstream files exactly, including line endings and whitespace.
 src/publication-templates/aastex/vendor/*.cls -text whitespace=-blank-at-eol,-blank-at-eof
-src/publication-templates/aastex/vendor/*.bst -text whitespace=-blank-at-eol,-blank-at-eof

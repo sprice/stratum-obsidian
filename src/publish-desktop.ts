@@ -635,6 +635,86 @@ function Table(el)
   return pandoc.RawBlock('latex', '\\\\begin{table}[ht]\\n\\\\centering\\n' .. caption .. '\\\\begin{tabular}{' .. table.concat(alignments) .. '}\\n\\\\hline\\n' .. table.concat(rows, '\\n') .. '\\n\\\\hline\\n\\\\end{tabular}\\n\\\\end{table}')
 end
 `;
+
+/** Fetch directly from AAS for this export only; never retain a reusable copy. */
+export async function downloadAastexBibliography(
+  specification: { url: string; sha256: string },
+  signal?: AbortSignal,
+  timeout = 30_000,
+): Promise<Uint8Array> {
+  if (!Platform.isDesktop)
+    throw new Error("PDF publishing requires desktop Obsidian.");
+  const require = host().require;
+  if (!require) throw new Error("Desktop network access is unavailable.");
+  const https = require("node:https") as typeof import("node:https");
+  const crypto = require("node:crypto") as typeof import("node:crypto");
+  const { Buffer } = require("node:buffer") as typeof import("node:buffer");
+  if (signal?.aborted) throw new Error("Publishing cancelled.");
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      specification.url,
+      { signal, headers: { "Cache-Control": "no-store" } },
+      (response) => {
+        if (response.statusCode !== 200) {
+          response.destroy();
+          reject(
+            new Error(
+              "AAS could not supply the bibliography style. Try publishing again later.",
+            ),
+          );
+          return;
+        }
+        const chunks: Uint8Array[] = [];
+        let length = 0;
+        response.on("data", (chunk: Uint8Array) => {
+          length += chunk.length;
+          if (length > 1_000_000)
+            request.destroy(
+              new Error("The AAS bibliography download is too large."),
+            );
+          else chunks.push(chunk);
+        });
+        response.on("error", reject);
+        response.on("end", () => {
+          if (signal?.aborted) {
+            reject(new Error("Publishing cancelled."));
+            return;
+          }
+          const bytes = Buffer.concat(chunks);
+          if (
+            crypto.createHash("sha256").update(bytes).digest("hex") !==
+            specification.sha256
+          ) {
+            reject(
+              new Error(
+                "The AAS bibliography style changed. Update Stratum before publishing this PDF.",
+              ),
+            );
+            return;
+          }
+          resolve(Uint8Array.from(bytes));
+        });
+      },
+    );
+    const timer = window.setTimeout(
+      () =>
+        request.destroy(
+          new Error("Downloading the AAS bibliography style timed out."),
+        ),
+      timeout,
+    );
+    request.on("close", () => window.clearTimeout(timer));
+    request.on("error", (error) =>
+      reject(
+        new Error(
+          signal?.aborted
+            ? "Publishing cancelled."
+            : `Could not download the AAS bibliography style. Check your internet connection and try again. ${error.message}`,
+        ),
+      ),
+    );
+  });
+}
 async function convertAastexPublication(
   html: string,
   assets: PublishAsset[],
@@ -652,12 +732,24 @@ async function convertAastexPublication(
   try {
     const { aastexPackage: pkg, aastexLatex } =
       await import("./publication-package");
-    for (const relative of [pkg.manifest.class, pkg.manifest.bibliographyStyle])
+    for (const relative of [pkg.manifest.class])
       await fs.writeFile(
         path.join(directory, path.basename(relative)),
         pkg.files[relative],
         { mode: 0o600 },
       );
+    if (input.references.length) {
+      const bibliography = await downloadAastexBibliography(
+        pkg.manifest.bibliographyDownload,
+        signal,
+        Math.min(timeout, 30_000),
+      );
+      await fs.writeFile(
+        path.join(directory, path.basename(pkg.manifest.bibliographyStyle)),
+        bibliography,
+        { mode: 0o600 },
+      );
+    }
     await fs.writeFile(path.join(directory, "aastex.lua"), aastexFilter, {
       mode: 0o600,
     });
