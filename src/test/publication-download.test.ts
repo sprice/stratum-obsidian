@@ -21,6 +21,10 @@ test(
     const server = createServer((request, response) => {
       count++;
       assert.equal(request.headers["cache-control"], "no-store");
+      assert.equal(
+        request.headers["user-agent"],
+        "Stratum-Obsidian (AASTeX publishing)",
+      );
       assert.equal(request.method, "GET");
       if (mode === "stall") return;
       response.writeHead(mode === "unavailable" ? 503 : 200);
@@ -90,7 +94,7 @@ test(
       mode = "unavailable";
       await assert.rejects(
         desktop.downloadAastexBibliography({ url, sha256 }),
-        /could not supply/,
+        /could not supply.*HTTP 503/,
       );
       mode = "stall";
       await assert.rejects(

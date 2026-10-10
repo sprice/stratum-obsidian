@@ -680,13 +680,19 @@ export async function downloadAastexBibliography(
   return new Promise((resolve, reject) => {
     const request = https.get(
       specification.url,
-      { signal, headers: { "Cache-Control": "no-store" } },
+      {
+        signal,
+        headers: {
+          "Cache-Control": "no-store",
+          "User-Agent": "Stratum-Obsidian (AASTeX publishing)",
+        },
+      },
       (response) => {
         if (response.statusCode !== 200) {
           response.destroy();
           reject(
             new Error(
-              "AAS could not supply the bibliography style. Try publishing again later.",
+              `AAS could not supply the bibliography style (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
             ),
           );
           return;
