@@ -636,6 +636,31 @@ function Table(el)
 end
 `;
 
+interface BibliographyResponse {
+  statusCode?: number;
+  destroy(): void;
+  on(event: "data", listener: (bytes: Uint8Array) => void): void;
+  on(event: "error", listener: (error: Error) => void): void;
+  on(event: "end", listener: () => void): void;
+}
+interface BibliographyRequest {
+  destroy(error?: Error): void;
+  on(event: "close", listener: () => void): void;
+  on(event: "error", listener: (error: Error) => void): void;
+}
+interface BibliographyHttps {
+  get(
+    url: string,
+    options: { signal?: AbortSignal; headers: Record<string, string> },
+    callback: (response: BibliographyResponse) => void,
+  ): BibliographyRequest;
+}
+interface BibliographyCrypto {
+  createHash(algorithm: "sha256"): {
+    update(bytes: Uint8Array): { digest(encoding: "hex"): string };
+  };
+}
+
 /** Fetch directly from AAS for this export only; never retain a reusable copy. */
 export async function downloadAastexBibliography(
   specification: { url: string; sha256: string },
@@ -646,9 +671,11 @@ export async function downloadAastexBibliography(
     throw new Error("PDF publishing requires desktop Obsidian.");
   const require = host().require;
   if (!require) throw new Error("Desktop network access is unavailable.");
-  const https = require("node:https") as typeof import("node:https");
-  const crypto = require("node:crypto") as typeof import("node:crypto");
-  const { Buffer } = require("node:buffer") as typeof import("node:buffer");
+  const https = require("node:https") as BibliographyHttps;
+  const crypto = require("node:crypto") as BibliographyCrypto;
+  const { Buffer } = require("node:buffer") as {
+    Buffer: { concat(chunks: Uint8Array[]): Uint8Array };
+  };
   if (signal?.aborted) throw new Error("Publishing cancelled.");
   return new Promise((resolve, reject) => {
     const request = https.get(
