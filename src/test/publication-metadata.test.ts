@@ -155,3 +155,62 @@ test("unclosed frontmatter is rejected and a leading BOM is retained", () => {
   assert.ok(next.startsWith("\uFEFF---\n"));
   assert.ok(next.endsWith("Body"));
 });
+
+test("flow scalar edits preserve punctuation as part of the name", () => {
+  const source =
+    "---\nstratum_publish: {authors: [{name: Alex, email: a@example.org, affiliations: [University]}], extra: keep}\n---\nBody";
+  for (const value of ["Alex, Example", "Alex } Example", "Alex [Example]"]) {
+    const next = edit(source, { type: "field", author: 0, key: "name", value });
+    assert.equal(
+      publicationAuthors(publicationYaml(next).properties).authors[0].name,
+      value,
+    );
+    assert.equal(
+      next,
+      source.replace("name: Alex", `name: ${JSON.stringify(value)}`),
+    );
+  }
+});
+
+test("block scalar field edits retain adjacent properties, comments and body", () => {
+  for (const marker of ["|", ">", "|-", ">-"]) {
+    const source = `---\r\nother: 'exact' # untouched\r\nstratum_publish:\r\n  authors:\r\n    - name: ${marker} # author comment\r\n        Alex\r\n        Example\r\n      email: a@example.org\r\n      orcid: keep\r\n      affiliations: [University]\r\n---\r\nBody`;
+    const next = edit(source, {
+      type: "field",
+      author: 0,
+      key: "name",
+      value: "Morgan",
+    });
+    const properties = publicationYaml(next).properties;
+    const author = publicationAuthors(properties).authors[0];
+    assert.equal(author.name, "Morgan");
+    assert.equal(author.email, "a@example.org");
+    assert.deepEqual(author.affiliations, ["University"]);
+    assert.match(next, /# author comment/);
+    assert.match(next, /orcid: keep/);
+    assert.ok(next.startsWith("---\r\nother: 'exact' # untouched\r\n"));
+    assert.ok(next.endsWith("---\r\nBody"));
+  }
+});
+
+test("adding authors extends a root flow mapping without rewriting existing properties", () => {
+  for (const mapping of [
+    "{title: Test, tags: [keep]}",
+    "{title: Test, tags: [keep],}",
+    "{title: Test, tags: [keep], # inside\r\n}",
+    "{}",
+  ]) {
+    const source = `\uFEFF---\r\n${mapping} # keep\r\n---\r\nBody`;
+    const next = edit(source, { type: "add" });
+    const properties = publicationYaml(next).properties;
+    assert.equal(publicationAuthors(properties).authors.length, 1);
+    if (mapping !== "{}") {
+      assert.equal(properties.title, "Test");
+      assert.deepEqual(properties.tags, ["keep"]);
+      assert.ok(next.includes("{title: Test, tags: [keep],"));
+    }
+    if (mapping.includes("# inside")) assert.ok(next.includes("# inside\r\n"));
+    assert.ok(next.startsWith("\uFEFF---\r\n{"));
+    assert.ok(next.endsWith("} # keep\r\n---\r\nBody"));
+  }
+});

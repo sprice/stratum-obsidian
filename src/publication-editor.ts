@@ -169,6 +169,10 @@ export class PublicationEditor extends Component {
           "The author list changed. Your draft is retained. Select its current target or discard it.",
         );
       const change = changePublicationAuthors(text, draft.operation);
+      const expected =
+        text.slice(0, change.from) + change.insert + text.slice(change.to);
+      // Reject an invalid replacement before changing either editor representation.
+      publicationYaml(expected);
       const editor = view.state.field(editorInfoField, false)?.editor;
       if (!editor)
         throw new Error(
@@ -188,8 +192,6 @@ export class PublicationEditor extends Component {
           },
         ],
       });
-      const expected =
-        text.slice(0, change.from) + change.insert + text.slice(change.to);
       // Live Preview can protect hidden frontmatter from multiline transactions.
       // Retry the validated, targeted edit through the public CM transaction API
       // only if the first transaction left both representations entirely intact.

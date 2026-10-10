@@ -234,7 +234,11 @@ export function aastexManuscript(
     const marker = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1];
     if (marker) {
       if (!fence) fence = marker;
-      else if (marker[0] === fence[0] && marker.length >= fence.length)
+      else if (
+        marker[0] === fence[0] &&
+        marker.length >= fence.length &&
+        /^\s{0,3}(?:`{3,}|~{3,})\s*$/.test(line)
+      )
         fence = "";
     } else if (!fence) {
       const heading = /^\s{0,3}(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/.exec(

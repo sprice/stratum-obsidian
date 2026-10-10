@@ -181,6 +181,14 @@ test("title and abstract resolve once, nested abstract content survives, fenced 
     /multiple Abstract/,
   );
 });
+test("fence-like code lines with trailing content do not expose a literal Abstract heading", () => {
+  for (const marker of ["```", "~~~"]) {
+    const body = `${marker}text\n${marker}md\n## Abstract\nLiteral example.\n${marker}\n\n## Introduction\nBody`;
+    const manuscript = aastexManuscript(`# Title\n\n${body}`, "body");
+    assert.equal(manuscript.abstract, "");
+    assert.equal(manuscript.body, body);
+  }
+});
 test("metadata is escaped, email does not opt into printing, and class assets are pinned", () => {
   const manuscript = aastexManuscript(sample, "properties");
   manuscript.title = "50% & {special} \\ title";

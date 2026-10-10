@@ -185,11 +185,18 @@ export function changePublicationAuthors(
       ];
     } else if (operation.type === "field") {
       const original = author.get(operation.key, true);
-      if (isScalar(original) && original.range && !original.anchor) {
+      if (
+        isScalar(original) &&
+        original.range &&
+        !original.anchor &&
+        original.type !== "BLOCK_LITERAL" &&
+        original.type !== "BLOCK_FOLDED"
+      ) {
         const scalar = document.createNode(operation.value);
-        const insert = /[\r\n]/.test(operation.value)
-          ? JSON.stringify(operation.value)
-          : new Document(scalar).toString({ lineWidth: 0 }).trimEnd();
+        const insert =
+          author.flow || /[\r\n]/.test(operation.value)
+            ? JSON.stringify(operation.value)
+            : new Document(scalar).toString({ lineWidth: 0 }).trimEnd();
         return {
           from: offset + original.range[0],
           to: offset + original.range[1],
@@ -223,7 +230,28 @@ export function changePublicationAuthors(
     changed = namespace;
   }
   if (!existingNamespace) {
-    const insert = new Document({ [PUBLICATION_KEY]: namespace })
+    const addition = new Document({ [PUBLICATION_KEY]: namespace });
+    const root = document.contents;
+    if (isMap(root) && root.flow && root.range && isMap(addition.contents)) {
+      addition.contents.flow = true;
+      const property = addition.toString({ lineWidth: 0 }).trim().slice(1, -1);
+      const from = offset + root.range[1] - 1;
+      const last =
+        root.srcToken?.type === "flow-collection"
+          ? root.srcToken.items.at(-1)
+          : undefined;
+      const trailingComma =
+        last &&
+        !last.key &&
+        !last.value &&
+        last.start.some((token) => token.type === "comma");
+      return {
+        from,
+        to: from,
+        insert: `${Object.keys(properties).length && !trailingComma ? "," : ""}${property}`,
+      };
+    }
+    const insert = addition
       .toString({ lineWidth: 0 })
       .replaceAll("\n", newline);
     if (!parsed.end)
