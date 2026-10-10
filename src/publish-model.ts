@@ -19,6 +19,7 @@ export interface PublishedDocument {
   citationStyle: string;
   citationLanguage: string;
   publishing?: {
+    template?: { id: string; version: string; upstreamVersion: string };
     documentType: DocumentType;
     opening: "body" | "properties";
     layout: PublishOptions;

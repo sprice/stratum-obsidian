@@ -1,4 +1,6 @@
 import { readNotePreferences } from "../publish-options";
+import { aastexManuscript, aastexPackage } from "../publication-package";
+import { publicationYaml } from "../publication-metadata";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate as settle } from "node:timers/promises";
@@ -41,7 +43,15 @@ class FontError extends Error {
 function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   let timerId = 0;
   const timers = new Map<number, { callback: () => void; delay: number }>();
-  const calls = { detect: 0, probe: [] as string[], check: 0, save: 0 };
+  const calls = {
+    detect: 0,
+    probe: [] as string[],
+    check: 0,
+    save: 0,
+    format: 0,
+    aastex: 0,
+  };
+  const payloads: unknown[] = [];
   const behavior = {
     missing: "",
     conversionError: "",
@@ -117,6 +127,27 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     },
     "browser",
     {
+      "./publication-render": {
+        renderAastexPublication: (
+          _app: unknown,
+          _service: unknown,
+          text: string,
+          _path: string,
+          _title: string,
+          publishing: ReturnType<typeof readNotePreferences>,
+        ) => {
+          calls.aastex++;
+          return Promise.resolve({
+            html: "packaged synthetic",
+            assets: [],
+            aastex: {
+              manuscript: aastexManuscript(text, publishing.pdf.titleSource),
+              abstractHtml: "<p>Synthetic abstract</p>",
+              references: [],
+            },
+          });
+        },
+      },
       "./publish-render": {
         renderPublication: (
           _app: unknown,
@@ -154,7 +185,11 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
           _format: string,
           _tools: unknown,
           signal: AbortSignal,
+          _timeout: number,
+          _layout: unknown,
+          aastex: unknown,
         ) => {
+          payloads.push(aastex);
           await conversion;
           if (signal.aborted) throw new Error("Publishing cancelled.");
           if (behavior.conversionError)
@@ -185,7 +220,10 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     },
     citations: {
       preferences: () => ({ style: "apa", language: "en-US" }),
-      formatForPublication: () => Promise.resolve(undefined),
+      formatForPublication: () => {
+        calls.format++;
+        return Promise.resolve(undefined);
+      },
     },
     app: {
       fileManager: {
@@ -279,6 +317,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     roots,
     plugin,
     calls,
+    payloads,
     behavior,
   };
 }
@@ -652,6 +691,99 @@ test("font errors persist and clear only after a successful font change", async 
   );
   assert.equal(controller.error, "Save failed");
   assert.equal(controller.layout.bodyFont, "Arial");
+});
+
+test("the packaged AASTeX choice preserves a custom template named aastex and its saved selection", async () => {
+  const { readPublishingTemplates } = await import("../publish-templates");
+  const state = readPublishingTemplates(undefined);
+  const custom = { ...state.templates[0], id: "aastex", name: "My layout" };
+  const { controller } = setup({
+    publishingTemplates: readPublishingTemplates({ templates: [custom] }),
+  });
+  const choices = controller.publishingTemplates.templates;
+  assert.equal(
+    new Set(choices.map((template) => template.id)).size,
+    choices.length,
+  );
+  assert.equal(
+    choices.find((template) => template.id === "aastex")?.name,
+    "My layout",
+  );
+  const packaged = choices.find((template) => template.renderer === "aastex");
+  assert.ok(packaged);
+  assert.equal(packaged.id, "package:aastex");
+  await controller.updatePreferences({ templateId: custom.id });
+  assert.equal(controller.selectedTemplate?.renderer, undefined);
+  assert.equal(
+    (await controller.store.list()).notes[0].preferences?.templateId,
+    "aastex",
+  );
+  await controller.updatePreferences({ templateId: packaged.id });
+  assert.equal(controller.selectedTemplate?.renderer, "aastex");
+  assert.equal(
+    (await controller.store.list()).notes[0].preferences?.templateId,
+    packaged.id,
+  );
+});
+
+test("AASTeX PDF bypasses CSL formatting, passes its class payload and records its actual bibliography style", async () => {
+  const { controller, leaf, plugin, calls, payloads, release } = setup();
+  const example = aastexPackage.files["examples/manuscript.md"];
+  const parsed = publicationYaml(example);
+  // The controller host uses JSON as its YAML subset; preserve the real example's data.
+  leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
+  plugin.citations.formatForPublication = () => {
+    calls.format++;
+    return Promise.reject(new Error("CSL style is unavailable"));
+  };
+  await controller.updatePreferences({ templateId: "package:aastex" });
+  controller.selectedFormat = "pdf";
+  controller.readiness = structuredClone(readySupport);
+  release();
+  await controller.create();
+  assert.equal(controller.error, "");
+  assert.equal(calls.format, 0);
+  assert.equal(calls.aastex, 1);
+  assert.equal(payloads.length, 1);
+  assert.ok(payloads[0]);
+  const documents = (await controller.store.list()).documents;
+  assert.equal(documents.length, 1);
+  assert.equal(
+    documents[0].citationStyle,
+    aastexPackage.manifest.bibliographyStyle,
+  );
+  assert.equal(documents[0].publishing?.template?.upstreamVersion, "7.0.2");
+});
+
+test("AASTeX conversion failures detect missing shared tools without probing generic PDF support", async () => {
+  for (const missing of ["", "pandoc", "tectonic"]) {
+    const { controller, leaf, plugin, behavior, calls, release } = setup();
+    const example = aastexPackage.files["examples/manuscript.md"];
+    const parsed = publicationYaml(example);
+    leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
+    await controller.updatePreferences({ templateId: "package:aastex" });
+    controller.selectedFormat = "pdf";
+    controller.readiness = structuredClone(readySupport);
+    behavior.missing = missing;
+    behavior.conversionError = missing
+      ? `${missing} could not start`
+      : "AASTeX dependency is unavailable";
+    release();
+    await controller.create();
+    assert.equal(calls.detect, 2);
+    assert.deepEqual(calls.probe, []);
+    assert.equal(controller.readiness?.word, missing !== "pandoc");
+    assert.equal(controller.readiness?.pdf, !missing);
+    assert.equal(
+      plugin.settings.publishReadinessCache?.readiness.pdf,
+      !missing,
+    );
+    assert.equal(controller.error, behavior.conversionError);
+    assert.equal((await controller.store.list()).documents.length, 0);
+    assert.equal(controller.busy, false);
+    assert.equal(controller.selectedTemplate?.renderer, "aastex");
+    assert.equal(leaf.view.text.includes("stratum_publish"), true);
+  }
 });
 
 test("template selection copies layouts and retains them after template edits or deletion", async () => {

@@ -4,6 +4,7 @@ import { readPublishOptions, type PublishOptions } from "./publish-options";
 import { configureDocx } from "./publish-docx";
 import { publicationFilter, publicationHeader } from "./publish-layout";
 import type { PublishFormat } from "./publish-model";
+import type { aastexManuscript } from "./publication-package";
 export interface PublishAsset {
   name: string;
   bytes: ArrayBuffer;
@@ -422,7 +423,21 @@ export async function convertPublication(
   signal?: AbortSignal,
   timeout = 120_000,
   layout?: PublishOptions,
+  aastex?: {
+    manuscript: ReturnType<typeof aastexManuscript>;
+    abstractHtml: string;
+    references: import("./csl-data").CslItem[];
+  },
 ): Promise<ArrayBuffer> {
+  if (format === "pdf" && aastex)
+    return convertAastexPublication(
+      html,
+      assets,
+      tools,
+      aastex,
+      signal,
+      timeout,
+    );
   const options = layout ? readPublishOptions(layout) : undefined;
   if (format === "pdf" && options) {
     const selected = [...new Set([options.bodyFont, options.titleFont])].filter(
@@ -565,6 +580,291 @@ export async function convertPublication(
           )
         : bytes;
     return Uint8Array.from(configured).buffer;
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+}
+
+export const aastexFilter = `
+function Span(el)
+  -- The HTML reader removes the data- prefix from custom attributes.
+  if el.classes:includes('stratum-aastex-citation') then
+    local tex = el.attributes['tex'] or el.attributes['data-tex']
+    if not tex then error('An AASTeX citation lost its structured data during conversion.') end
+    return pandoc.RawInline('latex', tex)
+  end
+end
+local function latex(blocks)
+  return (pandoc.write(pandoc.Pandoc(blocks), 'latex'):gsub('\\n+$', ''))
+end
+function Table(el)
+  local cols = #el.colspecs
+  local alignments = {}
+  local function alignment(value)
+    if value == pandoc.AlignRight then return 'r' end
+    if value == pandoc.AlignCenter then return 'c' end
+    return 'l'
+  end
+  for _, spec in ipairs(el.colspecs) do table.insert(alignments, alignment(spec[1])) end
+  local rows = {}
+  local function add(row)
+    local cells = {}
+    for index, cell in ipairs(row.cells) do
+      if cell.col_span ~= 1 or cell.row_span ~= 1 then error('Merged table cells are not supported by the AASTeX template yet.') end
+      local content = latex(cell.contents)
+      if cell.alignment ~= pandoc.AlignDefault and alignment(cell.alignment) ~= alignments[index] then
+        content = '\\\\multicolumn{1}{' .. alignment(cell.alignment) .. '}{' .. content .. '}'
+      end
+      table.insert(cells, content)
+    end
+    table.insert(rows, table.concat(cells, ' & ') .. ' \\\\\\\\')
+  end
+  for _, row in ipairs(el.head.rows) do add(row) end
+  for _, body in ipairs(el.bodies) do
+    for _, row in ipairs(body.head) do add(row) end
+    for _, row in ipairs(body.body) do add(row) end
+  end
+  for _, row in ipairs(el.foot.rows) do add(row) end
+  local caption = ''
+  if #el.caption.long > 0 then
+    caption = '\\\\caption{' .. latex(el.caption.long) .. '}\\n'
+  elseif el.caption.short then
+    caption = '\\\\caption{' .. latex({pandoc.Plain(el.caption.short)}) .. '}\\n'
+  end
+  if #alignments ~= cols then error('The AASTeX table has inconsistent column definitions.') end
+  return pandoc.RawBlock('latex', '\\\\begin{table}[ht]\\n\\\\centering\\n' .. caption .. '\\\\begin{tabular}{' .. table.concat(alignments) .. '}\\n\\\\hline\\n' .. table.concat(rows, '\\n') .. '\\n\\\\hline\\n\\\\end{tabular}\\n\\\\end{table}')
+end
+`;
+
+interface BibliographyResponse {
+  statusCode?: number;
+  destroy(): void;
+  on(event: "data", listener: (bytes: Uint8Array) => void): void;
+  on(event: "error", listener: (error: Error) => void): void;
+  on(event: "end", listener: () => void): void;
+}
+interface BibliographyRequest {
+  destroy(error?: Error): void;
+  on(event: "close", listener: () => void): void;
+  on(event: "error", listener: (error: Error) => void): void;
+}
+interface BibliographyHttps {
+  get(
+    url: string,
+    options: { signal?: AbortSignal; headers: Record<string, string> },
+    callback: (response: BibliographyResponse) => void,
+  ): BibliographyRequest;
+}
+interface BibliographyCrypto {
+  createHash(algorithm: "sha256"): {
+    update(bytes: Uint8Array): { digest(encoding: "hex"): string };
+  };
+}
+
+/** Fetch directly from AAS for this export only; never retain a reusable copy. */
+export async function downloadAastexBibliography(
+  specification: { url: string; sha256: string },
+  signal?: AbortSignal,
+  timeout = 30_000,
+): Promise<Uint8Array> {
+  if (!Platform.isDesktop)
+    throw new Error("PDF publishing requires desktop Obsidian.");
+  const require = host().require;
+  if (!require) throw new Error("Desktop network access is unavailable.");
+  const https = require("node:https") as BibliographyHttps;
+  const crypto = require("node:crypto") as BibliographyCrypto;
+  const { Buffer } = require("node:buffer") as {
+    Buffer: { concat(chunks: Uint8Array[]): Uint8Array };
+  };
+  if (signal?.aborted) throw new Error("Publishing cancelled.");
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      specification.url,
+      {
+        signal,
+        headers: {
+          "Cache-Control": "no-store",
+          "User-Agent": "Stratum-Obsidian (AASTeX publishing)",
+        },
+      },
+      (response) => {
+        if (response.statusCode !== 200) {
+          response.destroy();
+          reject(
+            new Error(
+              `AAS could not supply the bibliography style (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
+            ),
+          );
+          return;
+        }
+        const chunks: Uint8Array[] = [];
+        let length = 0;
+        response.on("data", (chunk: Uint8Array) => {
+          length += chunk.length;
+          if (length > 1_000_000)
+            request.destroy(
+              new Error("The AAS bibliography download is too large."),
+            );
+          else chunks.push(chunk);
+        });
+        response.on("error", reject);
+        response.on("end", () => {
+          if (signal?.aborted) {
+            reject(new Error("Publishing cancelled."));
+            return;
+          }
+          const bytes = Buffer.concat(chunks);
+          if (
+            crypto.createHash("sha256").update(bytes).digest("hex") !==
+            specification.sha256
+          ) {
+            reject(
+              new Error(
+                "The AAS bibliography style changed. Update Stratum before publishing this PDF.",
+              ),
+            );
+            return;
+          }
+          resolve(Uint8Array.from(bytes));
+        });
+      },
+    );
+    const timer = window.setTimeout(
+      () =>
+        request.destroy(
+          new Error("Downloading the AAS bibliography style timed out."),
+        ),
+      timeout,
+    );
+    request.on("close", () => window.clearTimeout(timer));
+    request.on("error", (error) =>
+      reject(
+        new Error(
+          signal?.aborted
+            ? "Publishing cancelled."
+            : `Could not download the AAS bibliography style. Check your internet connection and try again. ${error.message}`,
+        ),
+      ),
+    );
+  });
+}
+async function convertAastexPublication(
+  html: string,
+  assets: PublishAsset[],
+  tools: PublishTools,
+  input: {
+    manuscript: ReturnType<typeof aastexManuscript>;
+    abstractHtml: string;
+    references: import("./csl-data").CslItem[];
+  },
+  signal?: AbortSignal,
+  timeout = 120_000,
+): Promise<ArrayBuffer> {
+  const { fs, path, os } = modules();
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "stratum-aastex-"));
+  try {
+    const { aastexPackage: pkg, aastexLatex } =
+      await import("./publication-package");
+    for (const relative of [pkg.manifest.class])
+      await fs.writeFile(
+        path.join(directory, path.basename(relative)),
+        pkg.files[relative],
+        { mode: 0o600 },
+      );
+    if (input.references.length) {
+      const bibliography = await downloadAastexBibliography(
+        pkg.manifest.bibliographyDownload,
+        signal,
+        Math.min(timeout, 30_000),
+      );
+      await fs.writeFile(
+        path.join(directory, path.basename(pkg.manifest.bibliographyStyle)),
+        bibliography,
+        { mode: 0o600 },
+      );
+    }
+    await fs.writeFile(path.join(directory, "aastex.lua"), aastexFilter, {
+      mode: 0o600,
+    });
+    for (const asset of assets) {
+      if (!/^asset-\d+\.(png|jpg|jpeg|gif|svg|webp)$/i.test(asset.name))
+        throw new Error("Invalid publication image name.");
+      await fs.writeFile(
+        path.join(directory, asset.name),
+        new Uint8Array(asset.bytes),
+        { mode: 0o600 },
+      );
+    }
+    for (const [name, content] of [
+      ["body", html],
+      ["abstract", input.abstractHtml],
+    ]) {
+      await fs.writeFile(path.join(directory, `${name}.html`), content, {
+        mode: 0o600,
+      });
+      await runPublishTool(
+        tools.pandoc,
+        [
+          `${name}.html`,
+          "--from=html+epub_html_exts+tex_math_single_backslash",
+          "--to=latex",
+          "--lua-filter=aastex.lua",
+          "--resource-path=.",
+          "--output",
+          `${name}.tex`,
+        ],
+        { cwd: directory, signal, timeout },
+      );
+    }
+    if (input.references.length) {
+      await fs.writeFile(
+        path.join(directory, "references.json"),
+        JSON.stringify(input.references),
+        { mode: 0o600 },
+      );
+      await runPublishTool(
+        tools.pandoc,
+        [
+          "references.json",
+          "--from=csljson",
+          "--to=bibtex",
+          "--output",
+          "references.bib",
+        ],
+        { cwd: directory, signal, timeout },
+      );
+    }
+    const decode = async (name: string) =>
+      new TextDecoder().decode(await fs.readFile(path.join(directory, name)));
+    const tex = aastexLatex(
+      input.manuscript,
+      await decode("body.tex"),
+      await decode("abstract.tex"),
+      !!input.references.length,
+    );
+    await fs.writeFile(path.join(directory, "document.tex"), tex, {
+      mode: 0o600,
+    });
+    await runPublishTool(tools.tectonic, ["--keep-logs", "document.tex"], {
+      cwd: directory,
+      signal,
+      timeout,
+    });
+    if (signal?.aborted) throw new Error("Publishing cancelled.");
+    const log = await decode("document.log");
+    if (
+      /Citation .* undefined|There were undefined (?:references|citations)|No file .*\.bbl/.test(
+        log,
+      )
+    )
+      throw new Error(
+        "AASTeX could not resolve the manuscript bibliography. Review citation data and try again.",
+      );
+    const bytes = await fs.readFile(path.join(directory, "document.pdf"));
+
+    if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-")
+      throw new Error("AASTeX did not produce a valid PDF.");
+    return Uint8Array.from(bytes).buffer;
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

@@ -1771,3 +1771,64 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-font-retry {
   align-self: flex-start;
 }
+.stratum-publication-details {
+  white-space: normal;
+  min-width: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  margin: 0 0 var(--size-4-6);
+  padding: var(--size-4-3);
+  background: var(--background-secondary);
+  font-family: var(--font-interface);
+}
+.stratum-publication-details > summary {
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+}
+.stratum-publication-content {
+  display: grid;
+  gap: var(--size-4-3);
+  padding-top: var(--size-4-3);
+}
+.stratum-publication-help {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin: 0;
+}
+.stratum-publication-author {
+  min-width: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: var(--size-4-3);
+}
+.stratum-publication-author legend {
+  font-weight: var(--font-semibold);
+  padding: 0 var(--size-4-1);
+}
+.stratum-publication-field {
+  display: grid;
+  gap: var(--size-4-1);
+  margin-bottom: var(--size-4-3);
+  font-size: var(--font-ui-small);
+}
+.stratum-publication-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+.stratum-publication-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-3);
+}
+.stratum-publication-warning,
+.stratum-publication-conflict {
+  color: var(--text-warning);
+  font-size: var(--font-ui-small);
+}
+.stratum-publication-conflict {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: var(--size-4-3);
+  overflow-wrap: anywhere;
+}

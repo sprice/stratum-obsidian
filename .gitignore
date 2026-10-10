@@ -12,6 +12,9 @@ node_modules
 # They should be uploaded to GitHub releases instead.
 main.js
 
+# Generated publication-package data is recreated by prepare/build/typecheck.
+src/publication-templates/aastex/files.json
+
 # Exclude sourcemaps
 *.map
 

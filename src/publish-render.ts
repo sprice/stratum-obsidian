@@ -35,6 +35,7 @@ export async function renderPublication(
   signal: AbortSignal,
   preferences?: NotePublishPreferences,
   definitions?: PublishingProperty[],
+  assetOffset = 0,
 ): Promise<{ html: string; assets: PublishAsset[] }> {
   const prepared = preparePublication(text, result);
   const options = preferences
@@ -104,7 +105,7 @@ export async function renderPublication(
       file.extension.toLowerCase(),
       signal,
     );
-    const name = `asset-${assets.length}.${asset.extension}`;
+    const name = `asset-${assetOffset + assets.length}.${asset.extension}`;
     assets.push({ name, bytes: asset.bytes });
     imagePaths.set(file.path, name);
     return name;
@@ -177,6 +178,13 @@ export async function renderPublication(
       if (!link.hasAttribute("epub:type"))
         link.replaceWith(...Array.from(link.childNodes));
     for (const node of Array.from(element.querySelectorAll("*"))) {
+      // Preserve table-cell alignment before removing presentation CSS. Pandoc
+      // understands the HTML align attribute; copying arbitrary styles is unsafe.
+      if (["TD", "TH"].includes(node.tagName)) {
+        const alignment = (node as HTMLElement).style.textAlign.toLowerCase();
+        if (["left", "center", "right"].includes(alignment))
+          node.setAttribute("align", alignment);
+      }
       for (const attr of Array.from(node.attributes))
         if (
           /^on/i.test(attr.name) ||

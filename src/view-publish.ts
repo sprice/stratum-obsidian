@@ -1,8 +1,5 @@
 import { publicationProperties } from "./publish-properties";
-import {
-  readPublishingTemplates,
-  selectedPublishingTemplate,
-} from "./publish-templates";
+import { selectedPublishingTemplate } from "./publish-templates";
 import {
   createStratumIconButton,
   createStratumDisclosure,
@@ -19,6 +16,7 @@ import {
 } from "./publish-model";
 import { getSettingsManager } from "./view-helpers";
 import { renderPublishCustomization } from "./publish-customize";
+import { aastexProblems } from "./publication-package";
 
 class DeletePublicationModal extends Modal {
   constructor(
@@ -128,7 +126,9 @@ export class PublishPanel extends Component {
       tooltip: "Add missing publishing properties to this note",
     });
     this.prepare.addEventListener("click", () => {
-      void this.publish.prepareAcademic();
+      if (this.publish.selectedTemplate?.renderer === "aastex")
+        void this.publish.editPublicationDetails();
+      else void this.publish.prepareAcademic();
     });
     const gear = createStratumIconButton(templateRow, {
       icon: "settings",
@@ -262,13 +262,12 @@ export class PublishPanel extends Component {
     const hasNote = publish.document?.extension === "md";
     this.configuration.hidden = !hasNote;
     const preferences = publish.notePreferences;
-    const templates = readPublishingTemplates(
-      publish.plugin.settings?.publishingTemplates,
-    );
+    const templates = publish.publishingTemplates;
     const template = selectedPublishingTemplate(
       templates,
       preferences.templateId,
     );
+    const aastex = template?.renderer === "aastex";
     const definitions = publicationProperties(
       publish.layout,
       template?.prefill,
@@ -285,10 +284,19 @@ export class PublishPanel extends Component {
         /* The actionable problem is displayed below. */
       }
     }
-    this.prepare.hidden = !publish.propertiesMissing;
+    this.prepare.hidden = !aastex && !publish.propertiesMissing;
+    this.prepare.setText(
+      aastex ? "Edit publication details" : "Add publishing properties",
+    );
+    this.prepare.setAttribute(
+      "aria-label",
+      aastex
+        ? "Edit publication details"
+        : "Add missing publishing properties to this note",
+    );
     this.prepare.disabled = publish.busy || publish.preferencesSaving;
     this.opening.value = publish.layout.titleSource;
-    this.opening.hidden = !academic || !title;
+    this.opening.hidden = !aastex && (!academic || !title);
     this.opening.disabled = publish.busy || publish.preferencesSaving;
     this.titleWarning.hidden = !publish.duplicateTitleWarning;
     const academicMessage =
@@ -304,10 +312,37 @@ export class PublishPanel extends Component {
         (duplicateTitle && publish.layout.titleSource === "body"
           ? " The existing body title is retained."
           : "");
-    this.academicMessage.setText(academicMessage);
+    let packagedMessage = "";
+    if (aastex) {
+      packagedMessage =
+        publish.selectedFormat === "pdf"
+          ? "AASTeX controls PDF typography and bibliography. Cited PDFs download a verified bibliography style directly from AAS for each export; the temporary file is removed afterward."
+          : "Word output is an editable review manuscript. AASTeX typography applies to PDF.";
+      try {
+        const view = publish.leaf?.view;
+        const text =
+          view && "editor" in view
+            ? (view as import("obsidian").MarkdownView).editor.getValue()
+            : "";
+        const warnings = aastexProblems(
+          text,
+          publish.layout.titleSource,
+          publish.selectedFormat || "docx",
+        ).warnings;
+        packagedMessage += " " + warnings.join(" ");
+      } catch {
+        /* The blocking problem is displayed above. */
+      }
+    }
+    this.academicMessage.setText(
+      aastex
+        ? [publish.academicProblem, packagedMessage].filter(Boolean).join(" ")
+        : academicMessage,
+    );
     this.academicMessage.hidden = !academicMessage;
     this.templateGear.disabled =
       !template || publish.busy || publish.preferencesSaving;
+    this.templateGear.hidden = aastex;
     this.template.empty();
     this.template.createEl("option", { value: "", text: "Choose template" });
     for (const choice of templates.templates)
@@ -319,19 +354,24 @@ export class PublishPanel extends Component {
     this.type.hidden = !prepared;
     this.create.hidden = !prepared;
     this.customize.hidden = !hasNote || !prepared || !publish.selectedFormat;
+    if (aastex && publish.selectedFormat === "pdf")
+      this.customize.hidden = true;
     // Hide the row too, so an empty row does not add a gap to the panel.
     this.customizeRow.hidden = this.resetLayout.hidden = this.customize.hidden;
     this.resetLayout.disabled = publish.busy || publish.preferencesSaving;
     this.updateCustomization();
     void this.updateCitationStyle();
+    this.citations.hidden = !!aastex && publish.selectedFormat === "pdf";
     const showAll = publish.historyScope === "all";
     this.scope.value = publish.historyScope;
     this.list.hidden = !hasNote && !showAll;
     this.type.value = publish.selectedFormat;
     this.create.setText(
-      publish.selectedFormat
-        ? `Create ${formatLabel(publish.selectedFormat)} document`
-        : "Create document",
+      aastex && publish.selectedFormat === "docx"
+        ? "Create Word review manuscript"
+        : publish.selectedFormat
+          ? `Create ${formatLabel(publish.selectedFormat)} document`
+          : "Create document",
     );
     this.create.disabled = !publish.canCreate();
     this.type.disabled = publish.busy || publish.preferencesSaving;

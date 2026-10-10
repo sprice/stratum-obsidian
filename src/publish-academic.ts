@@ -1,6 +1,7 @@
 import { parseYaml } from "obsidian";
 import { escapeHtml } from "./citation-display";
 import { textList, type AcademicDefaults } from "./publish-options";
+import { publicationAuthors } from "./publication-metadata";
 
 interface AcademicMetadata {
   title: string;
@@ -10,6 +11,7 @@ interface AcademicMetadata {
   keywords: string[];
   duplicateTitle: boolean;
   bothAuthors: boolean;
+  authorDetails?: import("./publication-metadata").PublicationAuthor[];
 }
 export function publicationFrontmatter(text: string): {
   properties: Record<string, unknown>;
@@ -42,10 +44,20 @@ export function academicMetadata(
   const firstHeading = /^\s*#{1,6}\s+(.+?)(?:\s+#+)?\s*(?:\r?\n|$)/
     .exec(body)?.[1]
     ?.trim();
+  const details = publicationAuthors(properties);
   return {
     title,
-    authors: textList(properties.authors ?? properties.author),
-    affiliations: textList(properties.affiliations),
+    authors: details.authors.map((author) => author.name).filter(Boolean),
+    affiliations: details.structured
+      ? [
+          ...new Set(
+            details.authors
+              .flatMap((author) => author.affiliations)
+              .filter(Boolean),
+          ),
+        ]
+      : textList(properties.affiliations),
+    ...(details.structured ? { authorDetails: details.authors } : {}),
     keywords: textList(properties.keywords),
     date:
       typeof properties.date === "string"
@@ -57,6 +69,7 @@ export function academicMetadata(
       !!title &&
       firstHeading?.toLocaleLowerCase() === title.toLocaleLowerCase(),
     bothAuthors:
+      !details.structured &&
       Object.hasOwn(properties, "authors") &&
       Object.hasOwn(properties, "author"),
   };
@@ -95,7 +108,20 @@ export function academicOpening(
     (metadata.authors.length
       ? block("authors", metadata.authors.join(", "))
       : "") +
-    metadata.affiliations.map((value) => block("affiliation", value)).join("") +
+    (metadata.authorDetails
+      ? metadata.authorDetails
+          .map((author) =>
+            author.affiliations.length
+              ? block(
+                  "affiliation",
+                  `${author.name}: ${author.affiliations.join("; ")}`,
+                )
+              : "",
+          )
+          .join("")
+      : metadata.affiliations
+          .map((value) => block("affiliation", value))
+          .join("")) +
     (metadata.date ? block("date", metadata.date) : "")
   );
 }

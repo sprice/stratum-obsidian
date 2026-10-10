@@ -1,4 +1,23 @@
 // Minimal Obsidian host adapters over real browser DOM. No user vault is read.
+import { StateEffect, StateField } from "@codemirror/state";
+import type { Editor } from "obsidian";
+
+export const editorInfoField = StateField.define<{
+  file: TFile;
+  editor?: Editor;
+}>({
+  create: () => ({ file: new TFile() }),
+  update: (value) => value,
+});
+export const setLivePreviewEffect = StateEffect.define<boolean>();
+export const editorLivePreviewField = StateField.define<boolean>({
+  create: () => true,
+  update: (value, transaction) => {
+    for (const effect of transaction.effects)
+      if (effect.is(setLivePreviewEffect)) return effect.value;
+    return value;
+  },
+});
 function element<K extends keyof HTMLElementTagNameMap>(
   parent: HTMLElement | null,
   tag: K,

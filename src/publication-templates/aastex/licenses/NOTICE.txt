@@ -1,0 +1,9 @@
+AASTeX 7.0.2: Copyright 2025 American Astronomical Society.
+Unmodified aastex702.cls is distributed under the LaTeX Project Public License 1.3c or later.
+https://www.latex-project.org/lppl/lppl-1-3c/
+The original class includes its complete distribution and warranty notices.
+
+aasjournalv7.1.bst: Copyright (C) 1994-98 Patrick W. Daly.
+Original notice: This file may be used for non-profit purposes. It may not be distributed in exchange for money, other than distribution costs. The author provides it as is and does not guarantee it in any way.
+The bibliography file is not included in this package. Cited PDF exports download
+the pinned file directly from AAS and remove it after conversion without caching.

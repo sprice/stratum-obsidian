@@ -3,11 +3,28 @@ import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
 import * as publishMath from "../publish-math";
 import * as publishDocument from "../publish-document";
+import { aastexProblems } from "../publication-package";
+import * as publicationCitations from "../publication-citations";
+import { readNotePreferences } from "../publish-options";
 
 class Element {
   children: (Element | string)[] = [];
   parent: Element | null = null;
-  attributes: { name: string }[] = [];
+  attributes: { name: string; value?: string }[] = [];
+  style = { textAlign: "" };
+  get tagName() {
+    return this.tag.toUpperCase();
+  }
+  setAttribute(name: string, value: string) {
+    this.removeAttribute(name);
+    this.attributes.push({ name, value });
+  }
+  getAttribute(name: string) {
+    return this.attributes.find((attr) => attr.name === name)?.value ?? null;
+  }
+  removeAttribute(name: string) {
+    this.attributes = this.attributes.filter((attr) => attr.name !== name);
+  }
   checked = false;
   constructor(
     public tag = "div",
@@ -26,6 +43,8 @@ class Element {
           (part) =>
             part.trim() === "*" ||
             part.trim() === node.tag ||
+            (part.trim() === ".stratum-publish-image" &&
+              node.getAttribute("class") === "stratum-publish-image") ||
             (part.trim() === 'input[type="checkbox"]' &&
               node.tag === "input" &&
               node.type === "checkbox"),
@@ -41,8 +60,9 @@ class Element {
   querySelector(selector: string) {
     return this.querySelectorAll(selector)[0] ?? null;
   }
-  replaceWith(value: string) {
+  replaceWith(value: Element | string) {
     const children = this.parent!.children;
+    if (value instanceof Element) value.parent = this.parent;
     children.splice(children.indexOf(this), 1, value);
   }
   remove() {
@@ -54,11 +74,180 @@ class Element {
       .map((child) =>
         typeof child === "string"
           ? child
-          : `<${child.tag}>${child.innerHTML}</${child.tag}>`,
+          : `<${child.tag}${child.attributes.map((attr) => ` ${attr.name}="${attr.value ?? ""}"`).join("")}>${child.innerHTML}</${child.tag}>`,
       )
       .join("");
   }
 }
+
+test("AASTeX body and abstract images have distinct assets without rewriting literal filenames", async () => {
+  class File {
+    extension = "png";
+    constructor(public path: string) {}
+  }
+  const files = new Map([
+    ["body.png", new File("body.png")],
+    ["abstract.png", new File("abstract.png")],
+  ]);
+  const { renderAastexPublication } = loadRuntime<
+    typeof import("../publication-render")
+  >(
+    "publication-render.ts",
+    {
+      Component: class {
+        load() {}
+        unload() {}
+      },
+      TFile: File,
+      MarkdownRenderer: {
+        render: (_app: unknown, markdown: string, root: Element) => {
+          let cursor = 0;
+          for (const match of markdown.matchAll(
+            /<span class="stratum-publish-image" data-publish-image="([^"]+)" data-publish-alt="([^"]*)"><\/span>/g,
+          )) {
+            root.append(markdown.slice(cursor, match.index));
+            const placeholder = new Element("span");
+            placeholder.setAttribute("class", "stratum-publish-image");
+            placeholder.setAttribute("data-publish-image", match[1]);
+            placeholder.setAttribute("data-publish-alt", match[2]);
+            root.append(placeholder);
+            cursor = match.index + match[0].length;
+          }
+          root.append(markdown.slice(cursor));
+          return Promise.resolve();
+        },
+      },
+    },
+    {
+      createDiv: () => new Element(),
+      createEl: (tag: string) => new Element(tag),
+    },
+    "browser",
+    {
+      "./publication-package": { aastexProblems },
+      "./publication-citations": publicationCitations,
+      "./publish-document": publishDocument,
+      "./publish-math": publishMath,
+      "./publish-image": {
+        publishImage: (bytes: ArrayBuffer, extension: string) =>
+          Promise.resolve({ bytes, extension }),
+      },
+    },
+  );
+  const app = {
+    metadataCache: {
+      getFirstLinkpathDest: (path: string) => files.get(path),
+    },
+    vault: {
+      readBinary: (file: File) =>
+        Promise.resolve(
+          new Uint8Array([file.path === "body.png" ? 1 : 2]).buffer,
+        ),
+    },
+  };
+  const preferences = readNotePreferences({
+    documentType: "academic",
+    templateId: "package:aastex",
+    format: "pdf",
+    pdf: { titleSource: "properties" },
+  });
+  for (const abstractImages of [
+    "",
+    "![Abstract](abstract.png)\n![Repeated](abstract.png)",
+  ]) {
+    const text = `---
+title: Synthetic asset manuscript
+stratum_publish:
+  authors:
+    - name: Alex Example
+      email: alex@example.org
+      affiliations: [Example University]
+---
+## Abstract
+Literal asset-0.png and \`asset-0.png\` remain unchanged.
+${abstractImages}
+## Introduction
+![Body](body.png)
+![Repeated](body.png)
+`;
+    const result = await renderAastexPublication(
+      app as never,
+      { diagnose: () => Promise.resolve([]) } as never,
+      text,
+      "Papers/Synthetic manuscript.md",
+      "Synthetic manuscript",
+      preferences,
+      new AbortController().signal,
+    );
+    assert.match(
+      result.aastex.abstractHtml,
+      /Literal asset-0\.png and `asset-0\.png` remain unchanged\./,
+    );
+    assert.equal((result.html.match(/src="asset-0.png"/g) ?? []).length, 2);
+    assert.equal(result.assets.length, abstractImages ? 2 : 1);
+    assert.equal(result.assets[0].name, "asset-0.png");
+    assert.equal(new Uint8Array(result.assets[0].bytes)[0], 1);
+    if (abstractImages) {
+      assert.equal(
+        (result.aastex.abstractHtml.match(/src="asset-1.png"/g) ?? []).length,
+        2,
+      );
+      assert.equal(result.assets[1].name, "asset-1.png");
+      assert.equal(new Uint8Array(result.assets[1].bytes)[0], 2);
+    }
+  }
+});
+
+test("rendering preserves safe table alignment while stripping CSS and event attributes", async () => {
+  const { renderPublication } = loadRuntime<typeof import("../publish-render")>(
+    "publish-render.ts",
+    {
+      Component: class {
+        load() {}
+        unload() {}
+      },
+      TFile: class {},
+      MarkdownRenderer: {
+        render: (_app: unknown, _markdown: string, root: Element) => {
+          const table = new Element("table");
+          const row = new Element("tr");
+          table.append(row);
+          root.append(table);
+          for (const alignment of ["left", "center", "right", "justify"]) {
+            const cell = new Element("td");
+            cell.style.textAlign = alignment;
+            cell.setAttribute(
+              "style",
+              `text-align:${alignment};background:url(https://invalid.example)`,
+            );
+            cell.setAttribute("onclick", "unsafe()");
+            cell.append(alignment);
+            row.append(cell);
+          }
+          return Promise.resolve();
+        },
+      },
+    },
+    { createDiv: () => new Element() },
+    "browser",
+    { "./publish-document": publishDocument, "./publish-math": publishMath },
+  );
+  const { html } = await renderPublication(
+    {} as never,
+    "Synthetic table",
+    "Example.md",
+    "Example",
+    undefined,
+    new AbortController().signal,
+  );
+  for (const alignment of ["left", "center", "right"])
+    assert.match(
+      html,
+      new RegExp(`<td align="${alignment}">${alignment}</td>`),
+    );
+  assert.match(html, /<td>justify<\/td>/);
+  assert.doesNotMatch(html, /style=|onclick=|invalid\.example/);
+});
 
 test("publication retains checked and unchecked task states after removing controls", async () => {
   let unloaded = false;

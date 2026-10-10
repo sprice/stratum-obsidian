@@ -1,0 +1,35 @@
+{
+  "fields": [
+    {
+      "path": "stratum_publish.authors[].name",
+      "type": "text",
+      "requiredFor": ["pdf"]
+    },
+    {
+      "path": "stratum_publish.authors[].email",
+      "type": "text",
+      "requiredFor": ["pdf"]
+    },
+    {
+      "path": "stratum_publish.authors[].affiliations",
+      "type": "list",
+      "requiredFor": ["pdf"]
+    }
+  ],
+  "rules": {
+    "pdf": {
+      "title": "required",
+      "authors": "required",
+      "email": "required",
+      "affiliations": "required",
+      "abstract": "warning"
+    },
+    "docx": {
+      "title": "warning",
+      "authors": "warning",
+      "email": "warning",
+      "affiliations": "warning",
+      "abstract": "warning"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+\documentclass[{{classOptions}}]{{{className}}}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\newsavebox{\stratumimagebox}
+\providecommand{\pandocbounded}[1]{%
+  \sbox{\stratumimagebox}{#1}%
+  \ifdim\wd\stratumimagebox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\stratumimagebox}}%
+  \else\usebox{\stratumimagebox}\fi}
+\begin{document}
+\title{ {{title}} }
+{{authors}}
+{{abstract}}
+% AASTeX normally emits the opening at its first section. A manuscript can have
+% only prose or subsections, so emit it now and skip that one automatic call.
+% Restore the original command on that call for later class-owned title blocks.
+\let\stratummaketitle\maketitle
+\maketitle
+\renewcommand{\maketitle}{\let\maketitle\stratummaketitle}
+{{body}}
+{{bibliography}}
+\end{document}
