@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "id": "aastex",
+  "name": "AASTeX",
+  "version": "1.0.0",
+  "renderer": {
+    "id": "aastex",
+    "version": 1
+  },
+  "upstreamVersion": "7.0.2",
+  "entry": "template.tex",
+  "schema": "metadata.schema.json",
+  "defaults": "defaults.json",
+  "outputs": ["pdf", "docx"],
+  "compiler": "tectonic",
+  "class": "vendor/aastex702.cls",
+  "bibliographyStyle": "vendor/aasjournalv7.1.bst",
+  "provenance": {
+    "url": "https://journals.aas.org/wp-content/uploads/2026/06/aastex702.zip",
+    "sha256": "008ed27b62a3b1689a256a53893df05080cd01b754b206f4833f864cb16fc25f"
+  }
+}

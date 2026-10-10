@@ -174,6 +174,8 @@ export default class StratumPlugin extends Plugin {
   } | null = null;
   activeNoteActionKey: string | null = null;
   publish: PublishController | null = null;
+  publicationEditor: import("./publication-editor").PublicationEditor | null =
+    null;
   sources!: SourcesController;
   citations!: CitationService;
   activeViewTab: StratumTab | null = "search";
@@ -292,6 +294,18 @@ export default class StratumPlugin extends Plugin {
     this.addChild(this.citations);
     this.registerEditorExtension(citationEditor(this.citations));
     this.registerEditorExtension(literatureNoteEditor());
+    const { PublicationEditor } = await import("./publication-editor");
+    if (this.isUnloaded) return;
+    this.publicationEditor = this.addChild(new PublicationEditor(this));
+    this.registerEditorExtension(this.publicationEditor.extension());
+    this.addCommand({
+      id: "edit-publication-details",
+      name: "Edit publication details",
+      editorCallback: (_editor, view) => {
+        if (view instanceof MarkdownView && view.file)
+          void this.publicationEditor?.open(view.file, view);
+      },
+    });
     registerCitationReading(this.citations);
     this.sourceSummaries = this.addChild(new SourceSummaries(this));
     this.registerEditorExtension(this.sourceSummaries.editorExtension());
@@ -552,6 +566,8 @@ export default class StratumPlugin extends Plugin {
   }
 
   onunload(): void {
+    // Commit valid form drafts before editor-extension cleanup removes their views.
+    this.publicationEditor?.flushAll();
     this.isUnloaded = true;
     this.backend?.invalidatePendingRequests();
     this.zoteroConnectionRequestId += 1;

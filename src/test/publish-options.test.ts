@@ -7,6 +7,17 @@ import {
 } from "../publish-options";
 import { preparePublishMath, protectTexDelimiters } from "../publish-math";
 import { loadRuntime } from "./runtime-harness";
+import { publicationAuthors } from "../publication-metadata";
+
+function academicRuntime() {
+  return loadRuntime<typeof import("../publish-academic")>(
+    "publish-academic.ts",
+    { parseYaml: JSON.parse },
+    {},
+    "node",
+    { "./publication-metadata": { publicationAuthors } },
+  );
+}
 
 test("publishing settings normalize malformed values and keep independent format choices", () => {
   const options = readPublishOptions({
@@ -30,10 +41,7 @@ test("publishing settings normalize malformed values and keep independent format
 });
 
 test("academic preparation preserves existing values, legacy author, and unrelated properties", () => {
-  const academic = loadRuntime<typeof import("../publish-academic")>(
-    "publish-academic.ts",
-    { parseYaml: JSON.parse },
-  );
+  const academic = academicRuntime();
   const properties: Record<string, unknown> = {
     author: "Existing Writer",
     tags: ["private"],
@@ -64,6 +72,45 @@ test("academic preparation preserves existing values, legacy author, and unrelat
     () => academic.academicOpening(academic.academicMetadata({ title: "" })),
     /nonempty title/,
   );
+});
+
+test("structured academic authors preserve affiliations and suppress legacy precedence notices", () => {
+  const academic = academicRuntime();
+  const properties = {
+    title: "Synthetic manuscript",
+    author: "Old singular author",
+    authors: ["Old list author"],
+    affiliations: ["Old global affiliation"],
+    stratum_publish: {
+      authors: [
+        {
+          name: "Alex Example",
+          email: "alex@example.org",
+          affiliations: ["University", "Observatory"],
+        },
+        {
+          name: "Morgan Sample",
+          email: "morgan@example.org",
+          affiliations: ["University"],
+        },
+      ],
+    },
+  };
+  const metadata = academic.academicMetadata(properties);
+  assert.equal(metadata.bothAuthors, false);
+  const opening = academic.academicOpening(metadata);
+  assert.match(opening, /Alex Example, Morgan Sample/);
+  assert.match(opening, /Alex Example: University; Observatory/);
+  assert.match(opening, /Morgan Sample: University/);
+  assert.doesNotMatch(opening, /Old |example\.org/);
+  const empty = academic.academicOpening(
+    academic.academicMetadata({
+      ...properties,
+      stratum_publish: { authors: [] },
+    }),
+  );
+  assert.doesNotMatch(empty, /Old |University|Example|Sample/);
+  assert.match(empty, /Synthetic manuscript/);
 });
 
 test("math preserves equations, ignores code and currency, and reports malformed display math", () => {

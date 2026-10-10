@@ -107,6 +107,11 @@ export function mappedPublishingProperties(
   for (const field of definitions)
     if (field.use !== "metadata" && validValue(field, properties[field.key]))
       result[field.use] = properties[field.key];
+  if (
+    definitions.some((field) => field.use === "authors") &&
+    Object.hasOwn(properties, "stratum_publish")
+  )
+    result.stratum_publish = properties.stratum_publish;
   return result;
 }
 

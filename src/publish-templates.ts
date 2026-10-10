@@ -18,6 +18,7 @@ export interface PublishingTemplate {
   layout: PublishOptions;
   properties: PublishingProperty[];
   prefill: AcademicDefaults;
+  renderer?: "aastex";
 }
 export interface PublishingTemplates {
   templates: PublishingTemplate[];

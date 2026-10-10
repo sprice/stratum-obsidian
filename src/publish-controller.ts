@@ -44,6 +44,12 @@ import {
   type PublishOptions,
 } from "./publish-options";
 import { publicationFrontmatter, academicMetadata } from "./publish-academic";
+import {
+  AASTEX_TEMPLATE,
+  aastexProblems,
+  aastexPackage,
+} from "./publication-package";
+import type { renderAastexPublication } from "./publication-render";
 
 export class PublishController extends Component {
   document: TFile | null = null;
@@ -253,7 +259,12 @@ export class PublishController extends Component {
     return this.preferencesFor(note?.preferences);
   }
   get publishingTemplates() {
-    return readPublishingTemplates(this.plugin.settings.publishingTemplates);
+    const state = readPublishingTemplates(
+      this.plugin.settings.publishingTemplates,
+    );
+    return {
+      templates: [...state.templates, AASTEX_TEMPLATE],
+    };
   }
   private preferencesFor(value: unknown): NotePublishPreferences {
     const previous = readNotePreferences(value);
@@ -273,7 +284,14 @@ export class PublishController extends Component {
     );
   }
   get propertyDefinitions() {
-    return publicationProperties(this.layout, this.selectedTemplate?.prefill);
+    const fields = publicationProperties(
+      this.layout,
+      this.selectedTemplate?.prefill,
+    );
+    return this.selectedTemplate?.renderer === "aastex" &&
+      this.selectedFormat === "docx"
+      ? fields.map((field) => ({ ...field, required: false }))
+      : fields;
   }
   get noteProperties(): Record<string, unknown> {
     const text = this.currentText();
@@ -285,6 +303,7 @@ export class PublishController extends Component {
         : {};
   }
   get propertiesMissing(): boolean {
+    if (this.selectedTemplate?.renderer === "aastex") return false;
     try {
       return (
         this.propertyDefinitions.some(
@@ -327,6 +346,19 @@ export class PublishController extends Component {
   }
   get academicProblem(): string {
     if (!this.selectedTemplate) return "Choose a template before publishing.";
+    if (this.selectedTemplate.renderer === "aastex") {
+      try {
+        return aastexProblems(
+          this.currentText(),
+          this.layout.titleSource,
+          this.selectedFormat || "docx",
+        ).errors.join("\n");
+      } catch (error) {
+        return error instanceof Error
+          ? error.message
+          : "Repair the publication metadata.";
+      }
+    }
     // Without published properties, the note's YAML does not affect the document.
     if (!this.propertyDefinitions.length) return "";
     try {
@@ -380,6 +412,9 @@ export class PublishController extends Component {
         this.preferencesFor({ ...current, ...patch }),
       );
       await this.reload();
+      this.plugin.publicationEditor?.refresh();
+      if (this.selectedTemplate?.renderer === "aastex" && this.document)
+        await this.editPublicationDetails();
     });
     this.preferenceQueue = next.catch(() => {});
     this.emit();
@@ -396,6 +431,15 @@ export class PublishController extends Component {
   selectFormat(format: PublishFormat | ""): Promise<void> {
     this.selectedFormat = format;
     return this.updatePreferences({ format });
+  }
+  async editPublicationDetails(): Promise<void> {
+    const file = this.document;
+    if (!file) return;
+    const view = this.leaf?.view;
+    if (view instanceof MarkdownView && view.file === file) {
+      await this.plugin.publicationEditor?.open(file, view);
+      if (this.leaf) await this.plugin.app.workspace.revealLeaf(this.leaf);
+    }
   }
   async updateLayout(patch: Partial<PublishOptions>): Promise<void> {
     if (!this.document || this.busy) return;
@@ -606,6 +650,7 @@ export class PublishController extends Component {
   private async diagnoseFailure(
     format: PublishFormat,
     signal: AbortSignal,
+    probeGenericConversion = true,
   ): Promise<void> {
     const previous = this.readiness;
     if (!previous) return;
@@ -614,7 +659,11 @@ export class PublishController extends Component {
     this.progress = "Checking why publishing failed…";
     this.emit();
     const ready = await this.detectedSupport(previous, signal);
-    if (ready.pandoc.path && (format === "docx" || ready.tectonic.path)) {
+    if (
+      probeGenericConversion &&
+      ready.pandoc.path &&
+      (format === "docx" || ready.tectonic.path)
+    ) {
       try {
         await probePublication(
           format,
@@ -676,6 +725,18 @@ export class PublishController extends Component {
   }
   async create(): Promise<void> {
     if (
+      this.document &&
+      this.plugin.publicationEditor &&
+      !this.plugin.publicationEditor.flush(this.document.path)
+    ) {
+      this.fail(
+        new Error(
+          "Resolve or discard the pending author edit before publishing.",
+        ),
+      );
+      return;
+    }
+    if (
       !this.canCreate() ||
       !this.document ||
       !this.selectedFormat ||
@@ -694,6 +755,7 @@ export class PublishController extends Component {
       opening: this.layout.titleSource,
     };
     const layout = { ...publishing[format] };
+    const packaged = this.selectedTemplate?.renderer === "aastex";
     const propertyDefinitions = this.propertyDefinitions.map((field) => ({
       ...field,
     }));
@@ -718,19 +780,42 @@ export class PublishController extends Component {
       const preferences = this.plugin.citations.preferences(path, text);
       // Start formatting before awaiting storage so settings are captured at click time.
       const [formatted, note] = await Promise.all([
-        this.plugin.citations.formatForPublication(text, path),
+        packaged && format === "pdf"
+          ? Promise.resolve(undefined)
+          : this.plugin.citations.formatForPublication(text, path),
         this.store.note(file.path, title, ctime),
       ]);
-      const rendered = await renderPublication(
-        this.plugin.app,
-        text,
-        path,
-        title,
-        formatted,
-        aborter.signal,
-        publishing,
-        propertyDefinitions,
-      );
+      const rendered: {
+        html: string;
+        assets: import("./publish-desktop").PublishAsset[];
+        aastex?: Awaited<ReturnType<typeof renderAastexPublication>>["aastex"];
+      } =
+        packaged && format === "pdf"
+          ? await (
+              await import("./publication-render")
+            ).renderAastexPublication(
+              this.plugin.app,
+              this.plugin.citations,
+              text,
+              path,
+              title,
+              publishing,
+              aborter.signal,
+            )
+          : await renderPublication(
+              this.plugin.app,
+              text,
+              path,
+              title,
+              formatted,
+              aborter.signal,
+              publishing,
+              propertyDefinitions,
+            );
+      if (packaged && format === "pdf" && !rendered.aastex)
+        throw new Error(
+          "The AASTeX manuscript could not be prepared. Try publishing again after reopening the note.",
+        );
       converting = true;
       const bytes = await convertPublication(
         rendered.html,
@@ -740,6 +825,7 @@ export class PublishController extends Component {
         aborter.signal,
         120_000,
         layout,
+        rendered.aastex,
       );
       converting = false;
       if (aborter.signal.aborted || !this.alive) return;
@@ -751,9 +837,20 @@ export class PublishController extends Component {
           noteId: note.id,
           format,
           createdAt: date.toISOString(),
-          citationStyle: preferences.style,
+          citationStyle: rendered.aastex
+            ? aastexPackage.manifest.bibliographyStyle
+            : preferences.style,
           citationLanguage: preferences.language,
           publishing: {
+            ...(packaged
+              ? {
+                  template: {
+                    id: aastexPackage.manifest.id,
+                    version: aastexPackage.manifest.version,
+                    upstreamVersion: aastexPackage.manifest.upstreamVersion,
+                  },
+                }
+              : {}),
             documentType: publishing.documentType,
             opening: publishing.opening,
             layout,
@@ -786,7 +883,13 @@ export class PublishController extends Component {
         this.alive
       ) {
         try {
-          await this.diagnoseFailure(format, aborter.signal);
+          // Class-specific failures must not invalidate generic PDF conversion;
+          // missing shared executables still invalidate their affected formats.
+          await this.diagnoseFailure(
+            format,
+            aborter.signal,
+            !(packaged && format === "pdf"),
+          );
         } catch {
           // Preserve the original failure if diagnosis itself cannot finish.
         }

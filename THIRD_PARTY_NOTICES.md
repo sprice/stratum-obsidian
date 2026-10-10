@@ -100,3 +100,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+## yaml 2.8.3 — ISC
+
+Copyright Eemeli Aro <eemeli@gmail.com>.
+See [the full license](licenses/yaml.txt).
+Source: https://github.com/eemeli/yaml
+
+## AASTeX 7.0.2 and its bibliography style
+
+The unmodified class is distributed under LPPL 1.3c or later. The bibliography
+style retains its own non-profit use and distribution notice. The package
+manifest records the official archive and checksum. Full upstream notices remain
+in the bundled source assets; see
+[src/publication-templates/aastex/licenses/NOTICE.txt](src/publication-templates/aastex/licenses/NOTICE.txt).

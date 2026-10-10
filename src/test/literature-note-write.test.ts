@@ -139,6 +139,58 @@ test("sync preserves user edits made after the initial read", async () => {
   assert.match(fixture.current, /New user edit/);
 });
 
+test("literature refresh preserves user publication metadata, including an incompatible namespace", async () => {
+  for (const publicationMetadata of [
+    {
+      authors: [
+        {
+          name: "Alex Example",
+          email: "alex@example.org",
+          affiliations: ["Example University"],
+          orcid: "retained",
+        },
+      ],
+      custom: "retained",
+    },
+    "Existing user-owned value",
+  ]) {
+    const fixture = vaultFixture(
+      content({
+        ...frontmatter,
+        publication: "[[Previous Journal]]",
+        stratum_publish: publicationMetadata,
+        aliases: ["Existing paper link"],
+      }),
+    );
+    const originalPath = fixture.file.path;
+    await note.createOrUpdateLiteratureNote({
+      stratumVersion: "0.2.1",
+      app: fixture.app,
+      existingFile: fixture.file,
+      detail: {
+        ...detail,
+        item: { ...detail.item, publicationTitle: "Example Journal" },
+      },
+      filenameFormat: "readable",
+      notesFolder: "Literature Notes",
+    });
+    const properties = JSON.parse(
+      fixture.current.match(/^---\n([\s\S]*?)\n---/)![1],
+    ) as Record<string, unknown>;
+    assert.deepEqual(properties.stratum_publish, publicationMetadata);
+    assert.equal(properties.publication, "[[Example Journal]]");
+    assert.equal(
+      properties.zotero_item_identity,
+      frontmatter.zotero_item_identity,
+    );
+    assert.ok(
+      (properties.aliases as unknown[]).includes("Existing paper link"),
+    );
+    assert.equal(fixture.file.path, originalPath);
+    assert.match(fixture.current, /My original notes/);
+  }
+});
+
 test("a stale file lookup cannot overwrite a different or ordinary note", async () => {
   for (const fm of [
     {},

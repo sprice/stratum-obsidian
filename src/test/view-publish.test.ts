@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
 import { readNotePreferences } from "../publish-options";
+import { readPublishingTemplates } from "../publish-templates";
+import { AASTEX_TEMPLATE } from "../publication-package";
 import type { PublishedDocument } from "../publish-model";
 
 class Element {
@@ -78,6 +80,10 @@ function setup() {
           openTabById: (id: string) => settingsCalls.push(id),
         },
       },
+    },
+    get publishingTemplates() {
+      const stored = readPublishingTemplates(undefined);
+      return { ...stored, templates: [...stored.templates, AASTEX_TEMPLATE] };
     },
     notePreferences: readNotePreferences({ templateId: "general" }),
     get layout() {
@@ -398,7 +404,7 @@ test("a note chooses from all templates without a document type selector", () =>
   assert.equal(select.value, "");
   assert.deepEqual(
     select.children.map((el) => el.text),
-    ["Choose template", "General documents", "Academic papers"],
+    ["Choose template", "General documents", "Academic papers", "AASTeX"],
   );
   assert.equal(
     root.all().find((el) => el.text === "Create document")!.hidden,
