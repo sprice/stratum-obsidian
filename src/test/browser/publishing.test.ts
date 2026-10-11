@@ -247,18 +247,30 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
     await page.keyPress("Tab");
     assert.equal(
       await page.evaluate(
-        "document.activeElement === document.querySelector('.stratum-aastex-option input')",
+        "document.activeElement === document.querySelector('.stratum-aastex-option .checkbox-container')",
       ),
       true,
     );
+    await page.evaluate("window.publicationFixture.holdSaves(true)");
     // This driver path sends Space key/code/VK on both native key events.
     await page.type(" ");
+    await until("window.publicationFixture.state().saving");
+    assert.equal(
+      await page.evaluate(`(() => {
+        const switches = [...document.querySelectorAll('.stratum-aastex-option .checkbox-container')];
+        return document.activeElement === switches[0]
+          && switches[0].getAttribute('aria-disabled') === 'false'
+          && switches.slice(1).every(toggle => toggle.getAttribute('aria-disabled') === 'true');
+      })()`),
+      true,
+    );
+    await page.evaluate("window.publicationFixture.holdSaves(false)");
     await until(
       "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
     );
     assert.equal(
       await page.evaluate(
-        "document.activeElement === document.querySelector('.stratum-aastex-option input')",
+        "document.activeElement === document.querySelector('.stratum-aastex-option .checkbox-container')",
       ),
       true,
     );
@@ -276,6 +288,19 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
     );
     assert.equal(
       await page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(`Array.from(document.querySelectorAll('.stratum-aastex-option')).every(row => {
+        const toggle = row.querySelector('.checkbox-container');
+        const label = row.querySelector('span');
+        const bounds = toggle.getBoundingClientRect();
+        return toggle.tagName === 'DIV' && toggle.getAttribute('role') === 'checkbox'
+          && toggle.getAttribute('aria-label') === label.textContent
+          && bounds.width === 40 && bounds.height === 22
+          && Math.abs(bounds.right - row.getBoundingClientRect().right) < 1
+          && label.getBoundingClientRect().right <= bounds.left;
+      })`),
       true,
     );
     await capture("aastex-options-narrow-keyboard");

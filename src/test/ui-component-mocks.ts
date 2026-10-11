@@ -24,3 +24,26 @@ export class DropdownComponentMock {
     this.selectEl = parent.createEl("select");
   }
 }
+
+export class ToggleComponentMock {
+  toggleEl: HTMLElement;
+  private value = false;
+  constructor(parent: HTMLElement) {
+    this.toggleEl = parent.createDiv({ cls: "checkbox-container" });
+  }
+  setValue(value: boolean) {
+    this.value = value;
+    return this;
+  }
+  getValue() {
+    return this.value;
+  }
+  setDisabled(disabled: boolean) {
+    this.toggleEl.setAttribute("aria-disabled", String(disabled));
+    return this;
+  }
+  onChange(callback: (value: boolean) => void) {
+    this.toggleEl.addEventListener("click", () => callback(!this.value));
+    return this;
+  }
+}

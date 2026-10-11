@@ -115,3 +115,36 @@ h4 {
 .setting-item-control {
   max-width: 55%;
 }
+
+/* Obsidian's native ToggleComponent uses this switch container, not an input. */
+.checkbox-container {
+  --toggle-width: 40px;
+  --toggle-thumb-height: 18px;
+  --toggle-border-width: 2px;
+  width: var(--toggle-width);
+  height: calc(var(--toggle-thumb-height) + var(--toggle-border-width) * 2);
+  padding: var(--toggle-border-width);
+  border-radius: 20px;
+  background: var(--background-modifier-border);
+  cursor: pointer;
+}
+.checkbox-container .checkbox {
+  width: var(--toggle-thumb-height);
+  height: var(--toggle-thumb-height);
+  border-radius: 50%;
+  background: white;
+}
+.checkbox-container.is-enabled {
+  background: var(--interactive-accent);
+}
+.checkbox-container.is-enabled .checkbox {
+  transform: translateX(
+    calc(
+      var(--toggle-width) - var(--toggle-thumb-height) -
+        var(--toggle-border-width) * 2
+    )
+  );
+}
+.checkbox-container.is-disabled {
+  opacity: 0.5;
+}

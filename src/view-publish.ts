@@ -7,7 +7,7 @@ import {
   createStratumSelect,
   createStratumButton,
 } from "./ui-controls";
-import { Component, Modal, type App } from "obsidian";
+import { Component, Modal, type App, type ToggleComponent } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import {
   formatLabel,
@@ -19,7 +19,7 @@ import { renderPublishCustomization } from "./publish-customize";
 import { aastexProblems } from "./publication-package";
 import { AASTEX_PACKAGE_REFERENCE } from "./publication-package";
 import {
-  aastexOptionCheckbox,
+  aastexOptionToggle,
   AASTEX_OPTION_LABELS,
 } from "./publication-option-controls";
 import type { AastexPdfOptions } from "./publication-options";
@@ -89,7 +89,7 @@ export class PublishPanel extends Component {
   private customizationKey = "";
   private alive = true;
   private aastexOptions!: HTMLDetailsElement;
-  private aastexChecks = new Map<keyof AastexPdfOptions, HTMLInputElement>();
+  private aastexToggles = new Map<keyof AastexPdfOptions, ToggleComponent>();
   private aastexWarning!: HTMLDetailsElement;
   private aastexWarningList!: HTMLElement;
   private aastexVersion!: HTMLElement;
@@ -241,9 +241,9 @@ export class PublishPanel extends Component {
     for (const key of Object.keys(
       AASTEX_OPTION_LABELS,
     ) as (keyof AastexPdfOptions)[])
-      this.aastexChecks.set(
+      this.aastexToggles.set(
         key,
-        aastexOptionCheckbox(optionFields, key, (value) => {
+        aastexOptionToggle(optionFields, key, (value) => {
           void this.publish
             .updateAastexPdfOptions({ [key]: value })
             .catch(() => {});
@@ -341,14 +341,16 @@ export class PublishPanel extends Component {
     this.aastexUseVersion.hidden = this.aastexVersionProblem.hidden;
     this.aastexUseVersion.disabled = publish.busy || publish.preferencesSaving;
     this.aastexReset.disabled = publish.busy || publish.preferencesSaving;
-    for (const [key, input] of this.aastexChecks) {
-      input.checked =
-        publish.aastexPdfOptions?.[key] ?? key !== "numberedHeadings";
-      // Keep a keyboard user's current checkbox focused during the queued save.
-      input.disabled =
+    for (const [key, toggle] of this.aastexToggles) {
+      toggle.setValue(
+        publish.aastexPdfOptions?.[key] ?? key !== "numberedHeadings",
+      );
+      // Preserve the native switch's keyboard focus during the queued save.
+      toggle.setDisabled(
         publish.busy ||
-        (publish.preferencesSaving &&
-          input.ownerDocument?.activeElement !== input);
+          (publish.preferencesSaving &&
+            toggle.toggleEl.ownerDocument.activeElement !== toggle.toggleEl),
+      );
     }
     const headingIssues = aastexPdf
       ? (publish.aastexHeadingProblems ?? [])

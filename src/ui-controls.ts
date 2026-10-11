@@ -2,6 +2,7 @@ import {
   ButtonComponent,
   DropdownComponent,
   SearchComponent,
+  ToggleComponent,
   setIcon,
   setTooltip,
 } from "obsidian";
@@ -132,4 +133,26 @@ export function createStratumButton(
   if (options.primary) button.addClass("stratum-control-cta");
   if (options.className) button.addClass(options.className);
   return button;
+}
+
+export function createStratumToggle(
+  container: HTMLElement,
+  options: {
+    label: string;
+    value: boolean;
+    onChange: (value: boolean) => void;
+    className?: string;
+  },
+): ToggleComponent {
+  const row = container.createDiv({
+    cls: options.className
+      ? `stratum-control-toggle-field ${options.className}`
+      : "stratum-control-toggle-field",
+  });
+  row.createSpan({ text: options.label });
+  const component = styleStratumComponent(new ToggleComponent(row))
+    .setValue(options.value)
+    .onChange(options.onChange);
+  component.toggleEl.setAttribute("aria-label", options.label);
+  return component;
 }

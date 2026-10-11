@@ -1833,14 +1833,19 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   padding-top: var(--size-4-3);
   overflow-wrap: anywhere;
 }
-.stratum-aastex-option {
+/* Preserve native switch sizing while labels wrap in narrow panels. */
+.stratum-control-toggle-field {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   margin: 8px 0;
 }
-
-.stratum-aastex-option input {
-  width: auto;
+.stratum-control-toggle-field > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.stratum-control-toggle-field > .stratum-control-toggle {
   flex-shrink: 0;
+  margin-inline-start: auto;
 }

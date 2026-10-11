@@ -177,19 +177,50 @@ export class DropdownComponent {
   }
 }
 export class SearchComponent {}
-class ToggleComponent {
-  toggleEl: HTMLInputElement;
+// Faithful native switch structure: an accessible, focusable container rather
+// than an HTML input (which would hide checkbox/input sizing collisions).
+export class ToggleComponent {
+  toggleEl: HTMLDivElement;
+  private value = false;
+  private disabled = false;
+  private change?: (value: boolean) => void;
   constructor(parent: HTMLElement) {
-    this.toggleEl = parent.createEl("input", { type: "checkbox" });
+    this.toggleEl = parent.createDiv({
+      cls: "checkbox-container",
+      attr: { role: "checkbox", tabindex: "0", "aria-checked": "false" },
+    });
+    this.toggleEl.createDiv({ cls: "checkbox" });
+    this.toggleEl.addEventListener("click", () => this.onClick());
+    this.toggleEl.addEventListener("keydown", (event) => {
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        this.onClick();
+      }
+    });
+  }
+  getValue() {
+    return this.value;
   }
   setValue(value: boolean) {
-    this.toggleEl.checked = value;
+    this.value = value;
+    this.toggleEl.classList.toggle("is-enabled", value);
+    this.toggleEl.setAttribute("aria-checked", String(value));
     return this;
   }
+  setDisabled(disabled: boolean) {
+    this.disabled = disabled;
+    this.toggleEl.classList.toggle("is-disabled", disabled);
+    this.toggleEl.setAttribute("aria-disabled", String(disabled));
+    this.toggleEl.tabIndex = disabled ? -1 : 0;
+    return this;
+  }
+  onClick() {
+    if (this.disabled) return;
+    this.setValue(!this.value);
+    this.change?.(this.value);
+  }
   onChange(callback: (value: boolean) => void) {
-    this.toggleEl.addEventListener("change", () =>
-      callback(this.toggleEl.checked),
-    );
+    this.change = callback;
     return this;
   }
 }

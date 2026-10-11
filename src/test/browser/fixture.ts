@@ -10,6 +10,19 @@ class MemoryVault implements PublishAdapter {
   private files = new Map<string, string>();
   private directories = new Set<string>();
   failSave = false;
+  private saveGate?: Promise<void>;
+  private releaseSave?: () => void;
+  holdSaves(hold: boolean) {
+    if (hold && !this.saveGate)
+      this.saveGate = new Promise<void>((resolve) => {
+        this.releaseSave = resolve;
+      });
+    if (!hold) {
+      this.releaseSave?.();
+      this.saveGate = undefined;
+      this.releaseSave = undefined;
+    }
+  }
   exists(path: string) {
     return Promise.resolve(this.files.has(path) || this.directories.has(path));
   }
@@ -20,7 +33,8 @@ class MemoryVault implements PublishAdapter {
   read(path: string) {
     return Promise.resolve(this.files.get(path) ?? "");
   }
-  write(path: string, value: string) {
+  async write(path: string, value: string) {
+    await this.saveGate;
     if (this.failSave)
       return Promise.reject(new Error("Synthetic preference save failed"));
     this.files.set(path, value);
@@ -103,6 +117,9 @@ async function reset(options: FixtureOptions = {}) {
 }
 export const publicationFixture = {
   reset,
+  holdSaves(value: boolean) {
+    adapter.holdSaves(value);
+  },
   failSave(value: boolean) {
     adapter.failSave = value;
   },

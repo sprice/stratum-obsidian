@@ -1,6 +1,7 @@
 import {
   ButtonComponentMock,
   DropdownComponentMock,
+  ToggleComponentMock,
 } from "./ui-component-mocks";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -11,6 +12,7 @@ import { AASTEX_TEMPLATE } from "../publication-package";
 import type { PublishedDocument } from "../publish-model";
 
 class Element {
+  ownerDocument = { activeElement: null };
   children: Element[] = [];
   text = "";
   value = "";
@@ -135,6 +137,7 @@ function setup() {
     {
       ButtonComponent: ButtonComponentMock,
       DropdownComponent: DropdownComponentMock,
+      ToggleComponent: ToggleComponentMock,
       Component: class {
         register() {}
       },
