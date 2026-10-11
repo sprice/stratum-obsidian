@@ -459,7 +459,7 @@ $$
       if (pdftotext) {
         const text = execFileSync(
           pdftotext,
-          [join(tmpdir(), "stratum-aastex-verified.pdf"), "-"],
+          ["-layout", join(tmpdir(), "stratum-aastex-verified.pdf"), "-"],
           { encoding: "utf8" },
         );
         assert.match(text, /Synthetic measurements & comparison/);
@@ -491,7 +491,7 @@ $$
           "Removed phrase",
           "Underlined phrase",
         ])
-          // PDF extraction can join or split words around text decorations.
+          // Keep physical reading order and allow spacing around decorations.
           assert.ok(
             text.replace(/\s+/g, "").includes(label.replace(/\s+/g, "")),
             `${heading}: ${label}; extracted PDF text: ${text}`,
