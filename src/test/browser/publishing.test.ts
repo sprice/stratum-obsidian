@@ -149,7 +149,10 @@ async function until(expression: string) {
     if (await page.evaluate(expression)) return;
     await delay(30);
   }
-  throw new Error(`Timed out: ${expression}`);
+  const state = await page.evaluate("window.publicationFixture?.state()");
+  throw new Error(
+    `Timed out: ${expression}; fixture state: ${JSON.stringify(state)}`,
+  );
 }
 async function capture(name: string) {
   const bytes = await page.screenshot({ fullPage: true });
@@ -248,8 +251,8 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
       ),
       true,
     );
-    // Stagehand's printable-key API takes a literal space, not the code name.
-    await page.keyPress(" ");
+    // This driver path sends Space key/code/VK on both native key events.
+    await page.type(" ");
     await until(
       "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
     );
