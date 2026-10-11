@@ -86,6 +86,12 @@ async function reset(options: FixtureOptions = {}) {
         adapter,
         configDir: ".synthetic",
         read: () => Promise.resolve(source),
+        getAbstractFileByPath(path: string) {
+          if (!path.startsWith("Papers/Synthetic")) return null;
+          const file = new TFile();
+          file.path = path;
+          return file;
+        },
       },
       metadataCache: { getFileCache: () => ({ frontmatter: properties }) },
       workspace: { getMostRecentLeaf: () => null },
@@ -117,6 +123,42 @@ async function reset(options: FixtureOptions = {}) {
 }
 export const publicationFixture = {
   reset,
+  switchNote() {
+    const file = new TFile();
+    file.path = "Papers/Synthetic second paper.md";
+    file.basename = "Synthetic second paper";
+    controller.document = file;
+    controller.emit();
+  },
+  savedOptions(path: string) {
+    return controller.catalog?.notes.find((note) => note.path === path)
+      ?.preferences?.aastex?.options;
+  },
+  selectFormat(format: "pdf" | "docx") {
+    return controller.selectFormat(format);
+  },
+  async addDocuments(count = 1) {
+    const note = await controller.store.note(
+      controller.document!.path,
+      "Synthetic paper",
+      1,
+    );
+    for (let index = 0; index < count; index++)
+      for (const format of ["pdf", "docx"] as const)
+        await controller.store.create(
+          {
+            id: crypto.randomUUID(),
+            noteId: note.id,
+            format,
+            createdAt: "2026-10-11T12:00:00Z",
+            citationStyle: "apa",
+            citationLanguage: "en-US",
+          },
+          "Synthetic paper",
+          new ArrayBuffer(0),
+        );
+    await controller.reload();
+  },
   holdSaves(value: boolean) {
     adapter.holdSaves(value);
   },
@@ -135,6 +177,7 @@ export const publicationFixture = {
       titleFont: controller.layout.titleFont,
       fonts: controller.fontError?.fonts ?? [],
       aastexOptions: controller.aastexPdfOptions,
+      selectedFormat: controller.selectedFormat,
     };
   },
   injectEngineError(font: string) {

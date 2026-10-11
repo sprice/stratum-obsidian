@@ -148,3 +148,16 @@ h4 {
 .checkbox-container.is-disabled {
   opacity: 0.5;
 }
+
+.modal {
+  position: fixed;
+  inset: 24px 12px auto;
+  max-width: 560px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 16px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  z-index: 10;
+}

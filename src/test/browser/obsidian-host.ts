@@ -83,6 +83,11 @@ Object.assign(window, {
 
 export class Component {
   private cleanup: (() => void)[] = [];
+  addChild<T extends Component>(child: T): T {
+    child.load();
+    this.register(() => child.unload());
+    return child;
+  }
   register(callback: () => void) {
     this.cleanup.push(callback);
   }
@@ -98,7 +103,58 @@ export class Component {
   }
 }
 export class Modal {
-  constructor(_app: unknown) {}
+  modalEl = document.createElement("div");
+  contentEl = document.createElement("div");
+  private heading = document.createElement("h2");
+  private previousFocus?: HTMLElement;
+  constructor(_app: unknown) {
+    this.modalEl.className = "modal";
+    this.modalEl.setAttribute("role", "dialog");
+    this.modalEl.setAttribute("aria-modal", "true");
+    this.modalEl.append(this.heading, this.contentEl);
+    this.modalEl.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.close();
+      }
+      if (event.key === "Tab") {
+        const controls = Array.from(
+          this.modalEl.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), [tabindex="0"]',
+          ),
+        );
+        const first = controls[0],
+          last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    });
+  }
+  setTitle(title: string) {
+    this.heading.textContent = title;
+    this.modalEl.setAttribute("aria-label", title);
+  }
+  onOpen() {}
+  onClose() {}
+  open() {
+    this.previousFocus = document.activeElement as HTMLElement;
+    document.body.append(this.modalEl);
+    this.onOpen();
+    this.modalEl
+      .querySelector<HTMLElement>('button:not(:disabled), [tabindex="0"]')
+      ?.focus();
+  }
+  close() {
+    if (!this.modalEl.isConnected) return;
+    this.modalEl.remove();
+    this.onClose();
+    if (this.previousFocus?.isConnected) this.previousFocus.focus();
+  }
 }
 export class Notice {
   constructor(_message: string) {}

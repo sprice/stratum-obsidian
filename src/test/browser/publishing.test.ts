@@ -238,13 +238,10 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
   await scenario("aastex-options", async () => {
     await page.setViewportSize(320, 900);
     await page.evaluate("window.publicationFixture.reset({aastex:true})");
-    const disclosure =
-      "document.querySelector('.stratum-aastex-option').closest('details')";
-    assert.equal(await page.evaluate(`${disclosure}.open`), false);
-    await page.evaluate(`${disclosure}.querySelector('summary').focus()`);
-    await page.keyPress("Enter");
-    await until(`${disclosure}.open`);
-    await page.keyPress("Tab");
+    await page
+      .locator('button[aria-label="Document options for this note"]')
+      .click();
+    await until("!!document.querySelector('.stratum-document-options-modal')");
     assert.equal(
       await page.evaluate(
         "document.activeElement === document.querySelector('.stratum-aastex-option .checkbox-container')",
@@ -303,7 +300,226 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
       })`),
       true,
     );
+    for (let index = 0; index < 5; index++) await page.keyPress("Tab");
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement === document.querySelector('.stratum-aastex-option .checkbox-container')",
+      ),
+      true,
+    );
     await capture("aastex-options-narrow-keyboard");
+    await page.keyPress("Escape");
+    await until("!document.querySelector('.stratum-document-options-modal')");
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement === document.querySelector('button[aria-label=\"Document options for this note\"]')",
+      ),
+      true,
+    );
+  });
+});
+
+test("AASTeX gear explains Word scope and reset retains auto-save behavior", async () => {
+  await scenario("aastex-modal-word-reset", async () => {
+    await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    await page.evaluate("window.publicationFixture.selectFormat('docx')");
+    const gear = 'button[aria-label="Document options for this note"]';
+    await page.locator(gear).click();
+    assert.equal(
+      await page.evaluate(
+        `document.querySelector('.stratum-document-options-modal').textContent.includes('Word uses the selected citation style') && [...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => toggle.getAttribute('aria-disabled') === 'true')`,
+      ),
+      true,
+    );
+    await page
+      .locator(".stratum-document-options-modal button:last-child")
+      .click();
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().selectedFormat"),
+      "docx",
+    );
+    assert.equal(
+      await page
+        .locator('select[aria-label="Choose file type to publish"]')
+        .count(),
+      1,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-controls').textContent.includes('Create Word review manuscript')",
+      ),
+      true,
+    );
+    await page.evaluate("window.publicationFixture.selectFormat('pdf')");
+    await page.locator(gear).click();
+    await page.type(" ");
+    await until(
+      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
+    );
+    await page
+      .locator(
+        ".stratum-document-options-modal .stratum-publish-actions button:first-child",
+      )
+      .click();
+    await until(
+      "!window.publicationFixture.state().saving && window.publicationFixture.state().aastexOptions.showLineNumbers",
+    );
+    await page.evaluate("window.publicationFixture.failSave(true)");
+    await page
+      .locator(".stratum-aastex-option:first-of-type .checkbox-container")
+      .click();
+    await until(
+      "document.querySelector('.stratum-document-options-modal .stratum-publish-error').textContent.includes('Synthetic preference save failed')",
+    );
+    await capture("aastex-modal-save-error");
+    await page.keyPress("Escape");
+  });
+});
+
+test("switching source notes closes options while queued changes save to the captured note", async () => {
+  await scenario("aastex-modal-note-switch", async () => {
+    await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    await page
+      .locator('button[aria-label="Document options for this note"]')
+      .click();
+    await page.evaluate("window.publicationFixture.holdSaves(true)");
+    await page.type(" ");
+    await until("window.publicationFixture.state().saving");
+    await page.evaluate("window.publicationFixture.switchNote()");
+    assert.equal(
+      await page.locator(".stratum-document-options-modal").count(),
+      0,
+    );
+    await page.evaluate("window.publicationFixture.holdSaves(false)");
+    await until("!window.publicationFixture.state().saving");
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.savedOptions('Papers/Synthetic paper.md').showLineNumbers",
+      ),
+      false,
+    );
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.state().aastexOptions.showLineNumbers",
+      ),
+      true,
+    );
+  });
+});
+
+test("secondary tabs isolate PDF and Word history and retain filtering across navigation", async () => {
+  await scenario("publishing-documents-tabs", async () => {
+    await page.setViewportSize(320, 900);
+    await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    await page.evaluate("window.publicationFixture.addDocuments()");
+    assert.equal(
+      await page.evaluate(
+        "!document.querySelector('.stratum-publish-panel .stratum-publish-history') && !document.querySelector('.stratum-publish-panel').hidden && document.querySelector('.stratum-publish-documents').parentElement.hidden",
+      ),
+      true,
+    );
+    await page.evaluate(
+      "document.querySelector('.stratum-publish-tabs button:first-child').focus()",
+    );
+    await page.keyPress("ArrowRight");
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement === document.querySelector('.stratum-publish-tabs button:last-child') && document.querySelector('.stratum-publish-panel').hidden && !document.querySelector('.stratum-publish-documents').parentElement.hidden",
+      ),
+      true,
+    );
+    assert.equal(await page.locator(".stratum-publish-filename").count(), 2);
+    assert.equal(
+      await page
+        .locator(
+          '.stratum-publish-row-actions button[aria-label^="Preview PDF"]',
+        )
+        .count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .locator('.stratum-publish-row-actions button[aria-label^="Save as"]')
+        .count(),
+      2,
+    );
+    assert.equal(
+      await page
+        .locator('.stratum-publish-row-actions button[aria-label^="Delete"]')
+        .count(),
+      2,
+    );
+    await page
+      .locator(
+        '.stratum-publish-row-actions button[aria-label^="Delete"][aria-label$=".pdf"]',
+      )
+      .click();
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.modal').textContent.includes('Delete published document?')",
+      ),
+      true,
+    );
+    await page
+      .locator(".modal .stratum-publish-actions button:first-child")
+      .click();
+    assert.equal(await page.locator(".stratum-publish-filename").count(), 2);
+    await page
+      .locator(
+        '.stratum-publish-row-actions button[aria-label^="Delete"][aria-label$=".pdf"]',
+      )
+      .click();
+    await page
+      .locator(".modal .stratum-publish-actions button:last-child")
+      .click();
+    await until(
+      "document.querySelectorAll('.stratum-publish-filename').length === 1 && !document.querySelector('.modal')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-filename').textContent.endsWith('.docx')",
+      ),
+      true,
+    );
+    await page
+      .locator('select[aria-label="Choose which documents to view"]')
+      .selectOption("all");
+    await page.evaluate(
+      "document.querySelector('.stratum-publish-tabs button:last-child').focus()",
+    );
+    await page.keyPress("Home");
+    await page.keyPress("End");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('select[aria-label=\"Choose which documents to view\"]').value",
+      ),
+      "all",
+    );
+    assert.equal(
+      await page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+      true,
+    );
+    await page.evaluate("window.publicationFixture.addDocuments(12)");
+    await page.evaluate(
+      `(() => { const list = document.querySelector('.stratum-publish-list'); list.style.height = '160px'; list.style.flex = 'none'; list.scrollTop = 240; })()`,
+    );
+    const scroll = await page.evaluate(
+      "document.querySelector('.stratum-publish-list').scrollTop",
+    );
+    assert.ok(Number(scroll) > 0);
+    await page.evaluate(
+      "document.querySelector('.stratum-publish-tabs button:last-child').focus()",
+    );
+    await page.keyPress("Home");
+    await page.evaluate("window.publicationFixture.addDocuments()");
+    await page.keyPress("End");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-list').scrollTop",
+      ),
+      scroll,
+    );
+    await capture("publishing-documents-narrow");
   });
 });
 

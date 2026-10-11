@@ -47,7 +47,10 @@ class Element {
   addClass(cls: string) {
     this.cls = [this.cls, cls].filter(Boolean).join(" ");
   }
-  setAttribute() {}
+  attrs = new Map<string, string>();
+  setAttribute(name: string, value: string) {
+    this.attrs.set(name, value);
+  }
   empty() {
     this.children = [];
     this.scrollTop = 0;
@@ -71,11 +74,11 @@ class Element {
   scrollIntoView() {}
 }
 
-function setup() {
+function setup(state?: import("../view-publish").PublishViewState) {
   const root = new Element();
   const settingsCalls: string[] = [];
   const focusedFonts: string[] = [];
-  let update!: () => void;
+  const updates: (() => void)[] = [];
   const publish = {
     plugin: {
       manifest: { id: "stratum" },
@@ -125,7 +128,7 @@ function setup() {
     fontError: null as { fonts: string[] } | null,
     sourceNote: () => null,
     subscribe(callback: () => void) {
-      update = callback;
+      updates.push(callback);
       return () => {};
     },
     canCreate() {
@@ -139,13 +142,17 @@ function setup() {
       DropdownComponent: DropdownComponentMock,
       ToggleComponent: ToggleComponentMock,
       Component: class {
+        addChild(child: { onload(): void }) {
+          child.onload();
+          return child;
+        }
         register() {}
       },
       Modal: class {},
       setIcon() {},
       setTooltip() {},
     },
-    {},
+    { crypto },
     "browser",
     {
       "./publish-customize": {
@@ -154,8 +161,14 @@ function setup() {
       },
     },
   );
-  new PublishPanel(root as never, publish as never).onload();
-  return { root, publish, settingsCalls, focusedFonts, update: () => update() };
+  new PublishPanel(root as never, publish as never, state).onload();
+  return {
+    root,
+    publish,
+    settingsCalls,
+    focusedFonts,
+    update: () => updates.forEach((callback) => callback()),
+  };
 }
 
 test("missing PDF fonts offer recovery in note customization and focus the affected selector", () => {
@@ -284,7 +297,10 @@ test("creation and note history require Markdown, but all history remains access
     assert.equal(regions[0].hidden, true);
     assert.equal(regions[1].hidden, false);
     assert.equal(regions[2].hidden, true);
-    const scope = root.all().filter((el) => el.tag === "select")[3];
+    const scope = root
+      .all()
+      .find((el) => el.text === "Show")!
+      .children.find((el) => el.tag === "select")!;
     scope.value = "all";
     scope.listeners.get("change")!();
     assert.equal(regions[0].hidden, true);
@@ -301,6 +317,10 @@ test("creation and note history require Markdown, but all history remains access
 
 test("history scope switches documents and survives controller updates", () => {
   const { root, publish, update } = setup();
+  root
+    .all()
+    .find((el) => el.text === "Documents")!
+    .listeners.get("click")!();
   const document: PublishedDocument = {
     id: "first",
     noteId: "note-one",
@@ -333,7 +353,10 @@ test("history scope switches documents and survives controller updates", () => {
     true,
     "the source action is disabled when the source note is unavailable",
   );
-  const scope = root.all().filter((el) => el.tag === "select")[3];
+  const scope = root
+    .all()
+    .find((el) => el.text === "Show")!
+    .children.find((el) => el.tag === "select")!;
   scope.value = "all";
   scope.listeners.get("change")!();
   assert.equal(publish.historyScope, "all");
@@ -523,4 +546,93 @@ test("AASTeX exposes author editing and PDF guidance without generic property ma
         el.text.includes("Cited PDFs download a verified bibliography style"),
       ),
   );
+});
+
+test("secondary selection and Documents state survive panel remounts without changing Word preferences", () => {
+  const state: import("../view-publish").PublishViewState = {
+    section: "publish",
+    documents: { scope: "all" },
+  };
+  const first = setup(state);
+  const documents = first.root.all().find((el) => el.text === "Documents")!;
+  documents.listeners.get("click")!();
+  assert.equal(state.section, "documents");
+  assert.equal(
+    first.root.all().find((el) => el.cls === "stratum-publish-panel")!.hidden,
+    true,
+  );
+  assert.equal(documents.attrs.get("aria-selected"), "true");
+  const list = first.root
+    .all()
+    .find((el) => el.cls === "stratum-publish-list")!;
+  list.scrollTop = 240;
+  first.root
+    .all()
+    .find((el) => el.text === "Publish")!
+    .listeners.get("click")!();
+  first.update();
+  documents.listeners.get("click")!();
+  assert.equal(list.scrollTop, 240);
+  const second = setup(state);
+  assert.equal(
+    second.root
+      .all()
+      .find((el) => el.text === "Documents")!
+      .attrs.get("aria-selected"),
+    "true",
+  );
+  assert.equal(
+    second.root
+      .all()
+      .find((el) => el.text === "Show")!
+      .children.find((el) => el.tag === "select")!.value,
+    "all",
+  );
+  second.publish.selectedFormat = "docx";
+  second.update();
+  assert.ok(second.root.all().some((el) => el.text === "Create Word document"));
+  assert.ok(
+    second.root.all().some((el) => el.tag === "option" && el.value === "docx"),
+  );
+});
+
+test("Documents keeps Word history and file actions while preview remains PDF-specific", () => {
+  const { root, publish, update } = setup();
+  publish.documents = ["pdf", "docx"].map((format) => ({
+    id: format,
+    noteId: "synthetic",
+    filename: `Synthetic.${format}`,
+    format,
+    createdAt: "2026-10-11T12:00:00Z",
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+  })) as PublishedDocument[];
+  update();
+  const actions = root
+    .all()
+    .filter((el) => el.cls === "stratum-publish-row-actions");
+  assert.equal(actions.length, 2);
+  assert.equal(actions[0].children.length, 4);
+  assert.equal(actions[1].children.length, 3);
+  assert.ok(root.all().some((el) => el.text === "Synthetic.docx"));
+});
+
+test("all selected templates expose a gear with explicit preset or note scope", () => {
+  const { root, publish, update } = setup();
+  for (const templateId of ["general", "academic", "package:aastex"]) {
+    publish.notePreferences.templateId = templateId;
+    update();
+    const gear = root
+      .all()
+      .find(
+        (el) => el.attrs.has("title") && el.cls.includes("clickable-icon"),
+      )!;
+    assert.equal(gear.hidden, false);
+    assert.equal(
+      gear.attrs.get("aria-label"),
+      templateId === "package:aastex"
+        ? "Document options for this note"
+        : "Configure template defaults",
+    );
+  }
 });

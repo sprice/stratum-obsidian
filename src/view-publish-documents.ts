@@ -1,0 +1,186 @@
+import { Component, Modal, type App } from "obsidian";
+import {
+  createStratumButton,
+  createStratumSelect,
+  createStratumIconButton,
+} from "./ui-controls";
+import type { PublishController } from "./publish-controller";
+import { formatLabel, type PublishedDocument } from "./publish-model";
+export interface PublishedDocumentsState {
+  scope?: "note" | "all";
+  context?: string;
+  scroll?: number;
+}
+class DeletePublicationModal extends Modal {
+  constructor(
+    app: App,
+    private publish: PublishController,
+    private document: PublishedDocument,
+  ) {
+    super(app);
+    this.modalEl.addClass("stratum-modal");
+  }
+  onOpen(): void {
+    this.setTitle("Delete published document?");
+    this.contentEl.createEl("p", { text: this.document.filename });
+    this.contentEl.createEl("p", {
+      text: "This removes the stored document. Your source note and copies saved elsewhere are kept.",
+    });
+    const actions = this.contentEl.createDiv({
+      cls: "stratum-publish-actions",
+    });
+    const cancel = createStratumButton(actions, { text: "Cancel" });
+    cancel.addEventListener("click", () => this.close());
+    const remove = createStratumButton(actions, {
+      text: "Delete document",
+      className: "mod-warning",
+    });
+    remove.addEventListener("click", () => {
+      remove.disabled = true;
+      void this.publish
+        .remove(this.document)
+        .then(() => this.close())
+        .catch((error) => {
+          this.publish.fail(error);
+          remove.disabled = false;
+        });
+    });
+    cancel.focus();
+  }
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+export class PublishedDocumentsPanel extends Component {
+  private body!: HTMLElement;
+  private scope!: HTMLSelectElement;
+  private list!: HTMLElement;
+  private rendered = false;
+  constructor(
+    private container: HTMLElement,
+    private publish: PublishController,
+    private state: PublishedDocumentsState = {},
+  ) {
+    super();
+  }
+  onload(): void {
+    this.body = this.container.createDiv({ cls: "stratum-publish-documents" });
+    const history = this.body.createDiv({ cls: "stratum-publish-history" });
+    history.createEl("h4", {
+      cls: "stratum-subheading",
+      text: "Published documents",
+    });
+    this.scope = createStratumSelect(history, {
+      label: "Show",
+      ariaLabel: "Choose which documents to view",
+      value: this.state.scope ?? this.publish.historyScope,
+      choices: [
+        { value: "note", label: "Documents for this note" },
+        { value: "all", label: "All published documents" },
+      ],
+    });
+    this.scope.addEventListener("change", () => {
+      this.state.scope = this.scope.value === "all" ? "all" : "note";
+      this.publish.historyScope = this.state.scope;
+      this.update();
+    });
+    this.list = this.body.createDiv({ cls: "stratum-publish-list" });
+    this.list.addEventListener("scroll", () => {
+      if (!this.container.hidden) this.state.scroll = this.list.scrollTop;
+    });
+    this.register(this.publish.subscribe(() => this.update()));
+    this.update();
+  }
+  private update(): void {
+    const publish = this.publish;
+    const showAll = (this.state.scope ?? publish.historyScope) === "all";
+    this.scope.value = showAll ? "all" : "note";
+    this.list.hidden = publish.document?.extension !== "md" && !showAll;
+    const listContext = showAll
+      ? "all"
+      : `note:${publish.document?.path ?? ""}`;
+    const visible = !this.container.hidden;
+    const scrollTop =
+      this.state.context === listContext
+        ? this.rendered && visible
+          ? this.list.scrollTop
+          : (this.state.scroll ?? 0)
+        : 0;
+    this.state.context = listContext;
+    this.list.empty();
+    const documents = showAll ? publish.allDocuments : publish.documents;
+    if (!documents.length)
+      this.list.createEl("p", {
+        text: showAll
+          ? "No published documents"
+          : "No published documents for this note",
+        cls: "stratum-publish-meta",
+      });
+    for (const doc of documents) {
+      const row = this.list.createDiv({ cls: "stratum-publish-row" });
+      const details = row.createDiv({ cls: "stratum-publish-document" });
+      details.createDiv({
+        text: doc.filename,
+        cls: "stratum-publish-filename",
+      });
+      details.createDiv({
+        text: `${formatLabel(doc.format)} · ${new Date(doc.createdAt).toLocaleString()}`,
+        cls: "stratum-publish-meta",
+      });
+      const actions = row.createDiv({ cls: "stratum-publish-row-actions" });
+      if (doc.format === "pdf")
+        this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
+      const sourceAvailable = !!publish.sourceNote(doc);
+      this.icon(
+        actions,
+        "file-text",
+        sourceAvailable ? "Open source note" : "Source note unavailable",
+        doc,
+        () => publish.openSource(doc),
+        !sourceAvailable,
+      );
+      this.icon(actions, "download", "Save as", doc, () =>
+        publish.saveCopy(doc),
+      );
+      this.icon(actions, "trash-2", "Delete", doc, () =>
+        new DeletePublicationModal(publish.plugin.app, publish, doc).open(),
+      );
+    }
+    this.state.scroll = scrollTop;
+    if (visible) this.list.scrollTop = scrollTop;
+    this.rendered = true;
+  }
+  private icon(
+    container: HTMLElement,
+    icon: string,
+    label: string,
+    document: PublishedDocument,
+    action: () => void | Promise<void>,
+    disabled = false,
+  ): void {
+    const button = createStratumIconButton(container, {
+      icon,
+      ariaLabel: `${label}: ${document.filename}`,
+      tooltip: label,
+    });
+    button.disabled = disabled;
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      void Promise.resolve()
+        .then(action)
+        .catch((error) => this.publish.fail(error))
+        .finally(() => {
+          button.disabled = false;
+        });
+    });
+  }
+  setVisible(visible: boolean): void {
+    if (!this.container.hidden) this.state.scroll = this.list.scrollTop;
+    this.container.hidden = !visible;
+    if (visible) this.list.scrollTop = this.state.scroll ?? 0;
+  }
+  onunload(): void {
+    if (!this.container.hidden) this.state.scroll = this.list?.scrollTop ?? 0;
+    this.body?.remove();
+  }
+}

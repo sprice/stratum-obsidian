@@ -6,7 +6,7 @@ import {
   createStratumSelect,
   createStratumSearch,
 } from "./ui-controls";
-import { PublishPanel } from "./view-publish";
+import { PublishPanel, type PublishViewState } from "./view-publish";
 import {
   getVisibleTabs,
   readEnabledTabs,
@@ -125,6 +125,10 @@ export class StratumView extends ItemView {
     refresh: () => void;
   } | null = null;
   private publishPanel: PublishPanel | null = null;
+  private publishState: PublishViewState = {
+    section: "publish",
+    documents: {},
+  };
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
     ...readSourceTableState(undefined),
@@ -572,7 +576,7 @@ export class StratumView extends ItemView {
       } else if (tab.id === "publish" && this.plugin.publish) {
         panel.addClass("stratum-publish-tab");
         this.publishPanel = this.addChild(
-          new PublishPanel(panel, this.plugin.publish),
+          new PublishPanel(panel, this.plugin.publish, this.publishState),
         );
       } else {
         this.renderReaderTab(panel);

@@ -7,66 +7,35 @@ import {
   createStratumSelect,
   createStratumButton,
 } from "./ui-controls";
-import { Component, Modal, type App, type ToggleComponent } from "obsidian";
+import { Component } from "obsidian";
 import type { PublishController } from "./publish-controller";
-import {
-  formatLabel,
-  type PublishedDocument,
-  type PublishFormat,
-} from "./publish-model";
+import { formatLabel, type PublishFormat } from "./publish-model";
 import { getSettingsManager } from "./view-helpers";
 import { renderPublishCustomization } from "./publish-customize";
 import { aastexProblems } from "./publication-package";
 import { AASTEX_PACKAGE_REFERENCE } from "./publication-package";
+import { AastexOptionsModal } from "./publication-options-modal";
 import {
-  aastexOptionToggle,
-  AASTEX_OPTION_LABELS,
-} from "./publication-option-controls";
-import type { AastexPdfOptions } from "./publication-options";
+  PublishedDocumentsPanel,
+  type PublishedDocumentsState,
+} from "./view-publish-documents";
 import { AASTEX_HEADING_WARNING } from "./publication-headings";
 
-class DeletePublicationModal extends Modal {
-  constructor(
-    app: App,
-    private publish: PublishController,
-    private document: PublishedDocument,
-  ) {
-    super(app);
-    this.modalEl.addClass("stratum-modal");
-  }
-  onOpen(): void {
-    this.setTitle("Delete published document?");
-    this.contentEl.createEl("p", { text: this.document.filename });
-    this.contentEl.createEl("p", {
-      text: "This removes the stored document. Your source note and copies saved elsewhere are kept.",
-    });
-    const actions = this.contentEl.createDiv({
-      cls: "stratum-publish-actions",
-    });
-    const cancel = createStratumButton(actions, { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const remove = createStratumButton(actions, {
-      text: "Delete document",
-      className: "mod-warning",
-    });
-    remove.addEventListener("click", () => {
-      remove.disabled = true;
-      void this.publish.remove(this.document).then(() => this.close());
-    });
-    cancel.focus();
-  }
-  onClose(): void {
-    this.contentEl.empty();
-  }
+export interface PublishViewState {
+  section: "publish" | "documents";
+  documents: PublishedDocumentsState;
 }
+
 export class PublishPanel extends Component {
   private body!: HTMLElement;
+  private shell!: HTMLElement;
+  private documentsContainer!: HTMLElement;
+  private documentsPanel!: PublishedDocumentsPanel;
+  private tabs = new Map<"publish" | "documents", HTMLButtonElement>();
+  private optionsModal?: AastexOptionsModal;
   private controls!: HTMLElement;
-  private scope!: HTMLSelectElement;
   private setup!: HTMLButtonElement;
   private status!: HTMLElement;
-  private list!: HTMLElement;
-  private listContext = "";
   private create!: HTMLButtonElement;
   private type!: HTMLSelectElement;
   private cancel!: HTMLButtonElement;
@@ -88,22 +57,64 @@ export class PublishPanel extends Component {
   private customization!: HTMLElement;
   private customizationKey = "";
   private alive = true;
-  private aastexOptions!: HTMLDetailsElement;
-  private aastexToggles = new Map<keyof AastexPdfOptions, ToggleComponent>();
   private aastexWarning!: HTMLDetailsElement;
   private aastexWarningList!: HTMLElement;
   private aastexVersion!: HTMLElement;
   private aastexVersionProblem!: HTMLElement;
   private aastexUseVersion!: HTMLButtonElement;
-  private aastexReset!: HTMLButtonElement;
   constructor(
     private container: HTMLElement,
     private publish: PublishController,
+    private state: PublishViewState = { section: "publish", documents: {} },
   ) {
     super();
   }
   onload(): void {
-    this.body = this.container.createDiv({ cls: "stratum-publish-panel" });
+    this.shell = this.container.createDiv({ cls: "stratum-publish-shell" });
+    const tabBar = this.shell.createDiv({
+      cls: "stratum-publish-tabs",
+      attr: { role: "tablist", "aria-label": "Publishing" },
+    });
+    const prefix = `stratum-publish-${crypto.randomUUID()}`;
+    for (const section of ["publish", "documents"] as const) {
+      const tab = createStratumButton(tabBar, {
+        text: section === "publish" ? "Publish" : "Documents",
+      });
+      tab.id = `${prefix}-${section}-tab`;
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-controls", `${prefix}-${section}-panel`);
+      this.tabs.set(section, tab);
+      tab.addEventListener("click", () => this.selectSection(section));
+      tab.addEventListener("keydown", (event) => {
+        let next: "publish" | "documents" | undefined;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+          next = section === "publish" ? "documents" : "publish";
+        if (event.key === "Home") next = "publish";
+        if (event.key === "End") next = "documents";
+        if (next) {
+          event.preventDefault();
+          this.selectSection(next);
+          this.tabs.get(next)?.focus();
+        }
+      });
+    }
+    this.body = this.shell.createDiv({
+      cls: "stratum-publish-panel",
+      attr: { role: "tabpanel", "aria-labelledby": `${prefix}-publish-tab` },
+    });
+    this.body.id = `${prefix}-publish-panel`;
+    this.documentsContainer = this.shell.createDiv({
+      attr: { role: "tabpanel", "aria-labelledby": `${prefix}-documents-tab` },
+    });
+    this.documentsContainer.id = `${prefix}-documents-panel`;
+    this.documentsPanel = this.addChild(
+      new PublishedDocumentsPanel(
+        this.documentsContainer,
+        this.publish,
+        this.state.documents,
+      ),
+    );
+    this.selectSection(this.state.section);
     this.body.createEl("h3", {
       cls: "stratum-section-heading",
       text: "Publish note",
@@ -151,6 +162,15 @@ export class PublishPanel extends Component {
     });
     this.templateGear = gear;
     gear.addEventListener("click", () => {
+      if (this.publish.selectedTemplate?.renderer === "aastex") {
+        this.optionsModal = new AastexOptionsModal(
+          this.publish.plugin.app,
+          this.publish,
+          gear,
+        );
+        this.optionsModal.open();
+        return;
+      }
       const settings = getSettingsManager(this.publish.plugin.app);
       settings?.open();
       settings?.openTabById(this.publish.plugin.manifest.id);
@@ -233,32 +253,6 @@ export class PublishPanel extends Component {
     this.aastexUseVersion.addEventListener("click", () => {
       void this.publish.acceptAastexPackage().catch(() => {});
     });
-    this.aastexOptions = createStratumDisclosure(this.body, {
-      cls: "stratum-aastex-options",
-    });
-    createStratumSummary(this.aastexOptions, { text: "Document options" });
-    const optionFields = this.aastexOptions.createDiv();
-    for (const key of Object.keys(
-      AASTEX_OPTION_LABELS,
-    ) as (keyof AastexPdfOptions)[])
-      this.aastexToggles.set(
-        key,
-        aastexOptionToggle(optionFields, key, (value) => {
-          void this.publish
-            .updateAastexPdfOptions({ [key]: value })
-            .catch(() => {});
-        }),
-      );
-    optionFields.createEl("p", {
-      text: "These choices apply to this note’s next PDF. Heading normalization leaves your note unchanged. Turning off the draft date keeps the class’s typesetting credit.",
-      cls: "stratum-publish-meta",
-    });
-    this.aastexReset = createStratumButton(optionFields, {
-      text: "Reset document options",
-    });
-    this.aastexReset.addEventListener("click", () => {
-      void this.publish.resetAastexPdfOptions().catch(() => {});
-    });
     this.aastexWarning = createStratumDisclosure(this.body);
     createStratumSummary(this.aastexWarning, {
       text: "Review heading numbers",
@@ -297,25 +291,6 @@ export class PublishPanel extends Component {
     });
     this.cancel = createStratumButton(this.body, { text: "Cancel" });
     this.cancel.addEventListener("click", () => this.publish.cancel());
-    const history = this.body.createDiv({ cls: "stratum-publish-history" });
-    history.createEl("h4", {
-      cls: "stratum-subheading",
-      text: "Published documents",
-    });
-    this.scope = createStratumSelect(history, {
-      label: "Show",
-      ariaLabel: "Choose which documents to view",
-      value: this.publish.historyScope,
-      choices: [
-        { value: "note", label: "Documents for this note" },
-        { value: "all", label: "All published documents" },
-      ],
-    });
-    this.scope.addEventListener("change", () => {
-      this.publish.historyScope = this.scope.value === "all" ? "all" : "note";
-      this.update();
-    });
-    this.list = this.body.createDiv({ cls: "stratum-publish-list" });
     this.register(this.publish.subscribe(() => this.update()));
     this.update();
     if (!this.publish.readiness && !this.publish.checking)
@@ -334,24 +309,11 @@ export class PublishPanel extends Component {
     const aastex = template?.renderer === "aastex";
     const aastexPdf = aastex && publish.selectedFormat === "pdf";
     this.aastexVersion.hidden = !aastex;
-    this.aastexOptions.hidden = !aastexPdf;
     this.aastexVersionProblem.hidden =
       !aastexPdf || !publish.aastexPackageProblem;
     this.aastexVersionProblem.setText(publish.aastexPackageProblem || "");
     this.aastexUseVersion.hidden = this.aastexVersionProblem.hidden;
     this.aastexUseVersion.disabled = publish.busy || publish.preferencesSaving;
-    this.aastexReset.disabled = publish.busy || publish.preferencesSaving;
-    for (const [key, toggle] of this.aastexToggles) {
-      toggle.setValue(
-        publish.aastexPdfOptions?.[key] ?? key !== "numberedHeadings",
-      );
-      // Preserve the native switch's keyboard focus during the queued save.
-      toggle.setDisabled(
-        publish.busy ||
-          (publish.preferencesSaving &&
-            toggle.toggleEl.ownerDocument.activeElement !== toggle.toggleEl),
-      );
-    }
     const headingIssues = aastexPdf
       ? (publish.aastexHeadingProblems ?? [])
       : [];
@@ -437,7 +399,17 @@ export class PublishPanel extends Component {
     this.academicMessage.hidden = !academicMessage;
     this.templateGear.disabled =
       !template || publish.busy || publish.preferencesSaving;
-    this.templateGear.hidden = aastex;
+    this.templateGear.hidden = !template;
+    this.templateGear.setAttribute(
+      "aria-label",
+      aastex ? "Document options for this note" : "Configure template defaults",
+    );
+    this.templateGear.setAttribute(
+      "title",
+      aastex
+        ? "Document options for this note"
+        : "Configure reusable template defaults",
+    );
     this.template.empty();
     this.template.createEl("option", { value: "", text: "Choose template" });
     for (const choice of templates.templates)
@@ -463,9 +435,6 @@ export class PublishPanel extends Component {
     this.updateCustomization();
     void this.updateCitationStyle();
     this.citations.hidden = !!aastex && publish.selectedFormat === "pdf";
-    const showAll = publish.historyScope === "all";
-    this.scope.value = publish.historyScope;
-    this.list.hidden = !hasNote && !showAll;
     this.type.value = publish.selectedFormat;
     this.create.setText(
       aastex && publish.selectedFormat === "docx"
@@ -513,52 +482,6 @@ export class PublishPanel extends Component {
         this.focusControl?.(bodyMissing ? "bodyFont" : "titleFont");
       });
     }
-    const listContext = showAll
-      ? "all"
-      : `note:${publish.document?.path ?? ""}`;
-    const scrollTop =
-      this.listContext === listContext ? this.list.scrollTop : 0;
-    this.listContext = listContext;
-    this.list.empty();
-    const documents = showAll ? publish.allDocuments : publish.documents;
-    if (!documents.length)
-      this.list.createEl("p", {
-        text: showAll
-          ? "No published documents"
-          : "No published documents for this note",
-        cls: "stratum-publish-meta",
-      });
-    for (const doc of documents) {
-      const row = this.list.createDiv({ cls: "stratum-publish-row" });
-      const details = row.createDiv({ cls: "stratum-publish-document" });
-      details.createDiv({
-        text: doc.filename,
-        cls: "stratum-publish-filename",
-      });
-      details.createDiv({
-        text: `${formatLabel(doc.format)} · ${new Date(doc.createdAt).toLocaleString()}`,
-        cls: "stratum-publish-meta",
-      });
-      const actions = row.createDiv({ cls: "stratum-publish-row-actions" });
-      if (doc.format === "pdf")
-        this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
-      const sourceAvailable = !!publish.sourceNote(doc);
-      this.icon(
-        actions,
-        "file-text",
-        sourceAvailable ? "Open source note" : "Source note unavailable",
-        doc,
-        () => publish.openSource(doc),
-        !sourceAvailable,
-      );
-      this.icon(actions, "download", "Save as", doc, () =>
-        publish.saveCopy(doc),
-      );
-      this.icon(actions, "trash-2", "Delete", doc, () =>
-        new DeletePublicationModal(publish.plugin.app, publish, doc).open(),
-      );
-    }
-    this.list.scrollTop = scrollTop;
   }
   /** Repeated titles are allowed; this shows where to change the opening. */
   private reviewOpening(): void {
@@ -637,33 +560,19 @@ export class PublishPanel extends Component {
       }
     }
   }
-  private icon(
-    container: HTMLElement,
-    icon: string,
-    label: string,
-    document: PublishedDocument,
-    action: () => void | Promise<void>,
-    disabled = false,
-  ): void {
-    const button = createStratumIconButton(container, {
-      icon,
-      ariaLabel: `${label}: ${document.filename}`,
-      tooltip: label,
-    });
-    button.disabled = disabled;
-    button.addEventListener("click", () => {
-      button.disabled = true;
-      void Promise.resolve()
-        .then(action)
-        .catch((error) => this.publish.fail(error))
-        .finally(() => {
-          button.disabled = false;
-        });
-    });
+  private selectSection(section: "publish" | "documents"): void {
+    this.state.section = section;
+    this.body.hidden = section !== "publish";
+    this.documentsPanel.setVisible(section === "documents");
+    for (const [key, tab] of this.tabs) {
+      tab.setAttribute("aria-selected", String(key === section));
+      tab.tabIndex = key === section ? 0 : -1;
+    }
   }
   onunload(): void {
+    this.optionsModal?.close();
     this.alive = false;
     this.citationRevision++;
-    this.body?.remove();
+    this.shell?.remove();
   }
 }

@@ -1068,7 +1068,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   overflow-y: auto;
   padding-inline: var(--size-4-2);
 }
-.stratum-publish-panel {
+.stratum-publish-panel,
+.stratum-publish-documents {
   height: 100%;
   min-height: 100%;
   box-sizing: border-box;
@@ -1077,10 +1078,12 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   gap: var(--size-4-3);
   padding-bottom: var(--size-4-4);
 }
-.stratum-publish-panel > :not(.stratum-publish-list) {
+.stratum-publish-panel > :not(.stratum-publish-list),
+.stratum-publish-documents > :not(.stratum-publish-list) {
   flex-shrink: 0;
 }
-.stratum-publish-panel p {
+.stratum-publish-panel p,
+.stratum-publish-documents p {
   margin: 0;
 }
 .stratum-publish-controls {
@@ -1115,8 +1118,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-template-row > button {
   margin: 0;
 }
-.stratum-publish-customization > summary,
-.stratum-aastex-options > summary {
+.stratum-publish-customization > summary {
   cursor: pointer;
   color: var(--text-muted);
   padding: var(--size-4-2) 0;
@@ -1848,4 +1850,34 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-control-toggle-field > .stratum-control-toggle {
   flex-shrink: 0;
   margin-inline-start: auto;
+}
+
+.stratum-publish-shell {
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.stratum-publish-shell > [role="tabpanel"] {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.stratum-publish-tabs {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-4);
+}
+.stratum-publish-tabs > [aria-selected="true"] {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.stratum-document-options-modal {
+  max-width: 560px;
+}
+
+.stratum-publish-shell > [role="tabpanel"][hidden] {
+  display: none;
 }
