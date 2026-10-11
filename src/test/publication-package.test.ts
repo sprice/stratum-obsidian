@@ -494,7 +494,7 @@ $$
           // PDF extraction can join or split words around text decorations.
           assert.ok(
             text.replace(/\s+/g, "").includes(label.replace(/\s+/g, "")),
-            `${heading}: ${label}`,
+            `${heading}: ${label}; extracted PDF text: ${text}`,
           );
       }
     }
