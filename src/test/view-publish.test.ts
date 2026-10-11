@@ -568,7 +568,7 @@ test("secondary selection and Documents state survive panel remounts without cha
   list.scrollTop = 240;
   first.root
     .all()
-    .find((el) => el.text === "Publish")!
+    .find((el) => el.text === "Create")!
     .listeners.get("click")!();
   first.update();
   documents.listeners.get("click")!();

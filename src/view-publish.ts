@@ -78,7 +78,7 @@ export class PublishPanel extends Component {
     const prefix = `stratum-publish-${crypto.randomUUID()}`;
     for (const section of ["publish", "documents"] as const) {
       const tab = createStratumButton(tabBar, {
-        text: section === "publish" ? "Publish" : "Documents",
+        text: section === "publish" ? "Create" : "Documents",
       });
       tab.id = `${prefix}-${section}-tab`;
       tab.setAttribute("role", "tab");

@@ -411,6 +411,12 @@ test("secondary tabs isolate PDF and Word history and retain filtering across na
   await scenario("publishing-documents-tabs", async () => {
     await page.setViewportSize(320, 900);
     await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-tabs button:first-child').textContent",
+      ),
+      "Create",
+    );
     await page.evaluate("window.publicationFixture.addDocuments()");
     assert.equal(
       await page.evaluate(

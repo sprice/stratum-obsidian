@@ -115,7 +115,7 @@ export class AastexOptionsModal extends Modal {
         ? this.publish.preferencesSaving
           ? "Saving document options…"
           : "PDF options for this note. Reset applies the current vault defaults."
-        : "These options apply to PDF exports. Word uses the selected citation style. Select PDF on Publish to change these options.",
+        : "These options apply to PDF exports. Word uses the selected citation style. Select PDF on Create to change these options.",
     );
     for (const [key, toggle] of this.toggles) {
       toggle.setValue(this.publish.aastexPdfOptions[key]);
