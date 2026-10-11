@@ -248,7 +248,8 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
       ),
       true,
     );
-    await page.keyPress("Space");
+    // Stagehand's printable-key API takes a literal space, not the code name.
+    await page.keyPress(" ");
     await until(
       "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
     );

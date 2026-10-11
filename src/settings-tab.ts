@@ -491,13 +491,16 @@ export class StratumSettingTab extends PluginSettingTab {
                 )
                 .onChange(async (value) => {
                   const previous = this.plugin.settings.aastexPdfDefaults;
-                  this.plugin.settings.aastexPdfDefaults = readAastexPdfOptions(
-                    { ...readAastexPdfOptions(previous), [key]: value },
-                  );
+                  const next = readAastexPdfOptions({
+                    ...readAastexPdfOptions(previous),
+                    [key]: value,
+                  });
+                  this.plugin.settings.aastexPdfDefaults = next;
                   try {
                     await this.plugin.saveSettings();
                   } catch (error) {
-                    this.plugin.settings.aastexPdfDefaults = previous;
+                    if (this.plugin.settings.aastexPdfDefaults === next)
+                      this.plugin.settings.aastexPdfDefaults = previous;
                     throw error;
                   }
                 }),
