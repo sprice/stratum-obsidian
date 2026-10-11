@@ -499,3 +499,25 @@ test("Reset defaults re-applies the note's template and follows Customize visibi
     { templateId: "general" },
   ]);
 });
+
+test("AASTeX exposes author editing and PDF guidance without generic property mappings", () => {
+  const { root, publish, update } = setup();
+  publish.notePreferences.templateId = "package:aastex";
+  publish.selectedFormat = "pdf";
+  update();
+  assert.equal(
+    root.all().find((el) => el.cls === "stratum-publish-academic")!.hidden,
+    false,
+  );
+  assert.equal(
+    root.all().find((el) => el.text === "Edit publication details")!.hidden,
+    false,
+  );
+  assert.ok(
+    root
+      .all()
+      .some((el) =>
+        el.text.includes("Cited PDFs download a verified bibliography style"),
+      ),
+  );
+});

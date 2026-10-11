@@ -366,7 +366,7 @@ export class PublishPanel extends Component {
       template?.prefill,
     );
     const academic = !!definitions.some((field) => field.use === "title");
-    this.academic.hidden = !template || !definitions.length;
+    this.academic.hidden = !template || (!aastex && !definitions.length);
     let title = "",
       duplicateTitle = false,
       bothAuthors = false;
