@@ -337,6 +337,7 @@ export function aastexLatex(
   abstract: string,
   bibliography: boolean,
   pkg = aastexPackage,
+  preamble = "",
 ): string {
   const authors = manuscript.authors
     .map((author) =>
@@ -350,6 +351,7 @@ export function aastexLatex(
     )
     .join("\n");
   const values: Record<string, string> = {
+    preamble,
     className: pkg.manifest.class
       .split("/")
       .at(-1)!
@@ -367,7 +369,7 @@ export function aastexLatex(
       : "",
   };
   return pkg.files[pkg.manifest.entry].replace(
-    /\{\{(className|classOptions|title|authors|abstract|body|bibliography)\}\}/g,
+    /\{\{(className|classOptions|preamble|title|authors|abstract|body|bibliography)\}\}/g,
     (_match, key: string) => values[key],
   );
 }

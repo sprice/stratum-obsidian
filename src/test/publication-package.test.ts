@@ -282,7 +282,7 @@ test("structured citation tokens preserve groups, narrative form, locators and s
   );
 });
 test(
-  "real packaged PDF compiles authors, affiliations, tables, AMS math and native bibliography",
+  "real packaged PDF compiles code formatting, AMS math and native bibliography",
   { timeout: 120_000 },
   async () => {
     assert.ok(
@@ -333,11 +333,39 @@ $$
     const html =
       '<html><body><h1>Introduction</h1><p>A reference <span class="stratum-aastex-citation" data-tex="\\citep{stratum0}">Citation</span>.</p>' +
       equations.restore(equations.markdown) +
+      '<pre class="python"><code>def synthetic_square(x):\n    return x ** 2</code></pre>' +
+      "<pre><code>plain_code_marker = 1 &lt; 2</code></pre>" +
+      '<p>Inline <code class="python">print(42)</code>; <s>Removed phrase</s>; <u>Underlined phrase</u>.</p>' +
+      '<table><tr><td>Inline table code</td><td><code class="python">table_value = 7</code></td></tr></table>' +
       '<table><caption>Synthetic measurements &amp; comparison</caption><thead><tr><th style="text-align:left">Sample</th><th style="text-align:right">Value</th><th style="text-align:center">Group</th></tr></thead><tbody><tr><td>A</td><td>1</td><td>Control</td></tr></tbody></table></body></html>';
     const probe = await mkdtemp(join(tmpdir(), "stratum-table-test-"));
     try {
       const filter = join(probe, "aastex.lua");
       await writeFile(filter, desktop.aastexFilter);
+      const preambleTemplate = join(probe, "preamble.latex");
+      await writeFile(preambleTemplate, desktop.aastexPreambleTemplate);
+      // A document with highlighting only inside a table must still discover it.
+      const preamble = execFileSync(
+        pandoc,
+        [
+          "-f",
+          "html",
+          "-t",
+          "latex",
+          "--standalone",
+          `--template=${preambleTemplate}`,
+        ],
+        {
+          input:
+            '<table><tr><td><code class="python">table_value = 7</code></td></tr></table><p><s>Removed</s></p>',
+          encoding: "utf8",
+        },
+      );
+      assert.match(preamble, /\\newenvironment\{Shaded\}/);
+      assert.match(preamble, /\\DefineVerbatimEnvironment\{Highlighting\}/);
+      assert.match(preamble, /\\newcommand\{\\NormalTok\}/);
+      assert.match(preamble, /\\usepackage\{fancyvrb\}/);
+      assert.match(preamble, /\\usepackage\{soul\}/);
       const body = execFileSync(
         pandoc,
         [
@@ -355,6 +383,9 @@ $$
       assert.match(body, /A & 1 & Control/);
       for (const environment of ["aligned", "cases", "bmatrix"])
         assert.ok(body.includes(`\\begin{${environment}}`));
+      assert.match(body, /\\begin\{Shaded\}/);
+      assert.match(body, /\\begin\{verbatim\}/);
+      assert.match(body, /\\VERB/);
       const aligned = execFileSync(
         pandoc,
         ["-f", "markdown", "-t", "latex", `--lua-filter=${filter}`],
@@ -404,7 +435,8 @@ $$
         DEFAULT_ACADEMIC_OPTIONS,
         {
           manuscript: aastexManuscript(sample, "properties"),
-          abstractHtml: "<p>Synthetic abstract</p>",
+          abstractHtml:
+            '<p>Synthetic abstract <code class="python">abstract_value = 3</code>.</p>',
           references: [reference],
         },
       );
@@ -443,6 +475,13 @@ $$
           "Aligned equation",
           "Piecewise equation",
           "Matrix equation",
+          "synthetic_square",
+          "plain_code_marker",
+          "print(42)",
+          "table_value",
+          "abstract_value",
+          "Removed phrase",
+          "Underlined phrase",
         ])
           assert.ok(text.includes(label), `${heading}: ${label}`);
       }

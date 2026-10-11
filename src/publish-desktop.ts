@@ -636,6 +636,18 @@ function Table(el)
 end
 `;
 
+// Let the installed Pandoc provide its complete highlighting definitions.
+// Discover requirements before Table replaces cell contents with raw LaTeX.
+export const aastexPreambleTemplate = String.raw`$highlighting-macros$
+$if(verbatim-in-note)$
+\usepackage{fancyvrb}
+\VerbatimFootnotes
+$endif$
+$if(strikeout)$
+\usepackage{soul}
+$endif$
+`;
+
 interface BibliographyResponse {
   statusCode?: number;
   destroy(): void;
@@ -786,6 +798,28 @@ async function convertAastexPublication(
     await fs.writeFile(path.join(directory, "aastex.lua"), aastexFilter, {
       mode: 0o600,
     });
+    await fs.writeFile(
+      path.join(directory, "preamble.latex"),
+      aastexPreambleTemplate,
+      { mode: 0o600 },
+    );
+    await fs.writeFile(
+      path.join(directory, "compatibility.html"),
+      `${html}\n${input.abstractHtml}`,
+      { mode: 0o600 },
+    );
+    await runPublishTool(
+      tools.pandoc,
+      [
+        "compatibility.html",
+        "--from=html+epub_html_exts+tex_math_single_backslash",
+        "--to=latex",
+        "--standalone",
+        "--template=preamble.latex",
+        "--output=preamble.tex",
+      ],
+      { cwd: directory, signal, timeout },
+    );
     for (const asset of assets) {
       if (!/^asset-\d+\.(png|jpg|jpeg|gif|svg|webp)$/i.test(asset.name))
         throw new Error("Invalid publication image name.");
@@ -841,6 +875,8 @@ async function convertAastexPublication(
       await decode("body.tex"),
       await decode("abstract.tex"),
       !!input.references.length,
+      pkg,
+      await decode("preamble.tex"),
     );
     await fs.writeFile(path.join(directory, "document.tex"), tex, {
       mode: 0o600,
