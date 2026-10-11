@@ -448,6 +448,14 @@ $$
         join(tmpdir(), "stratum-aastex-verified.pdf"),
         new Uint8Array(bytes),
       );
+      if (process.env.STRATUM_REQUIRE_PUBLISHING_TOOLS === "1") {
+        const artifacts = join(".test-artifacts", "publishing");
+        await mkdir(artifacts, { recursive: true });
+        await writeFile(
+          join(artifacts, `aastex-code-${heading}.pdf`),
+          new Uint8Array(bytes),
+        );
+      }
       if (pdftotext) {
         const text = execFileSync(
           pdftotext,
@@ -483,7 +491,11 @@ $$
           "Removed phrase",
           "Underlined phrase",
         ])
-          assert.ok(text.includes(label), `${heading}: ${label}`);
+          // PDF extraction can join or split words around text decorations.
+          assert.ok(
+            text.replace(/\s+/g, "").includes(label.replace(/\s+/g, "")),
+            `${heading}: ${label}`,
+          );
       }
     }
   },
