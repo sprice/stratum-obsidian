@@ -370,6 +370,24 @@ and appear when you select their source note; each row offers open, save a copy,
 and confirmed delete actions. The tab is enabled by default. To hide it, open
 **Settings → Stratum → Stratum tabs → Choose visible tabs** and uncheck **Publish**.
 
+### AASTeX bibliography cache
+
+Cited AASTeX PDFs need the pinned AAS bibliography style. Stratum downloads it
+from AAS when a verified local copy is unavailable and checks its SHA-256 before
+saving it or reusing it. Once cached, subsequent exports can use that style
+offline. This does not replace Tectonic's separate support files or other export
+requirements. Missing or corrupt entries require a fresh verified download; a
+changed required fingerprint selects a different cache entry.
+
+The cache contains public bibliography-style bytes under
+`<vault config>/plugins/stratum/cache/bibliography/<SHA-256>.bst`. It contains no
+manuscript or reference data. Entries persist across plugin restarts and remain
+until the cache or plugin directory is removed. To clear them, stop publishing,
+disable Stratum, remove only this cache directory, and re-enable the plugin.
+Temporary export copies are cleaned up independently after success, failure, or
+cancellation. The upstream bibliography notice remains applicable; caching
+makes no new claim about commercial-use permission.
+
 ## Commands and hotkeys
 
 Open Obsidian's command palette and search for **Stratum**. Assign shortcuts under **Settings → Hotkeys**.

@@ -233,20 +233,23 @@ export class DropdownComponent {
   }
 }
 export class SearchComponent {}
-// Faithful native switch structure: an accessible, focusable container rather
-// than an HTML input (which would hide checkbox/input sizing collisions).
+// Native Obsidian uses a focusable label containing a checkbox input.
+// Its programmatic setter invokes onChange when the value changes.
 export class ToggleComponent {
-  toggleEl: HTMLDivElement;
+  toggleEl: HTMLLabelElement;
   private value = false;
   private disabled = false;
   private change?: (value: boolean) => void;
   constructor(parent: HTMLElement) {
-    this.toggleEl = parent.createDiv({
+    this.toggleEl = parent.createEl("label", {
       cls: "checkbox-container",
-      attr: { role: "checkbox", tabindex: "0", "aria-checked": "false" },
+      attr: { tabindex: "0" },
     });
-    this.toggleEl.createDiv({ cls: "checkbox" });
-    this.toggleEl.addEventListener("click", () => this.onClick());
+    this.toggleEl.createEl("input", {
+      type: "checkbox",
+      attr: { tabindex: "-1" },
+    });
+    this.toggleEl.addEventListener("change", () => this.onClick());
     this.toggleEl.addEventListener("keydown", (event) => {
       if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
@@ -258,22 +261,22 @@ export class ToggleComponent {
     return this.value;
   }
   setValue(value: boolean) {
-    this.value = value;
-    this.toggleEl.classList.toggle("is-enabled", value);
-    this.toggleEl.setAttribute("aria-checked", String(value));
+    // Match native Obsidian: programmatic changes also invoke onChange.
+    if (this.value !== value) {
+      this.value = value;
+      this.toggleEl.classList.toggle("is-enabled", value);
+      this.change?.(value);
+    }
     return this;
   }
   setDisabled(disabled: boolean) {
     this.disabled = disabled;
     this.toggleEl.classList.toggle("is-disabled", disabled);
-    this.toggleEl.setAttribute("aria-disabled", String(disabled));
-    this.toggleEl.tabIndex = disabled ? -1 : 0;
     return this;
   }
   onClick() {
     if (this.disabled) return;
     this.setValue(!this.value);
-    this.change?.(this.value);
   }
   onChange(callback: (value: boolean) => void) {
     this.change = callback;

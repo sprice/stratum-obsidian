@@ -1,6 +1,9 @@
 import { Modal, type App, type ToggleComponent } from "obsidian";
 import type { PublishController } from "./publish-controller";
-import type { AastexPdfOptions } from "./publication-options";
+import {
+  readAastexPdfOptions,
+  type AastexPdfOptions,
+} from "./publication-options";
 import {
   AASTEX_OPTION_LABELS,
   aastexOptionToggle,
@@ -17,6 +20,12 @@ export class AastexOptionsModal extends Modal {
   private error!: HTMLElement;
   private unsubscribe?: () => void;
   private alive = false;
+  private refreshing = false;
+  private changeRevision = 0;
+  private pending = new Map<
+    keyof AastexPdfOptions,
+    { value: boolean; revision: number }
+  >();
   constructor(
     app: App,
     private publish: PublishController,
@@ -53,8 +62,9 @@ export class AastexOptionsModal extends Modal {
       this.toggles.set(
         key,
         aastexOptionToggle(this.contentEl, key, (value) =>
-          this.save(() =>
-            this.publish.updateAastexPdfOptions({ [key]: value }),
+          this.save(
+            () => this.publish.updateAastexPdfOptions({ [key]: value }),
+            { [key]: value },
           ),
         ),
       );
@@ -74,30 +84,51 @@ export class AastexOptionsModal extends Modal {
       tooltip: "Apply the current vault defaults to this note",
     });
     this.reset.addEventListener("click", () =>
-      this.save(() => this.publish.resetAastexPdfOptions()),
+      this.save(
+        () => this.publish.resetAastexPdfOptions(),
+        readAastexPdfOptions(this.publish.plugin.settings.aastexPdfDefaults),
+      ),
     );
     const done = createStratumButton(actions, { text: "Done", primary: true });
     done.addEventListener("click", () => this.close());
     this.unsubscribe = this.publish.subscribe(() => this.update());
     this.update();
   }
-  private save(operation: () => Promise<void>): void {
+  private save(
+    operation: () => Promise<void>,
+    patch: Partial<AastexPdfOptions>,
+  ): void {
     if (
       !this.alive ||
+      this.refreshing ||
       this.currentNoteKey() !== this.noteKey ||
       this.publish.selectedFormat !== "pdf"
     )
       return;
     this.error.setText("");
+    const revision = ++this.changeRevision;
+    for (const key of Object.keys(patch) as (keyof AastexPdfOptions)[])
+      this.pending.set(key, { value: patch[key]!, revision });
     // Invoke synchronously so the controller captures this note before queueing.
-    void operation().catch((error) => {
-      if (this.alive)
-        this.error.setText(
-          error instanceof Error
-            ? error.message
-            : "Could not save document options. Try again.",
-        );
-    });
+    void operation()
+      .catch((error) => {
+        if (
+          this.alive &&
+          [...this.pending.values()].some(
+            (pending) => pending.revision === revision,
+          )
+        )
+          this.error.setText(
+            error instanceof Error
+              ? error.message
+              : "Could not save document options. Try again.",
+          );
+      })
+      .finally(() => {
+        for (const [key, pending] of this.pending)
+          if (pending.revision === revision) this.pending.delete(key);
+        this.update();
+      });
   }
   private update(): void {
     if (!this.alive) return;
@@ -117,14 +148,24 @@ export class AastexOptionsModal extends Modal {
           : "PDF options for this note. Reset applies the current vault defaults."
         : "These options apply to PDF exports. Word uses the selected citation style. Select PDF on Create to change these options.",
     );
-    for (const [key, toggle] of this.toggles) {
-      toggle.setValue(this.publish.aastexPdfOptions[key]);
-      toggle.setDisabled(
-        !pdf ||
-          this.publish.busy ||
-          (this.publish.preferencesSaving &&
-            toggle.toggleEl.ownerDocument.activeElement !== toggle.toggleEl),
-      );
+    // Native setValue invokes onChange; rendering must never queue a user save.
+    this.refreshing = true;
+    try {
+      for (const [key, toggle] of this.toggles) {
+        toggle.setValue(
+          this.pending.get(key)?.value ?? this.publish.aastexPdfOptions[key],
+        );
+        toggle.setDisabled(
+          !pdf ||
+            this.publish.busy ||
+            (this.publish.preferencesSaving &&
+              !toggle.toggleEl.contains(
+                toggle.toggleEl.ownerDocument.activeElement,
+              )),
+        );
+      }
+    } finally {
+      this.refreshing = false;
     }
     this.reset.disabled =
       !pdf || this.publish.busy || this.publish.preferencesSaving;
@@ -134,6 +175,8 @@ export class AastexOptionsModal extends Modal {
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     this.contentEl.empty();
+    this.pending.clear();
+    this.toggles.clear();
     if (this.launcher.isConnected) this.launcher.focus();
   }
 }

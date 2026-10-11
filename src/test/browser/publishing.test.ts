@@ -256,8 +256,8 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
       await page.evaluate(`(() => {
         const switches = [...document.querySelectorAll('.stratum-aastex-option .checkbox-container')];
         return document.activeElement === switches[0]
-          && switches[0].getAttribute('aria-disabled') === 'false'
-          && switches.slice(1).every(toggle => toggle.getAttribute('aria-disabled') === 'true');
+          && !switches[0].classList.contains('is-disabled')
+          && switches.slice(1).every(toggle => toggle.classList.contains('is-disabled'));
       })()`),
       true,
     );
@@ -292,7 +292,7 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
         const toggle = row.querySelector('.checkbox-container');
         const label = row.querySelector('span');
         const bounds = toggle.getBoundingClientRect();
-        return toggle.tagName === 'DIV' && toggle.getAttribute('role') === 'checkbox'
+        return toggle.tagName === 'LABEL' && !!toggle.querySelector('input[type=checkbox]')
           && toggle.getAttribute('aria-label') === label.textContent
           && bounds.width === 40 && bounds.height === 22
           && Math.abs(bounds.right - row.getBoundingClientRect().right) < 1
@@ -319,6 +319,125 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
   });
 });
 
+test("native options save once in both directions and persist across modal reopen", async () => {
+  await scenario("aastex-native-toggle-matrix", async () => {
+    const keys = ["showLineNumbers", "showDraftDateHeader", "numberedHeadings"];
+    for (const [index, key] of keys.entries())
+      for (const start of [false, true]) {
+        await page.evaluate("window.publicationFixture.reset({aastex:true})");
+        await page.evaluate(
+          `window.publicationFixture.setAastexOptions({${key}:${start}})`,
+        );
+        await page.evaluate("window.publicationFixture.resetSaveCount()");
+        await page
+          .locator('button[aria-label="Document options for this note"]')
+          .click();
+        const toggle = `.stratum-aastex-option:nth-of-type(${index + 1}) .checkbox-container`;
+        await page.evaluate(
+          `document.querySelector('${toggle} input').focus()`,
+        );
+        await page.type(" ");
+        await until(
+          `!window.publicationFixture.state().saving && window.publicationFixture.state().aastexOptions.${key} === ${!start}`,
+        );
+        assert.equal(
+          await page.evaluate("window.publicationFixture.state().saveCount"),
+          1,
+        );
+        assert.equal(
+          await page.evaluate(
+            "[...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => !toggle.classList.contains('is-disabled'))",
+          ),
+          true,
+        );
+        assert.equal(
+          await page.evaluate(
+            `document.querySelector('${toggle} input').checked`,
+          ),
+          !start,
+        );
+        await page.keyPress("Escape");
+        await page
+          .locator('button[aria-label="Document options for this note"]')
+          .click();
+        assert.equal(
+          await page.evaluate(
+            `document.querySelector('${toggle} input').checked`,
+          ),
+          !start,
+        );
+        assert.equal(
+          await page.evaluate("window.publicationFixture.state().saveCount"),
+          1,
+        );
+        await page.keyPress("Escape");
+      }
+  });
+});
+
+test("repeated native changes during a held save retain the latest choice and close safely", async () => {
+  await scenario("aastex-native-toggle-repeated", async () => {
+    await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    await page.evaluate("window.publicationFixture.resetSaveCount()");
+    await page
+      .locator('button[aria-label="Document options for this note"]')
+      .click();
+    await page.evaluate("window.publicationFixture.holdSaves(true)");
+    await page.type(" ");
+    await page.type(" ");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-aastex-option input').checked",
+      ),
+      true,
+    );
+    await page.keyPress("Escape");
+    await page.evaluate("window.publicationFixture.holdSaves(false)");
+    await until("!window.publicationFixture.state().saving");
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().saveCount"),
+      2,
+    );
+    await page
+      .locator('button[aria-label="Document options for this note"]')
+      .click();
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-aastex-option input').checked",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().saveCount"),
+      2,
+    );
+    await page.evaluate(
+      "window.publicationFixture.resetSaveCount(); window.publicationFixture.holdSaves(true); window.publicationFixture.failNextSave()",
+    );
+    await page.type(" ");
+    await page.type(" ");
+    await page.evaluate("window.publicationFixture.holdSaves(false)");
+    await until("!window.publicationFixture.state().saving");
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().saveCount"),
+      2,
+    );
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.state().aastexOptions.showLineNumbers",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-document-options-modal .stratum-publish-error').textContent",
+      ),
+      "",
+    );
+    await page.keyPress("Escape");
+  });
+});
+
 test("AASTeX gear explains Word scope and reset retains auto-save behavior", async () => {
   await scenario("aastex-modal-word-reset", async () => {
     await page.evaluate("window.publicationFixture.reset({aastex:true})");
@@ -327,7 +446,7 @@ test("AASTeX gear explains Word scope and reset retains auto-save behavior", asy
     await page.locator(gear).click();
     assert.equal(
       await page.evaluate(
-        `document.querySelector('.stratum-document-options-modal').textContent.includes('Word uses the selected citation style') && [...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => toggle.getAttribute('aria-disabled') === 'true')`,
+        `document.querySelector('.stratum-document-options-modal').textContent.includes('Word uses the selected citation style') && [...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => toggle.classList.contains('is-disabled'))`,
       ),
       true,
     );
@@ -365,13 +484,36 @@ test("AASTeX gear explains Word scope and reset retains auto-save behavior", asy
       "!window.publicationFixture.state().saving && window.publicationFixture.state().aastexOptions.showLineNumbers",
     );
     await page.evaluate("window.publicationFixture.failSave(true)");
+    await page.evaluate("window.publicationFixture.resetSaveCount()");
     await page
       .locator(".stratum-aastex-option:first-of-type .checkbox-container")
       .click();
     await until(
       "document.querySelector('.stratum-document-options-modal .stratum-publish-error').textContent.includes('Synthetic preference save failed')",
     );
+    await until("!window.publicationFixture.state().saving");
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().saveCount"),
+      1,
+    );
+    assert.equal(
+      await page.evaluate(
+        "[...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => !toggle.classList.contains('is-disabled'))",
+      ),
+      true,
+    );
     await capture("aastex-modal-save-error");
+    await page.evaluate("window.publicationFixture.failSave(false)");
+    await page
+      .locator(".stratum-aastex-option:first-of-type .checkbox-container")
+      .click();
+    await until(
+      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().saveCount"),
+      2,
+    );
     await page.keyPress("Escape");
   });
 });

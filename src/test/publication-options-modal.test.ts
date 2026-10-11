@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setImmediate as settle } from "node:timers/promises";
 import { loadRuntime } from "./runtime-harness";
 import { ButtonComponentMock, ToggleComponentMock } from "./ui-component-mocks";
 
@@ -9,9 +10,16 @@ class Element {
   attrs = new Map<string, string>();
   listeners = new Map<string, () => void>();
   ownerDocument = ownerDocument;
+  querySelector() {
+    return this.all().find((el) => el.tag === "input") ?? null;
+  }
+  contains(element: Element | null) {
+    return !!element && this.all().includes(element);
+  }
   text = "";
   cls = "";
   disabled = false;
+  checked = false;
   isConnected = true;
   focused = false;
   constructor(public tag = "div") {}
@@ -53,13 +61,25 @@ class Element {
     return [this, ...this.children.flatMap((child) => child.all())];
   }
 }
-function setup() {
+function setup(
+  initial: Partial<import("../publication-options").AastexPdfOptions> = {},
+) {
   const listeners = new Set<() => void>();
   let release!: () => void;
   let reject!: (error: Error) => void;
   let resets = 0;
+  let saves = 0;
   const writes: string[] = [];
   const publish = {
+    plugin: {
+      settings: {
+        aastexPdfDefaults: {
+          showLineNumbers: true,
+          showDraftDateHeader: true,
+          numberedHeadings: false,
+        },
+      },
+    },
     document: {
       path: "Papers/Synthetic.md",
       basename: "Synthetic",
@@ -73,12 +93,14 @@ function setup() {
       showLineNumbers: true,
       showDraftDateHeader: true,
       numberedHeadings: false,
+      ...initial,
     },
     subscribe(callback: () => void) {
       listeners.add(callback);
       return () => listeners.delete(callback);
     },
     updateAastexPdfOptions(patch: Record<string, boolean>) {
+      saves++;
       const captured = this.document.path;
       this.preferencesSaving = true;
       listeners.forEach((callback) => callback());
@@ -146,6 +168,7 @@ function setup() {
     release: () => release(),
     reject: () => reject(new Error("Synthetic save failure")),
     resets: () => resets,
+    saves: () => saves,
     emit: () => listeners.forEach((callback) => callback()),
   };
 }
@@ -196,4 +219,48 @@ test("reset uses current defaults and failed auto-saves remain visible in the mo
   await Promise.resolve();
   assert.ok(s.content.all().some((el) => el.text === "Synthetic save failure"));
   s.modal.onClose();
+});
+
+test("native setter refresh is silent for all options in both directions, including child-input focus and reopen", async () => {
+  const keys = [
+    "showLineNumbers",
+    "showDraftDateHeader",
+    "numberedHeadings",
+  ] as const;
+  for (const [index, key] of keys.entries())
+    for (const start of [false, true]) {
+      const s = setup({ [key]: start });
+      assert.equal(s.saves(), 0, "Opening configured values cannot autosave");
+      const toggle = s.toggles[index];
+      const input = toggle.querySelector()!;
+      input.focus();
+      toggle.listeners.get("click")!();
+      assert.equal(s.saves(), 1, `${key}: one user click produces one save`);
+      assert.equal(input.checked, !start, "Pending choice remains visible");
+      assert.equal(
+        toggle.attrs.get("aria-disabled"),
+        "false",
+        "A focused child keeps its switch enabled",
+      );
+      s.release();
+      await settle();
+      assert.equal(s.publish.preferencesSaving, false);
+      assert.equal(s.publish.aastexPdfOptions[key], !start);
+      assert.equal(
+        s.saves(),
+        1,
+        "Completion refresh cannot enqueue another save",
+      );
+      assert.ok(
+        s.toggles.every((el) => el.attrs.get("aria-disabled") === "false"),
+      );
+      s.modal.onClose();
+      s.modal.onOpen();
+      const reopened = s.content
+        .all()
+        .filter((el) => el.cls.endsWith("stratum-control-toggle"))[index];
+      assert.equal(reopened.querySelector()!.checked, !start);
+      assert.equal(s.saves(), 1, "Reopening persisted values cannot autosave");
+      s.modal.onClose();
+    }
 });

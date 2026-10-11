@@ -150,9 +150,20 @@ export function createStratumToggle(
       : "stratum-control-toggle-field",
   });
   row.createSpan({ text: options.label });
-  const component = styleStratumComponent(new ToggleComponent(row))
-    .setValue(options.value)
-    .onChange(options.onChange);
+  const component = styleStratumComponent(new ToggleComponent(row)).setValue(
+    options.value,
+  );
+  const input = component.toggleEl.querySelector<HTMLInputElement>(
+    'input[type="checkbox"]',
+  );
+  if (input) {
+    input.setAttribute("aria-label", options.label);
+    input.checked = options.value;
+  }
+  component.onChange((value) => {
+    if (input) input.checked = value;
+    options.onChange(value);
+  });
   component.toggleEl.setAttribute("aria-label", options.label);
   return component;
 }

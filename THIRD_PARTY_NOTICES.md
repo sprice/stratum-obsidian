@@ -110,8 +110,10 @@ Source: https://github.com/eemeli/yaml
 ## AASTeX 7.0.2 and its bibliography style
 
 The unmodified class is distributed under LPPL 1.3c or later. The bibliography
-style is not bundled or cached: cited PDF exports download it directly from AAS,
-verify the manifest's SHA-256 and remove the temporary file after conversion.
+style is not bundled: cited PDF exports download it directly from AAS when a
+verified local cache entry is unavailable. Cached bytes are checked against the
+manifest's SHA-256 before each use. Temporary conversion copies are removed
+after export; the plugin-local cache remains until explicitly removed.
 Its own non-profit use and distribution notice remains applicable. The package
 manifest records the official archive and download checksums. See
 [src/publication-templates/aastex/licenses/NOTICE.txt](src/publication-templates/aastex/licenses/NOTICE.txt).

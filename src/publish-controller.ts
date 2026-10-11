@@ -854,6 +854,10 @@ export class PublishController extends Component {
     const tools = {
       pandoc: this.readiness.pandoc.path,
       tectonic: this.readiness.tectonic.path,
+      bibliographyCache: {
+        adapter: this.plugin.app.vault.adapter,
+        directory: `${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}/cache/bibliography`,
+      },
     };
     const aborter = (this.aborter = new AbortController());
     this.busy = true;

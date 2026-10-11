@@ -67,6 +67,12 @@ class Element {
   querySelectorAll() {
     return [];
   }
+  querySelector() {
+    return this.all().find((el) => el.tag === "input") ?? null;
+  }
+  contains(element: Element | null) {
+    return !!element && this.all().includes(element);
+  }
   focused = false;
   focus() {
     this.focused = true;

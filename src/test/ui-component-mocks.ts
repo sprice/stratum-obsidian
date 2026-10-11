@@ -28,22 +28,32 @@ export class DropdownComponentMock {
 export class ToggleComponentMock {
   toggleEl: HTMLElement;
   private value = false;
+  private disabled = false;
+  private change?: (value: boolean) => void;
   constructor(parent: HTMLElement) {
-    this.toggleEl = parent.createDiv({ cls: "checkbox-container" });
+    this.toggleEl = parent.createEl("label", { cls: "checkbox-container" });
+    this.toggleEl.createEl("input", { type: "checkbox" });
+    this.toggleEl.addEventListener("click", () => {
+      if (!this.disabled) this.setValue(!this.value);
+    });
   }
   setValue(value: boolean) {
-    this.value = value;
+    if (this.value !== value) {
+      this.value = value;
+      this.change?.(value);
+    }
     return this;
   }
   getValue() {
     return this.value;
   }
   setDisabled(disabled: boolean) {
+    this.disabled = disabled;
     this.toggleEl.setAttribute("aria-disabled", String(disabled));
     return this;
   }
   onChange(callback: (value: boolean) => void) {
-    this.toggleEl.addEventListener("click", () => callback(!this.value));
+    this.change = callback;
     return this;
   }
 }

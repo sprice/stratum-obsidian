@@ -1,3 +1,7 @@
+import {
+  cachedAastexBibliography,
+  type BibliographyCache,
+} from "./publication-bibliography-cache";
 /* Desktop host access is loaded only after Platform.isDesktopApp is checked. */
 import { Platform } from "obsidian";
 import { readPublishOptions, type PublishOptions } from "./publish-options";
@@ -15,6 +19,7 @@ export interface PublishAsset {
   bytes: ArrayBuffer;
 }
 interface PublishTools {
+  bibliographyCache?: BibliographyCache;
   pandoc: string;
   tectonic: string;
 }
@@ -681,7 +686,7 @@ interface BibliographyCrypto {
   };
 }
 
-/** Fetch directly from AAS for this export only; never retain a reusable copy. */
+/** Download pinned public style bytes; caching is handled separately. */
 export async function downloadAastexBibliography(
   specification: { url: string; sha256: string },
   signal?: AbortSignal,
@@ -789,11 +794,20 @@ async function convertAastexPublication(
         { mode: 0o600 },
       );
     if (input.references.length) {
-      const bibliography = await downloadAastexBibliography(
-        pkg.manifest.bibliographyDownload,
-        signal,
-        Math.min(timeout, 30_000),
-      );
+      const download = () =>
+        downloadAastexBibliography(
+          pkg.manifest.bibliographyDownload,
+          signal,
+          Math.min(timeout, 30_000),
+        );
+      const bibliography = tools.bibliographyCache
+        ? await cachedAastexBibliography(
+            tools.bibliographyCache,
+            pkg.manifest.bibliographyDownload,
+            download,
+            signal,
+          )
+        : await download();
       await fs.writeFile(
         path.join(directory, path.basename(pkg.manifest.bibliographyStyle)),
         bibliography,

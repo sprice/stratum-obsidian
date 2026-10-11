@@ -102,6 +102,9 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   const conversion = new Promise<void>((resolve) => {
     release = resolve;
   });
+  const conversionTools: {
+    bibliographyCache?: { directory: string; adapter: unknown };
+  }[] = [];
   const rendered: { text: string; path: string; title: string }[] = [];
   const { PublishController } = loadRuntime<typeof Controller>(
     "publish-controller.ts",
@@ -192,13 +195,16 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
           _html: string,
           _assets: unknown,
           _format: string,
-          _tools: unknown,
+          tools: {
+            bibliographyCache?: { directory: string; adapter: unknown };
+          },
           signal: AbortSignal,
           _timeout: number,
           _layout: unknown,
           aastex: unknown,
         ) => {
           payloads.push(aastex);
+          conversionTools.push(tools);
           await conversion;
           if (signal.aborted) throw new Error("Publishing cancelled.");
           if (behavior.conversionError)
@@ -216,6 +222,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   const opened: File[] = [];
   const revealed: object[] = [];
   const plugin = {
+    manifest: { id: "stratum" },
     settings: {
       citationStyle: "apa",
       citationLanguage: "en-US",
@@ -327,6 +334,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     plugin,
     calls,
     payloads,
+    conversionTools,
     behavior,
   };
 }
@@ -736,7 +744,15 @@ test("the packaged AASTeX choice preserves a custom template named aastex and it
 });
 
 test("AASTeX PDF bypasses CSL formatting, passes its class payload and records its actual bibliography style", async () => {
-  const { controller, leaf, plugin, calls, payloads, release } = setup();
+  const {
+    controller,
+    leaf,
+    plugin,
+    calls,
+    payloads,
+    release,
+    conversionTools,
+  } = setup();
   const example = aastexPackage.files["examples/manuscript.md"];
   const parsed = publicationYaml(example);
   // The controller host uses JSON as its YAML subset; preserve the real example's data.
@@ -750,6 +766,14 @@ test("AASTeX PDF bypasses CSL formatting, passes its class payload and records i
   controller.readiness = structuredClone(readySupport);
   release();
   await controller.create();
+  assert.equal(
+    conversionTools[0].bibliographyCache?.directory,
+    ".config/plugins/stratum/cache/bibliography",
+  );
+  assert.equal(
+    conversionTools[0].bibliographyCache?.adapter,
+    plugin.app.vault.adapter,
+  );
   assert.equal(controller.error, "");
   assert.equal(calls.format, 0);
   assert.equal(calls.aastex, 1);

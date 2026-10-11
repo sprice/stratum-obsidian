@@ -10,6 +10,8 @@ class MemoryVault implements PublishAdapter {
   private files = new Map<string, string>();
   private directories = new Set<string>();
   failSave = false;
+  failSaveOnce = false;
+  catalogWrites = 0;
   private saveGate?: Promise<void>;
   private releaseSave?: () => void;
   holdSaves(hold: boolean) {
@@ -35,8 +37,11 @@ class MemoryVault implements PublishAdapter {
   }
   async write(path: string, value: string) {
     await this.saveGate;
-    if (this.failSave)
+    this.catalogWrites++;
+    if (this.failSave || this.failSaveOnce) {
+      this.failSaveOnce = false;
       return Promise.reject(new Error("Synthetic preference save failed"));
+    }
     this.files.set(path, value);
     return Promise.resolve();
   }
@@ -123,6 +128,14 @@ async function reset(options: FixtureOptions = {}) {
 }
 export const publicationFixture = {
   reset,
+  setAastexOptions(
+    options: Parameters<PublishController["updateAastexPdfOptions"]>[0],
+  ) {
+    return controller.updateAastexPdfOptions(options);
+  },
+  resetSaveCount() {
+    adapter.catalogWrites = 0;
+  },
   switchNote() {
     const file = new TFile();
     file.path = "Papers/Synthetic second paper.md";
@@ -162,6 +175,9 @@ export const publicationFixture = {
   holdSaves(value: boolean) {
     adapter.holdSaves(value);
   },
+  failNextSave() {
+    adapter.failSaveOnce = true;
+  },
   failSave(value: boolean) {
     adapter.failSave = value;
   },
@@ -178,6 +194,7 @@ export const publicationFixture = {
       fonts: controller.fontError?.fonts ?? [],
       aastexOptions: controller.aastexPdfOptions,
       selectedFormat: controller.selectedFormat,
+      saveCount: adapter.catalogWrites,
     };
   },
   injectEngineError(font: string) {

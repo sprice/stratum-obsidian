@@ -128,7 +128,9 @@ h4 {
   background: var(--background-modifier-border);
   cursor: pointer;
 }
-.checkbox-container .checkbox {
+.checkbox-container::after {
+  content: "";
+  display: block;
   width: var(--toggle-thumb-height);
   height: var(--toggle-thumb-height);
   border-radius: 50%;
@@ -137,7 +139,7 @@ h4 {
 .checkbox-container.is-enabled {
   background: var(--interactive-accent);
 }
-.checkbox-container.is-enabled .checkbox {
+.checkbox-container.is-enabled::after {
   transform: translateX(
     calc(
       var(--toggle-width) - var(--toggle-thumb-height) -
@@ -160,4 +162,13 @@ h4 {
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   z-index: 10;
+}
+
+.checkbox-container input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
 }
