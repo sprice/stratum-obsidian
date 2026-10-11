@@ -19,6 +19,11 @@ function createSettings(params: {
   selectedSyncCollectionKey?: string | null;
 }): StratumSettings {
   return {
+    aastexPdfDefaults: {
+      showLineNumbers: true,
+      showDraftDateHeader: true,
+      numberedHeadings: false,
+    },
     publishReadinessCache: null,
     publishPdfSetupComplete: false,
     pandocPath: "",

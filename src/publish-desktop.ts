@@ -5,6 +5,11 @@ import { configureDocx } from "./publish-docx";
 import { publicationFilter, publicationHeader } from "./publish-layout";
 import type { PublishFormat } from "./publish-model";
 import type { aastexManuscript } from "./publication-package";
+import {
+  readAastexPdfOptions,
+  type AastexPdfOptions,
+} from "./publication-options";
+import { normalizeAastexPandocHeadings } from "./publication-headings";
 export interface PublishAsset {
   name: string;
   bytes: ArrayBuffer;
@@ -12,6 +17,13 @@ export interface PublishAsset {
 interface PublishTools {
   pandoc: string;
   tectonic: string;
+}
+interface AastexExportInput {
+  manuscript: ReturnType<typeof aastexManuscript>;
+  abstractHtml: string;
+  references: import("./csl-data").CslItem[];
+  options?: AastexPdfOptions;
+  headingIssues?: string[];
 }
 export interface ToolStatus {
   path: string;
@@ -423,11 +435,7 @@ export async function convertPublication(
   signal?: AbortSignal,
   timeout = 120_000,
   layout?: PublishOptions,
-  aastex?: {
-    manuscript: ReturnType<typeof aastexManuscript>;
-    abstractHtml: string;
-    references: import("./csl-data").CslItem[];
-  },
+  aastex?: AastexExportInput,
 ): Promise<ArrayBuffer> {
   if (format === "pdf" && aastex)
     return convertAastexPublication(
@@ -764,16 +772,13 @@ async function convertAastexPublication(
   html: string,
   assets: PublishAsset[],
   tools: PublishTools,
-  input: {
-    manuscript: ReturnType<typeof aastexManuscript>;
-    abstractHtml: string;
-    references: import("./csl-data").CslItem[];
-  },
+  input: AastexExportInput,
   signal?: AbortSignal,
   timeout = 120_000,
 ): Promise<ArrayBuffer> {
   const { fs, path, os } = modules();
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "stratum-aastex-"));
+  const options = readAastexPdfOptions(input.options);
   try {
     const { aastexPackage: pkg, aastexLatex } =
       await import("./publication-package");
@@ -836,11 +841,38 @@ async function convertAastexPublication(
       await fs.writeFile(path.join(directory, `${name}.html`), content, {
         mode: 0o600,
       });
+      const normalize = name === "body" && options.numberedHeadings;
+      if (normalize) {
+        await runPublishTool(
+          tools.pandoc,
+          [
+            "body.html",
+            "--from=html+epub_html_exts+tex_math_single_backslash",
+            "--to=json",
+            "--output=body.json",
+          ],
+          { cwd: directory, signal, timeout },
+        );
+        const document: unknown = JSON.parse(
+          new TextDecoder().decode(
+            await fs.readFile(path.join(directory, "body.json")),
+          ),
+        );
+        const issues = normalizeAastexPandocHeadings(document);
+        input.headingIssues?.splice(0, input.headingIssues.length, ...issues);
+        await fs.writeFile(
+          path.join(directory, "body.json"),
+          JSON.stringify(document),
+          { mode: 0o600 },
+        );
+      }
       await runPublishTool(
         tools.pandoc,
         [
-          `${name}.html`,
-          "--from=html+epub_html_exts+tex_math_single_backslash",
+          `${name}.${normalize ? "json" : "html"}`,
+          normalize
+            ? "--from=json"
+            : "--from=html+epub_html_exts+tex_math_single_backslash",
           "--to=latex",
           "--lua-filter=aastex.lua",
           "--resource-path=.",
@@ -877,6 +909,7 @@ async function convertAastexPublication(
       !!input.references.length,
       pkg,
       await decode("preamble.tex"),
+      options,
     );
     await fs.writeFile(path.join(directory, "document.tex"), tex, {
       mode: 0o600,

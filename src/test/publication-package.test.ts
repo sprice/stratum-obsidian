@@ -201,6 +201,23 @@ test("metadata is escaped, email does not opt into printing, and class assets ar
   assert.ok(!tex.includes("{{"));
   assert.equal(aastexPackage.manifest.upstreamVersion, "7.0.2");
 });
+test("PDF switches independently select public class controls without changing official assets", () => {
+  for (const showLineNumbers of [true, false])
+    for (const showDraftDateHeader of [true, false]) {
+      const tex = aastexLatex(
+        aastexManuscript(sample, "properties"),
+        "Body",
+        "Abstract",
+        false,
+        aastexPackage,
+        "",
+        { showLineNumbers, showDraftDateHeader, numberedHeadings: false },
+      );
+      assert.equal(tex.includes("twocolumn,linenumbers"), showLineNumbers);
+      assert.equal(tex.includes("\\journalinfo{}"), !showDraftDateHeader);
+      assert.ok(!tex.includes("{{"));
+    }
+});
 test("archive/extract relocates the package and bundled assets match reviewable source files", async () => {
   const directory = await mkdtemp(join(tmpdir(), "stratum-package-test-"));
   try {
@@ -560,3 +577,86 @@ test("package declarations drive requirements and class rendering; inconsistent 
     /defaults/,
   );
 });
+
+test(
+  "real AASTeX PDFs cover all line/date options and nonblocking heading fallback",
+  { timeout: 120_000 },
+  async () => {
+    assert.ok(
+      pandoc && tectonic,
+      "Install Pandoc and Tectonic for the required compilation check.",
+    );
+    assert.ok(pdftotext, "Install Poppler for PDF text verification.");
+    const desktop = loadRuntime<typeof import("../publish-desktop")>(
+      "publish-desktop.ts",
+      { Platform: { isDesktopApp: true, isDesktop: true } },
+      {
+        TextDecoder,
+        TextEncoder,
+        Uint8Array,
+        window: { require, setTimeout, clearTimeout },
+      },
+      "browser",
+    );
+    const directory = await mkdtemp(join(tmpdir(), "stratum-aastex-options-"));
+    try {
+      for (const showLineNumbers of [true, false])
+        for (const showDraftDateHeader of [true, false]) {
+          const mismatch = !showLineNumbers && !showDraftDateHeader;
+          const headingIssues: string[] = [];
+          const html = `<h1 id="first">1. First section</h1><p>See section 1. Source prose stays intact.</p><h2>1.1. Rich <em>methods</em></h2><p>Details.</p><h1>${mismatch ? "3" : "2"}. Final section</h1><p>Results.</p>`;
+          const bytes = await desktop.convertPublication(
+            html,
+            [],
+            "pdf",
+            { pandoc, tectonic },
+            undefined,
+            120_000,
+            DEFAULT_ACADEMIC_OPTIONS,
+            {
+              manuscript: aastexManuscript(sample, "properties"),
+              abstractHtml: "<p>Synthetic options abstract.</p>",
+              references: [],
+              options: {
+                showLineNumbers,
+                showDraftDateHeader,
+                numberedHeadings: true,
+              },
+              headingIssues,
+            },
+          );
+          assert.equal(
+            new TextDecoder().decode(new Uint8Array(bytes).subarray(0, 5)),
+            "%PDF-",
+          );
+          assert.equal(
+            headingIssues.length > 0,
+            mismatch,
+            headingIssues.join("; "),
+          );
+          const name = `aastex-options-lines-${showLineNumbers}-date-${showDraftDateHeader}.pdf`;
+          const path = join(directory, name);
+          await writeFile(path, new Uint8Array(bytes));
+          if (process.env.STRATUM_REQUIRE_PUBLISHING_TOOLS === "1") {
+            await mkdir(".test-artifacts/publishing", { recursive: true });
+            await writeFile(
+              join(".test-artifacts/publishing", name),
+              new Uint8Array(bytes),
+            );
+          }
+          const text = execFileSync(pdftotext, ["-layout", path, "-"], {
+            encoding: "utf8",
+          });
+          assert.equal(/Draft version/i.test(text), showDraftDateHeader, text);
+          assert.match(text, /Typeset using/i);
+          assert.match(text, /First section/i);
+          assert.match(text, /Final section/i);
+          assert.match(text, /Source prose stays intact/);
+          if (mismatch) assert.match(text, /2\.\s+3\.\s+Final section/i);
+          else assert.ok(!/2\.\s+2\.\s+Final section/i.test(text), text);
+        }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);

@@ -33,6 +33,11 @@ function createMockPlugin(params?: {
   const enabledLibraries = params?.enabledLibraries ?? [personalLibrary];
   const settingsOverrides = params?.settings ?? {};
   const settings: StratumSettings = {
+    aastexPdfDefaults: {
+      showLineNumbers: true,
+      showDraftDateHeader: true,
+      numberedHeadings: false,
+    },
     publishReadinessCache: null,
     publishPdfSetupComplete: false,
     pandocPath: "",

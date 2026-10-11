@@ -48,7 +48,16 @@ import {
   AASTEX_TEMPLATE,
   aastexProblems,
   aastexPackage,
+  aastexManuscript,
+  AASTEX_PACKAGE_REFERENCE,
 } from "./publication-package";
+import {
+  readAastexPdfOptions,
+  samePublicationPackage,
+  type AastexPdfOptions,
+} from "./publication-options";
+import { AASTEX_HEADING_WARNING } from "./publication-headings";
+import { aastexHeadingIssues } from "./publication-heading-preview";
 import type { renderAastexPublication } from "./publication-render";
 
 export class PublishController extends Component {
@@ -62,6 +71,12 @@ export class PublishController extends Component {
   error = "";
   errorMessage = "";
   fontError: PublishFontError | null = null;
+  private exportedHeadingIssues?: {
+    source: string;
+    titleSource: "body" | "properties";
+    enabled: boolean;
+    issues: string[];
+  };
   private errorTimer: number | null = null;
   selectedFormat: PublishFormat | "" = "";
   historyScope: "note" | "all" = "note";
@@ -283,6 +298,56 @@ export class PublishController extends Component {
       this.notePreferences.templateId,
     );
   }
+  get aastexPdfOptions(): AastexPdfOptions {
+    return readAastexPdfOptions(this.notePreferences.aastex?.options);
+  }
+  get aastexPackageProblem(): string {
+    const saved = this.notePreferences.aastex?.package;
+    return this.selectedTemplate?.renderer === "aastex" &&
+      this.selectedFormat === "pdf" &&
+      saved &&
+      !samePublicationPackage(saved, AASTEX_PACKAGE_REFERENCE)
+      ? `This note uses AASTeX ${saved.upstreamVersion}, Stratum adapter ${saved.version}. Installed: AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion}, adapter ${AASTEX_PACKAGE_REFERENCE.version}. Review the update before creating another PDF. Older package assets are not retained.`
+      : "";
+  }
+  get aastexHeadingProblems(): string[] {
+    if (
+      this.selectedTemplate?.renderer !== "aastex" ||
+      this.selectedFormat !== "pdf" ||
+      !this.aastexPdfOptions.numberedHeadings
+    )
+      return [];
+    try {
+      const source = this.currentText();
+      if (
+        this.exportedHeadingIssues?.source === source &&
+        this.exportedHeadingIssues.titleSource === this.layout.titleSource &&
+        this.exportedHeadingIssues.enabled
+      )
+        return this.exportedHeadingIssues.issues;
+      return aastexHeadingIssues(
+        aastexManuscript(source, this.layout.titleSource).body,
+      );
+    } catch {
+      return [];
+    }
+  }
+  updateAastexPdfOptions(patch: Partial<AastexPdfOptions>): Promise<void> {
+    return this.updatePreferences({}, undefined, patch);
+  }
+  resetAastexPdfOptions(): Promise<void> {
+    return this.updateAastexPdfOptions(
+      readAastexPdfOptions(this.plugin.settings.aastexPdfDefaults),
+    );
+  }
+  acceptAastexPackage(): Promise<void> {
+    return this.updatePreferences({
+      aastex: {
+        options: this.aastexPdfOptions,
+        package: { ...AASTEX_PACKAGE_REFERENCE },
+      },
+    });
+  }
   get propertyDefinitions() {
     const fields = publicationProperties(
       this.layout,
@@ -347,6 +412,7 @@ export class PublishController extends Component {
   get academicProblem(): string {
     if (!this.selectedTemplate) return "Choose a template before publishing.";
     if (this.selectedTemplate.renderer === "aastex") {
+      if (this.aastexPackageProblem) return this.aastexPackageProblem;
       try {
         return aastexProblems(
           this.currentText(),
@@ -376,6 +442,7 @@ export class PublishController extends Component {
   updatePreferences(
     patch: Partial<NotePublishPreferences>,
     layoutPatch?: { format: "docx" | "pdf"; patch: Partial<PublishOptions> },
+    aastexPatch?: Partial<AastexPdfOptions>,
   ): Promise<void> {
     const file = this.document;
     if (!file || this.busy) return Promise.resolve();
@@ -388,6 +455,14 @@ export class PublishController extends Component {
         file.stat.ctime,
       );
       const current = this.preferencesFor(note.preferences);
+      if (aastexPatch)
+        current.aastex = {
+          ...current.aastex,
+          options: readAastexPdfOptions({
+            ...current.aastex?.options,
+            ...aastexPatch,
+          }),
+        };
       if (layoutPatch)
         current[layoutPatch.format] = readPublishOptions({
           ...current[layoutPatch.format],
@@ -406,6 +481,13 @@ export class PublishController extends Component {
           pdf: { ...template.layout },
           docx: { ...template.layout },
         };
+        if (template.renderer === "aastex")
+          patch.aastex = current.aastex ?? {
+            options: readAastexPdfOptions(
+              this.plugin.settings.aastexPdfDefaults,
+            ),
+            package: { ...AASTEX_PACKAGE_REFERENCE },
+          };
       }
       await this.store.setPreferences(
         note.id,
@@ -413,7 +495,11 @@ export class PublishController extends Component {
       );
       await this.reload();
       this.plugin.publicationEditor?.refresh();
-      if (this.selectedTemplate?.renderer === "aastex" && this.document)
+      if (
+        patch.templateId &&
+        this.selectedTemplate?.renderer === "aastex" &&
+        this.document
+      )
         await this.editPublicationDetails();
     });
     this.preferenceQueue = next.catch(() => {});
@@ -785,6 +871,13 @@ export class PublishController extends Component {
           : this.plugin.citations.formatForPublication(text, path),
         this.store.note(file.path, title, ctime),
       ]);
+      if (packaged && format === "pdf") {
+        publishing.aastex = {
+          options: readAastexPdfOptions(publishing.aastex?.options),
+          package: { ...AASTEX_PACKAGE_REFERENCE },
+        };
+        await this.store.setPreferences(note.id, publishing);
+      }
       const rendered: {
         html: string;
         assets: import("./publish-desktop").PublishAsset[];
@@ -828,6 +921,16 @@ export class PublishController extends Component {
         rendered.aastex,
       );
       converting = false;
+      if (rendered.aastex) {
+        this.exportedHeadingIssues = {
+          source: text,
+          titleSource: layout.titleSource,
+          enabled: rendered.aastex.options.numberedHeadings,
+          issues: rendered.aastex.headingIssues,
+        };
+        if (rendered.aastex.headingIssues.length)
+          new Notice(AASTEX_HEADING_WARNING);
+      }
       if (aborter.signal.aborted || !this.alive) return;
       const id = crypto.randomUUID(),
         date = new Date();
@@ -850,6 +953,9 @@ export class PublishController extends Component {
                     upstreamVersion: aastexPackage.manifest.upstreamVersion,
                   },
                 }
+              : {}),
+            ...(rendered.aastex
+              ? { aastexPdfOptions: { ...rendered.aastex.options } }
               : {}),
             documentType: publishing.documentType,
             opening: publishing.opening,

@@ -1,6 +1,12 @@
+import { aastexHeadingIssues } from "../publication-heading-preview";
 import { readNotePreferences } from "../publish-options";
 import { aastexManuscript, aastexPackage } from "../publication-package";
 import { publicationYaml } from "../publication-metadata";
+import {
+  DEFAULT_AASTEX_PDF_OPTIONS,
+  readAastexPdfOptions,
+} from "../publication-options";
+import { AASTEX_PACKAGE_REFERENCE } from "../publication-package";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate as settle } from "node:timers/promises";
@@ -127,6 +133,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     },
     "browser",
     {
+      "./publication-heading-preview": { aastexHeadingIssues },
       "./publication-render": {
         renderAastexPublication: (
           _app: unknown,
@@ -144,6 +151,8 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
               manuscript: aastexManuscript(text, publishing.pdf.titleSource),
               abstractHtml: "<p>Synthetic abstract</p>",
               references: [],
+              options: readAastexPdfOptions(publishing.aastex?.options),
+              headingIssues: [],
             },
           });
         },
@@ -753,6 +762,77 @@ test("AASTeX PDF bypasses CSL formatting, passes its class payload and records i
     aastexPackage.manifest.bibliographyStyle,
   );
   assert.equal(documents[0].publishing?.template?.upstreamVersion, "7.0.2");
+  assert.equal(
+    documents[0].publishing?.template?.version,
+    AASTEX_PACKAGE_REFERENCE.version,
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(documents[0].publishing?.aastexPdfOptions)),
+    DEFAULT_AASTEX_PDF_OPTIONS,
+  );
+});
+
+test("AASTeX options snapshot vault defaults, serialize changes and reset explicitly", async () => {
+  const { controller, plugin } = setup({
+    aastexPdfDefaults: {
+      showLineNumbers: false,
+      showDraftDateHeader: false,
+      numberedHeadings: true,
+    },
+  });
+  await controller.updatePreferences({ templateId: "package:aastex" });
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(controller.aastexPdfOptions)),
+    plugin.settings.aastexPdfDefaults,
+  );
+  plugin.settings.aastexPdfDefaults = { ...DEFAULT_AASTEX_PDF_OPTIONS };
+  await controller.reload();
+  assert.equal(controller.aastexPdfOptions.showLineNumbers, false);
+  await Promise.all([
+    controller.updateAastexPdfOptions({ showLineNumbers: true }),
+    controller.updateAastexPdfOptions({ numberedHeadings: false }),
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(controller.aastexPdfOptions)), {
+    showLineNumbers: true,
+    showDraftDateHeader: false,
+    numberedHeadings: false,
+  });
+  await controller.updatePreferences({ templateId: "general" });
+  await controller.updatePreferences({ templateId: "package:aastex" });
+  assert.equal(controller.aastexPdfOptions.showDraftDateHeader, false);
+  await controller.resetAastexPdfOptions();
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(controller.aastexPdfOptions)),
+    DEFAULT_AASTEX_PDF_OPTIONS,
+  );
+});
+
+test("version changes require explicit acceptance while heading mismatch warnings allow export", async () => {
+  const { controller, leaf, release } = setup();
+  const example = aastexPackage.files["examples/manuscript.md"];
+  const parsed = publicationYaml(example);
+  leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n## 1. First\n\nText.\n\n## 3. Next\n\nText.`;
+  const source = leaf.view.text;
+  await controller.updatePreferences({ templateId: "package:aastex" });
+  await controller.selectFormat("pdf");
+  controller.readiness = structuredClone(readySupport);
+  await controller.updatePreferences({
+    aastex: {
+      options: { ...DEFAULT_AASTEX_PDF_OPTIONS, numberedHeadings: true },
+      package: { ...AASTEX_PACKAGE_REFERENCE, version: "1.0.0" },
+    },
+  });
+  assert.match(controller.aastexPackageProblem, /Review the update/);
+  assert.equal(controller.canCreate(), false);
+  await controller.acceptAastexPackage();
+  assert.equal(controller.aastexPackageProblem, "");
+  assert.ok(controller.aastexHeadingProblems.length);
+  assert.equal(controller.canCreate(), true);
+  release();
+  await controller.create();
+  assert.equal(controller.error, "");
+  assert.equal((await controller.store.list()).documents.length, 1);
+  assert.equal(leaf.view.text, source);
 });
 
 test("AASTeX conversion failures detect missing shared tools without probing generic PDF support", async () => {

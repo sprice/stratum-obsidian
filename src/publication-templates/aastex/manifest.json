@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "aastex",
   "name": "AASTeX",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "renderer": {
     "id": "aastex",
     "version": 1

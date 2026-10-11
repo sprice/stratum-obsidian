@@ -39,6 +39,9 @@ class Element {
   createDiv(options?: { text?: string; cls?: string }) {
     return this.append("div", options);
   }
+  createSpan(options?: { text?: string; cls?: string }) {
+    return this.append("span", options);
+  }
   addClass(cls: string) {
     this.cls = [this.cls, cls].filter(Boolean).join(" ");
   }
@@ -404,7 +407,12 @@ test("a note chooses from all templates without a document type selector", () =>
   assert.equal(select.value, "");
   assert.deepEqual(
     select.children.map((el) => el.text),
-    ["Choose template", "General documents", "Academic papers", "AASTeX"],
+    [
+      "Choose template",
+      "General documents",
+      "Academic papers",
+      "AASTeX · 7.0.2",
+    ],
   );
   assert.equal(
     root.all().find((el) => el.text === "Create document")!.hidden,

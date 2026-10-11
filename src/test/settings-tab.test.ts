@@ -553,7 +553,13 @@ test("template management stays in its own screen, with academic properties in t
   )!;
   assert.deepEqual(
     Array.from(publishing.items, (item) => item.name),
-    ["Publishing tools", "Publishing templates"],
+    [
+      "Publishing tools",
+      "Publishing templates",
+      "AASTeX: Show line numbers",
+      "AASTeX: Show draft date header",
+      "AASTeX: Headings already contain numbers",
+    ],
   );
   Row.rendered = [];
   const entry = new Row();

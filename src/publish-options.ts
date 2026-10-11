@@ -1,3 +1,7 @@
+import {
+  readAastexPreferences,
+  type AastexPreferences,
+} from "./publication-options";
 export type DocumentType = "general" | "academic";
 export interface PublishOptions {
   bodyFont: string;
@@ -24,6 +28,7 @@ export interface AcademicDefaults {
   keywords: string[];
 }
 export interface NotePublishPreferences {
+  aastex?: AastexPreferences;
   documentType: DocumentType;
   templateId?: string;
   opening: "properties" | "body";
@@ -162,6 +167,9 @@ export function readNotePreferences(
   const base = documentType === "academic" ? academic : defaults;
   return {
     documentType,
+    ...(v.templateId === "package:aastex" || v.aastex
+      ? { aastex: readAastexPreferences(v.aastex) }
+      : {}),
     ...(typeof v.templateId === "string" ? { templateId: v.templateId } : {}),
     opening: v.opening === "body" ? "body" : "properties",
     format: v.format === "pdf" || v.format === "docx" ? v.format : "",

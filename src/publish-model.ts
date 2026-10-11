@@ -5,6 +5,10 @@ import {
   type PublishOptions,
   type DocumentType,
 } from "./publish-options";
+import {
+  readAastexPdfOptions,
+  type AastexPdfOptions,
+} from "./publication-options";
 export const VIEW_TYPE_PUBLISH_PREVIEW = "stratum-publish-preview";
 
 export type PublishFormat = "pdf" | "docx";
@@ -19,6 +23,7 @@ export interface PublishedDocument {
   citationStyle: string;
   citationLanguage: string;
   publishing?: {
+    aastexPdfOptions?: AastexPdfOptions;
     template?: { id: string; version: string; upstreamVersion: string };
     documentType: DocumentType;
     opening: "body" | "properties";
@@ -101,6 +106,10 @@ export function readCatalog(text: string): PublishCatalog {
       document.publishing.layout = readPublishOptions(
         document.publishing.layout,
       );
+      if (document.publishing.aastexPdfOptions)
+        document.publishing.aastexPdfOptions = readAastexPdfOptions(
+          document.publishing.aastexPdfOptions,
+        );
     }
   if (
     new Set(catalog.notes.map((n) => n.id)).size !== catalog.notes.length ||

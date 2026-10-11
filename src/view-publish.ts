@@ -17,6 +17,13 @@ import {
 import { getSettingsManager } from "./view-helpers";
 import { renderPublishCustomization } from "./publish-customize";
 import { aastexProblems } from "./publication-package";
+import { AASTEX_PACKAGE_REFERENCE } from "./publication-package";
+import {
+  aastexOptionCheckbox,
+  AASTEX_OPTION_LABELS,
+} from "./publication-option-controls";
+import type { AastexPdfOptions } from "./publication-options";
+import { AASTEX_HEADING_WARNING } from "./publication-headings";
 
 class DeletePublicationModal extends Modal {
   constructor(
@@ -81,6 +88,14 @@ export class PublishPanel extends Component {
   private customization!: HTMLElement;
   private customizationKey = "";
   private alive = true;
+  private aastexOptions!: HTMLDetailsElement;
+  private aastexChecks = new Map<keyof AastexPdfOptions, HTMLInputElement>();
+  private aastexWarning!: HTMLDetailsElement;
+  private aastexWarningList!: HTMLElement;
+  private aastexVersion!: HTMLElement;
+  private aastexVersionProblem!: HTMLElement;
+  private aastexUseVersion!: HTMLButtonElement;
+  private aastexReset!: HTMLButtonElement;
   constructor(
     private container: HTMLElement,
     private publish: PublishController,
@@ -204,6 +219,55 @@ export class PublishPanel extends Component {
     this.customizeRow = this.body.createDiv({
       cls: "stratum-publish-customize-row",
     });
+    this.aastexVersion = this.body.createDiv({ cls: "stratum-publish-meta" });
+    this.aastexVersion.setText(
+      `AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion} · Stratum adapter ${AASTEX_PACKAGE_REFERENCE.version}`,
+    );
+    this.aastexVersionProblem = this.body.createDiv({
+      cls: "stratum-publish-meta",
+      attr: { role: "status" },
+    });
+    this.aastexUseVersion = createStratumButton(this.body, {
+      text: "Use installed version",
+    });
+    this.aastexUseVersion.addEventListener("click", () => {
+      void this.publish.acceptAastexPackage().catch(() => {});
+    });
+    this.aastexOptions = createStratumDisclosure(this.body, {
+      cls: "stratum-aastex-options",
+    });
+    createStratumSummary(this.aastexOptions, { text: "Document options" });
+    const optionFields = this.aastexOptions.createDiv();
+    for (const key of Object.keys(
+      AASTEX_OPTION_LABELS,
+    ) as (keyof AastexPdfOptions)[])
+      this.aastexChecks.set(
+        key,
+        aastexOptionCheckbox(optionFields, key, (value) => {
+          void this.publish
+            .updateAastexPdfOptions({ [key]: value })
+            .catch(() => {});
+        }),
+      );
+    optionFields.createEl("p", {
+      text: "These choices apply to this note’s next PDF. Heading normalization leaves your note unchanged. Turning off the draft date keeps the class’s typesetting credit.",
+      cls: "stratum-publish-meta",
+    });
+    this.aastexReset = createStratumButton(optionFields, {
+      text: "Reset document options",
+    });
+    this.aastexReset.addEventListener("click", () => {
+      void this.publish.resetAastexPdfOptions().catch(() => {});
+    });
+    this.aastexWarning = createStratumDisclosure(this.body);
+    createStratumSummary(this.aastexWarning, {
+      text: "Review heading numbers",
+    });
+    this.aastexWarning.createEl("p", {
+      text: AASTEX_HEADING_WARNING,
+      attr: { role: "status" },
+    });
+    this.aastexWarningList = this.aastexWarning.createEl("ul");
     this.customize = createStratumDisclosure(this.customizeRow, {
       cls: "stratum-publish-customization",
     });
@@ -268,6 +332,35 @@ export class PublishPanel extends Component {
       preferences.templateId,
     );
     const aastex = template?.renderer === "aastex";
+    const aastexPdf = aastex && publish.selectedFormat === "pdf";
+    this.aastexVersion.hidden = !aastex;
+    this.aastexOptions.hidden = !aastexPdf;
+    this.aastexVersionProblem.hidden =
+      !aastexPdf || !publish.aastexPackageProblem;
+    this.aastexVersionProblem.setText(publish.aastexPackageProblem || "");
+    this.aastexUseVersion.hidden = this.aastexVersionProblem.hidden;
+    this.aastexUseVersion.disabled = publish.busy || publish.preferencesSaving;
+    this.aastexReset.disabled = publish.busy || publish.preferencesSaving;
+    for (const [key, input] of this.aastexChecks) {
+      input.checked =
+        publish.aastexPdfOptions?.[key] ?? key !== "numberedHeadings";
+      // Keep a keyboard user's current checkbox focused during the queued save.
+      input.disabled =
+        publish.busy ||
+        (publish.preferencesSaving &&
+          input.ownerDocument?.activeElement !== input);
+    }
+    const headingIssues = aastexPdf
+      ? (publish.aastexHeadingProblems ?? [])
+      : [];
+    this.aastexWarning.hidden = !headingIssues.length;
+    this.aastexWarningList.empty();
+    for (const issue of headingIssues.slice(0, 20))
+      this.aastexWarningList.createEl("li", { text: issue });
+    if (headingIssues.length > 20)
+      this.aastexWarningList.createEl("li", {
+        text: `${headingIssues.length - 20} more heading issues.`,
+      });
     const definitions = publicationProperties(
       publish.layout,
       template?.prefill,
@@ -346,7 +439,13 @@ export class PublishPanel extends Component {
     this.template.empty();
     this.template.createEl("option", { value: "", text: "Choose template" });
     for (const choice of templates.templates)
-      this.template.createEl("option", { value: choice.id, text: choice.name });
+      this.template.createEl("option", {
+        value: choice.id,
+        text:
+          choice.renderer === "aastex"
+            ? `${choice.name} · ${AASTEX_PACKAGE_REFERENCE.upstreamVersion}`
+            : choice.name,
+      });
     this.template.value = template?.id ?? "";
     this.template.disabled = publish.busy || publish.preferencesSaving;
     const prepared = !!template;

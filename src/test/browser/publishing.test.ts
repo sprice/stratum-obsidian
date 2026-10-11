@@ -231,6 +231,53 @@ async function choose(label: string, value: string, key: string) {
   );
 }
 
+test("AASTeX document options stay compact, keyboard accessible and within a narrow panel", async () => {
+  await scenario("aastex-options", async () => {
+    await page.setViewportSize(320, 900);
+    await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    const disclosure =
+      "document.querySelector('.stratum-aastex-option').closest('details')";
+    assert.equal(await page.evaluate(`${disclosure}.open`), false);
+    await page.evaluate(`${disclosure}.querySelector('summary').focus()`);
+    await page.keyPress("Enter");
+    await until(`${disclosure}.open`);
+    await page.keyPress("Tab");
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement === document.querySelector('.stratum-aastex-option input')",
+      ),
+      true,
+    );
+    await page.keyPress("Space");
+    await until(
+      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement === document.querySelector('.stratum-aastex-option input')",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.state().aastexOptions.showDraftDateHeader",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelectorAll('.stratum-aastex-option').length",
+      ),
+      3,
+    );
+    assert.equal(
+      await page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+      true,
+    );
+    await capture("aastex-options-narrow-keyboard");
+  });
+});
+
 for (const configuration of [
   {
     name: "body-dark",

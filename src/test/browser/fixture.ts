@@ -49,6 +49,7 @@ export interface FixtureOptions {
   bodyFont?: string;
   titleFont?: string;
   theme?: "light" | "dark";
+  aastex?: boolean;
 }
 const root = document.querySelector<HTMLElement>("#publish")!;
 const properties = { title: "Synthetic paper", authors: ["Example Author"] };
@@ -90,7 +91,7 @@ async function reset(options: FixtureOptions = {}) {
     1,
   );
   const preferences = readNotePreferences({
-    templateId: "general",
+    templateId: options.aastex ? "package:aastex" : "general",
     format: "pdf",
   });
   preferences.pdf.bodyFont = options.bodyFont ?? "Missing Body Serif";
@@ -116,6 +117,7 @@ export const publicationFixture = {
       bodyFont: controller.layout.bodyFont,
       titleFont: controller.layout.titleFont,
       fonts: controller.fontError?.fonts ?? [],
+      aastexOptions: controller.aastexPdfOptions,
     };
   },
   injectEngineError(font: string) {

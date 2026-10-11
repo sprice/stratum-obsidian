@@ -1,4 +1,9 @@
 import files from "./publication-templates/aastex/files.json";
+import {
+  readAastexPdfOptions,
+  type AastexPdfOptions,
+  type PublicationPackageReference,
+} from "./publication-options";
 import { DEFAULT_ACADEMIC_OPTIONS } from "./publish-options";
 import type { PublishingTemplate } from "./publish-templates";
 import { publicationAuthors, publicationYaml } from "./publication-metadata";
@@ -194,6 +199,11 @@ export function loadPublicationPackage(
   };
 }
 export const aastexPackage = loadPublicationPackage(files);
+export const AASTEX_PACKAGE_REFERENCE: PublicationPackageReference = {
+  id: aastexPackage.manifest.id,
+  version: aastexPackage.manifest.version,
+  upstreamVersion: aastexPackage.manifest.upstreamVersion,
+};
 export const AASTEX_TEMPLATE: PublishingTemplate = {
   // Settings-owned template IDs cannot contain a colon.
   id: "package:aastex",
@@ -338,7 +348,13 @@ export function aastexLatex(
   bibliography: boolean,
   pkg = aastexPackage,
   preamble = "",
+  pdfOptions?: AastexPdfOptions,
 ): string {
+  const options = readAastexPdfOptions(
+    pdfOptions ?? {
+      showLineNumbers: pkg.defaults.classOptions.includes("linenumbers"),
+    },
+  );
   const authors = manuscript.authors
     .map((author) =>
       [
@@ -351,12 +367,16 @@ export function aastexLatex(
     )
     .join("\n");
   const values: Record<string, string> = {
+    journalInfo: options.showDraftDateHeader ? "" : "\\journalinfo{}",
     preamble,
     className: pkg.manifest.class
       .split("/")
       .at(-1)!
       .replace(/\.cls$/, ""),
-    classOptions: pkg.defaults.classOptions.join(","),
+    classOptions: pkg.defaults.classOptions
+      .filter((option) => option !== "linenumbers")
+      .concat(options.showLineNumbers ? ["linenumbers"] : [])
+      .join(","),
     title: escapeLatex(manuscript.title),
     authors,
     abstract: abstract ? `\\begin{abstract}\n${abstract}\n\\end{abstract}` : "",
@@ -369,7 +389,7 @@ export function aastexLatex(
       : "",
   };
   return pkg.files[pkg.manifest.entry].replace(
-    /\{\{(className|classOptions|preamble|title|authors|abstract|body|bibliography)\}\}/g,
+    /\{\{(className|classOptions|journalInfo|preamble|title|authors|abstract|body|bibliography)\}\}/g,
     (_match, key: string) => values[key],
   );
 }

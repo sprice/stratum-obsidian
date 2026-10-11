@@ -8,6 +8,7 @@ import {
 import { renderPublication } from "./publish-render";
 import type { CitationService } from "./citation-service";
 import type { NotePublishPreferences } from "./publish-options";
+import { readAastexPdfOptions } from "./publication-options";
 
 export async function renderAastexPublication(
   app: App,
@@ -74,6 +75,12 @@ export async function renderAastexPublication(
   return {
     html: bodyHtml,
     assets: [...body.assets, ...abstract.assets],
-    aastex: { manuscript, abstractHtml: abstract.html, references },
+    aastex: {
+      manuscript,
+      abstractHtml: abstract.html,
+      references,
+      options: readAastexPdfOptions(preferences.aastex?.options),
+      headingIssues: [] as string[],
+    },
   };
 }

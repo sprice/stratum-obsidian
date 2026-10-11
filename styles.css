@@ -1115,7 +1115,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-template-row > button {
   margin: 0;
 }
-.stratum-publish-customization > summary {
+.stratum-publish-customization > summary,
+.stratum-aastex-options > summary {
   cursor: pointer;
   color: var(--text-muted);
   padding: var(--size-4-2) 0;
@@ -1831,4 +1832,14 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   border-top: 1px solid var(--background-modifier-border);
   padding-top: var(--size-4-3);
   overflow-wrap: anywhere;
+}
+.stratum-aastex-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.stratum-aastex-option input {
+  flex-shrink: 0;
 }
