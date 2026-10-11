@@ -1426,6 +1426,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   }
 }
 .stratum-publish-list {
+  /* Explicit restoration owns this list; browser anchoring must not move it. */
+  overflow-anchor: none;
   flex: 1 1 8rem;
   box-sizing: border-box;
   min-height: 8rem;
