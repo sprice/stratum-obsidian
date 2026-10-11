@@ -35,3 +35,6 @@ citation-resources.json
 
 # Local browser test screenshots and diagnostics
 .test-artifacts/
+
+# Runtime bibliography cache when the development plugin points at this checkout.
+/cache/bibliography/
