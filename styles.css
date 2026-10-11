@@ -1841,5 +1841,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 
 .stratum-aastex-option input {
+  width: auto;
   flex-shrink: 0;
 }
