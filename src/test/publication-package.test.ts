@@ -335,7 +335,7 @@ $$
       equations.restore(equations.markdown) +
       '<pre class="python"><code>def synthetic_square(x):\n    return x ** 2</code></pre>' +
       "<pre><code>plain_code_marker = 1 &lt; 2</code></pre>" +
-      '<p>Inline <code class="python">print(42)</code>; <s>Removed phrase</s>; <u>Underlined phrase</u>.</p>' +
+      '<p>Inline <code class="python">print(42)</code>; <s>Removed phrase</s>.</p><p><u>Underlined phrase</u>.</p>' +
       '<table><tr><td>Inline table code</td><td><code class="python">table_value = 7</code></td></tr></table>' +
       '<table><caption>Synthetic measurements &amp; comparison</caption><thead><tr><th style="text-align:left">Sample</th><th style="text-align:right">Value</th><th style="text-align:center">Group</th></tr></thead><tbody><tr><td>A</td><td>1</td><td>Control</td></tr></tbody></table></body></html>';
     const probe = await mkdtemp(join(tmpdir(), "stratum-table-test-"));
