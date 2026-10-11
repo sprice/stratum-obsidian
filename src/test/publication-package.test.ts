@@ -18,6 +18,7 @@ import {
   aastexFormattedDocument,
 } from "../publication-citations";
 import { loadRuntime } from "./runtime-harness";
+import { preparePublishMath } from "../publish-math";
 import {
   DEFAULT_ACADEMIC_OPTIONS,
   type NotePublishPreferences,
@@ -281,7 +282,7 @@ test("structured citation tokens preserve groups, narrative form, locators and s
   );
 });
 test(
-  "real packaged PDF compiles two authors, shared affiliations, a table, equation and native bibliography",
+  "real packaged PDF compiles authors, affiliations, tables, AMS math and native bibliography",
   { timeout: 120_000 },
   async () => {
     assert.ok(
@@ -309,21 +310,51 @@ test(
       volume: "1",
       page: "1-4",
     };
+    const equations = preparePublishMath(String.raw`
+$$
+\text{Aligned equation}\quad\begin{aligned}
+a &= b \\
+c &= d
+\end{aligned}
+$$
+$$
+\text{Piecewise equation}\quad f(x) = \begin{cases}
+x^2 & x \ge 0 \\
+-x & x < 0
+\end{cases}
+$$
+$$
+\text{Matrix equation}\quad M = \begin{bmatrix}
+1 & 2 \\
+3 & 4
+\end{bmatrix}
+$$
+`);
     const html =
-      '<html><body><h1>Introduction</h1><p>A reference <span class="stratum-aastex-citation" data-tex="\\citep{stratum0}">Citation</span>.</p><p><span class="math inline">\\(E=mc^2\\)</span></p><table><caption>Synthetic measurements &amp; comparison</caption><thead><tr><th style="text-align:left">Sample</th><th style="text-align:right">Value</th><th style="text-align:center">Group</th></tr></thead><tbody><tr><td>A</td><td>1</td><td>Control</td></tr></tbody></table></body></html>';
+      '<html><body><h1>Introduction</h1><p>A reference <span class="stratum-aastex-citation" data-tex="\\citep{stratum0}">Citation</span>.</p>' +
+      equations.restore(equations.markdown) +
+      '<table><caption>Synthetic measurements &amp; comparison</caption><thead><tr><th style="text-align:left">Sample</th><th style="text-align:right">Value</th><th style="text-align:center">Group</th></tr></thead><tbody><tr><td>A</td><td>1</td><td>Control</td></tr></tbody></table></body></html>';
     const probe = await mkdtemp(join(tmpdir(), "stratum-table-test-"));
     try {
       const filter = join(probe, "aastex.lua");
       await writeFile(filter, desktop.aastexFilter);
       const body = execFileSync(
         pandoc,
-        ["-f", "html", "-t", "latex", `--lua-filter=${filter}`],
+        [
+          "-f",
+          "html+epub_html_exts+tex_math_single_backslash",
+          "-t",
+          "latex",
+          `--lua-filter=${filter}`,
+        ],
         { input: html, encoding: "utf8" },
       );
       assert.match(body, /\\caption\{Synthetic measurements \\& comparison\}/);
       assert.match(body, /\\multicolumn\{1\}\{r\}\{Value\}/);
       assert.match(body, /\\multicolumn\{1\}\{c\}\{Group\}/);
       assert.match(body, /A & 1 & Control/);
+      for (const environment of ["aligned", "cases", "bmatrix"])
+        assert.ok(body.includes(`\\begin{${environment}}`));
       const aligned = execFileSync(
         pandoc,
         ["-f", "markdown", "-t", "latex", `--lua-filter=${filter}`],
@@ -408,6 +439,12 @@ test(
         );
         assert.match(text, /Alex Example/);
         assert.match(text, /Morgan Sample/);
+        for (const label of [
+          "Aligned equation",
+          "Piecewise equation",
+          "Matrix equation",
+        ])
+          assert.ok(text.includes(label), `${heading}: ${label}`);
       }
     }
   },
