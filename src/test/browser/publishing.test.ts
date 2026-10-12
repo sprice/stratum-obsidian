@@ -326,10 +326,22 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
   await scenario("aastex-options", async () => {
     await page.setViewportSize(320, 900);
     await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-panel').textContent.includes('Stratum adapter')",
+      ),
+      false,
+    );
     await page
       .locator('button[aria-label="Document options for this note"]')
       .click();
     await until("!!document.querySelector('.stratum-document-options-modal')");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-document-options-modal').textContent.includes('Stratum adapter')",
+      ),
+      true,
+    );
     assert.equal(
       await page.evaluate(
         "document.activeElement === document.querySelector('.stratum-aastex-option .checkbox-container')",

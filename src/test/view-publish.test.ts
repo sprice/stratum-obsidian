@@ -538,6 +538,10 @@ test("AASTeX exposes author editing and PDF guidance without generic property ma
   publish.selectedFormat = "pdf";
   update();
   assert.equal(
+    root.all().some((el) => el.text.includes("Stratum adapter")),
+    false,
+  );
+  assert.equal(
     root.all().find((el) => el.cls === "stratum-publish-academic")!.hidden,
     false,
   );

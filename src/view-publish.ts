@@ -59,7 +59,6 @@ export class PublishPanel extends Component {
   private alive = true;
   private aastexWarning!: HTMLDetailsElement;
   private aastexWarningList!: HTMLElement;
-  private aastexVersion!: HTMLElement;
   private aastexVersionProblem!: HTMLElement;
   private aastexUseVersion!: HTMLButtonElement;
   constructor(
@@ -239,10 +238,6 @@ export class PublishPanel extends Component {
     this.create.addEventListener("click", () => {
       void this.publish.create();
     });
-    this.aastexVersion = this.body.createDiv({ cls: "stratum-publish-meta" });
-    this.aastexVersion.setText(
-      `AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion} · Stratum adapter ${AASTEX_PACKAGE_REFERENCE.version}`,
-    );
     this.aastexVersionProblem = this.body.createDiv({
       cls: "stratum-publish-meta",
       attr: { role: "status" },
@@ -308,7 +303,6 @@ export class PublishPanel extends Component {
     );
     const aastex = template?.renderer === "aastex";
     const aastexPdf = aastex && publish.selectedFormat === "pdf";
-    this.aastexVersion.hidden = !aastex;
     this.aastexVersionProblem.hidden =
       !aastexPdf || !publish.aastexPackageProblem;
     this.aastexVersionProblem.setText(publish.aastexPackageProblem || "");
