@@ -1927,3 +1927,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publishing-settings-modal .stratum-publication-content {
   padding: 0;
 }
+
+.stratum-publishing-settings-modal .stratum-publishing-done {
+  margin-inline-start: auto;
+}

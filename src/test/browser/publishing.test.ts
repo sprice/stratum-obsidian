@@ -350,7 +350,7 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
       await page.evaluate(
         "document.querySelector('.stratum-document-options-modal').textContent.includes('Stratum adapter')",
       ),
-      true,
+      false,
     );
     assert.equal(
       await page.evaluate(
@@ -1141,7 +1141,7 @@ test("AASTeX modal shares author edits, preserves legacy associations and keeps 
       .locator('select[aria-label="Title source"]')
       .selectOption("properties");
     await until("window.publicationFixture.state().canCreate");
-    await page.locator('[data-property-control="remove:title"]').click();
+    await editProperty("Title", "");
     await until("!window.publicationFixture.state().canCreate");
     await editProperty("Title", "Restored property title");
     await until("window.publicationFixture.state().canCreate");
@@ -1563,5 +1563,50 @@ test("editor undo and redo transactions refresh Settings metadata without the re
       await page.locator(".cm-editor .stratum-publication-details").count(),
       0,
     );
+  });
+});
+
+test("AASTeX settings omit static copy and title deletion while retaining autosave feedback and aligned actions", async () => {
+  await scenario("aastex-modal-cleanup", async () => {
+    for (const width of [320, 560]) {
+      await page.setViewportSize(width, 900);
+      await reset({ aastex: true });
+      await openSettings();
+      assert.equal(
+        await page.evaluate(
+          "document.querySelector('.stratum-document-options-modal').textContent.includes('Changes save automatically')",
+        ),
+        false,
+      );
+      assert.equal(
+        await page
+          .locator('button[aria-label="Remove title from this note"]')
+          .count(),
+        0,
+      );
+      assert.equal(
+        await page.evaluate(
+          "document.querySelector('.stratum-publishing-reset').textContent",
+        ),
+        "Reset to defaults",
+      );
+      assert.equal(
+        await page.evaluate(
+          `(() => {const done=document.querySelector('.stratum-publishing-done'),r=done.getBoundingClientRect(),p=done.parentElement.getBoundingClientRect();return Math.abs(r.right-p.right)<=1 && document.documentElement.scrollWidth<=innerWidth;})()`,
+        ),
+        true,
+      );
+      await page.evaluate("window.publicationFixture.holdSaves(true)");
+      await page
+        .locator(".stratum-aastex-option:first-of-type .checkbox-container")
+        .click();
+      await until(
+        "window.publicationFixture.state().saving && document.querySelector('.stratum-document-options-modal').innerText.includes('Saving settings…')",
+      );
+      await page.evaluate("window.publicationFixture.holdSaves(false)");
+      await until("!window.publicationFixture.state().saving");
+      await capture(`aastex-settings-cleanup-${width}`);
+      await page.keyPress("Escape");
+    }
   });
 });

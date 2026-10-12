@@ -213,7 +213,7 @@ test("reset uses current defaults and failed auto-saves remain visible in the mo
   const s = setup();
   s.content
     .all()
-    .find((el) => el.text === "Reset PDF options")!
+    .find((el) => el.text === "Reset to defaults")!
     .listeners.get("click")!();
   assert.equal(s.resets(), 1);
   s.toggles[0].listeners.get("click")!();

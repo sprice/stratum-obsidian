@@ -3,10 +3,7 @@ import type { PublishController } from "./publish-controller";
 import type { PublicationForm } from "./publication-editor";
 import { PublicationPropertyControls } from "./publication-property-controls";
 import { publicationAuthors } from "./publication-metadata";
-import {
-  aastexProblems,
-  AASTEX_PACKAGE_REFERENCE,
-} from "./publication-package";
+import { aastexProblems } from "./publication-package";
 import { AASTEX_HEADING_WARNING } from "./publication-headings";
 import {
   AASTEX_OPTION_LABELS,
@@ -166,10 +163,6 @@ export class PublishingSettingsModal extends Modal {
             );
           }),
         );
-      options.createEl("p", {
-        text: `AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion} · Stratum adapter ${AASTEX_PACKAGE_REFERENCE.version}`,
-        cls: "stratum-publish-meta",
-      });
       const compatibility = options.createDiv({
         cls: "stratum-publishing-compatibility",
       });
@@ -272,7 +265,7 @@ export class PublishingSettingsModal extends Modal {
       cls: "stratum-publish-actions",
     });
     this.reset = createStratumButton(actions, {
-      text: "Reset PDF options",
+      text: "Reset to defaults",
       wrap: true,
       className: "stratum-publishing-reset",
     });
@@ -444,11 +437,8 @@ export class PublishingSettingsModal extends Modal {
       this.close();
       return;
     }
-    this.message.setText(
-      this.saving || this.publish.preferencesSaving
-        ? "Saving settings…"
-        : "Changes save automatically for this note. Incomplete details can be saved.",
-    );
+    this.message.hidden = !this.saving && !this.publish.preferencesSaving;
+    this.message.setText(this.message.hidden ? "" : "Saving settings…");
     if (this.compatibilityContainer)
       this.compatibility(this.compatibilityContainer);
     const service = this.publish.plugin.publicationEditor;
