@@ -367,7 +367,11 @@ active note with its selected citation style. **Manage tools** in
 **Settings → Stratum → Publishing → Publishing tools** opens installation help
 and status checks for Pandoc and Tectonic. Created PDFs stay in hidden plugin storage. **Create** configures the current note; **Documents** shows its PDFs or all PDFs in the vault, with preview, save a copy, and confirmed delete actions. Historical Word files and catalog entries remain stored but are hidden from this view. Legacy file-type selections are ignored.
 
-AASTeX options are saved per note. New notes and **Reset defaults** use the built-in defaults: line numbers on, draft date header on, headings already contain numbers off. Existing per-note choices remain in effect. Previous vault-wide AASTeX defaults are retained in settings data but ignored; their settings controls have been removed.
+In **Create**, choose a **Template**, then open **Settings** for that note. **Document details** edits the title and supported properties, including the shared author, email, and affiliation editor. Required details appear first; use **Add property** for optional fields or **Remove property from note** to delete one explicitly. If the note is not open in an editable Markdown view, choose **Open note for editing** before changing its details.
+
+**PDF options** contains the title source and template-specific choices. General and Academic include citation style and a collapsed **Advanced layout** section; AASTeX offers its three supported document options. Changes save automatically for the captured note. **Done** commits pending text; conflicts retain the draft for explicit recovery. **Reset PDF options** resets the current template’s options while preserving metadata and citation choices. Reusable template defaults remain in Stratum settings.
+
+AASTeX options are saved per note. New notes and **Reset PDF options** use the built-in defaults: line numbers on, draft date header on, headings already contain numbers off. Existing per-note choices remain in effect. Previous vault-wide AASTeX defaults are retained in settings data but ignored; their settings controls have been removed.
 
 The tab is enabled by default. To hide it, open **Settings → Stratum → Stratum tabs → Choose visible tabs** and uncheck **Publish**.
 
