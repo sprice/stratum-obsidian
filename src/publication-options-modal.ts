@@ -82,6 +82,7 @@ export class AastexOptionsModal extends Modal {
     this.reset = createStratumButton(actions, {
       text: "Reset document options",
       tooltip: "Restore the built-in defaults for this note",
+      wrap: true,
     });
     this.reset.addEventListener("click", () =>
       this.save(

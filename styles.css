@@ -579,6 +579,13 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   width: 100%;
   min-width: 0;
 }
+/* Wrapped labels retain native button height, padding and typography. */
+.stratum-control-button.stratum-control-wrap {
+  min-height: var(--input-height);
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .stratum-control-select,
 .stratum-control-button,
 .stratum-control-input,
@@ -1098,10 +1105,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-controls button {
   width: 50%;
   min-width: 0;
-}
-.stratum-publish-controls button {
-  height: auto;
-  white-space: normal;
 }
 .stratum-publish-configuration,
 .stratum-publish-academic {

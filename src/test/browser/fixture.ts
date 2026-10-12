@@ -5,6 +5,7 @@ import { readNotePreferences } from "../../publish-options";
 import { PublishFontError } from "../../publish-desktop";
 import type { PublishAdapter } from "../../publish-store";
 import type StratumPlugin from "../../plugin";
+import { createStratumButton } from "../../ui-controls";
 
 class MemoryVault implements PublishAdapter {
   private files = new Map<string, string>();
@@ -136,6 +137,23 @@ async function reset(options: FixtureOptions = {}) {
 }
 export const publicationFixture = {
   reset,
+  buttonReferences() {
+    const actions = root.createDiv({ cls: "stratum-actions" });
+    // Same factory, primary option and action container as the Sync all papers control.
+    createStratumButton(actions, {
+      text: "Sync all papers",
+      primary: true,
+      className: "synthetic-sync-reference",
+    });
+    createStratumButton(actions, {
+      text: "Secondary action",
+      className: "synthetic-secondary-reference",
+    });
+  },
+  setBusy(busy: boolean) {
+    controller.busy = busy;
+    controller.emit();
+  },
   setAastexOptions(
     options: Parameters<PublishController["updateAastexPdfOptions"]>[0],
   ) {

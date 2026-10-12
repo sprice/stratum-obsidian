@@ -2,7 +2,7 @@ import {
   createStratumDisclosure,
   createStratumSummary,
   styleStratumComponent,
-  createStratumAction,
+  createStratumButton,
 } from "./ui-controls";
 import { Modal, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
@@ -116,8 +116,9 @@ export class PublishSetupModal extends Modal {
       setting.settingEl.append(setting.descEl);
       this.rows.get(tool)!.path = setting.descEl;
     }
-    const reset = createStratumAction(advanced, {
+    const reset = createStratumButton(advanced, {
       text: "Use automatic detection",
+      wrap: true,
     });
     this.reset = reset;
     this.controls.push(reset);
@@ -146,12 +147,15 @@ export class PublishSetupModal extends Modal {
     const actions = contentEl.createDiv({
       cls: "stratum-publish-actions stratum-publish-setup-actions",
     });
-    this.secondary = createStratumAction(actions);
+    this.secondary = createStratumButton(actions, { text: "Check again" });
     this.secondary.addEventListener("click", () => {
       if (publish.checking) publish.cancel();
       else void publish.check(true);
     });
-    this.primary = createStratumAction(actions, { cls: "mod-cta" });
+    this.primary = createStratumButton(actions, {
+      text: "Check again",
+      primary: true,
+    });
     this.primary.addEventListener("click", () => {
       if (publish.readiness?.pdf) this.close();
       else void publish.check(true);

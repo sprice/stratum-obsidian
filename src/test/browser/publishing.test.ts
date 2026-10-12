@@ -234,6 +234,79 @@ async function choose(label: string, value: string, key: string) {
   );
 }
 
+test("publishing actions match shared Sync styling and retain responsive disabled states", async () => {
+  await scenario("shared-publishing-buttons", async () => {
+    for (const theme of ["light", "dark"])
+      for (const width of [320, 720]) {
+        await page.setViewportSize(width, 900);
+        await page.evaluate(
+          `window.publicationFixture.reset({templateId:'general',theme:'${theme}'})`,
+        );
+        await page.evaluate(`(() => {
+          // Exercise a host with fixed native button height and compact padding.
+          const style = document.createElement('style');
+          style.textContent = 'button:not(.clickable-icon) { height: var(--input-height); min-height: 0; font-size: var(--font-ui-small); line-height: normal; padding: 2px 12px; }';
+          document.querySelector('#publish').append(style);
+          window.publicationFixture.buttonReferences();
+        })()`);
+        const measure = `(() => {
+          const create = document.querySelector('.stratum-publish-controls button');
+          const sync = document.querySelector('.synthetic-sync-reference');
+          const row = create.parentElement.getBoundingClientRect();
+          const rect = create.getBoundingClientRect();
+          const style = getComputedStyle(create), reference = getComputedStyle(sync);
+          const keys = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight', 'borderRadius', 'backgroundColor', 'color', 'opacity', 'cursor'];
+          return {
+            sameStyles: keys.every(key => style[key] === reference[key]),
+            shared: create.classList.contains('stratum-control-button') && create.classList.contains('stratum-control-cta') && create.classList.contains('stratum-control-wrap'),
+            height: rect.height, referenceHeight: sync.getBoundingClientRect().height,
+            halfWidth: Math.abs(rect.width - row.width / 2) <= 1,
+            flushRight: Math.abs(rect.right - row.right) <= 1,
+            fits: create.scrollWidth <= create.clientWidth && create.scrollHeight <= create.clientHeight,
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            disabled: create.disabled,
+          };
+        })()`;
+        const ready = await page.evaluate<{
+          sameStyles: boolean;
+          shared: boolean;
+          height: number;
+          referenceHeight: number;
+          halfWidth: boolean;
+          flushRight: boolean;
+          fits: boolean;
+          overflow: boolean;
+          disabled: boolean;
+        }>(measure);
+        assert.equal(ready.sameStyles, true);
+        assert.equal(ready.shared, true);
+        assert.ok(ready.height >= ready.referenceHeight);
+        if (width === 720) assert.equal(ready.height, ready.referenceHeight);
+        assert.equal(ready.halfWidth && ready.flushRight && ready.fits, true);
+        assert.equal(ready.overflow, false);
+        assert.equal(ready.disabled, false);
+        await page.evaluate(
+          `window.publicationFixture.setBusy(true); document.querySelector('.synthetic-sync-reference').disabled = true`,
+        );
+        const busy = await page.evaluate<typeof ready>(measure);
+        assert.equal(busy.disabled, true);
+        assert.equal(busy.sameStyles, true);
+        assert.equal(busy.height, ready.height);
+        assert.equal(busy.halfWidth && busy.flushRight && busy.fits, true);
+        await page.evaluate(
+          `window.publicationFixture.setBusy(false); document.querySelector('.synthetic-sync-reference').disabled = false`,
+        );
+        assert.equal(
+          await page.evaluate(
+            "!document.querySelector('.stratum-publish-controls button').disabled",
+          ),
+          true,
+        );
+        await capture(`shared-publishing-buttons-${theme}-${width}`);
+      }
+  });
+});
+
 test("customization precedes creation with consistent spacing across templates and widths", async () => {
   await scenario("customization-before-create", async () => {
     for (const width of [320, 720]) {

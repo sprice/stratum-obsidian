@@ -120,6 +120,7 @@ export function createStratumButton(
     text: string;
     tooltip?: string;
     primary?: boolean;
+    wrap?: boolean;
     className?: string;
   },
 ): HTMLButtonElement {
@@ -131,6 +132,7 @@ export function createStratumButton(
   const button = component.buttonEl;
   button.type = "button";
   if (options.primary) button.addClass("stratum-control-cta");
+  if (options.wrap) button.addClass("stratum-control-wrap");
   if (options.className) button.addClass(options.className);
   return button;
 }

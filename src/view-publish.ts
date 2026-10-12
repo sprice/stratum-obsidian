@@ -216,6 +216,7 @@ export class PublishPanel extends Component {
     this.create = createStratumButton(controls, {
       text: "Create PDF document",
       primary: true,
+      wrap: true,
     });
     this.create.addEventListener("click", () => {
       void this.publish.create();

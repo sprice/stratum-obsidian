@@ -3,6 +3,7 @@ import test from "node:test";
 import type * as Setup from "../publish-setup";
 import type { PublishReadiness } from "../publish-desktop";
 import { loadRuntime } from "./runtime-harness";
+import { ButtonComponentMock } from "./ui-component-mocks";
 
 class Element {
   text = "";
@@ -143,6 +144,7 @@ test("setup rechecks stale detection on every open and offers PDF verification w
         close() {}
       },
       Setting,
+      ButtonComponent: ButtonComponentMock,
     },
     {},
     "browser",
