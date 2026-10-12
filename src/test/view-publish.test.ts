@@ -131,7 +131,14 @@ function setup(state?: import("../view-publish").PublishViewState) {
       return () => {};
     },
     canCreate() {
-      return !!this.document && !this.busy;
+      return (
+        !!this.document &&
+        !this.busy &&
+        !this.checking &&
+        !this.preferencesSaving &&
+        !this.academicProblem &&
+        this.readiness.pdf
+      );
     },
   };
   const { PublishPanel } = loadRuntime<typeof import("../view-publish")>(
@@ -154,6 +161,15 @@ function setup(state?: import("../view-publish").PublishViewState) {
     { crypto },
     "browser",
     {
+      "./publication-options-modal": {
+        PublishingSettingsModal: class {
+          constructor(_app: unknown, _publish: unknown, _launcher: unknown) {
+            settingsCalls.push("modal");
+          }
+          open() {}
+          close() {}
+        },
+      },
       "./publish-customize": {
         renderPublishCustomization: () => (key: string) =>
           focusedFonts.push(key),
@@ -169,35 +185,6 @@ function setup(state?: import("../view-publish").PublishViewState) {
     update: () => updates.forEach((callback) => callback()),
   };
 }
-
-test("missing PDF fonts offer recovery in note customization and focus the affected selector", () => {
-  const { root, publish, focusedFonts, update } = setup();
-  publish.notePreferences.pdf.bodyFont = "Missing body";
-  publish.fontError = { fonts: ["Missing body", "Missing title"] };
-  publish.error = "Missing fonts. Choose another font to publish this PDF.";
-  update();
-  const choose = root.all().find((el) => el.text === "Choose font")!;
-  assert.equal(choose.disabled, false);
-  choose.listeners.get("click")!();
-  assert.deepEqual(focusedFonts, ["bodyFont"]);
-  assert.equal(
-    root
-      .all()
-      .find(
-        (el) =>
-          el.tag === "details" &&
-          el.all().some((child) => child.text === "Customize…"),
-      )!.open,
-    true,
-  );
-  publish.fontError = { fonts: ["Missing title"] };
-  update();
-  root
-    .all()
-    .find((el) => el.text === "Choose font")!
-    .listeners.get("click")!();
-  assert.deepEqual(focusedFonts, ["bodyFont", "titleFont"]);
-});
 
 test("ready publishing creates PDF without a file type selector", () => {
   const { root, update } = setup();
@@ -220,89 +207,6 @@ test("ready publishing creates PDF without a file type selector", () => {
     root.all().find((el) => el.text === "Create PDF document")!.disabled,
     false,
   );
-});
-test("incomplete setup opens plugin settings; progress and errors remain visible", () => {
-  const { root, publish, settingsCalls, update } = setup();
-  publish.readiness.pdf = false;
-  update();
-  const button = root.all().find((el) => el.text === "Set up in settings")!;
-  assert.equal(button.hidden, false);
-  button.listeners.get("click")!();
-  assert.deepEqual(settingsCalls, ["open", "stratum"]);
-  publish.checking = true;
-  update();
-  assert.equal(button.hidden, true);
-  assert.ok(root.all().some((el) => el.text === "Checking publishing tools…"));
-  publish.checking = false;
-  publish.readiness.pdf = true;
-  publish.error = "Synthetic conversion failure";
-  publish.errorMessage = "There was an error creating the PDF file";
-  update();
-  assert.equal(button.hidden, true);
-  assert.equal(
-    root.all().find((el) => el.cls === "stratum-publish-status")!.hidden,
-    false,
-  );
-  assert.ok(
-    root
-      .all()
-      .some((el) =>
-        el.text.includes("There was an error creating the PDF file"),
-      ),
-  );
-  assert.ok(root.all().some((el) => el.text.includes(publish.error)));
-  publish.errorMessage = "There was an error with publishing";
-  update();
-  assert.ok(root.all().some((el) => el.text.startsWith(publish.errorMessage)));
-  assert.ok(
-    !root
-      .all()
-      .some((el) =>
-        el.text.includes("There was an error creating the PDF file"),
-      ),
-  );
-});
-
-test("creation and note history require Markdown, but all history remains accessible", () => {
-  const { root, publish, update } = setup();
-  const regions = [
-    "stratum-publish-controls",
-    "stratum-publish-history",
-    "stratum-publish-list",
-  ].map((cls) => root.all().find((el) => el.cls === cls)!);
-  assert.ok(regions.every((el) => !el.hidden));
-  assert.ok(
-    root
-      .all()
-      .some((el) => el.text === "No published PDF documents for this note"),
-  );
-  for (const document of [
-    null,
-    { basename: "Synthetic image", extension: "png" },
-  ]) {
-    publish.document = document;
-    update();
-    assert.equal(regions[0].hidden, true);
-    assert.equal(regions[1].hidden, false);
-    assert.equal(regions[2].hidden, true);
-    const scope = root
-      .all()
-      .find((el) => el.text === "Show")!
-      .children.find((el) => el.tag === "select")!;
-    scope.value = "all";
-    scope.listeners.get("change")!();
-    assert.equal(regions[0].hidden, true);
-    assert.equal(regions[2].hidden, false);
-    assert.ok(
-      root.all().some((el) => el.text === "No published PDF documents"),
-    );
-    scope.value = "note";
-    scope.listeners.get("change")!();
-    assert.equal(regions[2].hidden, true);
-  }
-  publish.document = { basename: "Synthetic note", extension: "md" };
-  update();
-  assert.ok(regions.every((el) => !el.hidden));
 });
 
 test("history scope switches documents and survives controller updates", () => {
@@ -375,45 +279,6 @@ test("history scope switches documents and survives controller updates", () => {
   assert.deepEqual(filenames(), []);
 });
 
-test("academic setup keeps history accessible and opens defaults through the gear", () => {
-  const { root, publish, update, settingsCalls } = setup();
-  publish.notePreferences.documentType = "academic";
-  publish.notePreferences.templateId = "academic";
-  publish.propertiesMissing = true;
-  publish.academicProblem = "Add a nonempty title property.";
-  update();
-  assert.equal(
-    root.all().find((el) => el.text === "Add publishing properties")!.hidden,
-    false,
-  );
-  assert.equal(
-    root.all().find((el) => el.text === "Create PDF document")!.hidden,
-    false,
-  );
-  assert.equal(
-    root.all().find((el) => el.cls === "stratum-publish-history")!.hidden,
-    false,
-  );
-  const gear = root
-    .all()
-    .find((el) => el.cls.split(" ").includes("clickable-icon"))!;
-  gear.listeners.get("click")!();
-  assert.deepEqual(settingsCalls, ["open", "stratum"]);
-  publish.academicInfo.title = "Synthetic paper";
-  publish.propertiesMissing = false;
-  publish.academicProblem = "";
-  update();
-  assert.equal(
-    root.all().find((el) => el.text === "Add publishing properties")!.hidden,
-    true,
-  );
-  assert.equal(
-    root.all().find((el) => el.text === "Create PDF document")!.hidden,
-    false,
-  );
-  assert.equal(gear.hidden, false);
-});
-
 test("a note chooses from all templates without a document type selector", () => {
   const { root, publish, update } = setup();
   publish.notePreferences.templateId = undefined;
@@ -431,95 +296,6 @@ test("a note chooses from all templates without a document type selector", () =>
   );
   assert.equal(
     root.all().find((el) => el.text === "Create PDF document")!.hidden,
-    true,
-  );
-});
-
-test("repeated titles warn without blocking and review the opening choices", () => {
-  const { root, publish, focusedFonts, update } = setup();
-  publish.notePreferences = readNotePreferences({ templateId: "academic" });
-  publish.notePreferences.pdf.titleSource = "properties";
-  publish.academicInfo = {
-    title: "Synthetic title",
-    duplicateTitle: true,
-    bothAuthors: false,
-  };
-  publish.duplicateTitleWarning = true;
-  update();
-  const warning = root
-    .all()
-    .find((el) => el.text === "Title may appear twice.")!;
-  assert.equal(
-    root.all().find((el) => el.children.includes(warning))!.hidden,
-    false,
-  );
-  const create = root.all().find((el) => el.text === "Create PDF document")!;
-  assert.equal(create.disabled, false);
-  const review = () =>
-    root
-      .all()
-      .find((el) => el.text === "Review opening")!
-      .listeners.get("click")!();
-  review();
-  assert.deepEqual(focusedFonts, ["opening"]);
-  assert.equal(
-    root
-      .all()
-      .find(
-        (el) =>
-          el.tag === "details" &&
-          el.all().some((child) => child.text === "Customize…"),
-      )!.open,
-    true,
-  );
-  publish.duplicateTitleWarning = false;
-  update();
-  assert.equal(
-    root.all().find((el) => el.children.includes(warning))!.hidden,
-    true,
-  );
-});
-
-test("Reset defaults re-applies the note's template and follows Customize visibility", () => {
-  const { root, publish, update } = setup();
-  const calls: unknown[] = [];
-  (
-    publish as { updatePreferences: (patch: unknown) => Promise<void> }
-  ).updatePreferences = (patch) => {
-    calls.push(patch);
-    return Promise.resolve();
-  };
-  const reset = () => root.all().find((el) => el.text === "Reset defaults")!;
-  update();
-  assert.equal(reset().hidden, false);
-  update();
-  assert.equal(reset().hidden, false);
-  reset().listeners.get("click")!();
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
-    { templateId: "general" },
-  ]);
-});
-
-test("AASTeX exposes author editing without the explanatory PDF paragraph", () => {
-  const { root, publish, update } = setup();
-  publish.notePreferences.templateId = "package:aastex";
-  update();
-  assert.equal(
-    root.all().some((el) => el.text.includes("Stratum adapter")),
-    false,
-  );
-  assert.equal(
-    root.all().find((el) => el.cls === "stratum-publish-academic")!.hidden,
-    false,
-  );
-  assert.equal(
-    root.all().find((el) => el.text === "Edit publication details")!.hidden,
-    false,
-  );
-  assert.ok(!root.all().some((el) => el.text.includes("AASTeX controls PDF")));
-  assert.equal(
-    root.all().find((el) => el.cls === "stratum-publish-academic-message")
-      ?.hidden ?? true,
     true,
   );
 });
@@ -592,22 +368,60 @@ test("Documents hides legacy Word entries without mutating history", () => {
   assert.equal(publish.documents.length, 2);
 });
 
-test("all selected templates expose a gear with explicit preset or note scope", () => {
-  const { root, publish, update } = setup();
+test("one note Settings entry replaces scattered controls for all three templates", () => {
+  const { root, publish, settingsCalls, update } = setup();
   for (const templateId of ["general", "academic", "package:aastex"]) {
     publish.notePreferences.templateId = templateId;
     update();
-    const gear = root
+    const controls = root
       .all()
-      .find(
-        (el) => el.attrs.has("title") && el.cls.includes("clickable-icon"),
-      )!;
-    assert.equal(gear.hidden, false);
-    assert.equal(
-      gear.attrs.get("aria-label"),
-      templateId === "package:aastex"
-        ? "Document options for this note"
-        : "Configure template defaults",
+      .find((el) => el.cls === "stratum-publish-controls")!;
+    assert.deepEqual(
+      controls.children.map((el) => el.text),
+      ["Settings", "Create PDF document"],
     );
+    assert.ok(
+      !root
+        .all()
+        .some((el) =>
+          [
+            "Customize…",
+            "Reset defaults",
+            "Add publishing properties",
+            "Edit publication details",
+            "Title block",
+            "Citation style",
+          ].includes(el.text),
+        ),
+    );
+    controls.children[0].listeners.get("click")!();
   }
+  assert.deepEqual(settingsCalls, ["modal", "modal", "modal"]);
+  publish.busy = true;
+  update();
+  assert.equal(root.all().find((el) => el.text === "Settings")!.disabled, true);
+  assert.equal(
+    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    true,
+  );
+});
+
+test("Create status is hidden when ready and exposes only actionable requirements or failures", () => {
+  const { root, publish, update } = setup();
+  const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
+  assert.equal(status.hidden, true);
+  publish.academicProblem =
+    "Add a manuscript title using the selected title source.";
+  update();
+  assert.equal(status.hidden, false);
+  assert.equal(
+    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    true,
+  );
+  publish.academicProblem = "";
+  publish.readiness.pdf = false;
+  update();
+  assert.ok(
+    status.all().some((el) => el.text.includes("PDF tools need setup")),
+  );
 });

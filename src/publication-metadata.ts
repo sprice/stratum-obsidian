@@ -289,3 +289,87 @@ export const authorRevision = (properties: Record<string, unknown>): string =>
       ? (properties[PUBLICATION_KEY].authors ?? null)
       : null,
   );
+
+export const PUBLICATION_PROPERTIES = {
+  title: "Title",
+  authors: "Authors",
+  affiliations: "Affiliations",
+  date: "Date",
+  keywords: "Keywords",
+} as const;
+export type PublicationPropertyKey = keyof typeof PUBLICATION_PROPERTIES;
+export interface PublicationPropertyOperation {
+  key: PublicationPropertyKey;
+  value: string | string[];
+  remove?: boolean;
+}
+export function publicationPropertyRevision(
+  properties: Record<string, unknown>,
+  key: PublicationPropertyKey,
+): string {
+  return JSON.stringify([Object.hasOwn(properties, key), properties[key]]);
+}
+/** Edit only a supported root property; retain all other YAML and manuscript bytes. */
+export function changePublicationProperty(
+  text: string,
+  operation: PublicationPropertyOperation,
+): PublicationChange {
+  if (!Object.hasOwn(PUBLICATION_PROPERTIES, operation.key))
+    throw new Error("This property is not a publishing field.");
+  const parsed = publicationYaml(text);
+  const root = parsed.document.contents;
+  const old = parsed.document.get(operation.key, true) as Node | undefined;
+  if (old) writable(old);
+  if (operation.remove) {
+    if (!old) return { from: 0, to: 0, insert: "" };
+    if (!isMap(root) || root.flow)
+      throw new Error("Remove properties from a flow mapping in Source mode.");
+    const pair = root.items.find(
+      (pair) => isScalar(pair.key) && pair.key.value === operation.key,
+    );
+    if (!pair || !isScalar(pair.key) || !pair.key.range || !old.range)
+      throw new Error("Edit this property in Source mode.");
+    const from = parsed.offset + pair.key.range[0];
+    const line = text.lastIndexOf("\n", from - 1) + 1;
+    return {
+      from: /^\s*$/.test(text.slice(line, from)) ? line : from,
+      to: parsed.offset + old.range[2],
+      insert: "",
+    };
+  }
+  const node = parsed.document.createNode(operation.value);
+  if (old?.range) {
+    if (isSeq(node) && ((isMap(root) && root.flow) || (isSeq(old) && old.flow)))
+      node.flow = true;
+    let insert = new Document(node).toString({ lineWidth: 0 }).trimEnd();
+    const from = parsed.offset + old.range[0],
+      to = parsed.offset + old.range[1];
+    // A block sequence starts on the next line, unlike a scalar or flow sequence.
+    if (isSeq(node) && !node.flow)
+      insert =
+        "\n" +
+        insert
+          .split("\n")
+          .map((line) => "  " + line)
+          .join(parsed.newline);
+    else insert = insert.replaceAll("\n", parsed.newline);
+    if (text.slice(from, to).endsWith("\n")) insert += parsed.newline;
+    return { from, to, insert };
+  }
+  if (isMap(root) && root.flow)
+    throw new Error("Add properties to a flow mapping in Source mode.");
+  const insert = new Document({ [operation.key]: operation.value })
+    .toString({ lineWidth: 0 })
+    .replaceAll("\n", parsed.newline);
+  if (!parsed.end) {
+    const from = text.startsWith("\uFEFF") ? 1 : 0;
+    return {
+      from,
+      to: from,
+      insert: `---${parsed.newline}${insert}---${parsed.newline}`,
+    };
+  }
+  const closing = /(?:---|\.\.\.)(?:\r?\n|$)$/.exec(text.slice(0, parsed.end))!;
+  const from = parsed.end - closing[0].length;
+  return { from, to: from, insert };
+}

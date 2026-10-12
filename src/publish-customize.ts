@@ -16,6 +16,7 @@ export function renderPublishCustomization(
   change: (patch: Partial<PublishOptions>) => Promise<void>,
   fail: (error: unknown) => void,
   format?: "pdf",
+  metadataControls = true,
 ): (key: "bodyFont" | "titleFont" | "opening") => void {
   const preview = container.createDiv();
   let current = { ...options };
@@ -104,7 +105,13 @@ export function renderPublishCustomization(
   paper.addEventListener("change", () => {
     void change({ paperSize: paper.value as "letter" | "a4" }).catch(fail);
   });
-  const focusOpening = renderPublicationDesign(parent, options, change, fail);
+  const focusOpening = renderPublicationDesign(
+    parent,
+    options,
+    change,
+    fail,
+    metadataControls,
+  );
   return (key) => {
     if (key === "opening") return focusOpening();
     disclosure.open = true;

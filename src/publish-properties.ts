@@ -3,6 +3,7 @@ import {
   type PublishOptions,
   type AcademicDefaults,
 } from "./publish-options";
+import { publicationAuthors } from "./publication-metadata";
 
 export type PublishedUse =
   "metadata" | "title" | "authors" | "affiliations" | "date" | "keywords";
@@ -111,7 +112,21 @@ export function mappedPublishingProperties(
     definitions.some((field) => field.use === "authors") &&
     Object.hasOwn(properties, "stratum_publish")
   )
-    result.stratum_publish = properties.stratum_publish;
+    result.stratum_publish = {
+      ...(properties.stratum_publish as Record<string, unknown>),
+      ...(publicationAuthors(properties).structured
+        ? {
+            authors: publicationAuthors(properties).authors.map((author) => ({
+              ...author,
+              affiliations: definitions.some(
+                (field) => field.use === "affiliations",
+              )
+                ? author.affiliations
+                : [],
+            })),
+          }
+        : {}),
+    };
   return result;
 }
 

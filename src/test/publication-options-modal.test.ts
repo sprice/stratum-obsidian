@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate as settle } from "node:timers/promises";
 import { loadRuntime } from "./runtime-harness";
-import { ButtonComponentMock, ToggleComponentMock } from "./ui-component-mocks";
+import {
+  ButtonComponentMock,
+  ToggleComponentMock,
+  DropdownComponentMock,
+} from "./ui-component-mocks";
 
 const ownerDocument: { activeElement: unknown } = { activeElement: null };
 class Element {
@@ -10,6 +14,12 @@ class Element {
   attrs = new Map<string, string>();
   listeners = new Map<string, () => void>();
   ownerDocument = ownerDocument;
+  get childElementCount() {
+    return this.children.length;
+  }
+  querySelectorAll(selector: string) {
+    return this.all().filter((el) => selector.split(",").includes(el.tag));
+  }
   querySelector() {
     return this.all().find((el) => el.tag === "input") ?? null;
   }
@@ -43,6 +53,9 @@ class Element {
   }
   setAttribute(name: string, value: string) {
     this.attrs.set(name, value);
+  }
+  getAttribute(name: string) {
+    return this.attrs.get(name) ?? null;
   }
   setText(text: string) {
     this.text = text;
@@ -86,6 +99,13 @@ function setup(
       stat: { ctime: 1 },
     },
     selectedTemplate: { renderer: "aastex" },
+    notePreferences: { templateId: "package:aastex" },
+    layout: { titleSource: "properties" },
+    noteProperties: {},
+    academicProblem: "",
+    aastexHeadingProblems: [],
+    aastexPackageProblem: "",
+    readiness: { pdf: true },
     busy: false,
     preferencesSaving: false,
     aastexPdfOptions: {
@@ -137,8 +157,9 @@ function setup(
       Modal,
       ToggleComponent: ToggleComponentMock,
       ButtonComponent: ButtonComponentMock,
+      DropdownComponent: DropdownComponentMock,
     },
-    { Error },
+    { Error, queueMicrotask },
     "browser",
   );
   const launcher = new Element("button");
@@ -191,12 +212,12 @@ test("reset uses current defaults and failed auto-saves remain visible in the mo
   const s = setup();
   s.content
     .all()
-    .find((el) => el.text === "Reset document options")!
+    .find((el) => el.text === "Reset PDF options")!
     .listeners.get("click")!();
   assert.equal(s.resets(), 1);
   s.toggles[0].listeners.get("click")!();
   s.reject();
-  await Promise.resolve();
+  await settle();
   assert.ok(s.content.all().some((el) => el.text === "Synthetic save failure"));
   s.modal.onClose();
 });

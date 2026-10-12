@@ -163,3 +163,38 @@ test("default fonts remain automatic while named fonts are honored", async () =>
     /stratumtitlefont\{Arial\}/,
   );
 });
+
+test("structured affiliations follow the General/Academic PDF inclusion option", async () => {
+  const { mappedPublishingProperties, publicationProperties } =
+    await import("../publish-properties");
+  const properties = {
+    stratum_publish: {
+      authors: [
+        {
+          name: "Alex",
+          email: "alex@example.org",
+          affiliations: ["Synthetic affiliation"],
+        },
+      ],
+    },
+  };
+  const before = JSON.stringify(properties);
+  const academic = academicRuntime();
+  for (const showAffiliations of [false, true]) {
+    const mapped = mappedPublishingProperties(
+      properties,
+      publicationProperties({
+        ...DEFAULT_ACADEMIC_OPTIONS,
+        titleSource: "body",
+        showAffiliations,
+      }),
+    );
+    const html = academic.academicOpening(
+      academic.academicMetadata(mapped),
+      false,
+    );
+    assert.equal(html.includes("Synthetic affiliation"), showAffiliations);
+    assert.match(html, /Alex/);
+  }
+  assert.equal(JSON.stringify(properties), before);
+});

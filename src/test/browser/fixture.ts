@@ -1,7 +1,12 @@
-import { TFile } from "obsidian";
+import { TFile, MarkdownView, editorInfoField } from "obsidian";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { PublicationEditor } from "../../publication-editor";
+import { stringify } from "yaml";
+import { publicationYaml } from "../../publication-metadata";
+import type { Editor, EditorTransaction } from "obsidian";
 import { PublishController } from "../../publish-controller";
 import { PublishPanel } from "../../view-publish";
-import { readNotePreferences } from "../../publish-options";
 import { PublishFontError } from "../../publish-desktop";
 import type { PublishAdapter } from "../../publish-store";
 import type StratumPlugin from "../../plugin";
@@ -65,6 +70,11 @@ class MemoryVault implements PublishAdapter {
 let controller: PublishController;
 let panel: PublishPanel;
 let adapter: MemoryVault;
+let sourceEditor: EditorView | undefined;
+let metadata: PublicationEditor;
+let editorContainer: HTMLElement | undefined;
+let sourceText = "";
+let currentFile: TFile;
 export interface FixtureOptions {
   bodyFont?: string;
   titleFont?: string;
@@ -72,12 +82,24 @@ export interface FixtureOptions {
   aastex?: boolean;
   templateId?: "general" | "academic";
   legacyWord?: boolean;
+  source?: string;
+  editable?: boolean;
 }
 const root = document.querySelector<HTMLElement>("#publish")!;
-const properties = { title: "Synthetic paper", authors: ["Example Author"] };
-const source = `---\n${JSON.stringify(properties)}\n---\n\nA synthetic paper for publishing tests.`;
+const source = `---
+title: Synthetic paper
+authors: [Example Author]
+unrelated: retained # Keep this comment
+---
+
+A synthetic paper for publishing tests.`;
 async function reset(options: FixtureOptions = {}) {
   panel?.unload();
+  sourceEditor?.destroy();
+  sourceEditor = undefined;
+  metadata?.unload();
+  editorContainer?.remove();
+  sourceText = options.source ?? source;
   controller?.onunload();
   root.empty();
   document.body.className = `theme-${options.theme ?? "dark"}`;
@@ -87,42 +109,158 @@ async function reset(options: FixtureOptions = {}) {
       publishPdfSetupComplete: true,
       pandocPath: "pandoc",
       tectonicPath: "tectonic",
+      citationStyle: "apa",
+      citationLanguage: "en-US",
+      citationStyles: {},
+      citationLocales: {},
+      availableCitationStyles: ["apa", "ieee"],
     },
     manifest: { id: "stratum" },
+    saveSettings: () => Promise.resolve(),
     app: {
       vault: {
         adapter,
         configDir: ".synthetic",
-        read: () => Promise.resolve(source),
+        read: () =>
+          Promise.resolve(sourceEditor?.state.doc.toString() ?? sourceText),
         getAbstractFileByPath(path: string) {
           if (!path.startsWith("Papers/Synthetic")) return null;
-          const file = new TFile();
-          file.path = path;
-          return file;
+          return path === currentFile?.path ? currentFile : null;
         },
       },
-      metadataCache: { getFileCache: () => ({ frontmatter: properties }) },
-      workspace: { getMostRecentLeaf: () => null },
+      fileManager: {
+        processFrontMatter: (
+          _file: TFile,
+          change: (properties: Record<string, unknown>) => void,
+        ) => {
+          const text = sourceEditor!.state.doc.toString(),
+            parsed = publicationYaml(text);
+          change(parsed.properties);
+          const next = `---\n${stringify(parsed.properties)}---\n${text.slice(parsed.end)}`;
+          sourceEditor!.dispatch({
+            changes: { from: 0, to: text.length, insert: next },
+          });
+          metadata.refresh();
+          return Promise.resolve();
+        },
+      },
+      metadataCache: {
+        getFileCache: () => ({
+          frontmatter: publicationYaml(
+            sourceEditor?.state.doc.toString() ?? sourceText,
+          ).properties,
+        }),
+      },
+      workspace: {
+        getMostRecentLeaf: () => null,
+        revealLeaf: () => Promise.resolve(),
+      },
     },
     citations: {
-      preferences: () => ({ style: "apa", language: "en-US" }),
+      preferences: () => ({
+        style:
+          typeof publicationYaml(
+            sourceEditor?.state.doc.toString() ?? sourceText,
+          ).properties.stratum_citation_style === "string"
+            ? publicationYaml(sourceEditor?.state.doc.toString() ?? sourceText)
+                .properties.stratum_citation_style
+            : "apa",
+        language: "en-US",
+      }),
+      invalidate: () => {},
       formatForPublication: () => Promise.resolve(undefined),
     },
   } as unknown as StratumPlugin;
   controller = new PublishController(plugin);
-  controller.document = new TFile();
+  plugin.publish = controller;
+  controller.document = currentFile = new TFile();
+  metadata = new PublicationEditor(plugin);
+  plugin.publicationEditor = metadata;
+  metadata.load();
+  const view = new MarkdownView(undefined as never) as MarkdownView & {
+    editor: Editor;
+    file: TFile;
+    getState: () => object;
+    setState: () => Promise<void>;
+  };
+  view.file = currentFile;
+  const editor = {
+    getValue: () => sourceEditor?.state.doc.toString() ?? sourceText,
+    offsetToPos: (offset: number) => {
+      const line = sourceEditor!.state.doc.lineAt(offset);
+      return { line: line.number - 1, ch: offset - line.from };
+    },
+    transaction: (transaction: EditorTransaction) => {
+      const doc = sourceEditor!.state.doc;
+      sourceEditor!.dispatch({
+        changes: transaction.changes?.map((change) => ({
+          from: doc.line(change.from.line + 1).from + change.from.ch,
+          to: change.to
+            ? doc.line(change.to.line + 1).from + change.to.ch
+            : doc.line(change.from.line + 1).from + change.from.ch,
+          insert: change.text,
+        })),
+      });
+    },
+  } as unknown as Editor;
+  view.editor = editor;
+  const installEditor = () => {
+    if (sourceEditor) return;
+    editorContainer = document.body.createDiv({
+      cls: "synthetic-source-editor",
+    });
+    editorContainer.hidden = true;
+    sourceEditor = new EditorView({
+      parent: editorContainer,
+      state: EditorState.create({
+        doc: sourceText,
+        extensions: [
+          editorInfoField.init(() => ({ file: currentFile, editor }) as never),
+          metadata.extension(),
+        ],
+      }),
+    });
+  };
+  view.getState = () => ({});
+  view.setState = () => {
+    installEditor();
+    return Promise.resolve();
+  };
+  controller.leaf = { view } as never;
+  if (options.editable !== false) installEditor();
   // Citation style resources belong to Obsidian's host, not this recovery scenario.
-  controller.citationStyleChoices = () => Promise.resolve(null);
+  controller.citationStyleChoices = () => {
+    const fields = publicationYaml(
+      sourceEditor?.state.doc.toString() ?? sourceText,
+    ).properties;
+    return Promise.resolve({
+      path: currentFile.path,
+      inherited: !Object.hasOwn(fields, "stratum_citation_style"),
+      selected:
+        typeof fields.stratum_citation_style === "string"
+          ? fields.stratum_citation_style
+          : "apa",
+      unavailable: false,
+      options: [
+        { id: "apa", title: "APA" },
+        { id: "ieee", title: "IEEE" },
+      ],
+    });
+  };
   const note = await controller.store.note(
     controller.document.path,
     "Synthetic paper",
     1,
   );
-  const preferences = readNotePreferences({
+  await controller.updatePreferences({
     templateId: options.aastex
       ? "package:aastex"
       : (options.templateId ?? "general"),
   });
+  const preferences = {
+    ...controller.notePreferences,
+    pdf: { ...controller.layout },
+  };
   preferences.pdf.bodyFont = options.bodyFont ?? "Missing Body Serif";
   preferences.pdf.titleFont = options.titleFont ?? "";
   await controller.store.setPreferences(note.id, {
@@ -137,6 +275,18 @@ async function reset(options: FixtureOptions = {}) {
 }
 export const publicationFixture = {
   reset,
+  text() {
+    return sourceEditor?.state.doc.toString() ?? sourceText;
+  },
+  replaceText(text: string) {
+    sourceEditor!.dispatch({
+      changes: { from: 0, to: sourceEditor!.state.doc.length, insert: text },
+    });
+    metadata.refresh();
+  },
+  selectTemplate(templateId: string) {
+    return controller.updatePreferences({ templateId });
+  },
   buttonReferences() {
     const actions = root.createDiv({ cls: "stratum-actions" });
     // Same factory, primary option and action container as the Sync all papers control.
@@ -222,6 +372,12 @@ export const publicationFixture = {
   state() {
     return {
       error: controller.error,
+      editable:
+        !!controller.document && !!metadata.editableView(controller.document),
+      pending:
+        !!controller.document && metadata.pending(controller.document.path),
+      canCreate: controller.canCreate(),
+      titleSource: controller.layout.titleSource,
       saving: controller.preferencesSaving,
       busy: controller.busy,
       bodyFont: controller.layout.bodyFont,

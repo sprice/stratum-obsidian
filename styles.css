@@ -1095,14 +1095,14 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 .stratum-publish-controls {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: var(--size-4-2);
 }
 .stratum-publish-customize-row,
 .stratum-publish-controls {
   margin-block-end: var(--size-4-3);
 }
-.stratum-publish-controls button {
+.stratum-publish-controls > .stratum-publish-create {
   width: 50%;
   min-width: 0;
 }
@@ -1888,4 +1888,31 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 
 .stratum-publish-shell > [role="tabpanel"][hidden] {
   display: none;
+}
+
+.stratum-publishing-settings-modal .stratum-publishing-property {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-4);
+}
+.stratum-publishing-settings-modal .stratum-control-input,
+.stratum-publishing-settings-modal .stratum-control-field,
+.stratum-publishing-settings-modal textarea {
+  width: 100%;
+  min-width: 0;
+}
+.stratum-publishing-settings-modal textarea {
+  min-height: calc(var(--input-height) * 2);
+  resize: vertical;
+}
+.stratum-publication-inline {
+  border: 0;
+  padding: 0;
+}
+.stratum-publishing-settings-modal h4 {
+  margin-block: var(--size-4-4) var(--size-4-2);
+}
+.stratum-publishing-settings-modal .stratum-publication-content {
+  padding: 0;
 }

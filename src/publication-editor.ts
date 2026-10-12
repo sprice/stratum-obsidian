@@ -17,7 +17,7 @@ import {
   Notice,
   editorInfoField,
   editorLivePreviewField,
-  type TFile,
+  TFile,
 } from "obsidian";
 import type StratumPlugin from "./plugin";
 import { aastexProblems } from "./publication-package";
@@ -27,6 +27,11 @@ import {
   publicationAuthors,
   publicationYaml,
   type AuthorOperation,
+  changePublicationProperty,
+  publicationPropertyRevision,
+  type PublicationPropertyKey,
+  type PublicationPropertyOperation,
+  type PublicationChange,
 } from "./publication-metadata";
 
 const refreshPublication = StateEffect.define<null>();
@@ -35,11 +40,26 @@ interface Draft {
   revision: string;
   conflict: string;
   status?: "committing" | "committed";
+  file?: TFile;
+  ctime?: number;
+}
+export interface PropertyDraft {
+  operation: PublicationPropertyOperation;
+  revision: string;
+  conflict: string;
+  file: TFile;
+  ctime: number;
+}
+interface PropertyForm {
+  path: string;
+  capture(): void;
+  refresh(): void;
 }
 interface NoteSession {
   visible: boolean;
   open: boolean;
   drafts: Map<string, Draft>;
+  properties: Map<PublicationPropertyKey, PropertyDraft>;
 }
 
 /** Session-only drafts stay attached to their note, never to a stale editor index. */
@@ -48,15 +68,47 @@ export class PublicationEditor extends Component {
   private views = new Set<EditorView>();
   private activeViews = new Map<string, EditorView>();
   private forms = new Set<PublicationForm>();
+  private propertyForms = new Set<PropertyForm>();
   private alive = true;
   private refreshQueued = false;
   constructor(readonly plugin: StratumPlugin) {
     super();
   }
+  onload(): void {
+    const vault = this.plugin.app?.vault;
+    if (vault?.on)
+      this.registerEvent(
+        vault.on("rename", (file, oldPath) => {
+          if (file instanceof TFile) this.renameNote(file, oldPath);
+        }),
+      );
+  }
+  renameNote(file: TFile, oldPath: string): void {
+    const session = this.sessions.get(oldPath);
+    if (
+      session &&
+      (!this.sessions.has(file.path) ||
+        (!this.sessions.get(file.path)!.drafts.size &&
+          !this.sessions.get(file.path)!.properties.size))
+    ) {
+      this.sessions.delete(oldPath);
+      this.sessions.set(file.path, session);
+    }
+    for (const form of this.forms)
+      if (form.path === oldPath) form.path = file.path;
+    for (const form of this.propertyForms)
+      if (form.path === oldPath) form.path = file.path;
+    this.refresh();
+  }
   session(path: string): NoteSession {
     let state = this.sessions.get(path);
     if (!state) {
-      state = { visible: false, open: true, drafts: new Map() };
+      state = {
+        visible: false,
+        open: true,
+        drafts: new Map(),
+        properties: new Map(),
+      };
       this.sessions.set(path, state);
     }
     return state;
@@ -72,6 +124,77 @@ export class PublicationEditor extends Component {
   activate(view: EditorView, path: string): void {
     this.activeViews.set(path, view);
   }
+  editableView(file: TFile): EditorView | undefined {
+    const vault = this.plugin.app?.vault;
+    if (
+      vault?.getAbstractFileByPath &&
+      vault.getAbstractFileByPath(file.path) !== file
+    )
+      return;
+    return [...this.views].find((view) => {
+      const current = view.state.field(editorInfoField, false)?.file;
+      return (
+        current === file &&
+        !view.state.facet(EditorState.readOnly) &&
+        view.state.facet(EditorView.editable)
+      );
+    });
+  }
+  mountAuthors(
+    container: HTMLElement,
+    file: TFile,
+  ): PublicationForm | undefined {
+    const view = this.editableView(file);
+    if (!view) return;
+    const form = new PublicationForm(this, view, file.path, true);
+    container.append(form.element);
+    return form;
+  }
+  registerPropertyForm(form: PropertyForm): () => void {
+    this.propertyForms.add(form);
+    return () => this.propertyForms.delete(form);
+  }
+  commitProperty(
+    path: string,
+    key: PublicationPropertyKey,
+    draft: PropertyDraft,
+  ): boolean {
+    try {
+      const view = this.editableView(draft.file);
+      if (
+        !view ||
+        draft.file.path !== path ||
+        draft.file.stat.ctime !== draft.ctime
+      )
+        throw new Error(
+          "Open the original note for editing before saving this draft.",
+        );
+      const text = view.state.doc.toString();
+      if (
+        publicationPropertyRevision(publicationYaml(text).properties, key) !==
+        draft.revision
+      )
+        throw new Error(
+          "This property changed elsewhere. Your draft is retained; review the current value before applying it.",
+        );
+      this.applyChange(
+        view,
+        path,
+        changePublicationProperty(text, draft.operation),
+      );
+      this.session(path).properties.delete(key);
+      this.refresh();
+      return true;
+    } catch (error) {
+      draft.conflict =
+        error instanceof Error
+          ? error.message
+          : "The property could not be saved.";
+      this.session(path).properties.set(key, draft);
+      this.refresh();
+      return false;
+    }
+  }
   registerForm(form: PublicationForm): () => void {
     this.forms.add(form);
     return () => this.forms.delete(form);
@@ -85,6 +208,7 @@ export class PublicationEditor extends Component {
       for (const view of this.views)
         view.dispatch({ effects: refreshPublication.of(null) });
       for (const form of this.forms) form.refresh();
+      for (const form of this.propertyForms) form.refresh();
       this.plugin.publish?.emit();
     });
   }
@@ -107,6 +231,8 @@ export class PublicationEditor extends Component {
   flush(path: string, preferred = this.activeViews.get(path)): boolean {
     if (!this.alive) return true;
     for (const form of this.forms) if (form.path === path) form.capture();
+    for (const form of this.propertyForms)
+      if (form.path === path) form.capture();
     const view =
       preferred && this.views.has(preferred)
         ? preferred
@@ -115,10 +241,13 @@ export class PublicationEditor extends Component {
               item.state.field(editorInfoField, false)?.file?.path === path,
           );
     const session = this.session(path);
-    if (!view) return session.drafts.size === 0;
+    if (!view)
+      return session.drafts.size === 0 && session.properties.size === 0;
     for (const [key, draft] of session.drafts)
       if (!draft.conflict) this.commit(view, path, key, draft);
-    return session.drafts.size === 0;
+    for (const [key, draft] of session.properties)
+      if (!draft.conflict) this.commitProperty(path, key, draft);
+    return session.drafts.size === 0 && session.properties.size === 0;
   }
   focusNext(
     view: EditorView,
@@ -140,7 +269,10 @@ export class PublicationEditor extends Component {
     });
   }
   pending(path: string): boolean {
-    return !!this.sessions.get(path)?.drafts.size;
+    return !!(
+      this.sessions.get(path)?.drafts.size ||
+      this.sessions.get(path)?.properties.size
+    );
   }
   flushAll(): boolean {
     let saved = true;
@@ -163,55 +295,24 @@ export class PublicationEditor extends Component {
         throw new Error(
           "This note is read-only. Make it editable before applying publication details.",
         );
+      const current = view.state.field(editorInfoField, false)?.file;
+      if (
+        draft.file &&
+        (current !== draft.file ||
+          current.stat.ctime !== draft.ctime ||
+          !this.editableView(draft.file))
+      )
+        throw new Error(
+          "Open the original note for editing before saving this draft.",
+        );
       const properties = publicationYaml(text).properties;
       if (authorRevision(properties) !== draft.revision)
         throw new Error(
           "The author list changed. Your draft is retained. Select its current target or discard it.",
         );
       const change = changePublicationAuthors(text, draft.operation);
-      const expected =
-        text.slice(0, change.from) + change.insert + text.slice(change.to);
-      // Reject an invalid replacement before changing either editor representation.
-      publicationYaml(expected);
-      const editor = view.state.field(editorInfoField, false)?.editor;
-      if (!editor)
-        throw new Error(
-          "This view cannot save publication details. Open the note in its Markdown editor.",
-        );
-      if (editor.getValue() !== text)
-        throw new Error(
-          "The note changed in another editor. Your draft is retained. Return to the current note to resolve it.",
-        );
       draft.status = "committing";
-      editor.transaction({
-        changes: [
-          {
-            from: editor.offsetToPos(change.from),
-            to: editor.offsetToPos(change.to),
-            text: change.insert,
-          },
-        ],
-      });
-      // Live Preview can protect hidden frontmatter from multiline transactions.
-      // Retry the validated, targeted edit through the public CM transaction API
-      // only if the first transaction left both representations entirely intact.
-      if (
-        editor.getValue() === text &&
-        view.state.doc.toString() === text &&
-        expected !== text
-      )
-        view.dispatch({
-          changes: change,
-          filter: false,
-          userEvent: "input.publication",
-        });
-      if (
-        editor.getValue() !== expected ||
-        view.state.doc.toString() !== expected
-      )
-        throw new Error(
-          "The editor did not retain the complete metadata change. Your draft is retained; review it in Source mode before retrying.",
-        );
+      this.applyChange(view, path, change);
       draft.status = "committed";
       this.session(path).drafts.delete(key);
       this.refresh();
@@ -227,12 +328,68 @@ export class PublicationEditor extends Component {
       return false;
     }
   }
+  private applyChange(
+    view: EditorView,
+    path: string,
+    change: PublicationChange,
+  ): void {
+    if (
+      view.state.field(editorInfoField, false)?.file?.path !== path ||
+      view.state.facet(EditorState.readOnly) ||
+      !view.state.facet(EditorView.editable)
+    )
+      throw new Error("The original note is not editable.");
+    const text = view.state.doc.toString();
+    const expected =
+      text.slice(0, change.from) + change.insert + text.slice(change.to);
+    // Reject an invalid replacement before changing either editor representation.
+    publicationYaml(expected);
+    const editor = view.state.field(editorInfoField, false)?.editor;
+    if (!editor)
+      throw new Error(
+        "This view cannot save publication details. Open the note in its Markdown editor.",
+      );
+    if (editor.getValue() !== text)
+      throw new Error(
+        "The note changed in another editor. Your draft is retained. Return to the current note to resolve it.",
+      );
+    editor.transaction({
+      changes: [
+        {
+          from: editor.offsetToPos(change.from),
+          to: editor.offsetToPos(change.to),
+          text: change.insert,
+        },
+      ],
+    });
+    // Live Preview can protect hidden frontmatter from multiline transactions.
+    // Retry the validated, targeted edit through the public CM transaction API
+    // only if the first transaction left both representations entirely intact.
+    if (
+      editor.getValue() === text &&
+      view.state.doc.toString() === text &&
+      expected !== text
+    )
+      view.dispatch({
+        changes: change,
+        filter: false,
+        userEvent: "input.publication",
+      });
+    if (
+      editor.getValue() !== expected ||
+      view.state.doc.toString() !== expected
+    )
+      throw new Error(
+        "The editor did not retain the complete metadata change. Your draft is retained; review it in Source mode before retrying.",
+      );
+  }
   onunload(): void {
     this.flushAll();
     this.alive = false;
     this.views.clear();
     this.activeViews.clear();
     this.forms.clear();
+    this.propertyForms.clear();
     this.sessions.clear();
   }
   extension(): Extension {
@@ -240,6 +397,7 @@ export class PublicationEditor extends Component {
     const refreshForms = () => {
       if (!this.alive) return;
       for (const form of this.forms) form.refresh();
+      for (const form of this.propertyForms) form.refresh();
     };
     const decorations = (
       state: import("@codemirror/state").EditorState,
@@ -329,7 +487,7 @@ class PublicationWidget extends WidgetType {
   }
 }
 const formsByElement = new WeakMap<HTMLElement, PublicationForm>();
-class PublicationForm {
+export class PublicationForm {
   readonly element: HTMLDetailsElement;
   private content: HTMLElement;
   private summary: HTMLElement;
@@ -342,23 +500,30 @@ class PublicationForm {
   private last = "";
   private structure = "";
   private destroyed = false;
+  private file?: TFile;
+  private ctime?: number;
   constructor(
     private service: PublicationEditor,
     private view: EditorView,
-    readonly path: string,
+    public path: string,
+    private inline = false,
   ) {
+    this.file = view.state.field(editorInfoField, false)?.file ?? undefined;
+    this.ctime = this.file?.stat.ctime;
     this.element = createEl("details");
     this.element.className = "stratum-publication-details";
-    this.element.open = service.session(path).open;
+    this.element.open = inline || service.session(path).open;
+    if (inline) this.element.addClass("stratum-publication-inline");
     this.summary = this.element.createEl("summary", {
       text: "Publication details",
     });
+    this.summary.hidden = inline;
     this.content = this.element.createDiv({
       cls: "stratum-publication-content",
     });
     this.element.addEventListener("toggle", () => {
-      this.service.session(path).open = this.element.open;
-      if (!this.element.open) this.service.flush(path);
+      if (!inline) this.service.session(this.path).open = this.element.open;
+      if (!this.element.open) this.service.flush(this.path);
       this.view.requestMeasure();
     });
     this.cleanup = service.registerForm(this);
@@ -381,7 +546,7 @@ class PublicationForm {
     const index = controls.findIndex(
       (control) => control.dataset.publicationControl === key,
     );
-    if (backwards && index === 0) this.summary.focus();
+    if (backwards && index === 0 && !this.inline) this.summary.focus();
     else controls[index + (backwards ? -1 : 1)]?.focus();
   }
   focusControl(key: string): void {
@@ -470,6 +635,8 @@ class PublicationForm {
           operation,
           revision,
           conflict: "",
+          file: this.file,
+          ctime: this.ctime,
         })
       )
         this.service.focusControl(this.view, this.path, focus);
@@ -495,6 +662,13 @@ class PublicationForm {
       attr: { type: "text", "aria-label": label },
     });
     input.className = "stratum-control-input";
+    input.setAttribute(
+      "aria-required",
+      String(
+        this.service.plugin.publish?.document?.path === this.path &&
+          this.service.plugin.publish.selectedTemplate?.renderer === "aastex",
+      ),
+    );
     input.dataset.publicationControl = key;
     input.value =
       draft && "value" in draft.operation ? draft.operation.value : value;
@@ -505,6 +679,8 @@ class PublicationForm {
         publicationYaml(this.view.state.doc.toString()).properties,
       ),
       conflict: "",
+      file: this.file,
+      ctime: this.ctime,
     };
     const record = () => {
       if (this.destroyed) return;
@@ -522,6 +698,8 @@ class PublicationForm {
             publicationYaml(this.view.state.doc.toString()).properties,
           ),
           conflict: "",
+          file: this.file,
+          ctime: this.ctime,
         };
       }
       this.service.activate(this.view, this.path);
@@ -541,6 +719,8 @@ class PublicationForm {
           publicationYaml(this.view.state.doc.toString()).properties,
         ),
         conflict: "",
+        file: this.file,
+        ctime: this.ctime,
       };
       this.active = { input, key, draft: fieldDraft };
     });
@@ -567,6 +747,7 @@ class PublicationForm {
         )
           original = input.value;
       };
+      if (event.key === "Tab" && this.inline) return;
       if (event.key === "Tab") {
         event.preventDefault();
         commit();
@@ -593,7 +774,15 @@ class PublicationForm {
     const publish = this.service.plugin.publish;
     const signature =
       text +
-      JSON.stringify([...session.drafts]) +
+      JSON.stringify(
+        [...session.drafts].map(([key, draft]) => [
+          key,
+          draft.operation,
+          draft.revision,
+          draft.conflict,
+          draft.status,
+        ]),
+      ) +
       publish?.notePreferences.templateId +
       publish?.layout.titleSource;
     if (signature === this.last) return;
@@ -613,7 +802,14 @@ class PublicationForm {
         legacy: model.legacy,
         template: publish?.notePreferences.templateId,
         titleSource: publish?.layout.titleSource,
-        conflicts: [...session.drafts].filter(([, draft]) => draft.conflict),
+        conflicts: [...session.drafts]
+          .filter(([, draft]) => draft.conflict)
+          .map(([key, draft]) => [
+            key,
+            draft.operation,
+            draft.revision,
+            draft.conflict,
+          ]),
       });
       if (structure === this.structure) {
         for (const input of Array.from(

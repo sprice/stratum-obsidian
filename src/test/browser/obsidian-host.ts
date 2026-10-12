@@ -1,4 +1,5 @@
 // Minimal Obsidian host adapters over real browser DOM. No user vault is read.
+import { parse as parseYamlText } from "yaml";
 import { StateEffect, StateField } from "@codemirror/state";
 import type { Editor } from "obsidian";
 
@@ -120,8 +121,11 @@ export class Modal {
       if (event.key === "Tab") {
         const controls = Array.from(
           this.modalEl.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), [tabindex="0"]',
+            'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),summary,[tabindex="0"]',
           ),
+        ).filter(
+          (control) =>
+            control.tabIndex >= 0 && control.getClientRects().length > 0,
         );
         const first = controls[0],
           last = controls.at(-1);
@@ -146,7 +150,9 @@ export class Modal {
     document.body.append(this.modalEl);
     this.onOpen();
     this.modalEl
-      .querySelector<HTMLElement>('button:not(:disabled), [tabindex="0"]')
+      .querySelector<HTMLElement>(
+        'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),summary,[tabindex="0"]',
+      )
       ?.focus();
   }
   close() {
@@ -162,13 +168,15 @@ export class Notice {
 export class FileSystemAdapter {}
 export class MarkdownView {}
 export class TFile {
+  // Native files have a parent whose children include the file itself.
+  parent = { children: [this] };
   path = "Papers/Synthetic paper.md";
   basename = "Synthetic paper";
   extension = "md";
   stat = { ctime: 1, mtime: 1, size: 1 };
 }
 export const Platform = { isDesktopApp: true, isDesktop: true };
-export const parseYaml = (source: string): unknown => JSON.parse(source);
+export const parseYaml = (source: string): unknown => parseYamlText(source);
 export const MarkdownRenderer = {
   render(_app: unknown, markdown: string, root: HTMLElement) {
     // Host rendering is outside this fixture's scope; use synthetic text only.

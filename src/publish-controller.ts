@@ -481,12 +481,6 @@ export class PublishController extends Component {
       );
       await this.reload();
       this.plugin.publicationEditor?.refresh();
-      if (
-        patch.templateId &&
-        this.selectedTemplate?.renderer === "aastex" &&
-        this.document
-      )
-        await this.editPublicationDetails();
     });
     this.preferenceQueue = next.catch(() => {});
     this.emit();
@@ -646,6 +640,7 @@ export class PublishController extends Component {
       !this.checking &&
       !this.preferencesSaving &&
       !this.academicProblem &&
+      !this.plugin.publicationEditor?.pending?.(this.document.path) &&
       !!this.readiness?.pdf
     );
   }
@@ -786,7 +781,7 @@ export class PublishController extends Component {
     ) {
       this.fail(
         new Error(
-          "Resolve or discard the pending author edit before publishing.",
+          "Resolve or discard the pending publication edit before publishing.",
         ),
       );
       return;

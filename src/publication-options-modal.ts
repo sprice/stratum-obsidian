@@ -1,39 +1,104 @@
-import { Modal, type App, type ToggleComponent } from "obsidian";
+import { Modal, type App, type TFile, type ToggleComponent } from "obsidian";
 import type { PublishController } from "./publish-controller";
+import type { PublicationForm } from "./publication-editor";
+import { PublicationPropertyControls } from "./publication-property-controls";
+import { publicationAuthors } from "./publication-metadata";
 import {
-  readAastexPdfOptions,
-  type AastexPdfOptions,
-} from "./publication-options";
+  aastexProblems,
+  AASTEX_PACKAGE_REFERENCE,
+} from "./publication-package";
+import { AASTEX_HEADING_WARNING } from "./publication-headings";
 import {
   AASTEX_OPTION_LABELS,
   aastexOptionToggle,
 } from "./publication-option-controls";
-import { createStratumButton } from "./ui-controls";
-import { AASTEX_PACKAGE_REFERENCE } from "./publication-package";
+import {
+  createStratumButton,
+  createStratumSelect,
+  createStratumDisclosure,
+  createStratumSummary,
+} from "./ui-controls";
+import { renderPublishCustomization } from "./publish-customize";
+import { resetNoteCitationStyle } from "./citation-style-choice";
+import { getSettingsManager } from "./view-helpers";
+import type { PublishOptions } from "./publish-options";
+import type { AastexPdfOptions } from "./publication-options";
 
-/** Auto-save options for one captured note; queued controller saves capture it too. */
-export class AastexOptionsModal extends Modal {
+interface OptionDraftState {
+  failures: Map<string, { work: () => Promise<void>; error: string }>;
+  latest: Map<string, number>;
+  revision: number;
+}
+const optionDrafts = new WeakMap<
+  PublishController,
+  WeakMap<TFile, Map<string, OptionDraftState>>
+>();
+function optionDraftState(
+  publish: PublishController,
+  file: TFile | null,
+  template: string,
+): OptionDraftState {
+  if (!file) return { failures: new Map(), latest: new Map(), revision: 0 };
+  let notes = optionDrafts.get(publish);
+  if (!notes) {
+    notes = new WeakMap();
+    optionDrafts.set(publish, notes);
+  }
+  let templates = notes.get(file);
+  if (!templates) {
+    templates = new Map();
+    notes.set(file, templates);
+  }
+  let state = templates.get(template);
+  if (!state) {
+    state = { failures: new Map(), latest: new Map(), revision: 0 };
+    templates.set(template, state);
+  }
+  return state;
+}
+/** One captured note, shared editor drafts, serialized option saves; no file-write fallback. */
+export class PublishingSettingsModal extends Modal {
+  private file: TFile | null;
   private noteKey: string;
-  private toggles = new Map<keyof AastexPdfOptions, ToggleComponent>();
-  private reset!: HTMLButtonElement;
-  private message!: HTMLElement;
-  private error!: HTMLElement;
-  private unsubscribe?: () => void;
+  private templateId?: string;
   private alive = false;
   private refreshing = false;
-  private changeRevision = 0;
-  private pending = new Map<
-    keyof AastexPdfOptions,
-    { value: boolean; revision: number }
-  >();
+  private revision = 0;
+  private pending = new Map<string, { value: boolean; revision: number }>();
+  private toggles = new Map<keyof AastexPdfOptions, ToggleComponent>();
+  private unsubscribe?: () => void;
+  private properties?: PublicationPropertyControls;
+  private authors?: PublicationForm;
+  private details!: HTMLElement;
+  private authorContainer!: HTMLElement;
+  private message!: HTMLElement;
+  private validation!: HTMLElement;
+  private error!: HTMLElement;
+  private done!: HTMLButtonElement;
+  private reset!: HTMLButtonElement;
+  private citation?: HTMLSelectElement;
+  private title?: HTMLSelectElement;
+  private closingError = false;
+  private retryButton!: HTMLButtonElement;
+  private drafts: OptionDraftState;
+  private saving = 0;
+  private refreshAdvanced?: () => void;
+  private compatibilityContainer?: HTMLElement;
   constructor(
     app: App,
     private publish: PublishController,
     private launcher: HTMLElement,
   ) {
     super(app);
+    this.file = publish.document;
     this.noteKey = this.currentNoteKey();
-    this.modalEl.addClass("stratum-modal", "stratum-document-options-modal");
+    this.templateId = publish.notePreferences.templateId;
+    this.drafts = optionDraftState(publish, this.file, this.templateId ?? "");
+    this.modalEl.addClass(
+      "stratum-modal",
+      "stratum-document-options-modal",
+      "stratum-publishing-settings-modal",
+    );
   }
   private currentNoteKey(): string {
     const file = this.publish.document;
@@ -41,111 +106,421 @@ export class AastexOptionsModal extends Modal {
   }
   onOpen(): void {
     this.alive = true;
-    this.setTitle(
-      `${this.publish.selectedTemplate?.name ?? "Template"} document options — this note`,
-    );
+    this.setTitle("Publishing settings");
     this.contentEl.createEl("p", {
-      text: this.publish.document?.basename ?? "",
-      cls: "stratum-publish-meta",
-    });
-    this.contentEl.createEl("p", {
-      text: `AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion} · Stratum adapter ${AASTEX_PACKAGE_REFERENCE.version}`,
+      text: this.file?.basename ?? "",
       cls: "stratum-publish-meta",
     });
     this.message = this.contentEl.createEl("p", {
       cls: "stratum-publish-meta",
-      attr: { role: "status" },
+      attr: { role: "status", "aria-live": "polite" },
     });
-    for (const key of Object.keys(
-      AASTEX_OPTION_LABELS,
-    ) as (keyof AastexPdfOptions)[])
-      this.toggles.set(
-        key,
-        aastexOptionToggle(this.contentEl, key, (value) =>
-          this.save(
-            () => this.publish.updateAastexPdfOptions({ [key]: value }),
-            { [key]: value },
-          ),
-        ),
-      );
-    this.contentEl.createEl("p", {
-      text: "Changes save automatically for this note’s next PDF. Heading normalization leaves your note unchanged. Turning off the draft date keeps the class’s typesetting credit.",
-      cls: "stratum-publish-meta",
+    this.contentEl.createEl("h4", { text: "Document details" });
+    this.details = this.contentEl.createDiv({
+      cls: "stratum-publishing-details",
     });
-    this.error = this.contentEl.createEl("p", {
+    this.authorContainer = this.contentEl.createDiv();
+    this.validation = this.contentEl.createDiv({ attr: { role: "status" } });
+    this.contentEl.createEl("h4", { text: "PDF options" });
+    const options = this.contentEl.createDiv({
+      cls: "stratum-publishing-pdf-options",
+    });
+    const aastex = this.publish.selectedTemplate?.renderer === "aastex";
+    const title = createStratumSelect(options, {
+      label: "Title source",
+      ariaLabel: "Title source",
+      value: this.publish.layout.titleSource,
+      choices: [
+        { value: "properties", label: "Title property" },
+        {
+          value: "body",
+          label: aastex ? "Leading # heading in document" : "Title in document",
+        },
+      ],
+    });
+    this.title = title;
+    title.addEventListener("change", () =>
+      this.layout({ titleSource: title.value as "body" | "properties" }),
+    );
+    if (aastex) {
+      for (const key of Object.keys(
+        AASTEX_OPTION_LABELS,
+      ) as (keyof AastexPdfOptions)[])
+        this.toggles.set(
+          key,
+          aastexOptionToggle(options, key, (value) => {
+            if (this.refreshing) return;
+            const revision = ++this.revision;
+            this.pending.set(key, { value, revision });
+            this.save(
+              () => this.publish.updateAastexPdfOptions({ [key]: value }),
+              () => {
+                if (this.pending.get(key)?.revision === revision)
+                  this.pending.delete(key);
+              },
+              `aastex:${key}`,
+            );
+          }),
+        );
+      options.createEl("p", {
+        text: `AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion} · Stratum adapter ${AASTEX_PACKAGE_REFERENCE.version}`,
+        cls: "stratum-publish-meta",
+      });
+      const compatibility = options.createDiv({
+        cls: "stratum-publishing-compatibility",
+      });
+      this.compatibilityContainer = compatibility;
+      this.compatibility(compatibility);
+    } else {
+      const citations = options.createDiv();
+      void this.publish
+        .citationStyleChoices()
+        .then((choices) => {
+          if (!this.alive || !choices) return;
+          this.citation = createStratumSelect(citations, {
+            label: "Citation style",
+            ariaLabel: "Citation style for this note",
+            value: choices.inherited ? "" : choices.selected,
+            choices: [
+              { value: "", label: "Use plugin default" },
+              ...choices.options.map((option) => ({
+                value: option.id,
+                label: option.title,
+              })),
+            ],
+          });
+          this.citation.addEventListener("change", () => {
+            const style = this.citation!.value;
+            this.save(
+              () =>
+                style
+                  ? this.publish.changeCitationStyle(style)
+                  : resetNoteCitationStyle(this.publish.plugin, this.file!),
+              undefined,
+              "citation",
+            );
+          });
+        })
+        .catch((error) => this.fail(error));
+      const advanced = createStratumDisclosure(options);
+      createStratumSummary(advanced, { text: "Advanced layout" });
+      const body = advanced.createDiv();
+      let mounted = false;
+      advanced.addClass("stratum-publishing-advanced");
+      const mount = () => {
+        if (!advanced.open) return;
+        body.empty();
+        mounted = true;
+        const focus = renderPublishCustomization(
+          body,
+          this.publish.layout,
+          (patch) => this.saveLayout(patch),
+          (error) => this.fail(error),
+          "pdf",
+          false,
+        );
+        if (this.publish.fontError) {
+          const key = this.publish.fontError.fonts.some(
+            (font) =>
+              font.toLowerCase() === this.publish.layout.bodyFont.toLowerCase(),
+          )
+            ? "bodyFont"
+            : "titleFont";
+          focus(key);
+        }
+      };
+      this.refreshAdvanced = mount;
+      advanced.addEventListener("toggle", () => {
+        if (!mounted) mount();
+      });
+      if (this.publish.fontError) advanced.open = true;
+    }
+    if (!this.publish.readiness?.pdf) {
+      options.createEl("p", {
+        text: "PDF tools need setup.",
+      });
+      const setup = createStratumButton(options, {
+        text: "Open Stratum settings",
+      });
+      setup.addEventListener("click", () => {
+        this.close();
+        const settings = getSettingsManager(this.publish.plugin.app);
+        settings?.open();
+        settings?.openTabById(this.publish.plugin.manifest.id);
+      });
+    }
+    this.error = this.contentEl.createDiv({
       cls: "stratum-publish-error",
       attr: { role: "alert" },
     });
+    const retry = (this.retryButton = createStratumButton(this.error, {
+      text: "Retry saving options",
+    }));
+    retry.addEventListener("click", () => {
+      void this.retryOptions();
+    });
+    this.error.hidden = true;
     const actions = this.contentEl.createDiv({
       cls: "stratum-publish-actions",
     });
     this.reset = createStratumButton(actions, {
-      text: "Reset document options",
-      tooltip: "Restore the built-in defaults for this note",
+      text: "Reset PDF options",
       wrap: true,
+      className: "stratum-publishing-reset",
     });
     this.reset.addEventListener("click", () =>
       this.save(
-        () => this.publish.resetAastexPdfOptions(),
-        readAastexPdfOptions(undefined),
+        async () => {
+          if (aastex) await this.publish.resetAastexPdfOptions();
+          else
+            await this.publish.updatePreferences({
+              templateId: this.templateId,
+            });
+          for (const key of this.drafts.failures.keys())
+            if (key.startsWith(aastex ? "aastex:" : "layout:"))
+              this.drafts.failures.delete(key);
+          this.refreshAdvanced?.();
+        },
+        undefined,
+        "reset",
       ),
     );
-    const done = createStratumButton(actions, { text: "Done", primary: true });
-    done.addEventListener("click", () => this.close());
+    this.done = createStratumButton(actions, {
+      text: "Done",
+      primary: true,
+      className: "stratum-publishing-done",
+    });
+    this.done.addEventListener("click", () => {
+      if (this.saving || this.publish.preferencesSaving) return;
+      if (
+        this.file &&
+        this.publish.plugin.publicationEditor &&
+        !this.publish.plugin.publicationEditor.flush(this.file.path)
+      ) {
+        this.closingError = true;
+        this.fail(
+          new Error(
+            "Resolve or discard the pending publication edit before closing.",
+          ),
+        );
+        return;
+      }
+      if (this.drafts.failures.size) return;
+      this.close();
+    });
     this.unsubscribe = this.publish.subscribe(() => this.update());
     this.update();
+    queueMicrotask(() => {
+      if (!this.alive || this.publish.fontError) return;
+      const inputs = Array.from(
+        this.details.querySelectorAll<HTMLInputElement>("input"),
+      );
+      const authorInputs = Array.from(
+        this.authorContainer.querySelectorAll<HTMLInputElement>("input"),
+      );
+      const missing = [...inputs, ...authorInputs].find(
+        (input) =>
+          input.getAttribute("aria-required") === "true" && !input.value.trim(),
+      );
+      (missing ?? inputs[0])?.focus();
+    });
+  }
+  private compatibility(container: HTMLElement): void {
+    container.empty();
+    if (this.publish.aastexPackageProblem) {
+      container.createEl("p", {
+        text: this.publish.aastexPackageProblem,
+        attr: { role: "alert" },
+      });
+      const approve = createStratumButton(container, {
+        text: "Use installed version",
+      });
+      approve.addEventListener("click", () =>
+        this.save(() => this.publish.acceptAastexPackage()),
+      );
+    }
+    const warnings = this.publish.aastexHeadingProblems;
+    if (warnings.length) {
+      const disclosure = createStratumDisclosure(container);
+      createStratumSummary(disclosure, { text: "Review heading numbers" });
+      disclosure.createEl("p", { text: AASTEX_HEADING_WARNING });
+      const list = disclosure.createEl("ul");
+      for (const warning of warnings) list.createEl("li", { text: warning });
+    }
+  }
+  private fail(error: unknown): void {
+    if (!this.alive || !this.error) return;
+    this.error.hidden = false;
+    let text = this.error.querySelector("p");
+    if (!text) text = this.error.createEl("p");
+    text.setText(
+      error instanceof Error
+        ? error.message
+        : "Could not save publishing settings.",
+    );
+  }
+  private layout(patch: Partial<PublishOptions>): void {
+    void this.saveLayout(patch).catch(() => {});
+  }
+  private saveLayout(patch: Partial<PublishOptions>): Promise<void> {
+    return this.saveAsync(
+      () => this.publish.updateLayout(patch),
+      undefined,
+      "layout:" + Object.keys(patch).sort().join(","),
+    );
+  }
+  private async retryOptions(): Promise<void> {
+    for (const [key, draft] of [...this.drafts.failures]) {
+      try {
+        await this.saveAsync(draft.work, undefined, key);
+      } catch {
+        return;
+      }
+    }
+    this.refreshAdvanced?.();
   }
   private save(
-    operation: () => Promise<void>,
-    patch: Partial<AastexPdfOptions>,
+    work: () => Promise<void>,
+    finish?: () => void,
+    key = "options",
   ): void {
+    void this.saveAsync(work, finish, key).catch(() => {});
+  }
+  private async saveAsync(
+    work: () => Promise<void>,
+    finish?: () => void,
+    key = "options",
+  ): Promise<void> {
     if (
       !this.alive ||
-      this.refreshing ||
-      this.currentNoteKey() !== this.noteKey
+      this.publish.document !== this.file ||
+      this.currentNoteKey() !== this.noteKey ||
+      this.publish.notePreferences.templateId !== this.templateId ||
+      this.publish.busy
     )
       return;
-    this.error.setText("");
-    const revision = ++this.changeRevision;
-    for (const key of Object.keys(patch) as (keyof AastexPdfOptions)[])
-      this.pending.set(key, { value: patch[key]!, revision });
-    // Invoke synchronously so the controller captures this note before queueing.
-    void operation()
-      .catch((error) => {
-        if (
-          this.alive &&
-          [...this.pending.values()].some(
-            (pending) => pending.revision === revision,
-          )
-        )
-          this.error.setText(
-            error instanceof Error
-              ? error.message
-              : "Could not save document options. Try again.",
-          );
-      })
-      .finally(() => {
-        for (const [key, pending] of this.pending)
-          if (pending.revision === revision) this.pending.delete(key);
-        this.update();
-      });
+    const revision = ++this.drafts.revision;
+    this.drafts.latest.set(key, revision);
+    this.drafts.failures.delete(key);
+    this.error.hidden = this.drafts.failures.size === 0;
+    this.saving++;
+    try {
+      await work();
+      if (this.drafts.latest.get(key) === revision)
+        this.drafts.failures.delete(key);
+    } catch (error) {
+      if (this.drafts.latest.get(key) === revision) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Could not save publishing settings.";
+        this.drafts.failures.set(key, { work, error: message });
+        this.fail(error);
+      }
+      throw error;
+    } finally {
+      this.saving--;
+      finish?.();
+      this.update();
+      if (!this.alive) this.publish.emit();
+    }
   }
   private update(): void {
     if (!this.alive) return;
     if (
-      !this.noteKey ||
+      !this.file ||
+      this.publish.document !== this.file ||
       this.currentNoteKey() !== this.noteKey ||
-      this.publish.selectedTemplate?.renderer !== "aastex"
+      this.publish.notePreferences.templateId !== this.templateId
     ) {
       this.close();
       return;
     }
     this.message.setText(
-      this.publish.preferencesSaving
-        ? "Saving document options…"
-        : "PDF options for this note. Reset restores the built-in defaults.",
+      this.saving || this.publish.preferencesSaving
+        ? "Saving settings…"
+        : "Changes save automatically for this note. Incomplete details can be saved.",
     );
-    // Native setValue invokes onChange; rendering must never queue a user save.
+    if (this.compatibilityContainer)
+      this.compatibility(this.compatibilityContainer);
+    const service = this.publish.plugin.publicationEditor;
+    const target = service?.editableView(this.file);
+    if (service && target && !this.properties) {
+      this.details.empty();
+      this.properties = new PublicationPropertyControls(
+        this.details,
+        this.publish,
+        service,
+        this.file,
+        (patch) => this.saveLayout(patch),
+      );
+    } else if (!target && !this.properties && !this.details.childElementCount) {
+      this.details.createEl("p", {
+        text: "Open this note for editing to change its properties.",
+      });
+      const open = createStratumButton(this.details, {
+        text: "Open note for editing",
+        tooltip: "Open note for editing",
+      });
+      open.addEventListener("click", () => {
+        this.close();
+        void this.publish.editPublicationDetails();
+      });
+    }
+    this.properties?.refresh();
+    if (
+      this.title &&
+      (!this.publish.preferencesSaving ||
+        this.title.ownerDocument.activeElement !== this.title)
+    )
+      this.title.value = this.publish.layout.titleSource;
+    let showAuthors = this.publish.selectedTemplate?.renderer === "aastex";
+    try {
+      showAuthors ||=
+        publicationAuthors(this.publish.noteProperties).structured ||
+        (Object.hasOwn(this.publish.noteProperties, "author") &&
+          !Object.hasOwn(this.publish.noteProperties, "authors"));
+    } catch {
+      /* The field controls report malformed YAML. */
+    }
+    if (target && service && showAuthors && !this.authors)
+      this.authors = service.mountAuthors(this.authorContainer, this.file);
+    if (!showAuthors && this.authors) {
+      this.authors.destroy();
+      this.authors = undefined;
+      this.authorContainer.empty();
+    }
+    for (const input of Array.from(
+      this.authorContainer.querySelectorAll<
+        HTMLInputElement | HTMLButtonElement
+      >("input,button"),
+    ))
+      input.disabled = this.publish.busy;
+    this.validation.empty();
+    if (this.publish.academicProblem)
+      this.validation.createEl("p", {
+        text: this.publish.academicProblem,
+        attr: { role: "alert" },
+      });
+    if (this.publish.selectedTemplate?.renderer === "aastex") {
+      try {
+        for (const warning of aastexProblems(
+          target?.state.doc.toString() ?? "",
+          this.publish.layout.titleSource,
+          "pdf",
+        ).warnings)
+          this.validation.createEl("p", {
+            text: warning,
+            cls: "stratum-publish-meta",
+          });
+      } catch {
+        /* Blocking metadata errors are shown above. */
+      }
+    } else if (this.publish.duplicateTitleWarning)
+      this.validation.createEl("p", {
+        text: "Title may appear twice. Review the title source.",
+        cls: "stratum-publish-meta",
+      });
     this.refreshing = true;
     try {
       for (const [key, toggle] of this.toggles) {
@@ -163,15 +538,33 @@ export class AastexOptionsModal extends Modal {
     } finally {
       this.refreshing = false;
     }
-    this.reset.disabled = this.publish.busy || this.publish.preferencesSaving;
+    this.retryButton.hidden = !this.drafts.failures.size;
+    if (this.drafts.failures.size)
+      this.fail(
+        new Error(
+          [...this.drafts.failures.values()]
+            .map((draft) => draft.error)
+            .join("\n"),
+        ),
+      );
+    if (!this.drafts.failures.size && !this.closingError)
+      this.error.hidden = true;
+    if (this.closingError && this.file && !service?.pending(this.file.path)) {
+      this.closingError = false;
+      this.error.hidden = true;
+    }
+    this.done.disabled = this.reset.disabled =
+      this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;
   }
   onClose(): void {
+    this.properties?.capture();
+    if (this.file) this.publish.plugin.publicationEditor?.flush(this.file.path);
     this.alive = false;
     this.unsubscribe?.();
-    this.unsubscribe = undefined;
+    this.properties?.destroy();
+    this.authors?.destroy();
     this.contentEl.empty();
-    this.pending.clear();
-    this.toggles.clear();
     if (this.launcher.isConnected) this.launcher.focus();
   }
 }
+export { PublishingSettingsModal as AastexOptionsModal };
