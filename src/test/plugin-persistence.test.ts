@@ -348,7 +348,6 @@ test("publishing readiness survives reload and rejects malformed cache data", as
     pandocPath: "",
     tectonicPath: "",
     readiness: {
-      word: true,
       pdf: true,
       pandoc: { path: "/synthetic/pandoc", version: "3" },
       tectonic: { path: "/synthetic/tectonic", version: "0.17" },

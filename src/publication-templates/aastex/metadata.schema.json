@@ -23,13 +23,6 @@
       "email": "required",
       "affiliations": "required",
       "abstract": "warning"
-    },
-    "docx": {
-      "title": "warning",
-      "authors": "warning",
-      "email": "warning",
-      "affiliations": "warning",
-      "abstract": "warning"
     }
   }
 }

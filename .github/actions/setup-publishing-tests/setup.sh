@@ -3,7 +3,7 @@ set -euo pipefail
 # Match the x86_64 Ubuntu runner; reject unsupported hosts explicitly.
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]]
 sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends poppler-utils fontconfig fonts-liberation fonts-dejavu-core python3
+sudo apt-get install -y --no-install-recommends poppler-utils fontconfig fonts-liberation fonts-dejavu-core
 ci_tools="$RUNNER_TEMP/stratum-publishing-tools"
 mkdir -p "$ci_tools/bin"
 curl --fail --location --retry 3 --max-time 120 \

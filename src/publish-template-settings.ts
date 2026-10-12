@@ -117,6 +117,7 @@ function renderPublishingTemplate(
       if (current) await update({ layout: { ...current.layout, ...patch } });
     },
     fail,
+    "pdf",
   );
   const { details: prefill, body: prefillBody } = createPublicationSection(
     details,

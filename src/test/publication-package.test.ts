@@ -120,9 +120,7 @@ test("note rendering consumes the chosen title and promotes section headings wit
         documentType: "academic",
         templateId: "package:aastex",
         opening: "properties",
-        format: "pdf",
         pdf: { ...DEFAULT_ACADEMIC_OPTIONS, titleSource: source },
-        docx: DEFAULT_ACADEMIC_OPTIONS,
       };
       const output = await renderAastexPublication(
         {} as never,
@@ -158,15 +156,9 @@ test("note rendering consumes the chosen title and promotes section headings wit
   }
 });
 
-test("output-specific requirements permit incomplete Word drafts, not incomplete AASTeX PDF", () => {
+test("AASTeX PDF requires publication metadata and an abstract", () => {
   const text =
     "---\nstratum_publish:\n  authors:\n    - name: Alex\n---\n## Introduction\nDraft";
-  assert.equal(aastexProblems(text, "properties", "docx").errors.length, 0);
-  assert.ok(
-    aastexProblems(text, "properties", "docx").warnings.some((warning) =>
-      warning.includes("email"),
-    ),
-  );
   assert.equal(aastexProblems(text, "properties", "pdf").errors.length, 3);
   assert.equal(aastexProblems(sample, "properties", "pdf").errors.length, 0);
 });

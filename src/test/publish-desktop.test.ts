@@ -63,89 +63,6 @@ const hasPandoc = !!pandoc;
 const tectonic = installedTool("tectonic", process.env.STRATUM_TEST_TECTONIC);
 
 test(
-  "real Word export applies selected fonts, sizes, page layout and native equations",
-  { skip: !hasPandoc },
-  async () => {
-    const math = preparePublishMath(
-      "$x^2$ and $$\\begin{bmatrix}1&2\\\\3&4\\end{bmatrix}$$",
-    );
-    const html = `<html><head><title>Unwanted metadata title</title></head><body><div class="stratum-publish-title"><p>Synthetic academic title</p></div><div class="stratum-publish-authors"><p>Alex Example</p></div><h2>Introduction</h2><p>${math.restore(math.markdown)}</p><p>Body text with <code>code</code>.</p></body></html>`;
-    const options = {
-      ...DEFAULT_PUBLISH_OPTIONS,
-      bodyFont: "Georgia",
-      titleFont: "Arial",
-      bodySize: 11,
-      titleSize: 28,
-      paperSize: "a4" as const,
-      margin: 0.8,
-      lineSpacing: 1.5,
-    };
-    const bytes = await runtime().convertPublication(
-      html,
-      [],
-      "docx",
-      { pandoc, tectonic },
-      undefined,
-      120_000,
-      options,
-    );
-    const directory = await mkdtemp(join(tmpdir(), "stratum-layout-test-"));
-    try {
-      const output = join(directory, "Synthetic.docx");
-      await writeFile(output, new Uint8Array(bytes));
-      const xml = (entry: string) =>
-        execFileSync(
-          "python3",
-          [
-            "-c",
-            "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(z.read(sys.argv[2]).decode())",
-            output,
-            entry,
-          ],
-          { encoding: "utf8" },
-        );
-      const main = xml("word/document.xml"),
-        styles = xml("word/styles.xml");
-      assert.match(main, /<m:oMath/);
-      assert.doesNotMatch(main, /Unwanted metadata title/);
-      assert.doesNotMatch(main, /\\begin|\\\(|stratum-publish-math/);
-      assert.match(main, /w:pStyle w:val="Title"/);
-      assert.match(main, /w:w="11906"/);
-      assert.match(main, /w:top="1152"/);
-      assert.match(styles, /w:ascii="Georgia"/);
-      assert.match(styles, /w:ascii="Arial"/);
-      assert.match(styles, /w:sz w:val="56"/);
-      assert.match(styles, /w:line="360"/);
-      assert.match(styles, /w:styleId="Title"[\s\S]*?<w:jc w:val="left"/);
-      assert.match(
-        styles,
-        /w:styleId="Abstract"[\s\S]*?<w:ind w:left="0" w:right="0"/,
-      );
-      assert.match(xml("word/stratum-footer.xml"), / PAGE /);
-      // Section children must keep WordprocessingML order.
-      assert.match(
-        main,
-        /<w:sectPr><w:footerReference [^>]*\/>\s*<w:footnotePr>[\s\S]*<\/w:footnotePr>\s*<w:pgSz [^>]*\/><w:pgMar [^>]*\/><\/w:sectPr>/,
-      );
-      assert.match(
-        styles,
-        /w:styleId="VerbatimChar"[\s\S]*?w:ascii="Consolas"[\s\S]*?<\/w:style>/,
-      );
-      assert.match(
-        styles,
-        /<w:rPrDefault>[\s\S]*?<w:lang [\s\S]*?<\/w:rPrDefault>/,
-      );
-      assert.match(
-        styles,
-        /w:styleId="Heading1"[\s\S]*?<w:rFonts [^>]*\/><w:b\/><w:sz /,
-      );
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  },
-);
-
-test(
   "real PDF export accepts default fonts, academic opening and mathematical notation",
   { skip: !pandoc || !tectonic },
   async () => {
@@ -407,123 +324,6 @@ test("native save cancellation leaves files untouched; save copies the bytes", a
 });
 
 test(
-  "real Pandoc export contains native footnotes, citations, tables, links and bibliography",
-  { skip: !hasPandoc },
-  async () => {
-    const text =
-      "# Example manuscript\n\nA claim [@example2024]. Explanation[^note]. Again [@example2024].\n\n[^note]: A **native** note. See [the footnote source][footnote-source].\n\n[footnote-source]: https://example.com/footnote-source\n\n| Heading | Value |\n| --- | --- |\n| First | Second |\n\n[External](https://example.com)";
-    const styles = assets as Record<string, string>;
-    const result = formatCitationDocument(
-      text,
-      styles["chicago-notes-bibliography"],
-      "en-US",
-      styles,
-      new Map([
-        [
-          "example2024",
-          {
-            id: "user/1/EXAMPLE",
-            type: "book",
-            title: "Synthetic reference",
-            author: [{ family: "Example", given: "Alex" }],
-            issued: { "date-parts": [[2024]] },
-          },
-        ],
-      ]),
-    );
-    const prepared = preparePublication(text, result);
-    const html = (markdown: string) =>
-      execFileSync(pandoc, ["-f", "markdown", "-t", "html"], {
-        input: markdown,
-        encoding: "utf8",
-      });
-    const document = `<html><body>${html(prepared.markdown)}<h2>${prepared.heading}</h2>${prepared.bibliography}${prepared.notes.map((n) => `<aside epub:type="footnote" id="${n.id}">${html(n.markdown)}</aside>`).join("")}</body></html>`;
-    const bytes = await runtime().convertPublication(document, [], "docx", {
-      pandoc,
-      tectonic: "",
-    });
-    const directory = await mkdtemp(join(tmpdir(), "stratum-docx-test-"));
-    try {
-      const output = join(directory, "Example.docx");
-      await writeFile(output, new Uint8Array(bytes));
-      const readZip = (entry: string) =>
-        execFileSync(
-          "python3",
-          [
-            "-c",
-            "import zipfile,sys; print(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]).decode())",
-            output,
-            entry,
-          ],
-          { encoding: "utf8" },
-        );
-      const main = readZip("word/document.xml"),
-        notes = readZip("word/footnotes.xml");
-      assert.equal((main.match(/<w:footnoteReference /g) ?? []).length, 3);
-      assert.match(main, /<w:tbl>/);
-      assert.match(main, /Bibliography/);
-      assert.match(main, /Synthetic reference/i);
-      assert.match(notes, /Alex Example/);
-      assert.match(notes, /native/);
-      assert.match(
-        readZip("word/_rels/footnotes.xml.rels"),
-        /https:\/\/example.com\/footnote-source/,
-      );
-      assert.match(
-        readZip("word/_rels/document.xml.rels"),
-        /https:\/\/example.com/,
-      );
-      assert.doesNotMatch(
-        main,
-        /@example2024|epub:type|stratum-citation-evidence/,
-      );
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  },
-);
-
-test(
-  "readiness verifies real Word conversion and independently reports missing Tectonic",
-  { skip: !hasPandoc },
-  async () => {
-    const result = await runtime().checkPublishing(
-      pandoc,
-      "/missing-synthetic-tectonic",
-      false,
-    );
-    assert.equal(result.word, true);
-    assert.equal(result.pdf, false);
-    assert.match(result.tectonic.error!, /Could not start/);
-  },
-);
-
-test(
-  "real PDF setup uses Pandoc and Tectonic",
-  { skip: !pandoc || !tectonic },
-  async () => {
-    const updates: Desktop.PublishReadiness[] = [];
-    const result = await runtime().checkPublishing(
-      pandoc,
-      tectonic,
-      true,
-      undefined,
-      undefined,
-      (state) => updates.push(state),
-    );
-    assert.equal(updates[0].word, false);
-    assert.ok(
-      updates[0].tectonic.path,
-      "tools appear before conversion finishes",
-    );
-    assert.equal(updates[1].word, true);
-    assert.equal(updates[1].pdf, false, "Word is ready while PDF prepares");
-    assert.equal(result.word, true, result.wordError);
-    assert.equal(result.pdf, true, result.pdfError);
-  },
-);
-
-test(
   "cancellation terminates descendants even when the parent exits first",
   { skip: process.platform === "win32" },
   async () => {
@@ -713,31 +513,6 @@ for (const style of ["apa", "chicago-notes-bibliography", "ieee"]) {
   );
 }
 
-test(
-  "real Word export rejects lost equations but allows unrelated warnings",
-  { skip: !hasPandoc },
-  async () => {
-    const desktop = runtime();
-    await assert.rejects(
-      desktop.convertPublication(
-        '<html><body><p><span class="math inline">\\(\\syntheticunknown{x}\\)</span></p></body></html>',
-        [],
-        "docx",
-        { pandoc, tectonic },
-      ),
-      /An equation could not be converted to Word.*publish to PDF/,
-    );
-    // Duplicate identifiers warn in Pandoc, but do not prevent native equation conversion.
-    const bytes = await desktop.convertPublication(
-      '<html><body><h1 id="same">One</h1><h1 id="same">Two</h1><p><span class="math inline">\\(x^2\\)</span></p></body></html>',
-      [],
-      "docx",
-      { pandoc, tectonic },
-    );
-    assert.equal(new Uint8Array(bytes)[0], 0x50);
-  },
-);
-
 // Poppler reports its version with -v; --version exits with an error.
 const pdftotext =
   [
@@ -755,42 +530,6 @@ const pdftotext =
     }
   }) ?? "";
 const keywordPaper = `<html><body><div class="stratum-publish-title"><p>Synthetic keyword paper</p></div><div class="stratum-publish-abstract"><h1 class="unnumbered">Abstract</h1><p>Synthetic summary.</p></div><div class="stratum-publish-keywords"><p>Keywords: alpha, beta</p></div><h1>Introduction</h1><p>Synthetic body.</p></body></html>`;
-
-test(
-  "real Word export keeps keywords after the abstract",
-  { skip: !hasPandoc },
-  async () => {
-    const bytes = await runtime().convertPublication(
-      keywordPaper,
-      [],
-      "docx",
-      { pandoc, tectonic },
-      undefined,
-      120_000,
-      DEFAULT_ACADEMIC_OPTIONS,
-    );
-    const directory = await mkdtemp(join(tmpdir(), "stratum-keywords-test-"));
-    try {
-      const output = join(directory, "Synthetic.docx");
-      await writeFile(output, new Uint8Array(bytes));
-      const main = execFileSync(
-        "python3",
-        [
-          "-c",
-          "import zipfile,sys; print(zipfile.ZipFile(sys.argv[1]).read('word/document.xml').decode())",
-          output,
-        ],
-        { encoding: "utf8" },
-      );
-      const summary = main.indexOf("Synthetic summary.");
-      const keywords = main.indexOf("Keywords: alpha, beta");
-      assert.ok(summary >= 0 && keywords > summary);
-      assert.ok(keywords < main.indexOf("Introduction"));
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  },
-);
 
 test(
   "real PDF export keeps keywords after the abstract",
@@ -858,5 +597,42 @@ test(
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  },
+);
+
+test(
+  "PDF readiness reports missing Tectonic without attempting conversion",
+  { skip: !hasPandoc },
+  async () => {
+    const result = await runtime().checkPublishing(
+      pandoc,
+      "/missing-synthetic-tectonic",
+      false,
+    );
+    assert.equal(result.pdf, false);
+    assert.match(result.tectonic.error!, /Could not start/);
+    assert.equal(Object.hasOwn(result, "word"), false);
+  },
+);
+
+test(
+  "real PDF setup verifies Pandoc and Tectonic",
+  { skip: !pandoc || !tectonic },
+  async () => {
+    const updates: Desktop.PublishReadiness[] = [];
+    const result = await runtime().checkPublishing(
+      pandoc,
+      tectonic,
+      true,
+      undefined,
+      undefined,
+      (state) => updates.push(state),
+    );
+    assert.equal(updates[0].pdf, false);
+    assert.ok(
+      updates[0].tectonic.path,
+      "tools appear before conversion finishes",
+    );
+    assert.equal(result.pdf, true, result.pdfError);
   },
 );

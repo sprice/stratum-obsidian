@@ -362,13 +362,14 @@ custom style or every Pandoc syntax extension.
 
 ## Publish documents
 
-On desktop, use the **Publish** sidebar tab to create PDF or Word snapshots of the
+On desktop, use the **Publish** sidebar tab to create PDF snapshots of the
 active note with its selected citation style. **Manage tools** in
 **Settings → Stratum → Publishing → Publishing tools** opens installation help
-and status checks for Pandoc and Tectonic. Created documents stay in hidden plugin storage
-and appear when you select their source note; each row offers open, save a copy,
-and confirmed delete actions. The tab is enabled by default. To hide it, open
-**Settings → Stratum → Stratum tabs → Choose visible tabs** and uncheck **Publish**.
+and status checks for Pandoc and Tectonic. Created PDFs stay in hidden plugin storage. **Create** configures the current note; **Documents** shows its PDFs or all PDFs in the vault, with preview, save a copy, and confirmed delete actions. Historical Word files and catalog entries remain stored but are hidden from this view. Legacy file-type selections are ignored.
+
+AASTeX options are saved per note. New notes and **Reset defaults** use the built-in defaults: line numbers on, draft date header on, headings already contain numbers off. Existing per-note choices remain in effect. Previous vault-wide AASTeX defaults are retained in settings data but ignored; their settings controls have been removed.
+
+The tab is enabled by default. To hide it, open **Settings → Stratum → Stratum tabs → Choose visible tabs** and uncheck **Publish**.
 
 ### AASTeX bibliography cache
 

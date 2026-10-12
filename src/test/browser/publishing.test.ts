@@ -234,14 +234,14 @@ async function choose(label: string, value: string, key: string) {
   );
 }
 
-test("customization precedes creation with consistent spacing across templates, formats and widths", async () => {
+test("customization precedes creation with consistent spacing across templates and widths", async () => {
   await scenario("customization-before-create", async () => {
     for (const width of [320, 720]) {
       await page.setViewportSize(width, 900);
       for (const templateId of ["general", "academic"])
-        for (const format of ["pdf", "docx"]) {
+        for (const format of ["pdf"]) {
           await page.evaluate(
-            `window.publicationFixture.reset({templateId:'${templateId}',format:'${format}'})`,
+            `window.publicationFixture.reset({templateId:'${templateId}',legacyWord:true})`,
           );
           const available = await page.evaluate(
             "!document.querySelector('.stratum-publish-controls button').disabled",
@@ -257,8 +257,10 @@ test("customization precedes creation with consistent spacing across templates, 
             && controls.getBoundingClientRect().top - row.getBoundingClientRect().bottom >= gap + token - 1
             && parseFloat(getComputedStyle(row).marginBlockEnd) === token
             && parseFloat(getComputedStyle(controls).marginBlockEnd) === token
-            && !controls.hidden && controls.querySelector('select').value === '${format}'
-            && controls.querySelector('button').textContent === 'Create ${format === "pdf" ? "PDF" : "Word"} document'
+            && !controls.hidden && !controls.querySelector('select')
+            && controls.querySelector('button').textContent === 'Create PDF document'
+            && Math.abs(controls.querySelector('button').getBoundingClientRect().width - controls.getBoundingClientRect().width / 2) <= 1
+            && Math.abs(controls.querySelector('button').getBoundingClientRect().right - controls.getBoundingClientRect().right) <= 1
             && document.documentElement.scrollWidth <= innerWidth;
         })()`;
           assert.equal(
@@ -287,9 +289,9 @@ test("customization precedes creation with consistent spacing across templates, 
             `customization-before-create-${templateId}-${format}-${width}`,
           );
         }
-      for (const format of ["pdf", "docx"]) {
+      for (const format of ["pdf"]) {
         await page.evaluate(
-          `window.publicationFixture.reset({aastex:true,format:'${format}'})`,
+          `window.publicationFixture.reset({aastex:true,legacyWord:true})`,
         );
         assert.equal(
           await page.evaluate(
@@ -307,9 +309,7 @@ test("customization precedes creation with consistent spacing across templates, 
           await page.evaluate(
             "document.querySelector('.stratum-publish-controls button').textContent",
           ),
-          format === "pdf"
-            ? "Create PDF document"
-            : "Create Word review manuscript",
+          "Create PDF document",
         );
         assert.equal(
           await page.evaluate(
@@ -538,38 +538,10 @@ test("repeated native changes during a held save retain the latest choice and cl
   });
 });
 
-test("AASTeX gear explains Word scope and reset retains auto-save behavior", async () => {
-  await scenario("aastex-modal-word-reset", async () => {
+test("AASTeX reset retains auto-save and failed-save recovery", async () => {
+  await scenario("aastex-modal-reset", async () => {
     await page.evaluate("window.publicationFixture.reset({aastex:true})");
-    await page.evaluate("window.publicationFixture.selectFormat('docx')");
     const gear = 'button[aria-label="Document options for this note"]';
-    await page.locator(gear).click();
-    assert.equal(
-      await page.evaluate(
-        `document.querySelector('.stratum-document-options-modal').textContent.includes('Word uses the selected citation style') && [...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => toggle.classList.contains('is-disabled'))`,
-      ),
-      true,
-    );
-    await page
-      .locator(".stratum-document-options-modal button:last-child")
-      .click();
-    assert.equal(
-      await page.evaluate("window.publicationFixture.state().selectedFormat"),
-      "docx",
-    );
-    assert.equal(
-      await page
-        .locator('select[aria-label="Choose file type to publish"]')
-        .count(),
-      1,
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-publish-controls').textContent.includes('Create Word review manuscript')",
-      ),
-      true,
-    );
-    await page.evaluate("window.publicationFixture.selectFormat('pdf')");
     await page.locator(gear).click();
     await page.type(" ");
     await until(
@@ -649,7 +621,7 @@ test("switching source notes closes options while queued changes save to the cap
   });
 });
 
-test("secondary tabs isolate PDF and Word history and retain filtering across navigation", async () => {
+test("secondary tabs show PDF history and retain filtering across navigation", async () => {
   await scenario("publishing-documents-tabs", async () => {
     await page.setViewportSize(320, 900);
     await page.evaluate("window.publicationFixture.reset({aastex:true})");
@@ -676,7 +648,7 @@ test("secondary tabs isolate PDF and Word history and retain filtering across na
       ),
       true,
     );
-    assert.equal(await page.locator(".stratum-publish-filename").count(), 2);
+    assert.equal(await page.locator(".stratum-publish-filename").count(), 1);
     assert.equal(
       await page
         .locator(
@@ -689,13 +661,13 @@ test("secondary tabs isolate PDF and Word history and retain filtering across na
       await page
         .locator('.stratum-publish-row-actions button[aria-label^="Save as"]')
         .count(),
-      2,
+      1,
     );
     assert.equal(
       await page
         .locator('.stratum-publish-row-actions button[aria-label^="Delete"]')
         .count(),
-      2,
+      1,
     );
     await page
       .locator(
@@ -711,7 +683,7 @@ test("secondary tabs isolate PDF and Word history and retain filtering across na
     await page
       .locator(".modal .stratum-publish-actions button:first-child")
       .click();
-    assert.equal(await page.locator(".stratum-publish-filename").count(), 2);
+    assert.equal(await page.locator(".stratum-publish-filename").count(), 1);
     await page
       .locator(
         '.stratum-publish-row-actions button[aria-label^="Delete"][aria-label$=".pdf"]',
@@ -721,13 +693,7 @@ test("secondary tabs isolate PDF and Word history and retain filtering across na
       .locator(".modal .stratum-publish-actions button:last-child")
       .click();
     await until(
-      "document.querySelectorAll('.stratum-publish-filename').length === 1 && !document.querySelector('.modal')",
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-publish-filename').textContent.endsWith('.docx')",
-      ),
-      true,
+      "document.querySelectorAll('.stratum-publish-filename').length === 0 && !document.querySelector('.modal')",
     );
     await page
       .locator('select[aria-label="Choose which documents to view"]')
@@ -746,6 +712,10 @@ test("secondary tabs isolate PDF and Word history and retain filtering across na
     assert.equal(
       await page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
       true,
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().legacyDocuments"),
+      1,
     );
     await page.evaluate("window.publicationFixture.addDocuments(12)");
     await page.evaluate(

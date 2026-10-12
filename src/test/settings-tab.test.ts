@@ -553,13 +553,7 @@ test("template management stays in its own screen, with academic properties in t
   )!;
   assert.deepEqual(
     Array.from(publishing.items, (item) => item.name),
-    [
-      "Publishing tools",
-      "Publishing templates",
-      "AASTeX: Show line numbers",
-      "AASTeX: Show draft date header",
-      "AASTeX: Headings already contain numbers",
-    ],
+    ["Publishing tools", "Publishing templates"],
   );
   Row.rendered = [];
   const entry = new Row();
@@ -663,31 +657,20 @@ test("template management stays in its own screen, with academic properties in t
   assert.equal(academic().name, "My academic paper", "Reset keeps the name");
 });
 
-test("a failed AASTeX default save preserves a newer successful choice", async () => {
+test("publishing settings omit vault AASTeX defaults and preserve legacy stored choices", () => {
   const f = fixture(true);
-  const publishing = Array.from(f.tab.getSettingDefinitions()).find(
-    (section) => section.heading === "Publishing",
-  )!;
-  const controls = [
-    "AASTeX: Show line numbers",
-    "AASTeX: Headings already contain numbers",
-  ].map((name) => {
-    const row = new Row();
-    publishing.items.find((item) => item.name === name)!.render(row as never);
-    return row.control!;
-  });
-  let reject!: (error: Error) => void;
-  let saves = 0;
-  f.plugin.saveSettings = () =>
-    ++saves === 1
-      ? new Promise<void>((_resolve, fail) => {
-          reject = fail;
-        })
-      : Promise.resolve();
-  const first = controls[0].change!(false);
-  await controls[1].change!(true);
-  reject(new Error("Synthetic first save failed"));
-  await assert.rejects(first, /first save failed/);
-  assert.equal(f.plugin.settings.aastexPdfDefaults.showLineNumbers, false);
-  assert.equal(f.plugin.settings.aastexPdfDefaults.numberedHeadings, true);
+  const legacy = {
+    showLineNumbers: false,
+    showDraftDateHeader: false,
+    numberedHeadings: true,
+  };
+  f.plugin.settings.aastexPdfDefaults = legacy;
+  assert.ok(
+    !f.tab
+      .getSettingDefinitions()
+      .some((section) =>
+        section.items.some((setting) => setting.name.startsWith("AASTeX:")),
+      ),
+  );
+  assert.equal(f.plugin.settings.aastexPdfDefaults, legacy);
 });

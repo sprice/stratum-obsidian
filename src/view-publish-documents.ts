@@ -5,7 +5,7 @@ import {
   createStratumIconButton,
 } from "./ui-controls";
 import type { PublishController } from "./publish-controller";
-import { formatLabel, type PublishedDocument } from "./publish-model";
+import type { PublishedDocument } from "./publish-model";
 export interface PublishedDocumentsState {
   scope?: "note" | "all";
   context?: string;
@@ -75,8 +75,8 @@ export class PublishedDocumentsPanel extends Component {
       ariaLabel: "Choose which documents to view",
       value: this.state.scope ?? this.publish.historyScope,
       choices: [
-        { value: "note", label: "Documents for this note" },
-        { value: "all", label: "All published documents" },
+        { value: "note", label: "PDF documents for this note" },
+        { value: "all", label: "All published PDF documents" },
       ],
     });
     this.scope.addEventListener("change", () => {
@@ -108,12 +108,14 @@ export class PublishedDocumentsPanel extends Component {
         : 0;
     this.state.context = listContext;
     this.list.empty();
-    const documents = showAll ? publish.allDocuments : publish.documents;
+    const documents = (
+      showAll ? publish.allDocuments : publish.documents
+    ).filter((document) => document.format === "pdf");
     if (!documents.length)
       this.list.createEl("p", {
         text: showAll
-          ? "No published documents"
-          : "No published documents for this note",
+          ? "No published PDF documents"
+          : "No published PDF documents for this note",
         cls: "stratum-publish-meta",
       });
     for (const doc of documents) {
@@ -124,7 +126,7 @@ export class PublishedDocumentsPanel extends Component {
         cls: "stratum-publish-filename",
       });
       details.createDiv({
-        text: `${formatLabel(doc.format)} · ${new Date(doc.createdAt).toLocaleString()}`,
+        text: `PDF · ${new Date(doc.createdAt).toLocaleString()}`,
         cls: "stratum-publish-meta",
       });
       const actions = row.createDiv({ cls: "stratum-publish-row-actions" });

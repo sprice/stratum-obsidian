@@ -48,14 +48,12 @@ export interface PublicationPackage {
     classOptions: string[];
     printEmails: boolean;
     titleSource: "body" | "properties";
-    docxMode: "review";
   };
   files: Record<string, string>;
 }
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
-const output = (value: unknown): value is PublishFormat =>
-  value === "pdf" || value === "docx";
+const output = (value: unknown): value is PublishFormat => value === "pdf";
 const relativePath = (path: string) =>
   /^[a-zA-Z0-9_./-]+$/.test(path) &&
   !path.startsWith("/") &&
@@ -91,9 +89,8 @@ export function loadPublicationPackage(
   if (
     manifest.compiler !== "tectonic" ||
     !Array.isArray(manifest.outputs) ||
-    manifest.outputs.length !== 2 ||
-    !manifest.outputs.includes("pdf") ||
-    !manifest.outputs.includes("docx")
+    manifest.outputs.length !== 1 ||
+    !manifest.outputs.includes("pdf")
   )
     throw new Error("Unsupported publication package compiler or outputs.");
   for (const key of ["entry", "schema", "defaults", "class"]) {
@@ -130,7 +127,7 @@ export function loadPublicationPackage(
   const schema = json(assets, parsedManifest.schema);
   if (!object(schema) || !object(schema.rules) || !Array.isArray(schema.fields))
     throw new Error("Invalid publication package metadata schema.");
-  for (const format of ["pdf", "docx"]) {
+  for (const format of ["pdf"]) {
     const rules = schema.rules[format];
     if (
       !object(rules) ||
@@ -166,7 +163,7 @@ export function loadPublicationPackage(
       : field.path.endsWith(".email")
         ? "email"
         : "affiliations";
-    for (const format of ["pdf", "docx"] as const)
+    for (const format of ["pdf"] as const)
       if (
         field.requiredFor.includes(format) !==
         ((schema.rules[format] as Record<string, unknown>)[key] === "required")
@@ -186,9 +183,7 @@ export function loadPublicationPackage(
         typeof option === "string" && /^[a-zA-Z][a-zA-Z0-9]*$/.test(option),
     ) ||
     typeof defaults.printEmails !== "boolean" ||
-    (defaults.titleSource !== "properties" &&
-      defaults.titleSource !== "body") ||
-    defaults.docxMode !== "review"
+    (defaults.titleSource !== "properties" && defaults.titleSource !== "body")
   )
     throw new Error("Unsupported publication package defaults.");
   return {

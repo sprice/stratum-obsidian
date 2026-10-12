@@ -101,9 +101,7 @@ function setup(state?: import("../view-publish").PublishViewState) {
     },
     notePreferences: readNotePreferences({ templateId: "general" }),
     get layout() {
-      return this.notePreferences[
-        this.selectedFormat === "pdf" ? "pdf" : "docx"
-      ];
+      return this.notePreferences.pdf;
     },
     academicInfo: { title: "", duplicateTitle: false, bothAuthors: false },
     academicProblem: "",
@@ -113,12 +111,7 @@ function setup(state?: import("../view-publish").PublishViewState) {
     prepareAcademic: () => Promise.resolve(),
     citationStyleChoices: () => Promise.resolve(null),
     updatePreferences: () => Promise.resolve(),
-    selectFormat(value: string) {
-      this.selectedFormat = value;
-      return Promise.resolve();
-    },
-    selectedFormat: "",
-    readiness: { word: true, pdf: true },
+    readiness: { pdf: true, pandoc: { path: "pandoc" } },
     document: { basename: "Synthetic note title", extension: "md" } as {
       basename: string;
       extension: string;
@@ -138,7 +131,7 @@ function setup(state?: import("../view-publish").PublishViewState) {
       return () => {};
     },
     canCreate() {
-      return !!this.selectedFormat && !this.busy;
+      return !!this.document && !this.busy;
     },
   };
   const { PublishPanel } = loadRuntime<typeof import("../view-publish")>(
@@ -179,7 +172,6 @@ function setup(state?: import("../view-publish").PublishViewState) {
 
 test("missing PDF fonts offer recovery in note customization and focus the affected selector", () => {
   const { root, publish, focusedFonts, update } = setup();
-  publish.selectedFormat = "pdf";
   publish.notePreferences.pdf.bodyFont = "Missing body";
   publish.fontError = { fonts: ["Missing body", "Missing title"] };
   publish.error = "Missing fonts. Choose another font to publish this PDF.";
@@ -207,40 +199,28 @@ test("missing PDF fonts offer recovery in note customization and focus the affec
   assert.deepEqual(focusedFonts, ["bodyFont", "titleFont"]);
 });
 
-test("ready publishing hides setup and status, and reflects a completed export's reset", () => {
-  const { root, publish, update } = setup();
-  const selects = root.all().filter((el) => el.tag === "select");
-  assert.equal(selects.length, 4);
-  assert.equal(selects[2].value, "");
-  assert.ok(selects[2].children.some((el) => el.text === "Choose file type"));
-  assert.ok(!root.all().some((el) => el.text === "Synthetic note title"));
-  assert.equal(
-    root.all().find((el) => el.text === "Set up in settings")!.hidden,
-    true,
+test("ready publishing creates PDF without a file type selector", () => {
+  const { root, update } = setup();
+  assert.ok(
+    root.all().some((el) => el.text === "PDF documents created for your note"),
+  );
+  assert.ok(
+    !root
+      .all()
+      .some(
+        (el) => el.attrs.get("aria-label") === "Choose file type to publish",
+      ),
   );
   assert.equal(
-    root.all().find((el) => el.cls === "stratum-publish-status")!.hidden,
-    true,
+    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    false,
   );
-  selects[2].value = "pdf";
-  selects[2].listeners.get("change")!();
-  assert.equal(publish.selectedFormat, "pdf");
-  assert.ok(root.all().some((el) => el.text === "Create PDF document"));
   update();
   assert.equal(
-    selects[2].value,
-    "pdf",
-    "ordinary updates preserve the selection",
-  );
-  publish.selectedFormat = "";
-  update();
-  assert.equal(selects[2].value, "");
-  assert.equal(
-    root.all().find((el) => el.text === "Create document")!.disabled,
-    true,
+    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    false,
   );
 });
-
 test("incomplete setup opens plugin settings; progress and errors remain visible", () => {
   const { root, publish, settingsCalls, update } = setup();
   publish.readiness.pdf = false;
@@ -292,7 +272,9 @@ test("creation and note history require Markdown, but all history remains access
   ].map((cls) => root.all().find((el) => el.cls === cls)!);
   assert.ok(regions.every((el) => !el.hidden));
   assert.ok(
-    root.all().some((el) => el.text === "No published documents for this note"),
+    root
+      .all()
+      .some((el) => el.text === "No published PDF documents for this note"),
   );
   for (const document of [
     null,
@@ -311,7 +293,9 @@ test("creation and note history require Markdown, but all history remains access
     scope.listeners.get("change")!();
     assert.equal(regions[0].hidden, true);
     assert.equal(regions[2].hidden, false);
-    assert.ok(root.all().some((el) => el.text === "No published documents"));
+    assert.ok(
+      root.all().some((el) => el.text === "No published PDF documents"),
+    );
     scope.value = "note";
     scope.listeners.get("change")!();
     assert.equal(regions[2].hidden, true);
@@ -395,7 +379,6 @@ test("academic setup keeps history accessible and opens defaults through the gea
   const { root, publish, update, settingsCalls } = setup();
   publish.notePreferences.documentType = "academic";
   publish.notePreferences.templateId = "academic";
-  publish.notePreferences.docx.titleSource = "properties";
   publish.propertiesMissing = true;
   publish.academicProblem = "Add a nonempty title property.";
   update();
@@ -404,7 +387,7 @@ test("academic setup keeps history accessible and opens defaults through the gea
     false,
   );
   assert.equal(
-    root.all().find((el) => el.text === "Create document")!.hidden,
+    root.all().find((el) => el.text === "Create PDF document")!.hidden,
     false,
   );
   assert.equal(
@@ -425,7 +408,7 @@ test("academic setup keeps history accessible and opens defaults through the gea
     true,
   );
   assert.equal(
-    root.all().find((el) => el.text === "Create document")!.hidden,
+    root.all().find((el) => el.text === "Create PDF document")!.hidden,
     false,
   );
   assert.equal(gear.hidden, false);
@@ -447,7 +430,7 @@ test("a note chooses from all templates without a document type selector", () =>
     ],
   );
   assert.equal(
-    root.all().find((el) => el.text === "Create document")!.hidden,
+    root.all().find((el) => el.text === "Create PDF document")!.hidden,
     true,
   );
 });
@@ -455,7 +438,6 @@ test("a note chooses from all templates without a document type selector", () =>
 test("repeated titles warn without blocking and review the opening choices", () => {
   const { root, publish, focusedFonts, update } = setup();
   publish.notePreferences = readNotePreferences({ templateId: "academic" });
-  publish.notePreferences.docx.titleSource = "properties";
   publish.notePreferences.pdf.titleSource = "properties";
   publish.academicInfo = {
     title: "Synthetic title",
@@ -463,7 +445,6 @@ test("repeated titles warn without blocking and review the opening choices", () 
     bothAuthors: false,
   };
   publish.duplicateTitleWarning = true;
-  publish.selectedFormat = "pdf";
   update();
   const warning = root
     .all()
@@ -491,18 +472,6 @@ test("repeated titles warn without blocking and review the opening choices", () 
       )!.open,
     true,
   );
-  // Before a file type is chosen, the panel's title choice is the opening control.
-  publish.selectedFormat = "";
-  update();
-  review();
-  const titleBlock = root
-    .all()
-    .find(
-      (el) =>
-        el.tag === "select" &&
-        el.children.some((option) => option.text === "Use title from body"),
-    )!;
-  assert.equal(titleBlock.focused, true);
   publish.duplicateTitleWarning = false;
   update();
   assert.equal(
@@ -522,8 +491,7 @@ test("Reset defaults re-applies the note's template and follows Customize visibi
   };
   const reset = () => root.all().find((el) => el.text === "Reset defaults")!;
   update();
-  assert.equal(reset().hidden, true, "Hidden until a format is chosen");
-  publish.selectedFormat = "pdf";
+  assert.equal(reset().hidden, false);
   update();
   assert.equal(reset().hidden, false);
   reset().listeners.get("click")!();
@@ -532,10 +500,9 @@ test("Reset defaults re-applies the note's template and follows Customize visibi
   ]);
 });
 
-test("AASTeX exposes author editing and PDF guidance without generic property mappings", () => {
+test("AASTeX exposes author editing without the explanatory PDF paragraph", () => {
   const { root, publish, update } = setup();
   publish.notePreferences.templateId = "package:aastex";
-  publish.selectedFormat = "pdf";
   update();
   assert.equal(
     root.all().some((el) => el.text.includes("Stratum adapter")),
@@ -549,16 +516,15 @@ test("AASTeX exposes author editing and PDF guidance without generic property ma
     root.all().find((el) => el.text === "Edit publication details")!.hidden,
     false,
   );
-  assert.ok(
-    root
-      .all()
-      .some((el) =>
-        el.text.includes("Cited PDFs download a verified bibliography style"),
-      ),
+  assert.ok(!root.all().some((el) => el.text.includes("AASTeX controls PDF")));
+  assert.equal(
+    root.all().find((el) => el.cls === "stratum-publish-academic-message")
+      ?.hidden ?? true,
+    true,
   );
 });
 
-test("secondary selection and Documents state survive panel remounts without changing Word preferences", () => {
+test("secondary selection and Documents state survive panel remounts", () => {
   const state: import("../view-publish").PublishViewState = {
     section: "publish",
     documents: { scope: "all" },
@@ -598,15 +564,14 @@ test("secondary selection and Documents state survive panel remounts without cha
       .children.find((el) => el.tag === "select")!.value,
     "all",
   );
-  second.publish.selectedFormat = "docx";
   second.update();
-  assert.ok(second.root.all().some((el) => el.text === "Create Word document"));
+  assert.ok(second.root.all().some((el) => el.text === "Create PDF document"));
   assert.ok(
-    second.root.all().some((el) => el.tag === "option" && el.value === "docx"),
+    !second.root.all().some((el) => el.tag === "option" && el.value === "docx"),
   );
 });
 
-test("Documents keeps Word history and file actions while preview remains PDF-specific", () => {
+test("Documents hides legacy Word entries without mutating history", () => {
   const { root, publish, update } = setup();
   publish.documents = ["pdf", "docx"].map((format) => ({
     id: format,
@@ -621,10 +586,10 @@ test("Documents keeps Word history and file actions while preview remains PDF-sp
   const actions = root
     .all()
     .filter((el) => el.cls === "stratum-publish-row-actions");
-  assert.equal(actions.length, 2);
+  assert.equal(actions.length, 1);
   assert.equal(actions[0].children.length, 4);
-  assert.equal(actions[1].children.length, 3);
-  assert.ok(root.all().some((el) => el.text === "Synthetic.docx"));
+  assert.ok(!root.all().some((el) => el.text === "Synthetic.docx"));
+  assert.equal(publish.documents.length, 2);
 });
 
 test("all selected templates expose a gear with explicit preset or note scope", () => {

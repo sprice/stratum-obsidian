@@ -32,11 +32,8 @@ export interface NotePublishPreferences {
   documentType: DocumentType;
   templateId?: string;
   opening: "properties" | "body";
-  format: "pdf" | "docx" | "";
   pdf: PublishOptions;
-  docx: PublishOptions;
 }
-export const DEFAULT_WORD_FONT = "Times New Roman";
 export const DEFAULT_PUBLISH_OPTIONS: PublishOptions = {
   bodyFont: "",
   titleFont: "",
@@ -172,8 +169,6 @@ export function readNotePreferences(
       : {}),
     ...(typeof v.templateId === "string" ? { templateId: v.templateId } : {}),
     opening: v.opening === "body" ? "body" : "properties",
-    format: v.format === "pdf" || v.format === "docx" ? v.format : "",
     pdf: readPublishOptions(v.pdf, base),
-    docx: readPublishOptions(v.docx, base),
   };
 }

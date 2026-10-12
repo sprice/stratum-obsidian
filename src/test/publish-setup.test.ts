@@ -110,7 +110,6 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   const checks: boolean[] = [];
   const publish = {
     readiness: {
-      word: true,
       pdf: false,
       pandoc: { path: "/synthetic/pandoc", version: "3" },
       tectonic: { path: "", version: "" },

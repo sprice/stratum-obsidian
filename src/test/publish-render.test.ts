@@ -457,7 +457,7 @@ test("template mappings publish renamed fields, exclude private metadata, and pe
   const { readPublishingProperties } = await import("../publish-properties");
   const preferences = readNotePreferences({
     documentType: "general",
-    docx: { titleSource: "properties" },
+    pdf: { titleSource: "properties" },
   });
   const fields = readPublishingProperties([
     { key: "paper_title", use: "title", required: false },
@@ -479,7 +479,7 @@ test("template mappings publish renamed fields, exclude private metadata, and pe
   assert.match(result.html, /Mapped title/);
   assert.match(result.html, /Synthetic author/);
   assert.doesNotMatch(result.html, /Unmapped title|Private metadata/);
-  preferences.docx.titleSource = "body";
+  preferences.pdf.titleSource = "body";
   const noTitle = await renderPublication(
     {} as never,
     '---\n{"writers":["Synthetic author"]}\n---\n## Introduction',
@@ -530,10 +530,10 @@ test("abstract display choices change export output without changing source text
       undefined,
       new AbortController().signal,
       preferences,
-      publicationProperties(preferences.docx),
+      publicationProperties(preferences.pdf),
     );
   assert.match((await render()).html, /stratum-publish-abstract/);
-  preferences.docx.showAbstract = false;
+  preferences.pdf.showAbstract = false;
   const hidden = await render();
   assert.doesNotMatch(hidden.html, /Abstract|Synthetic summary/);
   assert.match(hidden.html, /Introduction|Retained body/);

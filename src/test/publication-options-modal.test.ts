@@ -86,7 +86,6 @@ function setup(
       stat: { ctime: 1 },
     },
     selectedTemplate: { renderer: "aastex" },
-    selectedFormat: "pdf",
     busy: false,
     preferencesSaving: false,
     aastexPdfOptions: {
@@ -187,25 +186,6 @@ test("options auto-save preserves focused switch and the captured note when swit
   s.release();
   await Promise.resolve();
   assert.deepEqual(s.writes, ["Papers/Synthetic.md"]);
-});
-test("Word options explain PDF scope and cannot save or reset", () => {
-  const s = setup();
-  s.publish.selectedFormat = "docx";
-  s.emit();
-  assert.ok(
-    s.content
-      .all()
-      .some((el) => el.text.includes("Word uses the selected citation style")),
-  );
-  assert.ok(s.toggles.every((el) => el.attrs.get("aria-disabled") === "true"));
-  const reset = s.content
-    .all()
-    .find((el) => el.text === "Reset document options")!;
-  assert.equal(reset.disabled, true);
-  reset.listeners.get("click")!();
-  assert.equal(s.resets(), 0);
-  assert.equal(s.publish.selectedFormat, "docx");
-  s.modal.onClose();
 });
 test("reset uses current defaults and failed auto-saves remain visible in the modal", async () => {
   const s = setup();

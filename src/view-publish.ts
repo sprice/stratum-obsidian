@@ -9,10 +9,8 @@ import {
 } from "./ui-controls";
 import { Component } from "obsidian";
 import type { PublishController } from "./publish-controller";
-import { formatLabel, type PublishFormat } from "./publish-model";
 import { getSettingsManager } from "./view-helpers";
 import { renderPublishCustomization } from "./publish-customize";
-import { aastexProblems } from "./publication-package";
 import { AASTEX_PACKAGE_REFERENCE } from "./publication-package";
 import { AastexOptionsModal } from "./publication-options-modal";
 import {
@@ -37,7 +35,6 @@ export class PublishPanel extends Component {
   private setup!: HTMLButtonElement;
   private status!: HTMLElement;
   private create!: HTMLButtonElement;
-  private type!: HTMLSelectElement;
   private cancel!: HTMLButtonElement;
   private configuration!: HTMLElement;
   private template!: HTMLSelectElement;
@@ -120,7 +117,7 @@ export class PublishPanel extends Component {
     });
     this.body.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Word or PDF documents created from your note",
+      text: "PDF documents created for your note",
     });
     this.configuration = this.body.createDiv({
       cls: "stratum-publish-configuration",
@@ -216,23 +213,8 @@ export class PublishPanel extends Component {
     });
     const controls = this.body.createDiv({ cls: "stratum-publish-controls" });
     this.controls = controls;
-    this.type = createStratumSelect(controls, {
-      ariaLabel: "Choose file type to publish",
-      value: this.publish.selectedFormat,
-      choices: [
-        { value: "", label: "Choose file type" },
-        { value: "pdf", label: "PDF" },
-        { value: "docx", label: "Word" },
-      ],
-    });
-    this.type.addEventListener("change", () => {
-      void this.publish
-        .selectFormat(this.type.value as PublishFormat | "")
-        .catch(() => {});
-      this.update();
-    });
     this.create = createStratumButton(controls, {
-      text: "Create document",
+      text: "Create PDF document",
       primary: true,
     });
     this.create.addEventListener("click", () => {
@@ -302,7 +284,7 @@ export class PublishPanel extends Component {
       preferences.templateId,
     );
     const aastex = template?.renderer === "aastex";
-    const aastexPdf = aastex && publish.selectedFormat === "pdf";
+    const aastexPdf = aastex;
     this.aastexVersionProblem.hidden =
       !aastexPdf || !publish.aastexPackageProblem;
     this.aastexVersionProblem.setText(publish.aastexPackageProblem || "");
@@ -363,34 +345,12 @@ export class PublishPanel extends Component {
         (duplicateTitle && publish.layout.titleSource === "body"
           ? " The existing body title is retained."
           : "");
-    let packagedMessage = "";
-    if (aastex) {
-      packagedMessage =
-        publish.selectedFormat === "pdf"
-          ? "AASTeX controls PDF typography and bibliography. Cited PDFs download a verified bibliography style from AAS when no verified cached copy is available. A verified cached style can be reused offline; temporary export files are removed afterward."
-          : "Word output is an editable review manuscript. AASTeX typography applies to PDF.";
-      try {
-        const view = publish.leaf?.view;
-        const text =
-          view && "editor" in view
-            ? (view as import("obsidian").MarkdownView).editor.getValue()
-            : "";
-        const warnings = aastexProblems(
-          text,
-          publish.layout.titleSource,
-          publish.selectedFormat || "docx",
-        ).warnings;
-        packagedMessage += " " + warnings.join(" ");
-      } catch {
-        /* The blocking problem is displayed above. */
-      }
-    }
     this.academicMessage.setText(
-      aastex
-        ? [publish.academicProblem, packagedMessage].filter(Boolean).join(" ")
-        : academicMessage,
+      aastex ? publish.academicProblem : academicMessage,
     );
-    this.academicMessage.hidden = !academicMessage;
+    this.academicMessage.hidden = aastex
+      ? !publish.academicProblem
+      : !academicMessage;
     this.templateGear.disabled =
       !template || publish.busy || publish.preferencesSaving;
     this.templateGear.hidden = !template;
@@ -418,29 +378,18 @@ export class PublishPanel extends Component {
     this.template.disabled = publish.busy || publish.preferencesSaving;
     const prepared = !!template;
     this.controls.hidden = !hasNote;
-    this.type.hidden = !prepared;
     this.create.hidden = !prepared;
-    this.customize.hidden = !hasNote || !prepared || !publish.selectedFormat;
-    if (aastex && publish.selectedFormat === "pdf")
-      this.customize.hidden = true;
+    this.customize.hidden = !hasNote || !prepared;
+    if (aastex) this.customize.hidden = true;
     // Hide the row too, so an empty row does not add a gap to the panel.
     this.customizeRow.hidden = this.resetLayout.hidden = this.customize.hidden;
     this.resetLayout.disabled = publish.busy || publish.preferencesSaving;
     this.updateCustomization();
     void this.updateCitationStyle();
-    this.citations.hidden = !!aastex && publish.selectedFormat === "pdf";
-    this.type.value = publish.selectedFormat;
-    this.create.setText(
-      aastex && publish.selectedFormat === "docx"
-        ? "Create Word review manuscript"
-        : publish.selectedFormat
-          ? `Create ${formatLabel(publish.selectedFormat)} document`
-          : "Create document",
-    );
+    this.citations.hidden = !!aastex;
     this.create.disabled = !publish.canCreate();
-    this.type.disabled = publish.busy || publish.preferencesSaving;
     this.cancel.hidden = !publish.busy && !publish.checking;
-    const needsSetup = !publish.readiness?.word || !publish.readiness.pdf;
+    const needsSetup = !publish.readiness?.pdf;
     this.setup.hidden = !needsSetup || publish.checking || publish.busy;
     this.status.empty();
     const message =
@@ -448,7 +397,7 @@ export class PublishPanel extends Component {
       (publish.checking
         ? "Checking publishing tools…"
         : needsSetup
-          ? publish.readiness?.word
+          ? publish.readiness?.pandoc.path
             ? "Finish PDF setup in Settings."
             : "Set up publishing in Settings."
           : !publish.document
@@ -492,7 +441,6 @@ export class PublishPanel extends Component {
     if (!this.customize?.open || this.customize.hidden) return;
     const key = JSON.stringify({
       path: this.publish.document?.path,
-      format: this.publish.selectedFormat,
       layout: this.publish.layout,
     });
     if (key !== this.customizationKey) {
@@ -503,7 +451,7 @@ export class PublishPanel extends Component {
         this.publish.layout,
         (patch) => this.publish.updateLayout(patch),
         (error) => this.publish.fail(error),
-        this.publish.selectedFormat || undefined,
+        "pdf",
       );
     }
     for (const input of Array.from(

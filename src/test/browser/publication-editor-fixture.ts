@@ -63,7 +63,6 @@ const publish = {
   document: { path },
   notePreferences: { templateId: "package:aastex" },
   selectedTemplate: { renderer: "aastex" },
-  selectedFormat: "pdf",
   layout: { titleSource: "properties" },
   emit() {},
 };
@@ -108,7 +107,6 @@ function reset(
   service?.unload();
   document.querySelector<HTMLElement>("#editor")!.empty();
   publish.layout.titleSource = "properties";
-  publish.selectedFormat = "pdf";
   service = new PublicationEditor({ publish } as unknown as StratumPlugin);
   service.load();
   if (background) {
@@ -218,10 +216,7 @@ const fixture = {
     publish.layout.titleSource = value;
     service.refresh();
   },
-  output: (value: "pdf" | "docx") => {
-    publish.selectedFormat = value;
-    service.refresh();
-  },
+
   unload: () => {
     service.unload();
     view.destroy();

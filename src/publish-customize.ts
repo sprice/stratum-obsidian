@@ -15,7 +15,7 @@ export function renderPublishCustomization(
   options: PublishOptions,
   change: (patch: Partial<PublishOptions>) => Promise<void>,
   fail: (error: unknown) => void,
-  format?: "pdf" | "docx",
+  format?: "pdf",
 ): (key: "bodyFont" | "titleFont" | "opening") => void {
   const preview = container.createDiv();
   let current = { ...options };

@@ -19,7 +19,7 @@ function academicRuntime() {
   );
 }
 
-test("publishing settings normalize malformed values and keep independent format choices", () => {
+test("publishing settings normalize malformed values and ignore legacy Word choices", () => {
   const options = readPublishOptions({
     bodyFont: "Bad\\command",
     titleSize: -1,
@@ -30,14 +30,14 @@ test("publishing settings normalize malformed values and keep independent format
   assert.equal(options.titleSize, 24);
   const note = readNotePreferences({
     documentType: "academic",
-    format: "pdf",
+    format: "docx",
     pdf: { bodyFont: "Georgia", bodySize: 11 },
     docx: { bodyFont: "Arial", lineSpacing: 2 },
   });
   assert.equal(note.pdf.bodyFont, "Georgia");
-  assert.equal(note.docx.bodyFont, "Arial");
+  assert.equal(Object.hasOwn(note, "docx"), false);
   assert.equal(note.pdf.lineSpacing, DEFAULT_ACADEMIC_OPTIONS.lineSpacing);
-  assert.equal(note.format, "pdf");
+  assert.equal(Object.hasOwn(note, "format"), false);
 });
 
 test("academic preparation preserves existing values, legacy author, and unrelated properties", () => {

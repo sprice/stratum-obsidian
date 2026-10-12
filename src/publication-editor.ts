@@ -595,7 +595,6 @@ class PublicationForm {
       text +
       JSON.stringify([...session.drafts]) +
       publish?.notePreferences.templateId +
-      publish?.selectedFormat +
       publish?.layout.titleSource;
     if (signature === this.last) return;
     this.last = signature;
@@ -613,7 +612,6 @@ class PublicationForm {
         structured: model.structured,
         legacy: model.legacy,
         template: publish?.notePreferences.templateId,
-        format: publish?.selectedFormat,
         titleSource: publish?.layout.titleSource,
         conflicts: [...session.drafts].filter(([, draft]) => draft.conflict),
       });
@@ -652,7 +650,7 @@ class PublicationForm {
         this.service.plugin.publish?.selectedTemplate?.renderer === "aastex";
       if (aastex)
         this.content.createEl("p", {
-          text: "For PDF, each author needs a name, email and affiliation. Emails are supplied to the class without being printed. Word review drafts can be incomplete.",
+          text: "For PDF, each author needs a name, email and affiliation. Emails are supplied to the class without being printed.",
           cls: "stratum-publication-help",
         });
       this.content.createDiv({
@@ -837,11 +835,7 @@ class PublicationForm {
     const problems =
       publish?.document?.path === this.path &&
       publish.selectedTemplate?.renderer === "aastex"
-        ? aastexProblems(
-            text,
-            publish.layout.titleSource,
-            publish.selectedFormat || "docx",
-          )
+        ? aastexProblems(text, publish.layout.titleSource, "pdf")
         : null;
     for (const group of Array.from(
       this.content.querySelectorAll<HTMLElement>(

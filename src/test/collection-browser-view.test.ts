@@ -713,7 +713,7 @@ test("Browse preserves mounted controls across tab switches and releases stale t
     activeViewTab: "browse",
     backend: { hasSession: () => true },
     sources: {},
-    publish: { selectedFormat: "" },
+    publish: { historyScope: "note" },
     refreshViews: () => view.render(),
   };
   const view = new StratumView({ app } as never, plugin as never);
@@ -809,26 +809,26 @@ test("Browse preserves mounted controls across tab switches and releases stale t
       .find((el) => el.text === text)!
       .listeners.get("click")!();
   clickTab("Publish");
-  plugin.publish.selectedFormat = "pdf";
+  plugin.publish.historyScope = "all";
   view.render();
   assert.equal(
-    plugin.publish.selectedFormat,
-    "pdf",
-    "refresh keeps the selection",
+    plugin.publish.historyScope,
+    "all",
+    "refresh keeps the history scope",
   );
   clickTab("Citations");
   clickTab("Publish");
   assert.equal(
-    plugin.publish.selectedFormat,
-    "pdf",
-    "returning to Publish preserves the controller selection",
+    plugin.publish.historyScope,
+    "all",
+    "returning to Publish preserves the controller history scope",
   );
-  plugin.publish.selectedFormat = "pdf";
+  plugin.publish.historyScope = "all";
   plugin.settings.enabledTabs.publish = false;
   plugin.settings.enabledTabs.browse = false;
   view.render();
   assert.equal(plugin.activeViewTab, "search");
-  assert.equal(plugin.publish.selectedFormat, "pdf");
+  assert.equal(plugin.publish.historyScope, "all");
   assert.equal(
     root.all().some((el) => el.text === "Publish"),
     false,
@@ -836,7 +836,7 @@ test("Browse preserves mounted controls across tab switches and releases stale t
   plugin.settings.enabledTabs.publish = true;
   view.render();
   clickTab("Publish");
-  assert.equal(plugin.publish.selectedFormat, "pdf");
+  assert.equal(plugin.publish.historyScope, "all");
   plugin.activeViewTab = "sources";
   view.render();
   assert.equal(

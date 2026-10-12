@@ -38,9 +38,7 @@ export async function renderPublication(
   assetOffset = 0,
 ): Promise<{ html: string; assets: PublishAsset[] }> {
   const prepared = preparePublication(text, result);
-  const options = preferences
-    ? preferences[preferences.format || "docx"]
-    : DEFAULT_PUBLISH_OPTIONS;
+  const options = preferences ? preferences.pdf : DEFAULT_PUBLISH_OPTIONS;
   const design = definitions
     ? options
     : preferences?.documentType === "academic"

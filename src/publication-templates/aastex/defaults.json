@@ -1,6 +1,5 @@
 {
   "classOptions": ["twocolumn", "linenumbers"],
   "printEmails": false,
-  "titleSource": "properties",
-  "docxMode": "review"
+  "titleSource": "properties"
 }

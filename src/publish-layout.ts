@@ -10,7 +10,7 @@ export function publicationHeader(options: PublishOptions): string {
 \\pagestyle{plain}
 `;
 }
-/** Semantic opening blocks use Word paragraph styles or native LaTeX layout. */
+/** Semantic opening blocks use native LaTeX layout. */
 const PUBLICATION_FILTER = `
 function Meta(meta)
   -- The opening is rendered explicitly; do not add Pandoc's automatic title block.
@@ -90,10 +90,7 @@ function Div(el)
   local style = nil
   for _, class in ipairs(el.classes) do if styles[class] then style = styles[class] end end
   if not style then return nil end
-  if FORMAT == "docx" then
-    el.attributes["custom-style"] = style
-    return el
-  elseif FORMAT == "latex" then
+  if FORMAT == "latex" then
     if style == "Abstract" then
       table.insert(el.content, 1, pandoc.RawBlock("latex", "\\\\begin{quote}"))
       table.insert(el.content, pandoc.RawBlock("latex", "\\\\end{quote}"))

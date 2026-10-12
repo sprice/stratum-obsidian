@@ -1,6 +1,4 @@
 import { PublishingTemplatesModal } from "./publish-template-settings";
-import { readAastexPdfOptions } from "./publication-options";
-import { AASTEX_OPTION_LABELS } from "./publication-option-controls";
 import { styleStratumComponent } from "./ui-controls";
 import {
   SOURCE_SUMMARY_VARIABLES,
@@ -476,36 +474,6 @@ export class StratumSettingTab extends PluginSettingTab {
               .onClick(() => new PublishingTemplatesModal(this.plugin).open()),
           );
       });
-      for (const [key, label] of Object.entries(AASTEX_OPTION_LABELS))
-        this.defineSetting(publishSection, `AASTeX: ${label}`, (setting) => {
-          setting
-            .setDesc(
-              "Default for newly configured notes. Existing note choices are kept.",
-            )
-            .addToggle((toggle) =>
-              toggle
-                .setValue(
-                  readAastexPdfOptions(this.plugin.settings.aastexPdfDefaults)[
-                    key as keyof typeof AASTEX_OPTION_LABELS
-                  ],
-                )
-                .onChange(async (value) => {
-                  const previous = this.plugin.settings.aastexPdfDefaults;
-                  const next = readAastexPdfOptions({
-                    ...readAastexPdfOptions(previous),
-                    [key]: value,
-                  });
-                  this.plugin.settings.aastexPdfDefaults = next;
-                  try {
-                    await this.plugin.saveSettings();
-                  } catch (error) {
-                    if (this.plugin.settings.aastexPdfDefaults === next)
-                      this.plugin.settings.aastexPdfDefaults = previous;
-                    throw error;
-                  }
-                }),
-            );
-        });
     }
 
     const syncSection = this.createSection(sections, "Sync");

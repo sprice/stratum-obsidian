@@ -70,7 +70,7 @@ export interface FixtureOptions {
   theme?: "light" | "dark";
   aastex?: boolean;
   templateId?: "general" | "academic";
-  format?: "pdf" | "docx";
+  legacyWord?: boolean;
 }
 const root = document.querySelector<HTMLElement>("#publish")!;
 const properties = { title: "Synthetic paper", authors: ["Example Author"] };
@@ -121,11 +121,15 @@ async function reset(options: FixtureOptions = {}) {
     templateId: options.aastex
       ? "package:aastex"
       : (options.templateId ?? "general"),
-    format: options.format ?? "pdf",
   });
   preferences.pdf.bodyFont = options.bodyFont ?? "Missing Body Serif";
   preferences.pdf.titleFont = options.titleFont ?? "";
-  await controller.store.setPreferences(note.id, preferences);
+  await controller.store.setPreferences(note.id, {
+    ...preferences,
+    ...(options.legacyWord
+      ? { format: "docx", docx: { bodyFont: "Legacy Word font" } }
+      : {}),
+  });
   await controller.reload();
   panel = new PublishPanel(root, controller);
   panel.onload();
@@ -151,9 +155,6 @@ export const publicationFixture = {
     return controller.catalog?.notes.find((note) => note.path === path)
       ?.preferences?.aastex?.options;
   },
-  selectFormat(format: "pdf" | "docx") {
-    return controller.selectFormat(format);
-  },
   async addDocuments(count = 1) {
     const note = await controller.store.note(
       controller.document!.path,
@@ -161,7 +162,7 @@ export const publicationFixture = {
       1,
     );
     for (let index = 0; index < count; index++)
-      for (const format of ["pdf", "docx"] as const)
+      for (const format of ["pdf"] as const)
         await controller.store.create(
           {
             id: crypto.randomUUID(),
@@ -174,6 +175,18 @@ export const publicationFixture = {
           "Synthetic paper",
           new ArrayBuffer(0),
         );
+    await controller.store.add(
+      {
+        id: crypto.randomUUID(),
+        noteId: note.id,
+        format: "docx",
+        filename: `Legacy-${crypto.randomUUID()}.docx`,
+        createdAt: "2026-10-11T12:00:00Z",
+        citationStyle: "apa",
+        citationLanguage: "en-US",
+      },
+      new ArrayBuffer(0),
+    );
     await controller.reload();
   },
   holdSaves(value: boolean) {
@@ -197,8 +210,10 @@ export const publicationFixture = {
       titleFont: controller.layout.titleFont,
       fonts: controller.fontError?.fonts ?? [],
       aastexOptions: controller.aastexPdfOptions,
-      selectedFormat: controller.selectedFormat,
       saveCount: adapter.catalogWrites,
+      legacyDocuments: controller.allDocuments.filter(
+        (entry) => entry.format === "docx",
+      ).length,
     };
   },
   injectEngineError(font: string) {

@@ -42,14 +42,14 @@ export class PublishSetupModal extends Modal {
     this.controls = [];
     this.rows.clear();
     contentEl.createEl("p", {
-      text: "Word and PDF documents, created on your computer.",
+      text: "PDF documents, created on your computer.",
     });
     const tools = contentEl.createDiv({
       cls: "stratum-publish-tools",
       attr: { "aria-live": "polite" },
     });
     for (const [tool, label] of [
-      ["pandoc", "PDF & Word • Pandoc"],
+      ["pandoc", "PDF • Pandoc"],
       ["tectonic", "PDF · Tectonic"],
     ] as const) {
       const row = tools.createDiv({ cls: "stratum-publish-tool" });
@@ -153,17 +153,13 @@ export class PublishSetupModal extends Modal {
     });
     this.primary = createStratumAction(actions, { cls: "mod-cta" });
     this.primary.addEventListener("click", () => {
-      if (publish.readiness?.word && publish.readiness.pdf) this.close();
+      if (publish.readiness?.pdf) this.close();
       else void publish.check(true);
     });
     this.unsubscribe = publish.subscribe(() => this.updateStatus());
     this.updateStatus();
     // Successful setup is cached. Failed or incomplete setup can be retried here.
-    if (
-      !(publish.readiness?.word && publish.readiness.pdf) &&
-      !publish.checking &&
-      !publish.busy
-    )
+    if (!publish.readiness?.pdf && !publish.checking && !publish.busy)
       void publish.check();
   }
   private updateStatus(): void {
@@ -173,8 +169,8 @@ export class PublishSetupModal extends Modal {
     for (const tool of ["pandoc", "tectonic"] as const) {
       const state = publishingToolState(
         ready?.[tool],
-        !!(tool === "pandoc" ? ready?.word : ready?.pdf),
-        tool === "pandoc" ? ready?.wordError : ready?.pdfError,
+        !!(tool === "pandoc" ? ready?.pandoc.path : ready?.pdf),
+        tool === "pandoc" ? ready?.pandoc.error : ready?.pdfError,
         publish.checking,
       );
       const row = this.rows.get(tool)!;
@@ -184,7 +180,7 @@ export class PublishSetupModal extends Modal {
       row.detail.toggleClass(
         "stratum-publish-error",
         (!!ready?.[tool].path &&
-          !!(tool === "pandoc" ? ready.wordError : ready.pdfError)) ||
+          !!(tool === "pandoc" ? ready.pandoc.error : ready.pdfError)) ||
           !!ready?.[tool].foundPath,
       );
       const path = ready?.[tool].path || ready?.[tool].foundPath || "";
@@ -237,7 +233,7 @@ export class PublishSetupModal extends Modal {
     this.primary.setText(publishingSetupAction(ready, publish.checking));
     this.primary.disabled = publish.checking || publish.busy;
     this.secondary.setText(publish.checking ? "Cancel check" : "Check again");
-    this.secondary.hidden = !publish.checking && !(ready?.word && ready.pdf);
+    this.secondary.hidden = !publish.checking && !ready?.pdf;
     this.secondary.disabled = publish.busy;
     for (const control of this.controls)
       control.disabled = publish.checking || publish.busy;

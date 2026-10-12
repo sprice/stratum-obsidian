@@ -11,14 +11,13 @@ import {
 } from "./publication-options";
 export const VIEW_TYPE_PUBLISH_PREVIEW = "stratum-publish-preview";
 
-export type PublishFormat = "pdf" | "docx";
-export const formatLabel = (format: PublishFormat): string =>
-  format === "pdf" ? "PDF" : "Word";
+export type PublishFormat = "pdf";
 export interface PublishedDocument {
   id: string;
   noteId: string;
   filename: string;
-  format: PublishFormat;
+  // Historical DOCX entries remain readable; active creation supports PDF only.
+  format: PublishFormat | "docx";
   createdAt: string;
   citationStyle: string;
   citationLanguage: string;
@@ -98,7 +97,11 @@ export function readCatalog(text: string): PublishCatalog {
   const catalog = value as unknown as PublishCatalog;
   for (const note of catalog.notes)
     if (note.preferences)
-      note.preferences = readNotePreferences(note.preferences);
+      // Retain legacy preference data in storage while normalizing the active PDF view.
+      note.preferences = {
+        ...note.preferences,
+        ...readNotePreferences(note.preferences),
+      };
   for (const document of catalog.documents)
     if (document.publishing) {
       if (!record(document.publishing) || !record(document.publishing.layout))

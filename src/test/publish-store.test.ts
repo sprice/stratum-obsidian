@@ -45,7 +45,10 @@ function memory() {
     },
   };
 }
-const doc = (noteId: string, id = "doc"): PublishedDocument => ({
+const doc = (
+  noteId: string,
+  id = "doc",
+): PublishedDocument & { format: "pdf" } => ({
   id,
   noteId,
   filename: `${id}.pdf`,
@@ -233,13 +236,13 @@ test("numbering continues beyond 100 copies and is separate for each format", as
     "Example",
     new ArrayBuffer(2),
   );
-  const word = await store.create(
-    { ...doc(note.id, "two"), format: "docx" },
+  const second = await store.create(
+    { ...doc(note.id, "two"), format: "pdf" },
     "Example",
     new ArrayBuffer(3),
   );
   assert.equal(pdf.filename, "Example(101).pdf");
-  assert.equal(word.filename, "Example.docx");
+  assert.equal(second.filename, "Example(102).pdf");
   assert.equal((await store.list()).documents.length, 2);
 });
 
@@ -275,4 +278,44 @@ test("duplicate document identities fail without retrying filename allocation", 
     /already exists/,
   );
   assert.equal((await store.list()).documents.length, 1);
+});
+
+test("PDF updates retain historical DOCX entries, bytes and inactive preferences", async () => {
+  const { adapter, files } = memory();
+  const store = new PublishStore(adapter, ".config");
+  const note = await store.note("Legacy.md", "Legacy", 1);
+  const legacy = { ...doc(note.id), filename: "Legacy.docx", format: "docx" };
+  const legacyPreferences = { format: "docx", docx: { bodyFont: "Arial" } };
+  const bytes = new ArrayBuffer(8);
+  files.set(`${store.directory}/Legacy.docx`, bytes);
+  files.set(
+    `${store.directory}/catalog.json`,
+    JSON.stringify({
+      version: 1,
+      notes: [{ ...note, preferences: legacyPreferences }],
+      documents: [legacy],
+    }),
+  );
+  const preferences = (await store.list()).notes[0].preferences!;
+  await store.setPreferences(note.id, {
+    ...preferences,
+    pdf: { ...preferences.pdf, bodyFont: "Georgia" },
+  });
+  const saved = JSON.parse(
+    files.get(`${store.directory}/catalog.json`) as string,
+  ) as {
+    documents: PublishedDocument[];
+    notes: {
+      preferences: {
+        format: string;
+        docx: { bodyFont: string };
+        pdf: { bodyFont: string };
+      };
+    }[];
+  };
+  assert.deepEqual(saved.documents, [legacy]);
+  assert.equal(saved.notes[0].preferences.format, "docx");
+  assert.deepEqual(saved.notes[0].preferences.docx, legacyPreferences.docx);
+  assert.equal(saved.notes[0].preferences.pdf.bodyFont, "Georgia");
+  assert.equal(files.get(`${store.directory}/Legacy.docx`), bytes);
 });

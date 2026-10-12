@@ -222,7 +222,7 @@ test("a namespace example in body prose does not activate the widget", async () 
     'document.querySelector(".stratum-publication-details") === null',
   );
 });
-test("the form distinguishes PDF requirements from guidance and updates them for Word drafts", async () => {
+test("the form distinguishes PDF requirements from guidance without changing source", async () => {
   await page.evaluate(
     'window.publicationEditorFixture.reset(window.publicationEditorFixture.sample.replace("      email: alex@example.org\\n", "").replace("## Abstract\\nSynthetic abstract.\\n", ""))',
   );
@@ -236,16 +236,6 @@ test("the form distinguishes PDF requirements from guidance and updates them for
     true,
   );
   const source = await page.evaluate("window.publicationEditorFixture.text()");
-  await page.evaluate('window.publicationEditorFixture.output("docx")');
-  await until(
-    'document.querySelector(".stratum-publication-content").textContent.includes("Guidance: Author 1 needs an email address.")',
-  );
-  assert.equal(
-    await page.evaluate(
-      'document.querySelector(".stratum-publication-content").textContent.includes("Required:")',
-    ),
-    false,
-  );
   assert.equal(
     await page.evaluate("window.publicationEditorFixture.text()"),
     source,

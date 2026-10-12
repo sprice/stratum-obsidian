@@ -81,12 +81,12 @@ export class AastexOptionsModal extends Modal {
     });
     this.reset = createStratumButton(actions, {
       text: "Reset document options",
-      tooltip: "Apply the current vault defaults to this note",
+      tooltip: "Restore the built-in defaults for this note",
     });
     this.reset.addEventListener("click", () =>
       this.save(
         () => this.publish.resetAastexPdfOptions(),
-        readAastexPdfOptions(this.publish.plugin.settings.aastexPdfDefaults),
+        readAastexPdfOptions(undefined),
       ),
     );
     const done = createStratumButton(actions, { text: "Done", primary: true });
@@ -101,8 +101,7 @@ export class AastexOptionsModal extends Modal {
     if (
       !this.alive ||
       this.refreshing ||
-      this.currentNoteKey() !== this.noteKey ||
-      this.publish.selectedFormat !== "pdf"
+      this.currentNoteKey() !== this.noteKey
     )
       return;
     this.error.setText("");
@@ -140,13 +139,10 @@ export class AastexOptionsModal extends Modal {
       this.close();
       return;
     }
-    const pdf = this.publish.selectedFormat === "pdf";
     this.message.setText(
-      pdf
-        ? this.publish.preferencesSaving
-          ? "Saving document options…"
-          : "PDF options for this note. Reset applies the current vault defaults."
-        : "These options apply to PDF exports. Word uses the selected citation style. Select PDF on Create to change these options.",
+      this.publish.preferencesSaving
+        ? "Saving document options…"
+        : "PDF options for this note. Reset restores the built-in defaults.",
     );
     // Native setValue invokes onChange; rendering must never queue a user save.
     this.refreshing = true;
@@ -156,8 +152,7 @@ export class AastexOptionsModal extends Modal {
           this.pending.get(key)?.value ?? this.publish.aastexPdfOptions[key],
         );
         toggle.setDisabled(
-          !pdf ||
-            this.publish.busy ||
+          this.publish.busy ||
             (this.publish.preferencesSaving &&
               !toggle.toggleEl.contains(
                 toggle.toggleEl.ownerDocument.activeElement,
@@ -167,8 +162,7 @@ export class AastexOptionsModal extends Modal {
     } finally {
       this.refreshing = false;
     }
-    this.reset.disabled =
-      !pdf || this.publish.busy || this.publish.preferencesSaving;
+    this.reset.disabled = this.publish.busy || this.publish.preferencesSaving;
   }
   onClose(): void {
     this.alive = false;

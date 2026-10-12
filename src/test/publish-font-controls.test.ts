@@ -157,7 +157,7 @@ test("font discovery is lazy, shared while loading, cached, and preserves saved 
       (error) => {
         throw error;
       },
-      "docx",
+      "pdf",
     );
   const load = render(fields, body),
     otherLoad = render(otherFields, otherBody);

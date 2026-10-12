@@ -112,7 +112,7 @@ test("filenames are unique and safe on desktop platforms", () => {
   const first = publishFilename("CON", "pdf");
   assert.equal(first, "Document-CON.pdf");
   assert.notEqual(first, publishFilename("CON", "pdf", 2));
-  assert.doesNotMatch(publishFilename('A/B:C*D?"E', "docx", 2), /[<>:"/\\|?*]/);
+  assert.doesNotMatch(publishFilename('A/B:C*D?"E', "pdf", 2), /[<>:"/\\|?*]/);
 });
 
 test("catalog rejects traversal, unknown formats and conflicting identity", () => {
@@ -175,7 +175,7 @@ test("raw media checks distinguish HTML from code examples", () => {
 });
 
 test("publication filenames fit filesystem byte limits without splitting Unicode", () => {
-  const filename = publishFilename("研究😀".repeat(100), "docx", 2);
+  const filename = publishFilename("研究😀".repeat(100), "pdf", 2);
   assert.ok(new TextEncoder().encode(filename).length <= 255);
   assert.doesNotMatch(filename, /\uFFFD/);
 });
@@ -230,12 +230,8 @@ test("publication names use the title with numbered copies", () => {
     "Example document(2).pdf",
   );
   assert.equal(
-    publishFilename("Example document", "docx"),
-    "Example document.docx",
-  );
-  assert.equal(
-    publishFilename("Example document", "docx", 3),
-    "Example document(3).docx",
+    publishFilename("Example document", "pdf", 3),
+    "Example document(3).pdf",
   );
 });
 

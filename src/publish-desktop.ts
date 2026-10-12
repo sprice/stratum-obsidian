@@ -5,7 +5,6 @@ import {
 /* Desktop host access is loaded only after Platform.isDesktopApp is checked. */
 import { Platform } from "obsidian";
 import { readPublishOptions, type PublishOptions } from "./publish-options";
-import { configureDocx } from "./publish-docx";
 import { publicationFilter, publicationHeader } from "./publish-layout";
 import type { PublishFormat } from "./publish-model";
 import type { aastexManuscript } from "./publication-package";
@@ -39,9 +38,7 @@ export interface ToolStatus {
 export interface PublishReadiness {
   pandoc: ToolStatus;
   tectonic: ToolStatus;
-  word: boolean;
   pdf: boolean;
-  wordError?: string;
   pdfError?: string;
 }
 type HostWindow = Window & {
@@ -442,7 +439,7 @@ export async function convertPublication(
   layout?: PublishOptions,
   aastex?: AastexExportInput,
 ): Promise<ArrayBuffer> {
-  if (format === "pdf" && aastex)
+  if (aastex)
     return convertAastexPublication(
       html,
       assets,
@@ -452,7 +449,7 @@ export async function convertPublication(
       timeout,
     );
   const options = layout ? readPublishOptions(layout) : undefined;
-  if (format === "pdf" && options) {
+  if (options) {
     const selected = [...new Set([options.bodyFont, options.titleFont])].filter(
       Boolean,
     );
@@ -509,12 +506,11 @@ export async function convertPublication(
       args.push("--lua-filter=layout.lua");
       if (options.numberSections) args.push("--number-sections");
     }
-    if (format === "pdf")
-      args.push(
-        `--pdf-engine=${tools.tectonic}`,
-        `--variable=geometry:margin=${options?.margin ?? 1}in`,
-      );
-    if (format === "pdf" && options) {
+    args.push(
+      `--pdf-engine=${tools.tectonic}`,
+      `--variable=geometry:margin=${options?.margin ?? 1}in`,
+    );
+    if (options) {
       await fs.writeFile(
         path.join(directory, "layout.tex"),
         publicationHeader(options),
@@ -543,7 +539,7 @@ export async function convertPublication(
       });
     } catch (error) {
       const font =
-        format === "pdf" && error instanceof Error
+        error instanceof Error
           ? /fontspec Error: The font "([^"]+)"\s*(?:\(fontspec\)\s*)?cannot be found/.exec(
               error.message,
             )?.[1]
@@ -573,26 +569,12 @@ export async function convertPublication(
       )
     )
       throw new Error(
-        `An equation could not be converted to ${format === "docx" ? "Word" : "PDF"}. Simplify the equation${format === "docx" ? ", or publish to PDF" : ""}, then try again.`,
+        "An equation could not be converted to PDF. Simplify the equation, then try again.",
       );
     const bytes = await fs.readFile(path.join(directory, output));
-    if (
-      format === "pdf"
-        ? new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-"
-        : bytes[0] !== 0x50 || bytes[1] !== 0x4b
-    )
+    if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-")
       throw new Error("The converter did not produce a valid document.");
-    const configured =
-      format === "docx" && options
-        ? configureDocx(bytes, options, (data) =>
-            (
-              host().require!("node:zlib") as {
-                inflateRawSync(data: Uint8Array): Uint8Array;
-              }
-            ).inflateRawSync(data),
-          )
-        : bytes;
-    return Uint8Array.from(configured).buffer;
+    return Uint8Array.from(bytes).buffer;
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
@@ -993,22 +975,12 @@ export async function checkPublishing(
   const readiness: PublishReadiness = {
     pandoc,
     tectonic,
-    word: false,
     pdf: false,
   };
   report?.({ ...readiness });
   if (!pandoc.path) return readiness;
   const tools = { pandoc: pandoc.path, tectonic: tectonic.path };
-  progress?.("Checking Word conversion…");
-  try {
-    await probePublication("docx", tools, signal);
-    readiness.word = true;
-  } catch (error) {
-    readiness.wordError =
-      error instanceof Error ? error.message : "Word conversion failed.";
-  }
   if (signal?.aborted) throw new Error("Setup cancelled.");
-  report?.({ ...readiness });
   if (preparePdf && tectonic.path) {
     progress?.(
       "Preparing PDF support. The first check may download support files and take several minutes…",
@@ -1054,7 +1026,7 @@ export async function savePublishedCopy(
     defaultPath: filename,
     filters: [
       {
-        name: format === "pdf" ? "PDF document" : "Word document",
+        name: "PDF document",
         extensions: [format],
       },
     ],

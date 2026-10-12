@@ -32,7 +32,6 @@ class View {
   ) {}
 }
 const readySupport: PublishReadiness = {
-  word: true,
   pdf: true,
   pandoc: { path: "/synthetic/pandoc", version: "3" },
   tectonic: { path: "/synthetic/tectonic", version: "0.17" },
@@ -313,12 +312,10 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   };
   files.set(".config/stratum/published/catalog.json", JSON.stringify(catalog));
   controller.catalog = catalog;
-  controller.selectedFormat = "docx";
   controller.readiness ??= {
-    word: true,
-    pdf: false,
+    pdf: true,
     pandoc: { path: "pandoc", version: "3" },
-    tectonic: { path: "", version: "" },
+    tectonic: { path: "tectonic", version: "0.17" },
   };
   return {
     opened,
@@ -348,7 +345,6 @@ test("switching notes during publication preserves the click-time document and i
   await controller.create();
   release();
   await pending;
-  assert.equal(controller.selectedFormat, "docx");
   assert.equal(rendered.length, 1);
   assert.equal(rendered[0].text, "Unsaved first note");
   assert.equal(rendered[0].path, "First.md");
@@ -510,14 +506,14 @@ test("a PDF preview follows its source note and keeps the open source editor", (
   assert.equal(controller.leaf, null);
 });
 
-test("cancelled publishing keeps the file type selected for retry", async () => {
+test("cancelled PDF publishing keeps the source for retry", async () => {
   const { controller, release } = setup();
   const pending = controller.create();
   controller.cancel();
   release();
   await pending;
-  assert.equal(controller.selectedFormat, "docx");
   assert.equal((await controller.store.list()).documents.length, 0);
+  assert.equal(controller.canCreate(), true);
 });
 
 test("cached support is available immediately and only silently detects tools once per launch", async () => {
@@ -532,7 +528,6 @@ test("cached support is available immediately and only silently detects tools on
   controller.subscribe(() => {})();
   release();
   await controller.create();
-  controller.selectedFormat = "pdf";
   await controller.create();
   assert.equal(calls.detect, 2);
   assert.equal(calls.check, 0);
@@ -557,7 +552,6 @@ test("a tool removed before startup invalidates persisted support without checki
   });
   behavior.missing = "tectonic";
   await settle();
-  assert.equal(controller.readiness?.word, true);
   assert.equal(controller.readiness?.pdf, false);
   assert.equal(plugin.settings.publishPdfSetupComplete, false);
   assert.equal(plugin.settings.publishReadinessCache?.readiness.pdf, false);
@@ -566,18 +560,16 @@ test("a tool removed before startup invalidates persisted support without checki
 });
 
 test("failed conversion detects lost tools after launch and preserves the original error", async () => {
-  const { controller, behavior, calls, plugin, release } = setup();
+  const { controller, behavior, calls, release } = setup();
   behavior.conversionError = "Pandoc could not start";
   behavior.missing = "pandoc";
   release();
   await controller.create();
-  assert.equal(controller.readiness?.word, false);
   assert.equal(controller.readiness?.pdf, false);
-  assert.equal(plugin.settings.publishReadinessCache?.readiness.word, false);
   assert.match(controller.error, /Pandoc could not start/);
   assert.equal(
     controller.errorMessage,
-    "There was an error creating the Word file",
+    "There was an error creating the PDF file",
   );
   assert.equal(calls.detect, 2);
   assert.deepEqual(calls.probe, []);
@@ -587,12 +579,10 @@ test("document-specific conversion failures keep support while failed synthetic 
   for (const probeError of ["", "Synthetic PDF failure"]) {
     const { controller, behavior, calls, plugin, release } = setup();
     controller.readiness = structuredClone(readySupport);
-    controller.selectedFormat = "pdf";
     behavior.conversionError = "Invalid document content";
     behavior.probeError = probeError;
     release();
     await controller.create();
-    assert.equal(controller.readiness?.word, true);
     assert.equal(controller.readiness?.pdf, !probeError);
     assert.equal(
       plugin.settings.publishReadinessCache?.readiness.pdf,
@@ -613,7 +603,6 @@ test("rendering failures and cancellation do not diagnose or invalidate tools", 
   release();
   await controller.create();
   assert.equal(calls.detect, 0);
-  assert.equal(controller.readiness?.word, true);
   behavior.renderError = "";
   const pending = controller.create();
   controller.cancel();
@@ -641,27 +630,22 @@ test("explicit setup persists verified support for the next launch", async () =>
   assert.equal(plugin.settings.publishPdfSetupComplete, true);
 });
 
-test("publishing preferences serialize edits, retain independent formats, and follow supported moves", async () => {
+test("publishing preferences serialize PDF edits and follow supported moves", async () => {
   const { controller } = setup();
   await controller.updatePreferences({ templateId: "academic" });
-  await controller.selectFormat("docx");
   await Promise.all([
     controller.updateLayout({ bodyFont: "Georgia" }),
     controller.updateLayout({ titleSize: 28 }),
   ]);
   assert.equal(controller.layout.bodyFont, "Georgia");
   assert.equal(controller.layout.titleSize, 28);
-  await controller.selectFormat("pdf");
-  assert.equal(controller.layout.bodyFont, "");
   await controller.updateLayout({ bodyFont: "Arial" });
   await controller.store.move("First.md", "Papers/Renamed.md");
   await controller.reload();
   const stored = (await controller.store.list()).notes[0].preferences!;
   assert.equal(stored.documentType, "academic");
-  assert.equal(stored.docx.bodyFont, "Georgia");
-  assert.equal(stored.docx.titleSize, 28);
+  assert.equal(stored.pdf.titleSize, 28);
   assert.equal(stored.pdf.bodyFont, "Arial");
-  assert.equal(stored.format, "pdf");
   assert.equal(controller.preferencesSaving, false);
 });
 
@@ -762,7 +746,6 @@ test("AASTeX PDF bypasses CSL formatting, passes its class payload and records i
     return Promise.reject(new Error("CSL style is unavailable"));
   };
   await controller.updatePreferences({ templateId: "package:aastex" });
-  controller.selectedFormat = "pdf";
   controller.readiness = structuredClone(readySupport);
   release();
   await controller.create();
@@ -796,7 +779,7 @@ test("AASTeX PDF bypasses CSL formatting, passes its class payload and records i
   );
 });
 
-test("AASTeX options snapshot vault defaults, serialize changes and reset explicitly", async () => {
+test("AASTeX ignores legacy vault defaults, serializes per-note changes and resets explicitly", async () => {
   const { controller, plugin } = setup({
     aastexPdfDefaults: {
       showLineNumbers: false,
@@ -807,23 +790,23 @@ test("AASTeX options snapshot vault defaults, serialize changes and reset explic
   await controller.updatePreferences({ templateId: "package:aastex" });
   assert.deepEqual(
     JSON.parse(JSON.stringify(controller.aastexPdfOptions)),
-    plugin.settings.aastexPdfDefaults,
+    DEFAULT_AASTEX_PDF_OPTIONS,
   );
   plugin.settings.aastexPdfDefaults = { ...DEFAULT_AASTEX_PDF_OPTIONS };
   await controller.reload();
-  assert.equal(controller.aastexPdfOptions.showLineNumbers, false);
+  assert.equal(controller.aastexPdfOptions.showLineNumbers, true);
   await Promise.all([
     controller.updateAastexPdfOptions({ showLineNumbers: true }),
     controller.updateAastexPdfOptions({ numberedHeadings: false }),
   ]);
   assert.deepEqual(JSON.parse(JSON.stringify(controller.aastexPdfOptions)), {
     showLineNumbers: true,
-    showDraftDateHeader: false,
+    showDraftDateHeader: true,
     numberedHeadings: false,
   });
   await controller.updatePreferences({ templateId: "general" });
   await controller.updatePreferences({ templateId: "package:aastex" });
-  assert.equal(controller.aastexPdfOptions.showDraftDateHeader, false);
+  assert.equal(controller.aastexPdfOptions.showDraftDateHeader, true);
   await controller.resetAastexPdfOptions();
   assert.deepEqual(
     JSON.parse(JSON.stringify(controller.aastexPdfOptions)),
@@ -838,7 +821,6 @@ test("version changes require explicit acceptance while heading mismatch warning
   leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n## 1. First\n\nText.\n\n## 3. Next\n\nText.`;
   const source = leaf.view.text;
   await controller.updatePreferences({ templateId: "package:aastex" });
-  await controller.selectFormat("pdf");
   controller.readiness = structuredClone(readySupport);
   await controller.updatePreferences({
     aastex: {
@@ -866,7 +848,6 @@ test("AASTeX conversion failures detect missing shared tools without probing gen
     const parsed = publicationYaml(example);
     leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
     await controller.updatePreferences({ templateId: "package:aastex" });
-    controller.selectedFormat = "pdf";
     controller.readiness = structuredClone(readySupport);
     behavior.missing = missing;
     behavior.conversionError = missing
@@ -876,7 +857,6 @@ test("AASTeX conversion failures detect missing shared tools without probing gen
     await controller.create();
     assert.equal(calls.detect, 2);
     assert.deepEqual(calls.probe, []);
-    assert.equal(controller.readiness?.word, missing !== "pandoc");
     assert.equal(controller.readiness?.pdf, !missing);
     assert.equal(
       plugin.settings.publishReadinessCache?.readiness.pdf,
@@ -940,7 +920,7 @@ test("template selection copies layouts and retains them after template edits or
   await controller.updatePreferences({ templateId: "academic" });
   assert.equal(controller.notePreferences.documentType, "academic");
   assert.equal(controller.notePreferences.pdf.lineSpacing, 1);
-  assert.equal(controller.notePreferences.docx.lineSpacing, 1);
+  assert.equal(controller.notePreferences.pdf.lineSpacing, 1);
 });
 
 test("preparation and required fields follow a general template without changing body content", async () => {
@@ -976,7 +956,6 @@ test("preparation and required fields follow a general template without changing
 test("templates without published properties ignore unreadable note YAML", async () => {
   const { controller, leaf } = setup();
   await controller.updatePreferences({ templateId: "general" });
-  await controller.selectFormat("docx");
   leaf.view.text = "---\n{unreadable\n---\n\nSynthetic body.";
   assert.equal(controller.academicProblem, "");
   assert.equal(controller.canCreate(), true);
@@ -985,7 +964,6 @@ test("templates without published properties ignore unreadable note YAML", async
 test("a repeated title warns but does not block creation", async () => {
   const { controller, leaf } = setup();
   await controller.updatePreferences({ templateId: "academic" });
-  await controller.selectFormat("docx");
   leaf.view.text =
     '---\n{"title":"Synthetic title"}\n---\n\n# Synthetic title\n\nSynthetic body.';
   assert.equal(controller.academicProblem, "");

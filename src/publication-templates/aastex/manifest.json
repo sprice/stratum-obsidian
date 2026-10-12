@@ -11,7 +11,7 @@
   "entry": "template.tex",
   "schema": "metadata.schema.json",
   "defaults": "defaults.json",
-  "outputs": ["pdf", "docx"],
+  "outputs": ["pdf"],
   "compiler": "tectonic",
   "class": "vendor/aastex702.cls",
   "bibliographyStyle": "vendor/aasjournalv7.1.bst",

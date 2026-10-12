@@ -28,8 +28,8 @@ export function publishingSetupAction(
   checking: boolean,
 ): string {
   if (checking) return "Checking…";
-  if (readiness?.word && readiness.pdf) return "Done";
-  if (readiness?.wordError || readiness?.pdfError) return "Retry check";
-  if (readiness?.word && readiness.tectonic.path) return "Enable PDF";
+  if (readiness?.pdf) return "Done";
+  if (readiness?.pdfError) return "Retry check";
+  if (readiness?.pandoc.path && readiness.tectonic.path) return "Enable PDF";
   return "Check again";
 }
