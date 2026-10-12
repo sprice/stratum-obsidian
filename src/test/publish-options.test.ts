@@ -180,21 +180,26 @@ test("structured affiliations follow the General/Academic PDF inclusion option",
   };
   const before = JSON.stringify(properties);
   const academic = academicRuntime();
-  for (const showAffiliations of [false, true]) {
-    const mapped = mappedPublishingProperties(
-      properties,
-      publicationProperties({
-        ...DEFAULT_ACADEMIC_OPTIONS,
-        titleSource: "body",
-        showAffiliations,
-      }),
-    );
-    const html = academic.academicOpening(
-      academic.academicMetadata(mapped),
-      false,
-    );
-    assert.equal(html.includes("Synthetic affiliation"), showAffiliations);
-    assert.match(html, /Alex/);
-  }
+  for (const showAuthors of [false, true])
+    for (const showAffiliations of [false, true]) {
+      const mapped = mappedPublishingProperties(
+        properties,
+        publicationProperties({
+          ...DEFAULT_ACADEMIC_OPTIONS,
+          titleSource: "body",
+          showAuthors,
+          showAffiliations,
+        }),
+      );
+      const html = academic.academicOpening(
+        academic.academicMetadata(mapped),
+        false,
+      );
+      assert.equal(html.includes("Synthetic affiliation"), showAffiliations);
+      assert.equal(
+        html.includes('class="stratum-publish-authors"'),
+        showAuthors,
+      );
+    }
   assert.equal(JSON.stringify(properties), before);
 });

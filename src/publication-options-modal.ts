@@ -82,6 +82,10 @@ export class PublishingSettingsModal extends Modal {
   private retryButton!: HTMLButtonElement;
   private drafts: OptionDraftState;
   private saving = 0;
+  private busyControls = new WeakMap<
+    HTMLInputElement | HTMLButtonElement,
+    boolean
+  >();
   private refreshAdvanced?: () => void;
   private compatibilityContainer?: HTMLElement;
   constructor(
@@ -495,7 +499,14 @@ export class PublishingSettingsModal extends Modal {
         HTMLInputElement | HTMLButtonElement
       >("input,button"),
     ))
-      input.disabled = this.publish.busy;
+      if (this.publish.busy) {
+        if (!this.busyControls.has(input))
+          this.busyControls.set(input, input.disabled);
+        input.disabled = true;
+      } else if (this.busyControls.has(input)) {
+        input.disabled = this.busyControls.get(input)!;
+        this.busyControls.delete(input);
+      }
     this.validation.empty();
     if (this.publish.academicProblem)
       this.validation.createEl("p", {
@@ -551,7 +562,7 @@ export class PublishingSettingsModal extends Modal {
       this.error.hidden = true;
     if (this.closingError && this.file && !service?.pending(this.file.path)) {
       this.closingError = false;
-      this.error.hidden = true;
+      this.error.hidden = !this.drafts.failures.size;
     }
     this.done.disabled = this.reset.disabled =
       this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;

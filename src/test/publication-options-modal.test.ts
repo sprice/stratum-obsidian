@@ -265,3 +265,40 @@ test("native setter refresh is silent for all options in both directions, includ
       s.modal.onClose();
     }
 });
+
+test("modal refresh preserves list boundary buttons through busy and idle transitions", () => {
+  const s = setup();
+  const authors = (s.modal as unknown as { authorContainer: Element })
+    .authorContainer;
+  const boundary = authors.createEl("button");
+  boundary.disabled = true;
+  const enabled = authors.createEl("button");
+  s.emit();
+  assert.equal(boundary.disabled, true);
+  assert.equal(enabled.disabled, false);
+  s.publish.busy = true;
+  s.emit();
+  assert.equal(boundary.disabled, true);
+  assert.equal(enabled.disabled, true);
+  s.publish.busy = false;
+  s.emit();
+  assert.equal(boundary.disabled, true);
+  assert.equal(enabled.disabled, false);
+  s.modal.onClose();
+});
+
+test("resolving a metadata close warning does not hide a retained option failure", async () => {
+  const s = setup();
+  s.toggles[0].listeners.get("click")!();
+  s.reject();
+  await settle();
+  const state = s.modal as unknown as {
+    closingError: boolean;
+    error: { hidden: boolean };
+  };
+  state.closingError = true;
+  s.emit();
+  assert.equal(state.closingError, false);
+  assert.equal(state.error.hidden, false);
+  s.modal.onClose();
+});

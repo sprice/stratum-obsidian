@@ -809,6 +809,7 @@ export class PublicationForm {
             draft.operation,
             draft.revision,
             draft.conflict,
+            revision,
           ]),
       });
       if (structure === this.structure) {

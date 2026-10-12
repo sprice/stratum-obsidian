@@ -1080,6 +1080,20 @@ test("AASTeX modal shares author edits, preserves legacy associations and keeps 
       .click();
     await editProperty("Author 1 affiliation 1", "Explicit affiliation");
     await until("window.publicationFixture.state().canCreate");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('button[aria-label=\"Move author 1 up\"]').disabled && document.querySelector('button[aria-label=\"Move author 1 down\"]').disabled",
+      ),
+      true,
+    );
+    await page.evaluate("window.publicationFixture.setBusy(true)");
+    await page.evaluate("window.publicationFixture.setBusy(false)");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('button[aria-label=\"Move author 1 up\"]').disabled && document.querySelector('button[aria-label=\"Move author 1 down\"]').disabled",
+      ),
+      true,
+    );
     const original = String(
       await page.evaluate("window.publicationFixture.text()"),
     );
@@ -1148,6 +1162,12 @@ test("metadata conflicts retain drafts and require explicit recovery before Done
     assert.equal(
       await page.locator(".stratum-publishing-settings-modal").count(),
       1,
+    );
+    await page.evaluate(
+      "window.publicationFixture.replaceText(window.publicationFixture.text().replace('Newer value', 'Newest value'))",
+    );
+    await until(
+      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Current value: Newest value')",
     );
     await page
       .locator(
@@ -1313,6 +1333,38 @@ test("closing during an option save retains a late failure in the reopened captu
     );
     await until(
       "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
+    );
+  });
+});
+
+test("shared author conflict recovery refreshes current values after a second external edit", async () => {
+  await scenario("author-conflict-current-value", async () => {
+    await reset({
+      aastex: true,
+      source:
+        "---\ntitle: Paper\nstratum_publish:\n  authors:\n    - name: Original name\n      email: author@example.org\n      affiliations: [Institute]\n---\nBody",
+    });
+    await openSettings();
+    await editProperty("Author 1 name", "Retained draft", false);
+    await page.evaluate(
+      "window.publicationFixture.replaceText(window.publicationFixture.text().replace('Original name','Newer author')); document.querySelector('input[aria-label=\"Author 1 name\"]').blur()",
+    );
+    await until("!!document.querySelector('.stratum-publication-conflict')");
+    await page.evaluate(
+      "window.publicationFixture.replaceText(window.publicationFixture.text().replace('Newer author','Later author'))",
+    );
+    await until(
+      "document.querySelector('.stratum-publication-conflict').textContent.includes('Current author 1: Later author')",
+    );
+    await page.locator('button[aria-label="Apply draft to author 1"]').click();
+    await until(
+      "window.publicationFixture.text().includes('name: Retained draft') && !window.publicationFixture.state().pending",
+    );
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.text().endsWith('---\\nBody')",
+      ),
+      true,
     );
   });
 });

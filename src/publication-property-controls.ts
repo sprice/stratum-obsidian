@@ -231,6 +231,7 @@ export class PublicationPropertyControls {
           draft.operation,
           draft.revision,
           draft.conflict,
+          publicationPropertyRevision(properties, key),
         ]),
     ]);
     if (structure === this.structure) {

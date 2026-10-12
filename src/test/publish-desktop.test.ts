@@ -664,46 +664,49 @@ test(
     };
     const original = JSON.stringify(properties);
     for (const defaults of [DEFAULT_PUBLISH_OPTIONS, DEFAULT_ACADEMIC_OPTIONS])
-      for (const showAffiliations of [false, true]) {
-        const options = {
-          ...defaults,
-          titleSource: "body" as const,
-          showAuthors: true,
-          showAffiliations,
-        };
-        const opening = academic.academicOpening(
-          academic.academicMetadata(
-            mappedPublishingProperties(
-              properties,
-              publicationProperties(options),
+      for (const showAuthors of [false, true])
+        for (const showAffiliations of [false, true]) {
+          const options = {
+            ...defaults,
+            titleSource: "body" as const,
+            showAuthors,
+            showAffiliations,
+          };
+          const opening = academic.academicOpening(
+            academic.academicMetadata(
+              mappedPublishingProperties(
+                properties,
+                publicationProperties(options),
+              ),
             ),
-          ),
-          false,
-        );
-        const html = `<html><body>${opening}<h1>Introduction</h1><p>Synthetic manuscript body.</p></body></html>`;
-        const bytes = await runtime().convertPublication(
-          html,
-          [],
-          "pdf",
-          { pandoc, tectonic },
-          undefined,
-          120_000,
-          options,
-        );
-        const directory = await mkdtemp(
-          join(tmpdir(), "stratum-affiliation-pdf-"),
-        );
-        let text: string;
-        try {
-          const filename = join(directory, "Synthetic.pdf");
-          await writeFile(filename, new Uint8Array(bytes));
-          text = execFileSync(pdftotext, [filename, "-"], { encoding: "utf8" });
-        } finally {
-          await rm(directory, { recursive: true, force: true });
+            false,
+          );
+          const html = `<html><body>${opening}<h1>Introduction</h1><p>Synthetic manuscript body.</p></body></html>`;
+          const bytes = await runtime().convertPublication(
+            html,
+            [],
+            "pdf",
+            { pandoc, tectonic },
+            undefined,
+            120_000,
+            options,
+          );
+          const directory = await mkdtemp(
+            join(tmpdir(), "stratum-affiliation-pdf-"),
+          );
+          let text: string;
+          try {
+            const filename = join(directory, "Synthetic.pdf");
+            await writeFile(filename, new Uint8Array(bytes));
+            text = execFileSync(pdftotext, [filename, "-"], {
+              encoding: "utf8",
+            });
+          } finally {
+            await rm(directory, { recursive: true, force: true });
+          }
+          assert.equal(text.includes("Synthetic Writer"), showAuthors);
+          assert.equal(text.includes("Synthetic Laboratory"), showAffiliations);
+          assert.equal(JSON.stringify(properties), original);
         }
-        assert.match(text, /Synthetic Writer/);
-        assert.equal(text.includes("Synthetic Laboratory"), showAffiliations);
-        assert.equal(JSON.stringify(properties), original);
-      }
   },
 );

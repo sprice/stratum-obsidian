@@ -108,25 +108,32 @@ export function mappedPublishingProperties(
   for (const field of definitions)
     if (field.use !== "metadata" && validValue(field, properties[field.key]))
       result[field.use] = properties[field.key];
+  const includeAuthors = definitions.some((field) => field.use === "authors");
+  const includeAffiliations = definitions.some(
+    (field) => field.use === "affiliations",
+  );
   if (
-    definitions.some((field) => field.use === "authors") &&
+    (includeAuthors || includeAffiliations) &&
     Object.hasOwn(properties, "stratum_publish")
-  )
-    result.stratum_publish = {
-      ...(properties.stratum_publish as Record<string, unknown>),
-      ...(publicationAuthors(properties).structured
-        ? {
-            authors: publicationAuthors(properties).authors.map((author) => ({
-              ...author,
-              affiliations: definitions.some(
-                (field) => field.use === "affiliations",
-              )
-                ? author.affiliations
-                : [],
-            })),
-          }
-        : {}),
-    };
+  ) {
+    const details = publicationAuthors(properties);
+    if (includeAuthors)
+      result.stratum_publish = {
+        ...(properties.stratum_publish as Record<string, unknown>),
+        ...(details.structured
+          ? {
+              authors: details.authors.map((author) => ({
+                ...author,
+                affiliations: includeAffiliations ? author.affiliations : [],
+              })),
+            }
+          : {}),
+      };
+    else if (details.structured)
+      result.affiliations = [
+        ...new Set(details.authors.flatMap((author) => author.affiliations)),
+      ];
+  }
   return result;
 }
 

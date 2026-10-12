@@ -155,6 +155,8 @@ export function changePublicationAuthors(
   }
   if (!isMap(namespace))
     throw new Error("The stratum_publish property must be an object.");
+  if (namespace.anchor)
+    throw new Error("Edit anchored or aliased author data in Source mode.");
   let authors = namespace.get("authors", true) as Node | undefined;
   const existingAuthors = authors;
   if (!authors) {

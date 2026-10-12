@@ -214,3 +214,13 @@ test("adding authors extends a root flow mapping without rewriting existing prop
     assert.ok(next.endsWith("} # keep\r\n---\r\nBody"));
   }
 });
+
+test("author edits reject an anchored namespace without changing unrelated aliases", () => {
+  const text =
+    "---\nstratum_publish: &publication\n  authors:\n    - name: Original\n      email: original@example.org\n      affiliations: [Institute]\nrelated: *publication\n---\nBody";
+  for (const operation of [
+    { type: "field", author: 0, key: "name", value: "Changed" },
+    { type: "add" },
+  ] as AuthorOperation[])
+    assert.throws(() => edit(text, operation), /anchored/);
+});
