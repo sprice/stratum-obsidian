@@ -239,7 +239,11 @@ export class PublishingSettingsModal extends Modal {
       });
       if (this.publish.fontError) advanced.open = true;
     }
-    if (!this.publish.readiness?.pdf) {
+    if (!this.publish.canPublishPdf) {
+      options.createEl("p", {
+        text: "Create PDF documents in desktop Obsidian. Settings for this note can be edited here.",
+      });
+    } else if (!this.publish.readiness?.pdf) {
       options.createEl("p", {
         text: "PDF tools need setup.",
       });

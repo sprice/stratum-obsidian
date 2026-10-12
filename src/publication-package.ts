@@ -205,6 +205,10 @@ export const AASTEX_TEMPLATE: PublishingTemplate = {
   name: "AASTeX",
   documentType: "academic",
   renderer: "aastex",
+  version: {
+    familyId: "package:aastex",
+    label: aastexPackage.manifest.upstreamVersion,
+  },
   layout: {
     ...DEFAULT_ACADEMIC_OPTIONS,
     titleSource: aastexPackage.defaults.titleSource,

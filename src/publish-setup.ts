@@ -32,7 +32,7 @@ export class PublishSetupModal extends Modal {
   }
   onOpen(): void {
     const publish = this.plugin.publish;
-    if (!publish) {
+    if (!publish || publish.canPublishPdf === false) {
       this.close();
       return;
     }

@@ -42,7 +42,7 @@ class Element {
     this.listeners.get(event)?.();
   }
 }
-function runtime(discover: () => Promise<string[]>) {
+function runtime(discover: () => Promise<string[]>, desktopApp = true) {
   const desktop = loadRuntime<typeof import("../publish-desktop")>(
     "publish-desktop.ts",
     { Platform: { isDesktopApp: true } },
@@ -56,7 +56,7 @@ function runtime(discover: () => Promise<string[]>) {
   );
   const controls = loadRuntime<typeof import("../publish-font-controls")>(
     "publish-font-controls.ts",
-    {},
+    { Platform: { isDesktopApp: desktopApp } },
     {},
     "browser",
     {
@@ -313,4 +313,33 @@ test("Latin Modern lists one recommended text family under its familiar name", a
     );
     assert.equal(select.value, value);
   }
+});
+
+test("mobile font controls keep default and saved choices without desktop discovery", () => {
+  let calls = 0;
+  const controls = runtime(() => {
+    calls++;
+    return Promise.resolve(["Desktop font"]);
+  }, false);
+  const fields = new Element(),
+    container = new Element();
+  const load = controls.renderPublishFontControls(
+    fields as never,
+    container as never,
+    { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "Saved font" },
+    () => Promise.resolve(),
+    (error) => {
+      throw error;
+    },
+    "pdf",
+  );
+  load();
+  load();
+  assert.equal(calls, 0);
+  assert.equal(fields.children[0].value, "Saved font");
+  assert.ok(
+    container.children.some((child) =>
+      child.text.includes("selected on desktop"),
+    ),
+  );
 });

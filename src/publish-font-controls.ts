@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { installedPublishFonts } from "./publish-desktop";
 import { fontName, type PublishOptions } from "./publish-options";
 import { createStratumButton, createStratumSelect } from "./ui-controls";
@@ -146,6 +147,13 @@ export function renderPublishFontControls(
   retry.hidden = true;
   let loading = false;
   const load = () => {
+    if (!Platform.isDesktopApp) {
+      status.hidden = false;
+      status.setText(
+        "Installed fonts are selected on desktop. Default and saved choices are available here.",
+      );
+      return;
+    }
     if (loading) return;
     loading = true;
     retry.hidden = true;

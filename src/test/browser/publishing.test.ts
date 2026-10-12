@@ -266,7 +266,9 @@ test("publishing actions match shared Sync styling and retain responsive disable
             sameStyles: keys.every(key => style[key] === reference[key]),
             shared: create.classList.contains('stratum-control-button') && create.classList.contains('stratum-control-cta') && create.classList.contains('stratum-control-wrap'),
             height: rect.height, referenceHeight: sync.getBoundingClientRect().height,
-            halfWidth: Math.abs(rect.width - row.width / 2) <= 1,
+            halfWidth: Math.abs(rect.width - (row.width - parseFloat(getComputedStyle(create.parentElement).columnGap)) / 2) <= 1,
+            sameActionStyles: (() => { const secondary = getComputedStyle(create.parentElement.querySelector('button')), reference = getComputedStyle(document.querySelector('.synthetic-secondary-reference')); return keys.filter(key => !['backgroundColor','color','opacity','cursor'].includes(key)).every(key => secondary[key] === style[key]) && secondary.backgroundColor === reference.backgroundColor && secondary.color === reference.color; })(),
+            sameActionSize: (() => { const settings = create.parentElement.querySelector('button'); const s = settings.getBoundingClientRect(); return Math.abs(s.width - rect.width) <= 1 && Math.abs(s.height - rect.height) <= 1; })(),
             flushRight: Math.abs(rect.right - row.right) <= 1,
             fits: create.scrollWidth <= create.clientWidth && create.scrollHeight <= create.clientHeight,
             overflow: document.documentElement.scrollWidth > innerWidth,
@@ -279,6 +281,8 @@ test("publishing actions match shared Sync styling and retain responsive disable
           height: number;
           referenceHeight: number;
           halfWidth: boolean;
+          sameActionSize: boolean;
+          sameActionStyles: boolean;
           flushRight: boolean;
           fits: boolean;
           overflow: boolean;
@@ -288,7 +292,14 @@ test("publishing actions match shared Sync styling and retain responsive disable
         assert.equal(ready.shared, true);
         assert.ok(ready.height >= ready.referenceHeight);
         if (width === 720) assert.equal(ready.height, ready.referenceHeight);
-        assert.equal(ready.halfWidth && ready.flushRight && ready.fits, true);
+        assert.equal(
+          ready.halfWidth &&
+            ready.sameActionSize &&
+            ready.sameActionStyles &&
+            ready.flushRight &&
+            ready.fits,
+          true,
+        );
         assert.equal(ready.overflow, false);
         assert.equal(ready.disabled, false);
         await page.evaluate(
@@ -298,7 +309,14 @@ test("publishing actions match shared Sync styling and retain responsive disable
         assert.equal(busy.disabled, true);
         assert.equal(busy.sameStyles, true);
         assert.equal(busy.height, ready.height);
-        assert.equal(busy.halfWidth && busy.flushRight && busy.fits, true);
+        assert.equal(
+          busy.halfWidth &&
+            busy.sameActionSize &&
+            busy.sameActionStyles &&
+            busy.flushRight &&
+            busy.fits,
+          true,
+        );
         await page.evaluate(
           `window.publicationFixture.setBusy(false); document.querySelector('.synthetic-sync-reference').disabled = false`,
         );
@@ -1365,6 +1383,185 @@ test("shared author conflict recovery refreshes current values after a second ex
         "window.publicationFixture.text().endsWith('---\\nBody')",
       ),
       true,
+    );
+  });
+});
+
+test("template and installed version selectors keep equal available columns and preserve package approval", async () => {
+  await scenario("template-version-columns", async () => {
+    for (const width of [320, 560]) {
+      await page.setViewportSize(width, 900);
+      for (const templateId of ["general", "academic", "aastex"]) {
+        await reset(
+          templateId === "aastex" ? { aastex: true } : { templateId },
+        );
+        const measure = await page.evaluate(
+          `(() => { const row=document.querySelector('.stratum-publish-template-selectors');const fields=[...row.children],r=row.getBoundingClientRect(),gap=parseFloat(getComputedStyle(row).columnGap),t=fields[0].getBoundingClientRect(); const version=document.querySelector('select[aria-label="Choose template version"]');return {width:t.width,expected:(r.width-gap)/2,versionVisible:!fields[1].hidden,label:document.querySelector('select[aria-label="Choose template"]').selectedOptions[0].textContent,versions:[...version.options].map(o=>o.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})()`,
+        );
+        const m = measure as {
+          width: number;
+          expected: number;
+          versionVisible: boolean;
+          label: string;
+          versions: string[];
+          overflow: boolean;
+        };
+        assert.ok(Math.abs(m.width - m.expected) <= 1);
+        assert.equal(m.overflow, false);
+        assert.equal(m.versionVisible, templateId === "aastex");
+        if (templateId === "aastex") {
+          assert.equal(m.label, "AASTeX");
+          assert.deepEqual(m.versions, ["7.0.2"]);
+        }
+        if (width === 320 && templateId === "general")
+          await capture("publishing-generic-columns");
+        if (width === 560 && templateId === "aastex")
+          await capture("publishing-version-columns");
+      }
+    }
+    await page.evaluate(
+      "window.publicationFixture.setAastexPackage({id: 'aastex', version: '0.1.0', upstreamVersion: '7.0.1'})",
+    );
+    await page
+      .locator('select[aria-label="Choose template version"]')
+      .selectOption("package:aastex");
+    await openSettings();
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-document-options-modal').textContent.includes('Older package assets are not retained')",
+      ),
+      true,
+    );
+    await page.keyPress("Escape");
+    await page.locator('select[aria-label="Choose template"]').selectOption("");
+    await until(
+      "!window.publicationFixture.state().saving && document.querySelector('button[aria-label=\"Publishing settings for this note\"]').disabled",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('select[aria-label=\"Choose template\"]').value",
+      ),
+      "",
+    );
+  });
+});
+
+test("mobile Create exposes the same Settings writer without a note widget or desktop actions", async () => {
+  await scenario("mobile-publishing-settings", async () => {
+    await reset({
+      mobile: true,
+      aastex: true,
+      source:
+        "---\ntitle: Paper\nstratum_publish:\n  authors:\n    - name: Original\n      email: author@example.org\n      affiliations: [Institute]\n---\nBody",
+    });
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().canPublishPdf"),
+      false,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-create').disabled",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "[...document.querySelectorAll('.stratum-publish-tabs button')].some(b=>b.textContent === 'Documents')",
+      ),
+      false,
+    );
+    await openSettings();
+    await editProperty("Author 1 name", "Mobile author");
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.text().includes('name: Mobile author')",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.locator(".cm-editor .stratum-publication-details").count(),
+      0,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-document-options-modal').textContent.includes('Create PDF documents in desktop Obsidian')",
+      ),
+      true,
+    );
+    await capture("mobile-platform-publishing-settings");
+    await page.locator(".stratum-publishing-done").click();
+    await reset({
+      mobile: true,
+      templateId: "academic",
+      editable: false,
+      source: manuscript,
+    });
+    await openSettings();
+    await page.locator('button[aria-label="Open note for editing"]').click();
+    await until(
+      "window.publicationFixture.state().editable && !document.querySelector('.modal')",
+    );
+    await openSettings();
+    await editProperty("Title", "Mobile title");
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.text().includes('title: Mobile title')",
+      ),
+      true,
+    );
+    await page.evaluate(
+      "document.querySelector('.stratum-publishing-advanced').open = true",
+    );
+    await until("!!document.querySelector('.stratum-publish-font-status')");
+    await page.evaluate(
+      "document.querySelector('.stratum-publish-section').open = true",
+    );
+    await until(
+      "document.querySelector('.stratum-publish-font-status').textContent.includes('selected on desktop')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "window.publicationFixture.state().fontDiscoveryCalls",
+      ),
+      0,
+    );
+  });
+});
+
+test("editor undo and redo transactions refresh Settings metadata without the removed note widget", async () => {
+  await scenario("metadata-editor-history", async () => {
+    await reset({
+      mobile: true,
+      templateId: "academic",
+      source: manuscript.replace("tags:", "title: Original\ntags:"),
+    });
+    await openSettings();
+    const original = await page.evaluate("window.publicationFixture.text()");
+    await editProperty("Title", "History title");
+    const changed = await page.evaluate("window.publicationFixture.text()");
+    await page.evaluate("window.publicationFixture.undoMetadataEdit()");
+    await until(
+      "document.querySelector('input[aria-label=\"Title\"]').value === 'Original'",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      original,
+    );
+    await page.evaluate("window.publicationFixture.redoMetadataEdit()");
+    await until(
+      "document.querySelector('input[aria-label=\"Title\"]').value === 'History title'",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      changed,
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().pending"),
+      false,
+    );
+    assert.equal(
+      await page.locator(".cm-editor .stratum-publication-details").count(),
+      0,
     );
   });
 });

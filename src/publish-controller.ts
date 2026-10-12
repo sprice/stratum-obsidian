@@ -103,12 +103,13 @@ export class PublishController extends Component {
     const settings = plugin.settings;
     const cache = readPublishReadinessCache(settings.publishReadinessCache);
     if (
+      this.canPublishPdf &&
       cache &&
       cache.pandocPath === settings.pandocPath &&
       cache.tectonicPath === settings.tectonicPath
     )
       this.readiness = cache.readiness;
-    else if (!cache && settings.publishPdfSetupComplete)
+    else if (this.canPublishPdf && !cache && settings.publishPdfSetupComplete)
       // Migrate the previous successful PDF setup without another typesetting run.
       this.readiness = {
         pdf: true,
@@ -117,7 +118,6 @@ export class PublishController extends Component {
       };
   }
   onload(): void {
-    if (!Platform.isDesktopApp) return;
     this.registerEvent(
       this.plugin.app.workspace.on("active-leaf-change", (leaf) =>
         this.follow(leaf),
@@ -179,7 +179,7 @@ export class PublishController extends Component {
         }, 250);
       }),
     );
-    if (this.readiness) void this.validateCachedSupport();
+    if (this.canPublishPdf && this.readiness) void this.validateCachedSupport();
   }
   onunload(): void {
     this.alive = false;
@@ -494,6 +494,36 @@ export class PublishController extends Component {
         this.emit();
       });
   }
+  async openSettings(
+    launcher: HTMLElement,
+    view?: MarkdownView,
+  ): Promise<
+    import("./publication-options-modal").PublishingSettingsModal | undefined
+  > {
+    try {
+      if (view) {
+        this.follow(view.leaf);
+        if (this.document !== view.file) return;
+      }
+      const file = this.document;
+      if (!file) return;
+      await this.reload();
+      const { PublishingSettingsModal } =
+        await import("./publication-options-modal");
+      if (!this.alive || this.document !== file) return;
+      const modal = new PublishingSettingsModal(
+        this.plugin.app,
+        this,
+        launcher,
+      );
+      modal.open();
+      return modal;
+    } catch (error) {
+      this.fail(error);
+      return;
+    }
+  }
+
   async editPublicationDetails(): Promise<void> {
     const file = this.document;
     if (!file) return;
@@ -632,8 +662,12 @@ export class PublishController extends Component {
       b.createdAt.localeCompare(a.createdAt),
     );
   }
+  get canPublishPdf(): boolean {
+    return Platform.isDesktopApp;
+  }
   canCreate(): boolean {
     return (
+      this.canPublishPdf &&
       !!this.document &&
       !!this.catalog &&
       !this.busy &&
@@ -774,6 +808,7 @@ export class PublishController extends Component {
     this.aborter?.abort();
   }
   async create(): Promise<void> {
+    if (!this.canPublishPdf) return;
     if (
       this.document &&
       this.plugin.publicationEditor &&
@@ -993,6 +1028,7 @@ export class PublishController extends Component {
     await workspace.revealLeaf(leaf);
   }
   async open(document: PublishedDocument): Promise<void> {
+    if (!this.canPublishPdf) return;
     try {
       if (
         !(await this.plugin.app.vault.adapter.exists(this.store.path(document)))
@@ -1018,6 +1054,7 @@ export class PublishController extends Component {
     }
   }
   async saveCopy(document: PublishedDocument): Promise<void> {
+    if (!this.canPublishPdf) return;
     if (document.format !== "pdf") return;
     try {
       const bytes = await this.plugin.app.vault.adapter.readBinary(

@@ -1,4 +1,7 @@
-import { selectedPublishingTemplate } from "./publish-templates";
+import {
+  selectedPublishingTemplate,
+  publishingTemplateFamilies,
+} from "./publish-templates";
 import { createStratumSelect, createStratumButton } from "./ui-controls";
 import { Component } from "obsidian";
 import type { PublishController } from "./publish-controller";
@@ -7,7 +10,6 @@ import {
   PublishedDocumentsPanel,
   type PublishedDocumentsState,
 } from "./view-publish-documents";
-import { AASTEX_PACKAGE_REFERENCE } from "./publication-package";
 export interface PublishViewState {
   section: "publish" | "documents";
   documents: PublishedDocumentsState;
@@ -25,6 +27,8 @@ export class PublishPanel extends Component {
   private settings!: HTMLButtonElement;
   private cancel!: HTMLButtonElement;
   private template!: HTMLSelectElement;
+  private version!: HTMLSelectElement;
+  private versionField!: HTMLElement;
   constructor(
     private container: HTMLElement,
     private publish: PublishController,
@@ -39,7 +43,10 @@ export class PublishPanel extends Component {
       attr: { role: "tablist", "aria-label": "Publishing" },
     });
     const prefix = `stratum-publish-${crypto.randomUUID()}`;
-    for (const section of ["publish", "documents"] as const) {
+    const sections: ("publish" | "documents")[] = this.publish.canPublishPdf
+      ? ["publish", "documents"]
+      : ["publish"];
+    for (const section of sections) {
       const tab = createStratumButton(tabBar, {
         text: section === "publish" ? "Create" : "Documents",
       });
@@ -49,6 +56,7 @@ export class PublishPanel extends Component {
       this.tabs.set(section, tab);
       tab.addEventListener("click", () => this.selectSection(section));
       tab.addEventListener("keydown", (event) => {
+        if (!this.publish.canPublishPdf) return;
         let next: "publish" | "documents" | undefined;
         if (event.key === "ArrowLeft" || event.key === "ArrowRight")
           next = section === "publish" ? "documents" : "publish";
@@ -77,6 +85,7 @@ export class PublishPanel extends Component {
         this.state.documents,
       ),
     );
+    if (!this.publish.canPublishPdf) this.state.section = "publish";
     this.selectSection(this.state.section);
     this.body.createEl("h3", {
       cls: "stratum-section-heading",
@@ -86,7 +95,10 @@ export class PublishPanel extends Component {
       cls: "stratum-placeholder",
       text: "PDF documents created for your note",
     });
-    this.template = createStratumSelect(this.body, {
+    const selectors = this.body.createDiv({
+      cls: "stratum-publish-template-selectors",
+    });
+    this.template = createStratumSelect(selectors, {
       label: "Template",
       ariaLabel: "Choose template",
       value: "",
@@ -94,13 +106,32 @@ export class PublishPanel extends Component {
     });
     this.template.addEventListener("change", () => {
       this.optionsModal?.close();
+      const family = publishingTemplateFamilies(
+        this.publish.publishingTemplates,
+      ).find((family) => family.id === this.template.value);
       void this.publish
-        .updatePreferences({ templateId: this.template.value })
+        .updatePreferences({ templateId: family?.choices[0]?.id ?? "" })
+        .catch(() => {});
+    });
+    this.versionField = selectors.createDiv();
+    this.version = createStratumSelect(this.versionField, {
+      label: "Version",
+      ariaLabel: "Choose template version",
+      value: "",
+      choices: [],
+    });
+    this.version.addEventListener("change", () => {
+      if (this.version.value === this.publish.notePreferences.templateId)
+        return;
+      this.optionsModal?.close();
+      void this.publish
+        .updatePreferences({ templateId: this.version.value })
         .catch(() => {});
     });
     this.controls = this.body.createDiv({ cls: "stratum-publish-controls" });
     this.settings = createStratumButton(this.controls, {
       text: "Settings",
+      wrap: true,
       tooltip: "Publishing settings for this note",
     });
     this.settings.addEventListener("click", () => {
@@ -129,7 +160,11 @@ export class PublishPanel extends Component {
     this.cancel.addEventListener("click", () => this.publish.cancel());
     this.register(this.publish.subscribe(() => this.update()));
     this.update();
-    if (!this.publish.readiness && !this.publish.checking)
+    if (
+      this.publish.canPublishPdf &&
+      !this.publish.readiness &&
+      !this.publish.checking
+    )
       void this.publish.check();
   }
   private update(): void {
@@ -142,15 +177,20 @@ export class PublishPanel extends Component {
     );
     this.template.empty();
     this.template.createEl("option", { value: "", text: "Choose template" });
-    for (const choice of templates.templates)
-      this.template.createEl("option", {
-        value: choice.id,
-        text:
-          choice.renderer === "aastex"
-            ? `${choice.name} · ${AASTEX_PACKAGE_REFERENCE.upstreamVersion}`
-            : choice.name,
-      });
-    this.template.value = template?.id ?? "";
+    const families = publishingTemplateFamilies(templates);
+    for (const family of families)
+      this.template.createEl("option", { value: family.id, text: family.name });
+    const selectedFamily = families.find((family) =>
+      family.choices.some((choice) => choice.id === template?.id),
+    );
+    this.template.value = selectedFamily?.id ?? "";
+    this.versionField.hidden = !selectedFamily?.versioned;
+    this.version.empty();
+    for (const choice of selectedFamily?.choices ?? [])
+      this.version.createEl("option", { value: choice.id, text: choice.label });
+    this.version.value = template?.id ?? "";
+    this.version.disabled =
+      !hasNote || publish.busy || publish.preferencesSaving;
     this.template.disabled =
       !hasNote || publish.busy || publish.preferencesSaving;
     this.controls.hidden = !hasNote;
@@ -176,11 +216,13 @@ export class PublishPanel extends Component {
                 publish.plugin.publicationEditor?.pending?.(
                   publish.document.path,
                 )
-                  ? "Finish or resolve the pending publication edit in Settings or Publication details."
+                  ? "Finish or resolve the pending publication edit in Settings."
                   : "") ||
-                (!publish.readiness?.pdf
-                  ? "PDF tools need setup. Open Settings for details."
-                  : ""));
+                (!publish.canPublishPdf
+                  ? "Create PDF documents in desktop Obsidian. Edit this note’s metadata and settings here."
+                  : !publish.readiness?.pdf
+                    ? "PDF tools need setup. Open Settings for details."
+                    : ""));
     this.status.hidden = !problem;
     if (problem)
       this.status.createEl("p", {

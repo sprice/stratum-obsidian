@@ -119,6 +119,7 @@ function setup(state?: import("../view-publish").PublishViewState) {
     historyScope: "note",
     documents: [] as PublishedDocument[],
     allDocuments: [] as PublishedDocument[],
+    canPublishPdf: true,
     busy: false,
     checking: false,
     progress: "",
@@ -287,12 +288,7 @@ test("a note chooses from all templates without a document type selector", () =>
   assert.equal(select.value, "");
   assert.deepEqual(
     select.children.map((el) => el.text),
-    [
-      "Choose template",
-      "General documents",
-      "Academic papers",
-      "AASTeX · 7.0.2",
-    ],
+    ["Choose template", "General documents", "Academic papers", "AASTeX"],
   );
   assert.equal(
     root.all().find((el) => el.text === "Create PDF document")!.hidden,

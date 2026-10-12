@@ -6,17 +6,13 @@ import {
   setLivePreviewEffect,
   TFile,
 } from "./obsidian-host";
-import { PublicationEditor } from "../../publication-editor";
+import { PublicationEditor, PublicationForm } from "../../publication-editor";
 import {
   publicationAuthors,
   publicationYaml,
 } from "../../publication-metadata";
 import type StratumPlugin from "../../plugin";
-import type {
-  Editor,
-  EditorTransaction,
-  TFile as ObsidianFile,
-} from "obsidian";
+import type { Editor, EditorTransaction } from "obsidian";
 
 const path = "Papers/Synthetic paper.md";
 const sample = `---
@@ -47,6 +43,8 @@ let blockedTransactions = 0;
 let partialTransaction = false;
 let rememberedInput: HTMLInputElement | null = null;
 let service: PublicationEditor;
+let form: PublicationForm | undefined;
+let panel: HTMLElement | undefined;
 const events: string[] = [];
 for (const type of ["focus", "blur", "pointerdown", "mousedown", "click"])
   document.addEventListener(
@@ -101,6 +99,8 @@ function reset(
   partialTransaction = partial;
   blockedTransactions = 0;
   events.length = 0;
+  form?.destroy();
+  panel?.remove();
   view?.destroy();
   backgroundView?.destroy();
   backgroundView = undefined;
@@ -155,6 +155,16 @@ function reset(
       ],
     }),
   });
+  panel = document.body.createDiv({
+    cls: "synthetic-settings-metadata stratum-modal",
+  });
+  if (Object.hasOwn(publicationYaml(source).properties, "stratum_publish"))
+    mountForm();
+}
+function mountForm() {
+  if (form && form.element.isConnected) return;
+  form = new PublicationForm(service, view, path);
+  panel!.append(form.element);
 }
 function text() {
   return view.state.doc.toString();
@@ -200,7 +210,7 @@ const fixture = {
   flush: () => service.flush(path),
   authors: () => publicationAuthors(publicationYaml(text()).properties).authors,
   pending: () => service.pending(path),
-  open: () => service.open(new TFile() as unknown as ObsidianFile),
+  open: () => mountForm(),
   backgroundText: () => backgroundView?.state.doc.toString(),
   blockedTransactions: () => blockedTransactions,
   rememberInput: (label: string) => {
@@ -210,8 +220,10 @@ const fixture = {
   },
   blurRememberedInput: () =>
     rememberedInput?.dispatchEvent(new FocusEvent("blur")),
-  livePreview: (value: boolean) =>
-    view.dispatch({ effects: setLivePreviewEffect.of(value) }),
+  livePreview: (value: boolean) => {
+    service.flush(path);
+    view.dispatch({ effects: setLivePreviewEffect.of(value) });
+  },
   titleSource: (value: "body" | "properties") => {
     publish.layout.titleSource = value;
     service.refresh();

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   readPublishingTemplates,
+  publishingTemplateFamilies,
   removePublishingTemplate,
   selectedPublishingTemplate,
 } from "../publish-templates";
@@ -129,4 +130,24 @@ test("bounded opening choices derive requirements and preserve prefill without a
   );
   assert.deepEqual(loaded.templates[1].prefill.authors, ["Synthetic author"]);
   assert.equal(loaded.templates[1].layout.titleSource, "body");
+});
+
+test("installed version descriptors group choices without changing stored template IDs", async () => {
+  const { AASTEX_TEMPLATE } = await import("../publication-package");
+  const templates = readPublishingTemplates(undefined).templates;
+  const families = publishingTemplateFamilies({
+    templates: [...templates, AASTEX_TEMPLATE],
+  });
+  assert.equal(families[0].versioned, false);
+  assert.deepEqual(families[2], {
+    id: "package:aastex",
+    name: "AASTeX",
+    versioned: true,
+    choices: [{ id: "package:aastex", label: "7.0.2" }],
+  });
+  const saved = readPublishingTemplates({ templates });
+  assert.deepEqual(
+    saved.templates.map((template) => template.id),
+    templates.map((template) => template.id),
+  );
 });

@@ -19,6 +19,8 @@ export interface PublishingTemplate {
   properties: PublishingProperty[];
   prefill: AcademicDefaults;
   renderer?: "aastex";
+  // Runtime descriptors describe installed choices; saved templates keep existing IDs.
+  version?: { familyId: string; label: string };
 }
 export interface PublishingTemplates {
   templates: PublishingTemplate[];
@@ -102,4 +104,34 @@ export function removePublishingTemplate(
     ...state,
     templates: state.templates.filter((t) => t.id !== id),
   });
+}
+
+export function publishingTemplateFamilies(state: PublishingTemplates) {
+  const families = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      choices: { id: string; label: string }[];
+      versioned: boolean;
+    }
+  >();
+  for (const template of state.templates) {
+    const id = template.version?.familyId ?? template.id;
+    let family = families.get(id);
+    if (!family) {
+      family = {
+        id,
+        name: template.name,
+        choices: [],
+        versioned: !!template.version,
+      };
+      families.set(id, family);
+    }
+    family.choices.push({
+      id: template.id,
+      label: template.version?.label ?? template.name,
+    });
+  }
+  return [...families.values()];
 }

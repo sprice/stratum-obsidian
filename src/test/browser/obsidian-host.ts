@@ -70,16 +70,19 @@ Object.assign(HTMLElement.prototype, {
     this.setAttribute(key, value);
   },
 });
+export const desktopCalls = { fontDiscovery: 0 };
 Object.assign(window, {
   createDiv: (options?: DomElementInfo) => element(null, "div", options),
   createEl: <K extends keyof HTMLElementTagNameMap>(
     tag: K,
     options?: DomElementInfo,
   ) => element(null, tag, options),
-  queryLocalFonts: () =>
-    Promise.resolve(
+  queryLocalFonts: () => {
+    desktopCalls.fontDiscovery++;
+    return Promise.resolve(
       ["Arial", "Georgia", "Times New Roman"].map((family) => ({ family })),
-    ),
+    );
+  },
 });
 
 export class Component {

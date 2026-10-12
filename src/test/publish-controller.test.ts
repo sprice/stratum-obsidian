@@ -25,6 +25,7 @@ class File {
   }
 }
 class View {
+  leaf?: { view: View };
   editor = { getValue: () => this.text };
   constructor(
     public file: File,
@@ -45,7 +46,11 @@ const cachedSupport = () => ({
 class FontError extends Error {
   fonts = ["Missing body"];
 }
-function setup(settings: Partial<StratumSettings> = {}, selected = true) {
+function setup(
+  settings: Partial<StratumSettings> = {},
+  selected = true,
+  desktop = true,
+) {
   let timerId = 0;
   const timers = new Map<number, { callback: () => void; delay: number }>();
   const calls = {
@@ -55,6 +60,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     save: 0,
     format: 0,
     aastex: 0,
+    settings: [] as string[],
   };
   const payloads: unknown[] = [];
   const behavior = {
@@ -111,7 +117,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
       Component: class {
         registerEvent() {}
       },
-      Platform: { isDesktopApp: true },
+      Platform: { isDesktopApp: desktop },
       FileSystemAdapter: class {},
       MarkdownView: View,
       TFile: File,
@@ -135,6 +141,18 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     },
     "browser",
     {
+      "./publication-options-modal": {
+        PublishingSettingsModal: class {
+          constructor(
+            _app: unknown,
+            private publish: { document: File },
+            _launcher: unknown,
+          ) {}
+          open() {
+            calls.settings.push(this.publish.document.path);
+          }
+        },
+      },
       "./publication-heading-preview": { aastexHeadingIssues },
       "./publication-render": {
         renderAastexPublication: (
@@ -217,6 +235,8 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     second = new File("Second.md");
   const leaf = { view: new View(first, "Unsaved first note") },
     other = { view: new View(second, "Second note") };
+  leaf.view.leaf = leaf;
+  other.view.leaf = other;
   const roots = [leaf, other];
   const opened: File[] = [];
   const revealed: object[] = [];
@@ -312,11 +332,12 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   };
   files.set(".config/stratum/published/catalog.json", JSON.stringify(catalog));
   controller.catalog = catalog;
-  controller.readiness ??= {
-    pdf: true,
-    pandoc: { path: "pandoc", version: "3" },
-    tectonic: { path: "tectonic", version: "0.17" },
-  };
+  if (desktop)
+    controller.readiness ??= {
+      pdf: true,
+      pandoc: { path: "pandoc", version: "3" },
+      tectonic: { path: "tectonic", version: "0.17" },
+    };
   return {
     opened,
     revealed,
@@ -971,4 +992,39 @@ test("a repeated title warns but does not block creation", async () => {
   assert.equal(controller.canCreate(), true);
   await controller.updateLayout({ titleSource: "body" });
   assert.equal(controller.duplicateTitleWarning, false);
+});
+
+test("mobile tracks notes and stores settings without tools or cached desktop readiness enabling creation", async () => {
+  const f = setup(
+    { publishReadinessCache: cachedSupport(), publishPdfSetupComplete: true },
+    true,
+    false,
+  );
+  await f.controller.reload();
+  assert.equal(f.controller.canPublishPdf, false);
+  assert.equal(f.controller.readiness, null);
+  assert.equal(f.controller.document, f.leaf.view.file);
+  await f.controller.updatePreferences({ templateId: "academic" });
+  assert.equal(f.controller.notePreferences.templateId, "academic");
+  f.controller.readiness = structuredClone(readySupport);
+  assert.equal(f.controller.canCreate(), false);
+  await f.controller.check(true);
+  await f.controller.create();
+  assert.equal(f.calls.detect, 0);
+  assert.equal(f.calls.check, 0);
+  assert.equal(f.calls.probe.length, 0);
+  assert.equal(f.calls.format, 0);
+  assert.equal(f.payloads.length, 0);
+});
+
+test("Settings command loads portable preferences for its captured note and cancels after a note switch", async () => {
+  const f = setup({}, true, false);
+  f.controller.catalog = null;
+  await f.controller.openSettings({} as never, f.other.view as never);
+  assert.deepEqual(f.calls.settings, [f.other.view.file.path]);
+  const pending = f.controller.openSettings({} as never, f.leaf.view as never);
+  f.events.get("active-leaf-change")!(f.other as never);
+  await pending;
+  assert.equal(f.calls.settings.length, 1);
+  assert.equal(f.calls.detect, 0);
 });

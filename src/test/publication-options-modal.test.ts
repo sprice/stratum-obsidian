@@ -106,6 +106,7 @@ function setup(
     aastexHeadingProblems: [],
     aastexPackageProblem: "",
     readiness: { pdf: true },
+    canPublishPdf: true,
     busy: false,
     preferencesSaving: false,
     aastexPdfOptions: {

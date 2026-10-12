@@ -1093,18 +1093,26 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-documents p {
   margin: 0;
 }
-.stratum-publish-controls {
-  display: flex;
-  justify-content: space-between;
+.stratum-publish-controls,
+.stratum-publish-template-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--size-4-2);
 }
 .stratum-publish-customize-row,
 .stratum-publish-controls {
   margin-block-end: var(--size-4-3);
 }
-.stratum-publish-controls > .stratum-publish-create {
-  width: 50%;
+.stratum-publish-controls > button,
+.stratum-publish-template-selectors > * {
+  width: 100%;
   min-width: 0;
+}
+.stratum-publish-controls > button {
+  align-self: stretch;
+}
+.stratum-publish-template-selectors > [hidden] {
+  display: none;
 }
 .stratum-publish-configuration,
 .stratum-publish-academic {
@@ -1877,6 +1885,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--size-4-2);
   margin-bottom: var(--size-4-4);
+}
+.stratum-publish-tabs > :only-child {
+  grid-column: 1 / -1;
 }
 .stratum-publish-tabs > [aria-selected="true"] {
   background: var(--interactive-accent);

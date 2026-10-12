@@ -47,7 +47,7 @@ before(
           ? bundle.outputFiles[0].contents
           : style
             ? css
-            : '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/plugin.css"><style>body{margin:0}.cm-editor{height:90vh}.cm-scroller{overflow:auto}</style></head><body><main id="editor"></main><script type="module" src="/fixture.js"></script></body></html>',
+            : '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/plugin.css"><style>body{margin:0}.cm-editor{height:90vh}.cm-scroller{overflow:auto}.synthetic-settings-metadata{position:absolute;inset:0;background:var(--background-primary)}</style></head><body><main id="editor"></main><script type="module" src="/fixture.js"></script></body></html>',
       );
     });
     await new Promise<void>((resolve) =>
@@ -214,7 +214,7 @@ test("composition Enter retains the draft; title-source changes refresh validati
     'document.querySelector(".stratum-publication-validation").textContent.includes("title")',
   );
 });
-test("a namespace example in body prose does not activate the widget", async () => {
+test("metadata never adds a custom panel inside the note editor", async () => {
   await page.evaluate(
     'window.publicationEditorFixture.reset("A literal example:\\n\\nstratum_publish:\\n  authors: []\\n")',
   );
@@ -302,7 +302,10 @@ test("switching Source and Live Preview flushes a valid draft and preserves the 
   await until(
     'window.publicationEditorFixture.authors()[0].email === "changed@example.org"',
   );
-  assert.equal(await page.locator(".stratum-publication-details").count(), 0);
+  assert.equal(
+    await page.locator(".cm-editor .stratum-publication-details").count(),
+    0,
+  );
   await page.evaluate("window.publicationEditorFixture.blurRememberedInput()");
   assert.equal(
     await page.evaluate("window.publicationEditorFixture.pending()"),
@@ -317,7 +320,7 @@ test("switching Source and Live Preview flushes a valid draft and preserves the 
     /Synthetic body remains unchanged/,
   );
 });
-test("narrow layouts keep controls within the editor", async () => {
+test("narrow layouts keep the shared metadata form within its settings surface", async () => {
   await page.setViewportSize(360, 900);
   await reset();
   const fits = await page.evaluate(`(() => {

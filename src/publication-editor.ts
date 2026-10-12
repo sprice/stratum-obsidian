@@ -1,22 +1,10 @@
-import {
-  EditorState,
-  StateEffect,
-  StateField,
-  type Extension,
-} from "@codemirror/state";
-import {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  WidgetType,
-  type DecorationSet,
-} from "@codemirror/view";
+import { EditorState, type Extension } from "@codemirror/state";
+import { EditorView, ViewPlugin } from "@codemirror/view";
 import {
   Component,
   MarkdownView,
   Notice,
   editorInfoField,
-  editorLivePreviewField,
   TFile,
 } from "obsidian";
 import type StratumPlugin from "./plugin";
@@ -34,7 +22,6 @@ import {
   type PublicationChange,
 } from "./publication-metadata";
 
-const refreshPublication = StateEffect.define<null>();
 interface Draft {
   operation: AuthorOperation;
   revision: string;
@@ -56,7 +43,6 @@ interface PropertyForm {
   refresh(): void;
 }
 interface NoteSession {
-  visible: boolean;
   open: boolean;
   drafts: Map<string, Draft>;
   properties: Map<PublicationPropertyKey, PropertyDraft>;
@@ -104,7 +90,6 @@ export class PublicationEditor extends Component {
     let state = this.sessions.get(path);
     if (!state) {
       state = {
-        visible: false,
         open: true,
         drafts: new Map(),
         properties: new Map(),
@@ -205,15 +190,13 @@ export class PublicationEditor extends Component {
     queueMicrotask(() => {
       this.refreshQueued = false;
       if (!this.alive) return;
-      for (const view of this.views)
-        view.dispatch({ effects: refreshPublication.of(null) });
       for (const form of this.forms) form.refresh();
       for (const form of this.propertyForms) form.refresh();
       this.plugin.publish?.emit();
     });
   }
   async open(file: TFile, view?: MarkdownView): Promise<void> {
-    this.session(file.path).visible = this.session(file.path).open = true;
+    this.session(file.path).open = true;
     if (view) {
       await view.setState(
         { ...view.getState(), mode: "source", source: false },
@@ -399,55 +382,7 @@ export class PublicationEditor extends Component {
       for (const form of this.forms) form.refresh();
       for (const form of this.propertyForms) form.refresh();
     };
-    const decorations = (
-      state: import("@codemirror/state").EditorState,
-    ): DecorationSet => {
-      if (!state.field(editorLivePreviewField, false)) return Decoration.none;
-      const file = state.field(editorInfoField, false)?.file;
-      if (!file) return Decoration.none;
-      const text = state.doc.toString();
-      const frontmatter =
-        /^(?:\uFEFF)?---\r?\n([\s\S]*?)(?:\r?\n(?:---|\.\.\.)(?:\r?\n|$)|$)/.exec(
-          text,
-        )?.[1] ?? "";
-      let offset = 0;
-      let hasNamespace = /(?:^|[,{]\s*)["']?stratum_publish["']?\s*:/m.test(
-        frontmatter,
-      );
-      try {
-        const parsed = publicationYaml(text);
-        offset = parsed.end;
-        hasNamespace = Object.hasOwn(parsed.properties, "stratum_publish");
-      } catch {
-        offset =
-          /^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)(?:\r?\n|$)/.exec(
-            text,
-          )?.[0].length ?? 0;
-      }
-      if (!this.session(file.path).visible && !hasNamespace)
-        return Decoration.none;
-      return Decoration.set([
-        Decoration.widget({
-          widget: new PublicationWidget(this, file.path),
-          block: true,
-          side: -1,
-        }).range(offset),
-      ]);
-    };
-    const field = StateField.define<DecorationSet>({
-      create: decorations,
-      update(previous, tr) {
-        return tr.docChanged ||
-          tr.effects.some((effect) => effect.is(refreshPublication)) ||
-          tr.state.field(editorLivePreviewField, false) !==
-            tr.startState.field(editorLivePreviewField, false)
-          ? decorations(tr.state)
-          : previous;
-      },
-      provide: (value) => EditorView.decorations.from(value),
-    });
     return [
-      field,
       ViewPlugin.fromClass(
         class {
           private cleanup: () => void;
@@ -466,27 +401,6 @@ export class PublicationEditor extends Component {
   }
 }
 
-class PublicationWidget extends WidgetType {
-  constructor(
-    private service: PublicationEditor,
-    private path: string,
-  ) {
-    super();
-  }
-  eq(other: PublicationWidget): boolean {
-    return this.path === other.path;
-  }
-  toDOM(view: EditorView): HTMLElement {
-    return new PublicationForm(this.service, view, this.path).element;
-  }
-  ignoreEvent(): boolean {
-    return true;
-  }
-  destroy(dom: HTMLElement): void {
-    formsByElement.get(dom)?.destroy();
-  }
-}
-const formsByElement = new WeakMap<HTMLElement, PublicationForm>();
 export class PublicationForm {
   readonly element: HTMLDetailsElement;
   private content: HTMLElement;
@@ -527,7 +441,6 @@ export class PublicationForm {
       this.view.requestMeasure();
     });
     this.cleanup = service.registerForm(this);
-    formsByElement.set(this.element, this);
     this.refresh();
   }
   focus(): void {

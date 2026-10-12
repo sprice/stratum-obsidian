@@ -303,7 +303,7 @@ export default class StratumPlugin extends Plugin {
       name: "Edit publication details",
       editorCallback: (_editor, view) => {
         if (view instanceof MarkdownView && view.file)
-          void this.publicationEditor?.open(view.file, view);
+          void this.publish?.openSettings(view.containerEl, view);
       },
     });
     registerCitationReading(this.citations);
@@ -316,10 +316,10 @@ export default class StratumPlugin extends Plugin {
     });
 
     this.sources = this.addChild(new SourcesController(this));
+    const { PublishController } = await import("./publish-controller");
+    if (this.isUnloaded) return;
+    this.publish = this.addChild(new PublishController(this));
     if (Platform.isDesktopApp) {
-      const { PublishController } = await import("./publish-controller");
-      if (this.isUnloaded) return;
-      this.publish = this.addChild(new PublishController(this));
       const { PublishPreviewView } = await import("./publish-preview");
       const { VIEW_TYPE_PUBLISH_PREVIEW } = await import("./publish-model");
       if (this.isUnloaded) return;

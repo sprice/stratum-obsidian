@@ -25,7 +25,7 @@ test("restored tabs respect visibility and platform availability", () => {
     assert.equal(resolveActiveTab(readLastActiveTab(id), enabled, true), id);
   assert.equal(
     resolveActiveTab(readLastActiveTab("publish"), enabled, false),
-    "browse",
+    "publish",
   );
   assert.equal(
     resolveActiveTab(
@@ -63,13 +63,13 @@ test("platform filters Sync without changing saved preferences; all-off is valid
   );
   assert.deepEqual(
     getVisibleTabs(enabled, false).map(({ id }) => id),
-    ["browse", "search", "reader", "sources"],
+    ["browse", "search", "reader", "sources", "publish"],
   );
   assert.equal(enabled.sync, true);
   assert.equal(enabled.publish, true);
   assert.equal(
     resolveActiveTab("publish", { ...allOff(), publish: true }, false),
-    null,
+    "publish",
   );
   assert.equal(
     resolveActiveTab(null, { ...allOff(), publish: true }, true),

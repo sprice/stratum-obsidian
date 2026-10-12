@@ -1,5 +1,6 @@
-import { TFile, MarkdownView, editorInfoField } from "obsidian";
-import { EditorState } from "@codemirror/state";
+import { TFile, MarkdownView, editorInfoField, Platform } from "obsidian";
+import { desktopCalls } from "./obsidian-host";
+import { EditorState, type ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { PublicationEditor } from "../../publication-editor";
 import { stringify } from "yaml";
@@ -75,6 +76,7 @@ let metadata: PublicationEditor;
 let editorContainer: HTMLElement | undefined;
 let sourceText = "";
 let currentFile: TFile;
+let historyChange: { forward: ChangeSet; inverse: ChangeSet } | undefined;
 export interface FixtureOptions {
   bodyFont?: string;
   titleFont?: string;
@@ -84,6 +86,7 @@ export interface FixtureOptions {
   legacyWord?: boolean;
   source?: string;
   editable?: boolean;
+  mobile?: boolean;
 }
 const root = document.querySelector<HTMLElement>("#publish")!;
 const source = `---
@@ -99,6 +102,9 @@ async function reset(options: FixtureOptions = {}) {
   sourceEditor = undefined;
   metadata?.unload();
   editorContainer?.remove();
+  Platform.isDesktopApp = Platform.isDesktop = !options.mobile;
+  desktopCalls.fontDiscovery = 0;
+  historyChange = undefined;
   sourceText = options.source ?? source;
   controller?.onunload();
   root.empty();
@@ -192,7 +198,7 @@ async function reset(options: FixtureOptions = {}) {
     },
     transaction: (transaction: EditorTransaction) => {
       const doc = sourceEditor!.state.doc;
-      sourceEditor!.dispatch({
+      const change = sourceEditor!.state.update({
         changes: transaction.changes?.map((change) => ({
           from: doc.line(change.from.line + 1).from + change.from.ch,
           to: change.to
@@ -200,7 +206,13 @@ async function reset(options: FixtureOptions = {}) {
             : doc.line(change.from.line + 1).from + change.from.ch,
           insert: change.text,
         })),
+        userEvent: "input.publication",
       });
+      historyChange = {
+        forward: change.changes,
+        inverse: change.changes.invert(change.startState.doc),
+      };
+      sourceEditor!.dispatch(change);
     },
   } as unknown as Editor;
   view.editor = editor;
@@ -284,6 +296,20 @@ export const publicationFixture = {
     });
     metadata.refresh();
   },
+  undoMetadataEdit() {
+    if (historyChange)
+      sourceEditor!.dispatch({
+        changes: historyChange.inverse,
+        userEvent: "undo",
+      });
+  },
+  redoMetadataEdit() {
+    if (historyChange)
+      sourceEditor!.dispatch({
+        changes: historyChange.forward,
+        userEvent: "redo",
+      });
+  },
   selectTemplate(templateId: string) {
     return controller.updatePreferences({ templateId });
   },
@@ -303,6 +329,13 @@ export const publicationFixture = {
   setBusy(busy: boolean) {
     controller.busy = busy;
     controller.emit();
+  },
+  setAastexPackage(
+    reference: import("../../publication-options").PublicationPackageReference,
+  ) {
+    return controller.updatePreferences({
+      aastex: { ...controller.notePreferences.aastex!, package: reference },
+    });
   },
   setAastexOptions(
     options: Parameters<PublishController["updateAastexPdfOptions"]>[0],
@@ -377,6 +410,8 @@ export const publicationFixture = {
       pending:
         !!controller.document && metadata.pending(controller.document.path),
       canCreate: controller.canCreate(),
+      canPublishPdf: controller.canPublishPdf,
+      fontDiscoveryCalls: desktopCalls.fontDiscovery,
       titleSource: controller.layout.titleSource,
       saving: controller.preferencesSaving,
       busy: controller.busy,
