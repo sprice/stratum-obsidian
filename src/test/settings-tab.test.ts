@@ -447,7 +447,7 @@ for (const desktop of [true, false]) {
       Array.from(choices, (tab) => tab.label),
       desktop
         ? ["Browse", "Search", "Sync", "Reader", "Citations", "Publish"]
-        : ["Browse", "Search", "Reader", "Citations"],
+        : ["Browse", "Search", "Reader", "Citations", "Publish"],
     );
     for (const tab of choices) {
       assert.equal(f.chooser.enabled[tab.id], true);
@@ -457,7 +457,7 @@ for (const desktop of [true, false]) {
     assert.equal(f.saves, choices.length);
     assert.equal(f.updates, choices.length);
     assert.equal(f.plugin.settings.enabledTabs.sync, !desktop);
-    assert.equal(f.plugin.settings.enabledTabs.publish, !desktop);
+    assert.equal(f.plugin.settings.enabledTabs.publish, false);
     assert.equal(
       sections.some((section) => section.heading === "Publishing"),
       desktop,

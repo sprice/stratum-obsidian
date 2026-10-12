@@ -4,7 +4,7 @@ import {
   SOURCE_SUMMARY_VARIABLES,
   validateSourceSummaryTemplate,
 } from "./source-summary-template";
-import { STRATUM_TABS, readEnabledTabs } from "./stratum-tabs";
+import { getVisibleTabs, readEnabledTabs } from "./stratum-tabs";
 import { openTabChooser } from "./settings-tab-chooser";
 import {
   Notice,
@@ -687,9 +687,9 @@ export class StratumSettingTab extends PluginSettingTab {
 
     const tabsSection = this.createSection(sections, "Stratum tabs");
     this.defineSetting(tabsSection, "Visible tabs", (setting) => {
-      const tabs = STRATUM_TABS.filter(
-        ({ id }) =>
-          Platform.isDesktopApp || (id !== "sync" && id !== "publish"),
+      const tabs = getVisibleTabs(
+        readEnabledTabs(undefined),
+        Platform.isDesktopApp,
       );
       const updateSummary = () => {
         const enabled = readEnabledTabs(this.plugin.settings.enabledTabs);
