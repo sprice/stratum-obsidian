@@ -212,6 +212,9 @@ export class PublishPanel extends Component {
     this.citations = this.configuration.createDiv({
       cls: "stratum-publish-citations",
     });
+    this.customizeRow = this.body.createDiv({
+      cls: "stratum-publish-customize-row",
+    });
     const controls = this.body.createDiv({ cls: "stratum-publish-controls" });
     this.controls = controls;
     this.type = createStratumSelect(controls, {
@@ -235,9 +238,6 @@ export class PublishPanel extends Component {
     });
     this.create.addEventListener("click", () => {
       void this.publish.create();
-    });
-    this.customizeRow = this.body.createDiv({
-      cls: "stratum-publish-customize-row",
     });
     this.aastexVersion = this.body.createDiv({ cls: "stratum-publish-meta" });
     this.aastexVersion.setText(

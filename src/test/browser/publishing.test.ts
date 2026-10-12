@@ -234,6 +234,94 @@ async function choose(label: string, value: string, key: string) {
   );
 }
 
+test("customization precedes creation with consistent spacing across templates, formats and widths", async () => {
+  await scenario("customization-before-create", async () => {
+    for (const width of [320, 720]) {
+      await page.setViewportSize(width, 900);
+      for (const templateId of ["general", "academic"])
+        for (const format of ["pdf", "docx"]) {
+          await page.evaluate(
+            `window.publicationFixture.reset({templateId:'${templateId}',format:'${format}'})`,
+          );
+          const available = await page.evaluate(
+            "!document.querySelector('.stratum-publish-controls button').disabled",
+          );
+          const measure = `(() => {
+          const row = document.querySelector('.stratum-publish-customize-row');
+          const controls = document.querySelector('.stratum-publish-controls');
+          const details = row.querySelector('details');
+          const token = parseFloat(getComputedStyle(document.body).getPropertyValue('--size-4-3'));
+          const gap = parseFloat(getComputedStyle(row.parentElement).rowGap);
+          return !row.hidden && !row.querySelector('.stratum-publish-reset').hidden
+            && row.nextElementSibling === controls
+            && controls.getBoundingClientRect().top - row.getBoundingClientRect().bottom >= gap + token - 1
+            && parseFloat(getComputedStyle(row).marginBlockEnd) === token
+            && parseFloat(getComputedStyle(controls).marginBlockEnd) === token
+            && !controls.hidden && controls.querySelector('select').value === '${format}'
+            && controls.querySelector('button').textContent === 'Create ${format === "pdf" ? "PDF" : "Word"} document'
+            && document.documentElement.scrollWidth <= innerWidth;
+        })()`;
+          assert.equal(
+            await page.evaluate(measure),
+            true,
+            `${templateId}/${format}/${width}: collapsed`,
+          );
+          await page
+            .locator(".stratum-publish-customization > summary")
+            .click();
+          await until(
+            "document.querySelector('.stratum-publish-customization').open && !!document.querySelector('.stratum-publish-customization .stratum-publish-section')",
+          );
+          assert.equal(
+            await page.evaluate(measure),
+            true,
+            `${templateId}/${format}/${width}: expanded`,
+          );
+          assert.equal(
+            await page.evaluate(
+              "!document.querySelector('.stratum-publish-controls button').disabled",
+            ),
+            available,
+          );
+          await capture(
+            `customization-before-create-${templateId}-${format}-${width}`,
+          );
+        }
+      for (const format of ["pdf", "docx"]) {
+        await page.evaluate(
+          `window.publicationFixture.reset({aastex:true,format:'${format}'})`,
+        );
+        assert.equal(
+          await page.evaluate(
+            "document.querySelector('.stratum-publish-customize-row').hidden",
+          ),
+          format === "pdf",
+        );
+        assert.equal(
+          await page.evaluate(
+            "document.querySelector('.stratum-publish-controls').hidden",
+          ),
+          false,
+        );
+        assert.equal(
+          await page.evaluate(
+            "document.querySelector('.stratum-publish-controls button').textContent",
+          ),
+          format === "pdf"
+            ? "Create PDF document"
+            : "Create Word review manuscript",
+        );
+        assert.equal(
+          await page.evaluate(
+            "document.documentElement.scrollWidth <= innerWidth",
+          ),
+          true,
+        );
+      }
+    }
+  });
+});
+
 test("AASTeX document options stay compact, keyboard accessible and within a narrow panel", async () => {
   await scenario("aastex-options", async () => {
     await page.setViewportSize(320, 900);

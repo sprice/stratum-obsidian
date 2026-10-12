@@ -1091,6 +1091,10 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: var(--size-4-2);
 }
+.stratum-publish-customize-row,
+.stratum-publish-controls {
+  margin-block-end: var(--size-4-3);
+}
 .stratum-publish-controls select,
 .stratum-publish-controls button {
   width: 100%;

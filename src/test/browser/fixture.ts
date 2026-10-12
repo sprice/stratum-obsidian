@@ -69,6 +69,8 @@ export interface FixtureOptions {
   titleFont?: string;
   theme?: "light" | "dark";
   aastex?: boolean;
+  templateId?: "general" | "academic";
+  format?: "pdf" | "docx";
 }
 const root = document.querySelector<HTMLElement>("#publish")!;
 const properties = { title: "Synthetic paper", authors: ["Example Author"] };
@@ -116,8 +118,10 @@ async function reset(options: FixtureOptions = {}) {
     1,
   );
   const preferences = readNotePreferences({
-    templateId: options.aastex ? "package:aastex" : "general",
-    format: "pdf",
+    templateId: options.aastex
+      ? "package:aastex"
+      : (options.templateId ?? "general"),
+    format: options.format ?? "pdf",
   });
   preferences.pdf.bodyFont = options.bodyFont ?? "Missing Body Serif";
   preferences.pdf.titleFont = options.titleFont ?? "";
