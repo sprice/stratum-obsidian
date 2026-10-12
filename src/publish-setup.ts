@@ -49,8 +49,8 @@ export class PublishSetupModal extends Modal {
       attr: { "aria-live": "polite" },
     });
     for (const [tool, label] of [
-      ["pandoc", "PDF • Pandoc"],
-      ["tectonic", "PDF · Tectonic"],
+      ["pandoc", "Pandoc"],
+      ["tectonic", "Tectonic"],
     ] as const) {
       const row = tools.createDiv({ cls: "stratum-publish-tool" });
       const heading = row.createDiv({ cls: "stratum-publish-tool-heading" });

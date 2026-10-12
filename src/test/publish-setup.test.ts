@@ -158,6 +158,11 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   modal.onOpen();
   assert.deepEqual(checks, [false]);
   const content = modal.contentEl as unknown as Element;
+  const toolLabels = (element: Element): string[] =>
+    element.tagName === "STRONG"
+      ? [element.text]
+      : element.children.flatMap(toolLabels);
+  assert.deepEqual(toolLabels(content), ["Pandoc", "Tectonic"]);
   assert.ok(content.find("Get Tectonic"));
   publish.readiness!.tectonic = {
     path: "/synthetic/tectonic",
