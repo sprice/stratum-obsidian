@@ -61,6 +61,7 @@ function setup(
     format: 0,
     aastex: 0,
     settings: [] as string[],
+    settingsClosed: 0,
   };
   const payloads: unknown[] = [];
   const behavior = {
@@ -150,6 +151,9 @@ function setup(
           ) {}
           open() {
             calls.settings.push(this.publish.document.path);
+          }
+          close() {
+            calls.settingsClosed++;
           }
         },
       },
@@ -1027,4 +1031,6 @@ test("Settings command loads portable preferences for its captured note and canc
   await pending;
   assert.equal(f.calls.settings.length, 1);
   assert.equal(f.calls.detect, 0);
+  f.controller.onunload();
+  assert.equal(f.calls.settingsClosed, 1);
 });

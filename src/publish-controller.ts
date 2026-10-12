@@ -80,6 +80,7 @@ export class PublishController extends Component {
   historyScope: "note" | "all" = "note";
   readonly store: PublishStore;
   private listeners = new Set<() => void>();
+  private commandSettings?: import("./publication-options-modal").PublishingSettingsModal;
   private aborter: AbortController | null = null;
   private loaded = false;
   private alive = true;
@@ -182,6 +183,8 @@ export class PublishController extends Component {
     if (this.canPublishPdf && this.readiness) void this.validateCachedSupport();
   }
   onunload(): void {
+    this.commandSettings?.close();
+    this.commandSettings = undefined;
     this.alive = false;
     this.clearError();
     this.aborter?.abort();
@@ -511,11 +514,13 @@ export class PublishController extends Component {
       const { PublishingSettingsModal } =
         await import("./publication-options-modal");
       if (!this.alive || this.document !== file) return;
+      this.commandSettings?.close();
       const modal = new PublishingSettingsModal(
         this.plugin.app,
         this,
         launcher,
       );
+      this.commandSettings = modal;
       modal.open();
       return modal;
     } catch (error) {
