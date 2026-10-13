@@ -27,15 +27,28 @@ class Element {
     return !!element && this.all().includes(element);
   }
   text = "";
+  get textContent() {
+    return this.text;
+  }
   cls = "";
+  hidden = false;
+  open = false;
   disabled = false;
   checked = false;
   isConnected = true;
   focused = false;
   constructor(public tag = "div") {}
-  private append(tag: string, options: { text?: string; cls?: string } = {}) {
+  private append(
+    tag: string,
+    {
+      attr,
+      ...options
+    }: { text?: string; cls?: string; attr?: Record<string, string> } = {},
+  ) {
     const child = new Element(tag);
     Object.assign(child, options);
+    for (const [name, value] of Object.entries(attr ?? {}))
+      child.attrs.set(name, value);
     this.children.push(child);
     return child;
   }
@@ -298,5 +311,85 @@ test("resolving a metadata close warning does not hide a retained option failure
   s.emit();
   assert.equal(state.closingError, false);
   assert.equal(state.error.hidden, false);
+  s.modal.onClose();
+});
+
+test("heading review keeps its open state and focus across unchanged emits", () => {
+  const s = setup();
+  const publish = s.publish as unknown as { aastexHeadingProblems: string[] };
+  publish.aastexHeadingProblems = ["Synthetic heading 1 is numbered."];
+  s.emit();
+  const disclosure = s.content.all().find((el) => el.tag === "details")!;
+  const summary = disclosure.children.find((el) => el.tag === "summary")!;
+  assert.equal(summary.text, "Review heading numbers");
+  disclosure.open = true;
+  summary.focus();
+  for (let emit = 0; emit < 3; emit++) {
+    publish.aastexHeadingProblems = ["Synthetic heading 1 is numbered."];
+    s.emit();
+  }
+  assert.ok(s.content.contains(disclosure), "The disclosure is not rebuilt");
+  assert.equal(disclosure.open, true);
+  assert.ok(s.content.contains(summary));
+  assert.equal(ownerDocument.activeElement, summary);
+  publish.aastexHeadingProblems = [
+    "Synthetic heading 1 is numbered.",
+    "Synthetic heading 2 is numbered.",
+  ];
+  s.emit();
+  assert.ok(s.content.contains(disclosure));
+  assert.equal(disclosure.open, true);
+  assert.equal(ownerDocument.activeElement, summary);
+  assert.deepEqual(
+    disclosure
+      .all()
+      .filter((el) => el.tag === "li")
+      .map((el) => el.text),
+    publish.aastexHeadingProblems,
+  );
+  publish.aastexHeadingProblems = [];
+  s.emit();
+  assert.ok(!s.content.contains(disclosure));
+  s.modal.onClose();
+});
+
+test("alerts keep their nodes when unchanged and change text in place", () => {
+  const s = setup();
+  const alerts = () =>
+    s.content.all().filter((el) => el.attrs.get("role") === "alert");
+  const initial = alerts();
+  assert.equal(initial.length, 3, "Package, academic and save-error alerts");
+  const same = () =>
+    alerts().length === initial.length &&
+    alerts().every((el, index) => el === initial[index]);
+  s.publish.aastexPackageProblem = "Synthetic package problem.";
+  s.publish.academicProblem = "Synthetic academic problem.";
+  s.emit();
+  assert.ok(same(), "Messages reuse the persistent alerts");
+  const texts = () =>
+    alerts()
+      .filter((el) => !el.hidden)
+      .map((el) => el.text);
+  assert.deepEqual(texts(), [
+    "Synthetic academic problem.",
+    "Synthetic package problem.",
+  ]);
+  const approve = s.content
+    .all()
+    .find((el) => el.text === "Use installed version")!;
+  s.emit();
+  s.emit();
+  assert.ok(same());
+  assert.ok(s.content.contains(approve), "The approve button is not rebuilt");
+  s.publish.aastexPackageProblem = "Synthetic package update.";
+  s.publish.academicProblem = "";
+  s.emit();
+  assert.ok(same());
+  assert.deepEqual(texts(), ["Synthetic package update."]);
+  assert.ok(s.content.contains(approve));
+  s.publish.aastexPackageProblem = "";
+  s.emit();
+  assert.deepEqual(texts(), []);
+  assert.ok(!s.content.contains(approve));
   s.modal.onClose();
 });

@@ -55,6 +55,24 @@ function optionDraftState(
   }
   return state;
 }
+/** Change a persistent live region only when its text changes, so screen readers announce it once. */
+function setLiveText(element: HTMLElement, text: string): void {
+  if (element.textContent === text) return;
+  element.setText(text);
+  element.hidden = !text;
+}
+const blockKeys = new WeakMap<HTMLElement, string>();
+/** Rebuild a block's children only when its rendered content changes. */
+function patchBlock(
+  container: HTMLElement,
+  key: string,
+  render: (container: HTMLElement) => void,
+): void {
+  if (blockKeys.get(container) === key) return;
+  blockKeys.set(container, key);
+  container.empty();
+  render(container);
+}
 /** One captured note, shared editor drafts, serialized option saves; no file-write fallback. */
 export class PublishingSettingsModal extends Modal {
   private file: TFile | null;
@@ -72,6 +90,8 @@ export class PublishingSettingsModal extends Modal {
   private authorContainer!: HTMLElement;
   private message!: HTMLElement;
   private validation!: HTMLElement;
+  private academicAlert!: HTMLElement;
+  private validationNotes!: HTMLElement;
   private error!: HTMLElement;
   private done!: HTMLButtonElement;
   private reset!: HTMLButtonElement;
@@ -90,7 +110,12 @@ export class PublishingSettingsModal extends Modal {
     boolean
   >();
   private refreshAdvanced?: () => void;
-  private compatibilityContainer?: HTMLElement;
+  private compatibility?: {
+    alert: HTMLElement;
+    approve: HTMLElement;
+    headings: HTMLElement;
+    list?: HTMLElement;
+  };
   constructor(
     app: App,
     private publish: PublishController,
@@ -131,6 +156,11 @@ export class PublishingSettingsModal extends Modal {
     });
     this.authorContainer = this.contentEl.createDiv();
     this.validation = this.contentEl.createDiv({ attr: { role: "status" } });
+    this.academicAlert = this.validation.createEl("p", {
+      attr: { role: "alert" },
+    });
+    this.academicAlert.hidden = true;
+    this.validationNotes = this.validation.createDiv();
     this.contentEl.createEl("h4", { text: "PDF options" });
     const options = this.contentEl.createDiv({
       cls: "stratum-publishing-pdf-options",
@@ -176,8 +206,13 @@ export class PublishingSettingsModal extends Modal {
       const compatibility = options.createDiv({
         cls: "stratum-publishing-compatibility",
       });
-      this.compatibilityContainer = compatibility;
-      this.compatibility(compatibility);
+      const alert = compatibility.createEl("p", { attr: { role: "alert" } });
+      alert.hidden = true;
+      this.compatibility = {
+        alert,
+        approve: compatibility.createDiv(),
+        headings: compatibility.createDiv(),
+      };
     } else {
       const citations = options.createDiv();
       void this.publish
@@ -382,28 +417,34 @@ export class PublishingSettingsModal extends Modal {
       (missing ?? inputs[0])?.focus();
     });
   }
-  private compatibility(container: HTMLElement): void {
-    container.empty();
-    if (this.publish.aastexPackageProblem) {
-      container.createEl("p", {
-        text: this.publish.aastexPackageProblem,
-        attr: { role: "alert" },
-      });
-      const approve = createStratumButton(container, {
+  /** Patch in place so the disclosure keeps its open state and focus across emits. */
+  private updateCompatibility(): void {
+    const view = this.compatibility;
+    if (!view) return;
+    const problem = this.publish.aastexPackageProblem;
+    setLiveText(view.alert, problem);
+    if (!problem) view.approve.empty();
+    else if (!view.approve.childElementCount)
+      createStratumButton(view.approve, {
         text: "Use installed version",
-      });
-      approve.addEventListener("click", () =>
+      }).addEventListener("click", () =>
         this.save(() => this.publish.acceptAastexPackage()),
       );
-    }
     const warnings = this.publish.aastexHeadingProblems;
-    if (warnings.length) {
-      const disclosure = createStratumDisclosure(container);
+    if (!warnings.length) {
+      view.headings.empty();
+      view.list = undefined;
+      return;
+    }
+    if (!view.list) {
+      const disclosure = createStratumDisclosure(view.headings);
       createStratumSummary(disclosure, { text: "Review heading numbers" });
       disclosure.createEl("p", { text: AASTEX_HEADING_WARNING });
-      const list = disclosure.createEl("ul");
-      for (const warning of warnings) list.createEl("li", { text: warning });
+      view.list = disclosure.createEl("ul");
     }
+    patchBlock(view.list, warnings.join("\n"), (list) => {
+      for (const warning of warnings) list.createEl("li", { text: warning });
+    });
   }
   private fail(error: unknown): void {
     if (!this.alive || !this.error) return;
@@ -517,8 +558,7 @@ export class PublishingSettingsModal extends Modal {
     }
     this.message.hidden = !this.saving && !this.publish.preferencesSaving;
     this.message.setText(this.message.hidden ? "" : "Saving settings…");
-    if (this.compatibilityContainer)
-      this.compatibility(this.compatibilityContainer);
+    this.updateCompatibility();
     const service = this.publish.plugin.publicationEditor;
     const target = service?.editableView(this.file);
     if (service && target && !this.properties) {
@@ -580,31 +620,24 @@ export class PublishingSettingsModal extends Modal {
         input.disabled = this.busyControls.get(input)!;
         this.busyControls.delete(input);
       }
-    this.validation.empty();
-    if (this.publish.academicProblem)
-      this.validation.createEl("p", {
-        text: this.publish.academicProblem,
-        attr: { role: "alert" },
-      });
+    setLiveText(this.academicAlert, this.publish.academicProblem);
+    let notes: string[] = [];
     if (this.publish.selectedTemplate?.renderer === "aastex") {
       try {
-        for (const warning of aastexProblems(
+        notes = aastexProblems(
           target?.state.doc.toString() ?? "",
           this.publish.layout.titleSource,
           "pdf",
-        ).warnings)
-          this.validation.createEl("p", {
-            text: warning,
-            cls: "stratum-publish-meta",
-          });
+        ).warnings;
       } catch {
         /* Blocking metadata errors are shown above. */
       }
     } else if (this.publish.duplicateTitleWarning)
-      this.validation.createEl("p", {
-        text: "Title may appear twice. Review the title source.",
-        cls: "stratum-publish-meta",
-      });
+      notes = ["Title may appear twice. Review the title source."];
+    patchBlock(this.validationNotes, notes.join("\n"), (container) => {
+      for (const note of notes)
+        container.createEl("p", { text: note, cls: "stratum-publish-meta" });
+    });
     this.refreshing = true;
     try {
       for (const [key, toggle] of this.toggles) {
