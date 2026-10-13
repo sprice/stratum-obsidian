@@ -1872,9 +1872,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   gap: var(--size-4-2);
   margin-bottom: var(--size-4-4);
 }
-.stratum-publish-tabs > :only-child {
-  grid-column: 1 / -1;
-}
 .stratum-publish-tabs > [aria-selected="true"] {
   background: var(--interactive-accent);
   color: var(--text-on-accent);

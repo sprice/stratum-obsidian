@@ -109,7 +109,6 @@ function setup(
     aastexHeadingProblems: [],
     aastexPackageProblem: "",
     readiness: { pdf: true },
-    canPublishPdf: true,
     busy: false,
     preferencesSaving: false,
     aastexPdfOptions: {
@@ -162,7 +161,6 @@ function setup(
     "publication-options-modal.ts",
     {
       Modal,
-      Platform: { isDesktopApp: true },
       ToggleComponent: ToggleComponentMock,
       ButtonComponent: ButtonComponentMock,
       DropdownComponent: DropdownComponentMock,

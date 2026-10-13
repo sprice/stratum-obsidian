@@ -51,10 +51,7 @@ export class PublishPanel extends Component {
       attr: { role: "tablist", "aria-label": "Publishing" },
     });
     const prefix = `stratum-publish-${crypto.randomUUID()}`;
-    const sections: ("publish" | "documents")[] = this.publish.canPublishPdf
-      ? ["publish", "documents"]
-      : ["publish"];
-    for (const section of sections) {
+    for (const section of ["publish", "documents"] as const) {
       const tab = createStratumButton(tabBar, {
         text: section === "publish" ? "Create" : "Documents",
       });
@@ -73,7 +70,6 @@ export class PublishPanel extends Component {
       this.tabs.set(section, tab);
       tab.addEventListener("click", () => this.selectSection(section));
       tab.addEventListener("keydown", (event) => {
-        if (!this.publish.canPublishPdf) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           this.selectSection(section);
@@ -111,7 +107,6 @@ export class PublishPanel extends Component {
         this.state.documents,
       ),
     );
-    if (!this.publish.canPublishPdf) this.state.section = "publish";
     this.selectSection(this.state.section);
     this.body.createEl("h3", {
       cls: "stratum-section-heading",
@@ -186,11 +181,7 @@ export class PublishPanel extends Component {
     this.cancel.addEventListener("click", () => this.publish.cancel());
     this.register(this.publish.subscribe(() => this.update()));
     this.update();
-    if (
-      this.publish.canPublishPdf &&
-      !this.publish.readiness &&
-      !this.publish.checking
-    )
+    if (!this.publish.readiness && !this.publish.checking)
       void this.publish.check();
   }
   private update(): void {
@@ -279,11 +270,9 @@ export class PublishPanel extends Component {
                       "Finish or resolve the pending publication edit",
                     )
                   : "") ||
-                (!publish.canPublishPdf
-                  ? "Create PDF documents in desktop Obsidian. Edit this note’s metadata and settings here."
-                  : !publish.readiness?.pdf
-                    ? settingsNotice("Review PDF tool setup")
-                    : ""));
+                (!publish.readiness?.pdf
+                  ? settingsNotice("Review PDF tool setup")
+                  : ""));
     this.status.hidden = !problem;
     if (problem)
       this.status.createEl("p", {
@@ -297,7 +286,7 @@ export class PublishPanel extends Component {
   }
   private acknowledgePublication(): void {
     this.state.pendingPublishedId = undefined;
-    if (this.successIcon) this.successIcon.hidden = true;
+    this.successIcon.hidden = true;
     this.successAnnouncement?.setText("");
   }
   private selectSection(section: "publish" | "documents"): void {

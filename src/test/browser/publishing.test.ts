@@ -1465,41 +1465,6 @@ test("template and installed version selectors keep equal available columns and 
   });
 });
 
-test("mobile hides Publish and rejects the publishing Settings entry point without changing note content", async () => {
-  await scenario("mobile-publish-hidden", async () => {
-    await reset({ mobile: true, aastex: true, source: manuscript }, 320);
-    assert.equal(await page.locator(".stratum-publish-shell").count(), 0);
-    const availability = await page.evaluate<{
-      visible: string[];
-      active: string;
-      enabled: { publish: boolean };
-    }>("window.publicationFixture.mobileAvailability()");
-    assert.deepEqual(availability.visible, [
-      "browse",
-      "search",
-      "reader",
-      "sources",
-    ]);
-    assert.equal(availability.active, "browse");
-    assert.equal(availability.enabled.publish, true);
-    await page.evaluate("window.publicationFixture.openCommandSettings()");
-    assert.equal(
-      await page.locator(".stratum-publishing-settings-modal").count(),
-      0,
-    );
-    assert.equal(
-      await page.evaluate("window.publicationFixture.text()"),
-      manuscript,
-    );
-    assert.equal(
-      await page.evaluate(
-        "window.publicationFixture.state().fontDiscoveryCalls",
-      ),
-      0,
-    );
-  });
-});
-
 test("editor undo and redo transactions refresh Settings metadata without the removed note widget", async () => {
   await scenario("metadata-editor-history", async () => {
     await reset({

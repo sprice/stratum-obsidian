@@ -46,11 +46,7 @@ const cachedSupport = () => ({
 class FontError extends Error {
   fonts = ["Missing body"];
 }
-function setup(
-  settings: Partial<StratumSettings> = {},
-  selected = true,
-  desktop = true,
-) {
+function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   let timerId = 0;
   const timers = new Map<number, { callback: () => void; delay: number }>();
   const calls = {
@@ -118,7 +114,7 @@ function setup(
       Component: class {
         registerEvent() {}
       },
-      Platform: { isDesktopApp: desktop },
+      Platform: { isDesktopApp: true },
       FileSystemAdapter: class {},
       MarkdownView: View,
       TFile: File,
@@ -342,12 +338,11 @@ function setup(
   };
   files.set(".config/stratum/published/catalog.json", JSON.stringify(catalog));
   controller.catalog = catalog;
-  if (desktop)
-    controller.readiness ??= {
-      pdf: true,
-      pandoc: { path: "pandoc", version: "3" },
-      tectonic: { path: "tectonic", version: "0.17" },
-    };
+  controller.readiness ??= {
+    pdf: true,
+    pandoc: { path: "pandoc", version: "3" },
+    tectonic: { path: "tectonic", version: "0.17" },
+  };
   return {
     opened,
     revealed,
@@ -1077,31 +1072,8 @@ test("a repeated title warns but does not block creation", async () => {
   assert.equal(controller.duplicateTitleWarning, false);
 });
 
-test("mobile tracks notes and stores settings without tools or cached desktop readiness enabling creation", async () => {
-  const f = setup(
-    { publishReadinessCache: cachedSupport(), publishPdfSetupComplete: true },
-    true,
-    false,
-  );
-  await f.controller.reload();
-  assert.equal(f.controller.canPublishPdf, false);
-  assert.equal(f.controller.readiness, null);
-  assert.equal(f.controller.document, f.leaf.view.file);
-  await f.controller.updatePreferences({ templateId: "academic" });
-  assert.equal(f.controller.notePreferences.templateId, "academic");
-  f.controller.readiness = structuredClone(readySupport);
-  assert.equal(f.controller.canCreate(), false);
-  await f.controller.check(true);
-  await f.controller.create();
-  assert.equal(f.calls.detect, 0);
-  assert.equal(f.calls.check, 0);
-  assert.equal(f.calls.probe.length, 0);
-  assert.equal(f.calls.format, 0);
-  assert.equal(f.payloads.length, 0);
-});
-
 test("Settings command loads preferences for its captured note and cancels after a note switch", async () => {
-  const f = setup({}, true, true);
+  const f = setup();
   f.controller.catalog = null;
   await f.controller.openSettings({} as never, f.other.view as never);
   assert.deepEqual(f.calls.settings, [f.other.view.file.path]);
@@ -1114,13 +1086,6 @@ test("Settings command loads preferences for its captured note and cancels after
   assert.equal(f.calls.settingsClosed, 1);
 });
 
-test("mobile Settings entry points cannot open a publishing modal", async () => {
-  const f = setup({}, true, false);
-  await f.controller.openSettings({} as never, f.other.view as never);
-  await f.controller.editPublicationDetails();
-  assert.deepEqual(f.calls.settings, []);
-  assert.equal(f.calls.settingsClosed, 0);
-});
 test("reset availability follows the exact selected template target and AASTeX option scope", async () => {
   const f = setup();
   await f.controller.updatePreferences({ templateId: "academic" });

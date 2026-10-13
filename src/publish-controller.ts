@@ -106,13 +106,12 @@ export class PublishController extends Component {
     const settings = plugin.settings;
     const cache = readPublishReadinessCache(settings.publishReadinessCache);
     if (
-      this.canPublishPdf &&
       cache &&
       cache.pandocPath === settings.pandocPath &&
       cache.tectonicPath === settings.tectonicPath
     )
       this.readiness = cache.readiness;
-    else if (this.canPublishPdf && !cache && settings.publishPdfSetupComplete)
+    else if (!cache && settings.publishPdfSetupComplete)
       // Migrate the previous successful PDF setup without another typesetting run.
       this.readiness = {
         pdf: true,
@@ -185,7 +184,7 @@ export class PublishController extends Component {
         }, 250);
       }),
     );
-    if (this.canPublishPdf && this.readiness) void this.validateCachedSupport();
+    if (this.readiness) void this.validateCachedSupport();
   }
   onunload(): void {
     this.commandSettings?.close();
@@ -570,7 +569,6 @@ export class PublishController extends Component {
   ): Promise<
     import("./publication-options-modal").PublishingSettingsModal | undefined
   > {
-    if (!Platform.isDesktopApp) return;
     try {
       if (view) {
         this.follow(view.leaf);
@@ -598,7 +596,6 @@ export class PublishController extends Component {
   }
 
   async editPublicationDetails(): Promise<void> {
-    if (!Platform.isDesktopApp) return;
     const file = this.document;
     if (!file) return;
     try {
@@ -760,12 +757,8 @@ export class PublishController extends Component {
       b.createdAt.localeCompare(a.createdAt),
     );
   }
-  get canPublishPdf(): boolean {
-    return Platform.isDesktopApp;
-  }
   canCreate(): boolean {
     return (
-      this.canPublishPdf &&
       !!this.document &&
       !!this.catalog &&
       !this.busy &&
@@ -906,7 +899,6 @@ export class PublishController extends Component {
     this.aborter?.abort();
   }
   async create(): Promise<void> {
-    if (!this.canPublishPdf) return;
     if (
       this.document &&
       this.plugin.publicationEditor &&
@@ -1127,7 +1119,6 @@ export class PublishController extends Component {
     await workspace.revealLeaf(leaf);
   }
   async open(document: PublishedDocument): Promise<void> {
-    if (!this.canPublishPdf) return;
     try {
       if (
         !(await this.plugin.app.vault.adapter.exists(this.store.path(document)))
@@ -1153,7 +1144,6 @@ export class PublishController extends Component {
     }
   }
   async saveCopy(document: PublishedDocument): Promise<void> {
-    if (!this.canPublishPdf) return;
     if (document.format !== "pdf") return;
     try {
       const bytes = await this.plugin.app.vault.adapter.readBinary(

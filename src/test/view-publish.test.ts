@@ -119,7 +119,6 @@ function setup(state?: import("../view-publish").PublishViewState) {
     historyScope: "note",
     documents: [] as PublishedDocument[],
     allDocuments: [] as PublishedDocument[],
-    canPublishPdf: true,
     busy: false,
     checking: false,
     progress: "",

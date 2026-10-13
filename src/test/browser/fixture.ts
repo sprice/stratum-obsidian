@@ -1,12 +1,6 @@
-import { TFile, MarkdownView, editorInfoField, Platform } from "obsidian";
-import { desktopCalls } from "./obsidian-host";
+import { TFile, MarkdownView, editorInfoField } from "obsidian";
 import { EditorState, StateEffect, type ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import {
-  readEnabledTabs,
-  getVisibleTabs,
-  resolveActiveTab,
-} from "../../stratum-tabs";
 import { PublicationEditor } from "../../publication-editor";
 import { stringify } from "yaml";
 import { publicationYaml } from "../../publication-metadata";
@@ -92,7 +86,6 @@ export interface FixtureOptions {
   legacyWord?: boolean;
   source?: string;
   editable?: boolean;
-  mobile?: boolean;
 }
 const root = document.querySelector<HTMLElement>("#publish")!;
 const source = `---
@@ -108,8 +101,6 @@ async function reset(options: FixtureOptions = {}) {
   sourceEditor = undefined;
   metadata?.unload();
   editorContainer?.remove();
-  Platform.isDesktopApp = Platform.isDesktop = !options.mobile;
-  desktopCalls.fontDiscovery = 0;
   historyChange = undefined;
   sourceText = options.source ?? source;
   controller?.onunload();
@@ -289,25 +280,12 @@ async function reset(options: FixtureOptions = {}) {
   });
   await controller.reload();
   panelState = { section: "publish", documents: {} };
-  if (!options.mobile) {
-    panel = new PublishPanel(root, controller, panelState);
-    panel.onload();
-  } else panel = undefined;
+  panel = new PublishPanel(root, controller, panelState);
+  panel.onload();
 }
 export const publicationFixture = {
   setTitleSource(titleSource: "body" | "properties") {
     return controller.updateLayout({ titleSource });
-  },
-  mobileAvailability() {
-    const enabled = readEnabledTabs(undefined);
-    const visible = getVisibleTabs(enabled, Platform.isDesktopApp).map(
-      (tab) => tab.id,
-    );
-    return {
-      visible,
-      active: resolveActiveTab("publish", enabled, Platform.isDesktopApp),
-      enabled,
-    };
   },
   remountPanel() {
     panel?.unload();
@@ -473,8 +451,6 @@ export const publicationFixture = {
       pending:
         !!controller.document && metadata.pending(controller.document.path),
       canCreate: controller.canCreate(),
-      canPublishPdf: controller.canPublishPdf,
-      fontDiscoveryCalls: desktopCalls.fontDiscovery,
       titleSource: controller.layout.titleSource,
       saving: controller.preferencesSaving,
       busy: controller.busy,

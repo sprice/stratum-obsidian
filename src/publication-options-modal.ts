@@ -1,10 +1,4 @@
-import {
-  Modal,
-  Platform,
-  type App,
-  type TFile,
-  type ToggleComponent,
-} from "obsidian";
+import { Modal, type App, type TFile, type ToggleComponent } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import type { PublicationForm } from "./publication-editor";
 import { PublicationPropertyControls } from "./publication-property-controls";
@@ -119,10 +113,6 @@ export class PublishingSettingsModal extends Modal {
     return file ? `${file.path}:${file.stat.ctime}` : "";
   }
   onOpen(): void {
-    if (!Platform.isDesktopApp) {
-      this.close();
-      return;
-    }
     this.alive = true;
     this.setTitle("Publishing settings");
     this.contentEl.addEventListener("input", this.actionListener);
@@ -254,11 +244,7 @@ export class PublishingSettingsModal extends Modal {
       });
       if (this.publish.fontError) advanced.open = true;
     }
-    if (!this.publish.canPublishPdf) {
-      options.createEl("p", {
-        text: "Create PDF documents in desktop Obsidian. Settings for this note can be edited here.",
-      });
-    } else if (!this.publish.readiness?.pdf) {
+    if (!this.publish.readiness?.pdf) {
       options.createEl("p", {
         text: "PDF tools need setup.",
       });
