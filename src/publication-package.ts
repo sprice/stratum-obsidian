@@ -303,7 +303,18 @@ export function aastexProblems(
     issues.push(
       author === undefined
         ? { target: key === "title" ? "title" : "general", message, blocking }
-        : { target: "author", author, message, blocking },
+        : {
+            target: "author",
+            author,
+            field:
+              key === "email"
+                ? "email"
+                : key === "affiliations"
+                  ? "affiliations"
+                  : "name",
+            message,
+            blocking,
+          },
     );
   };
   if (!manuscript.title)

@@ -668,16 +668,18 @@ export class PublishingSettingsModal extends Modal {
     const issues = this.publish.publishingIssues.filter(
       (issue) => !inline(issue),
     );
+    const issueText = (issue: PublishingIssue) =>
+      this.publish.selectedTemplate?.renderer === "aastex"
+        ? publishingIssueText(issue)
+        : issue.message;
     setLiveText(
       this.academicAlert,
       issues
         .filter((issue) => issue.blocking)
-        .map(publishingIssueText)
+        .map(issueText)
         .join("\n"),
     );
-    const notes = issues
-      .filter((issue) => !issue.blocking)
-      .map(publishingIssueText);
+    const notes = issues.filter((issue) => !issue.blocking).map(issueText);
     if (
       this.publish.selectedTemplate?.renderer !== "aastex" &&
       this.publish.duplicateTitleWarning

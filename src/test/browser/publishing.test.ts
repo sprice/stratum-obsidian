@@ -1075,7 +1075,7 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
       );
       assert.deepEqual(await titleIssue(), [
         "true",
-        "Required: Add a value for the required “title” property.",
+        "Add a value for the required “title” property.",
       ]);
       assert.equal(await validationBlock(), "");
       if (templateId === "general") await capture("title-field-issue");
@@ -2458,6 +2458,57 @@ test("property YAML alerts and unchanged conflict recovery keep their nodes", as
       return alert === document.querySelector('.stratum-publishing-details [role=alert]');
     })()`),
       true,
+    );
+    await page.keyPress("Escape");
+  });
+});
+
+test("Title validation merges its description and removes only its own help id", async () => {
+  await scenario("title-description-ownership", async () => {
+    await reset({
+      templateId: "general",
+      source: "---\ntitle: Synthetic\n---\nBody",
+    });
+    await openSettings();
+    await page
+      .locator('select[aria-label="Title source"]')
+      .selectOption("properties");
+    await until(
+      "window.publicationFixture.state().titleSource === 'properties' && !window.publicationFixture.state().saving",
+    );
+    await page.evaluate("document.activeElement.blur()");
+    await page.evaluate(
+      "document.querySelector('input[aria-label=Title]').setAttribute('aria-describedby', 'synthetic-help')",
+    );
+    await page.evaluate(
+      "window.publicationFixture.replaceText('---\\ntitle: \\n---\\nBody')",
+    );
+    await until(
+      "document.querySelector('input[aria-label=Title]').getAttribute('aria-invalid') === 'true'",
+    );
+    assert.deepEqual(
+      await page.evaluate(`(() => {
+      const input = document.querySelector('input[aria-label=Title]');
+      const ids = input.getAttribute('aria-describedby').split(' ');
+      return {help: ids.includes('synthetic-help'), count: ids.length, message: document.getElementById(ids.find(id=>id!=='synthetic-help')).textContent};
+    })()`),
+      {
+        help: true,
+        count: 2,
+        message: "Add a value for the required “title” property.",
+      },
+    );
+    await page.evaluate(
+      "window.publicationFixture.replaceText('---\\ntitle: Restored synthetic title\\n---\\nBody')",
+    );
+    await until(
+      "!document.querySelector('input[aria-label=Title]').hasAttribute('aria-invalid')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('input[aria-label=Title]').getAttribute('aria-describedby')",
+      ),
+      "synthetic-help",
     );
     await page.keyPress("Escape");
   });

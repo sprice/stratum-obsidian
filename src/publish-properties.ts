@@ -74,7 +74,11 @@ export type PublishingIssue = {
 } & (
   | { target: "title" | "general" }
   /** `author` is the author's zero-based position. */
-  | { target: "author"; author: number }
+  | {
+      target: "author";
+      author: number;
+      field: "name" | "email" | "affiliations";
+    }
 );
 /** The message with the Required or Guidance label that the forms show. */
 export function publishingIssueText(issue: PublishingIssue): string {

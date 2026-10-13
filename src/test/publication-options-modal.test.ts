@@ -443,6 +443,7 @@ test("without editable fields, the validation block lists every issue with its l
     {
       target: "author",
       author: 0,
+      field: "name",
       message: "Synthetic author problem.",
       blocking: true,
     },

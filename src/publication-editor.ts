@@ -30,8 +30,12 @@ import {
   createStratumFieldset,
   createStratumIconButton,
   createStratumInput,
+  setStratumDescription,
 } from "./ui-controls";
 import { focusControlByKey, StableRender } from "./ui-render";
+
+let authorValidationCount = 0;
+const validationMessages = new WeakMap<HTMLElement, string>();
 
 interface Draft {
   operation: AuthorOperation;
@@ -846,7 +850,10 @@ export class PublicationForm {
         );
         card.createDiv({
           cls: "stratum-publication-validation",
-          attr: { "data-author": String(index) },
+          attr: {
+            "data-author": String(index),
+            id: `stratum-author-validation-${++authorValidationCount}`,
+          },
         });
         author.affiliations.forEach((value, affiliation) => {
           const row = card.createDiv({
@@ -998,16 +1005,36 @@ export class PublicationForm {
         ".stratum-publication-validation",
       ),
     )) {
-      group.empty();
-      for (const issue of issues)
-        if (
-          issue.target === "author" &&
-          String(issue.author) === group.dataset.author
-        )
+      const author = Number(group.dataset.author);
+      const own = issues.filter(
+        (issue) => issue.target === "author" && issue.author === author,
+      );
+      const message = own.map(publishingIssueText).join("\n");
+      if (validationMessages.get(group) !== message) {
+        validationMessages.set(group, message);
+        group.empty();
+        for (const issue of own)
           group.createEl("p", {
             text: publishingIssueText(issue),
             cls: "stratum-publication-warning",
           });
+      }
+      const card = group.closest("fieldset");
+      for (const input of Array.from(
+        card?.querySelectorAll<HTMLInputElement>(
+          "input[data-publication-control]",
+        ) ?? [],
+      )) {
+        const key = input.dataset.publicationControl?.split(":")[1];
+        const field = key === "affiliation" ? "affiliations" : key;
+        const affected = own.filter(
+          (issue) => issue.target === "author" && issue.field === field,
+        );
+        setStratumDescription(input, group.id, !!affected.length);
+        if (affected.some((issue) => issue.blocking))
+          input.setAttribute("aria-invalid", "true");
+        else input.removeAttribute("aria-invalid");
+      }
     }
   }
 }

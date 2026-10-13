@@ -168,12 +168,14 @@ test("AASTeX PDF requires publication metadata and an abstract", () => {
     {
       target: "author",
       author: 0,
+      field: "email",
       message: "Author 1 needs an email address.",
       blocking: true,
     },
     {
       target: "author",
       author: 0,
+      field: "affiliations",
       message: "Author 1 needs an affiliation/address.",
       blocking: true,
     },

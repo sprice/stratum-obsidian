@@ -211,7 +211,9 @@ export class PublicationPropertyControls {
             (issue) => issue.target === "title",
           )
         : [];
-    const titleMessage = titleIssues.map(publishingIssueText).join("\n");
+    const titleMessage = titleIssues
+      .map((issue) => (aastex ? publishingIssueText(issue) : issue.message))
+      .join("\n");
     const titleInvalid = titleIssues.some((issue) => issue.blocking);
     const showTitleIssue = () => {
       const input = this.container.querySelector<HTMLInputElement>(

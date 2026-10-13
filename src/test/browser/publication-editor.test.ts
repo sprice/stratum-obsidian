@@ -262,6 +262,17 @@ test("author issues show as Required in their own card without changing source",
     ["Required: Author 1 needs an email address."],
     ["Required: Author 2 needs a name."],
   ]);
+  assert.deepEqual(
+    await page.evaluate(`(() => {
+    const read = label => { const input = document.querySelector('input[aria-label="'+label+'"]'); return [input.getAttribute('aria-invalid'), document.getElementById(input.getAttribute('aria-describedby'))?.textContent ?? null]; };
+    return [read('Author 1 email'), read('Author 2 name'), read('Author 1 name')];
+  })()`),
+    [
+      ["true", "Required: Author 1 needs an email address."],
+      ["true", "Required: Author 2 needs a name."],
+      [null, null],
+    ],
+  );
   assert.equal(
     await page.evaluate("window.publicationEditorFixture.text()"),
     source,
@@ -594,5 +605,21 @@ test("legacy import is explicit, keeps the old properties and does not assign gl
   assert.equal(
     await page.locator('button[aria-label="Use existing authors"]').count(),
     0,
+  );
+});
+
+test("missing affiliations describe each affected affiliation input", async () => {
+  await page.evaluate(
+    'window.publicationEditorFixture.reset(window.publicationEditorFixture.sample.replace("        - Example University\\n        - Example Observatory", "        - \\"\\""))',
+  );
+  await until(
+    "document.querySelector('input[aria-label=\"Author 1 affiliation 1\"]').getAttribute('aria-invalid') === 'true'",
+  );
+  assert.equal(
+    await page.evaluate(`(() => {
+    const input = document.querySelector('input[aria-label="Author 1 affiliation 1"]');
+    return document.getElementById(input.getAttribute('aria-describedby')).textContent;
+  })()`),
+    "Required: Author 1 needs an affiliation/address.",
   );
 });

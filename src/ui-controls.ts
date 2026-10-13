@@ -30,6 +30,23 @@ export function createStratumField(
   });
 }
 
+/** Add or remove one description without disturbing a control's other help. */
+export function setStratumDescription(
+  control: HTMLElement,
+  id: string,
+  enabled: boolean,
+): void {
+  const ids = new Set(
+    (control.getAttribute("aria-describedby") ?? "")
+      .split(/\s+/)
+      .filter(Boolean),
+  );
+  if (enabled) ids.add(id);
+  else ids.delete(id);
+  if (ids.size) control.setAttribute("aria-describedby", [...ids].join(" "));
+  else control.removeAttribute("aria-describedby");
+}
+
 const fieldMessages = new WeakMap<HTMLElement, HTMLElement>();
 let fieldMessageCount = 0;
 /**
@@ -43,23 +60,26 @@ export function setStratumFieldMessage(
 ): void {
   let element = fieldMessages.get(control);
   if (!message) {
-    element?.remove();
+    if (element) {
+      setStratumDescription(control, element.id, false);
+      element.remove();
+    }
     fieldMessages.delete(control);
-    control.removeAttribute("aria-describedby");
   } else {
     if (!element) {
-      element = createEl("p", {
-        cls: "stratum-control-message",
-        attr: { id: `stratum-field-message-${++fieldMessageCount}` },
-      });
+      element = (
+        control.win as Window & { createEl: typeof createEl }
+      ).createEl("p");
+      element.className = "stratum-control-message";
+      element.id = `stratum-field-message-${++fieldMessageCount}`;
       (control.closest("label") ?? control).insertAdjacentElement(
         "afterend",
         element,
       );
       fieldMessages.set(control, element);
     }
-    element.setText(message);
-    control.setAttribute("aria-describedby", element.id);
+    if (element.textContent !== message) element.setText(message);
+    setStratumDescription(control, element.id, true);
   }
   if (invalid) control.setAttribute("aria-invalid", "true");
   else control.removeAttribute("aria-invalid");
