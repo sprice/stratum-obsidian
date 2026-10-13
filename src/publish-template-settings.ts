@@ -11,7 +11,11 @@ import {
   type PublishingTemplate,
   type PublishingTemplates,
 } from "./publish-templates";
-import { createStratumButton, styleStratumComponent } from "./ui-controls";
+import {
+  createStratumButton,
+  createPublishingFooter,
+  styleStratumComponent,
+} from "./ui-controls";
 
 function publishingTemplatesFor(plugin: StratumPlugin): PublishingTemplates {
   return readPublishingTemplates(plugin.settings.publishingTemplates);
@@ -47,9 +51,7 @@ class DeletePublishingTemplateModal extends Modal {
     this.contentEl.createEl("p", {
       text: "Notes using this template will need another template selected. Your notes and published documents will be kept.",
     });
-    const actions = this.contentEl.createDiv({
-      cls: "stratum-publish-actions",
-    });
+    const actions = createPublishingFooter(this.contentEl);
     const cancel = createStratumButton(actions, { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());
     const remove = createStratumButton(actions, {

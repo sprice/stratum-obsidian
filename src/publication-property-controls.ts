@@ -290,7 +290,8 @@ export class PublicationPropertyControls {
             this.draft({
               key,
               value:
-                (properties[key] as string | string[]) ?? (list(key) ? [] : ""),
+                (this.properties()[key] as string | string[]) ??
+                (list(key) ? [] : ""),
             }),
         };
       });
@@ -329,17 +330,6 @@ export class PublicationPropertyControls {
           row,
           key as "authors" | "affiliations" | "date" | "keywords",
         );
-      if (key !== "title" || !aastex) {
-        const remove = createStratumButton(row, {
-          text: "Remove property from note",
-          tooltip: `Remove ${PUBLICATION_PROPERTIES[key].toLowerCase()} from this note`,
-        });
-        remove.disabled = this.publish.busy;
-        remove.dataset.propertyControl = `remove:${key}`;
-        remove.addEventListener("click", () =>
-          this.commit({ key, value: "", remove: true }),
-        );
-      }
       if (draft?.conflict) {
         row.createEl("p", { text: draft.conflict, attr: { role: "alert" } });
         row.createEl("p", {

@@ -1,6 +1,6 @@
 import { TFile, MarkdownView, editorInfoField, Platform } from "obsidian";
 import { desktopCalls } from "./obsidian-host";
-import { EditorState, type ChangeSet } from "@codemirror/state";
+import { EditorState, StateEffect, type ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { PublicationEditor } from "../../publication-editor";
 import { stringify } from "yaml";
@@ -295,6 +295,14 @@ export const publicationFixture = {
       changes: { from: 0, to: sourceEditor!.state.doc.length, insert: text },
     });
     metadata.refresh();
+  },
+  makeEditorReadOnly() {
+    sourceEditor!.dispatch({
+      effects: StateEffect.appendConfig.of(EditorState.readOnly.of(true)),
+    });
+  },
+  detachEditor() {
+    sourceEditor!.destroy();
   },
   undoMetadataEdit() {
     if (historyChange)

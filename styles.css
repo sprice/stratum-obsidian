@@ -1931,3 +1931,14 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publishing-settings-modal .stratum-publishing-done {
   margin-inline-start: auto;
 }
+
+.stratum-publishing-footer {
+  margin-top: var(--size-4-4);
+}
+.stratum-publishing-footer-leading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-width: 0;
+}

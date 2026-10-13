@@ -169,3 +169,10 @@ export function createStratumToggle(
   component.toggleEl.setAttribute("aria-label", options.label);
   return component;
 }
+
+/** Shared spacing for publishing settings dialog actions. */
+export function createPublishingFooter(container: HTMLElement): HTMLDivElement {
+  return container.createDiv({
+    cls: "stratum-publish-actions stratum-publishing-footer",
+  });
+}

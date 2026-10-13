@@ -72,7 +72,7 @@ export function publicationAuthors(
   return { structured: true, legacy, authors };
 }
 
-export function publicationYaml(text: string) {
+export function publicationYaml(text: string, validateAuthors = true) {
   const match =
     /^(?:\uFEFF)?---\r?\n((?:[\s\S]*?\r?\n)?)(?:---|\.\.\.)(?:\r?\n|$)/.exec(
       text,
@@ -97,7 +97,7 @@ export function publicationYaml(text: string) {
     string,
     unknown
   >;
-  publicationAuthors(properties);
+  if (validateAuthors) publicationAuthors(properties);
   return {
     document,
     properties,

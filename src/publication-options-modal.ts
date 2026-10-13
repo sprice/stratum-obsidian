@@ -11,6 +11,7 @@ import {
 } from "./publication-option-controls";
 import {
   createStratumButton,
+  createPublishingFooter,
   createStratumSelect,
   createStratumDisclosure,
   createStratumSummary,
@@ -73,9 +74,12 @@ export class PublishingSettingsModal extends Modal {
   private error!: HTMLElement;
   private done!: HTMLButtonElement;
   private reset!: HTMLButtonElement;
+  private cleanup!: HTMLButtonElement;
+  private ctime: number;
   private citation?: HTMLSelectElement;
   private title?: HTMLSelectElement;
   private closingError = false;
+  private cleanupError = false;
   private retryButton!: HTMLButtonElement;
   private drafts: OptionDraftState;
   private saving = 0;
@@ -92,6 +96,7 @@ export class PublishingSettingsModal extends Modal {
   ) {
     super(app);
     this.file = publish.document;
+    this.ctime = this.file?.stat.ctime ?? 0;
     this.noteKey = this.currentNoteKey();
     this.templateId = publish.notePreferences.templateId;
     this.drafts = optionDraftState(publish, this.file, this.templateId ?? "");
@@ -261,10 +266,11 @@ export class PublishingSettingsModal extends Modal {
       void this.retryOptions();
     });
     this.error.hidden = true;
-    const actions = this.contentEl.createDiv({
-      cls: "stratum-publish-actions",
+    const actions = createPublishingFooter(this.contentEl);
+    const leading = actions.createDiv({
+      cls: "stratum-publishing-footer-leading",
     });
-    this.reset = createStratumButton(actions, {
+    this.reset = createStratumButton(leading, {
       text: "Reset to defaults",
       wrap: true,
       className: "stratum-publishing-reset",
@@ -286,6 +292,51 @@ export class PublishingSettingsModal extends Modal {
         "reset",
       ),
     );
+    this.cleanup = createStratumButton(leading, {
+      text: "Remove unused frontmatter",
+      wrap: true,
+      className: "stratum-publishing-cleanup",
+    });
+    this.cleanup.addEventListener("click", () => {
+      try {
+        if (
+          this.saving ||
+          this.publish.preferencesSaving ||
+          this.drafts.failures.size
+        )
+          throw new Error(
+            "Save or retry the pending settings before removing empty properties.",
+          );
+        if (
+          !this.alive ||
+          this.publish.busy ||
+          this.publish.document !== this.file ||
+          this.currentNoteKey() !== this.noteKey ||
+          this.publish.notePreferences.templateId !== this.templateId
+        )
+          throw new Error(
+            "Return to the original note and template to remove empty properties.",
+          );
+        const service = this.publish.plugin.publicationEditor;
+        if (!service || !this.file)
+          throw new Error(
+            "Open this note for editing to remove empty properties.",
+          );
+        service.removeEmptyProperties(
+          this.file,
+          this.ctime,
+          this.publish.layout,
+          this.publish.selectedTemplate?.renderer === "aastex",
+        );
+        this.closingError = false;
+        this.cleanupError = false;
+        this.error.hidden = true;
+        this.update();
+      } catch (error) {
+        this.cleanupError = true;
+        this.fail(error);
+      }
+    });
     this.done = createStratumButton(actions, {
       text: "Done",
       primary: true,
@@ -552,14 +603,16 @@ export class PublishingSettingsModal extends Modal {
             .join("\n"),
         ),
       );
-    if (!this.drafts.failures.size && !this.closingError)
+    if (!this.drafts.failures.size && !this.closingError && !this.cleanupError)
       this.error.hidden = true;
     if (this.closingError && this.file && !service?.pending(this.file.path)) {
       this.closingError = false;
-      this.error.hidden = !this.drafts.failures.size;
+      this.error.hidden = !this.drafts.failures.size && !this.cleanupError;
     }
-    this.done.disabled = this.reset.disabled =
-      this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;
+    this.done.disabled =
+      this.reset.disabled =
+      this.cleanup.disabled =
+        this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;
   }
   onClose(): void {
     this.properties?.capture();

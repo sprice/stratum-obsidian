@@ -3,6 +3,7 @@ import {
   createStratumSummary,
   styleStratumComponent,
   createStratumButton,
+  createPublishingFooter,
 } from "./ui-controls";
 import { Modal, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
@@ -144,9 +145,8 @@ export class PublishSetupModal extends Modal {
       cls: "stratum-publish-status",
       attr: { role: "status", "aria-live": "polite" },
     });
-    const actions = contentEl.createDiv({
-      cls: "stratum-publish-actions stratum-publish-setup-actions",
-    });
+    const actions = createPublishingFooter(contentEl);
+    actions.addClass("stratum-publish-setup-actions");
     this.secondary = createStratumButton(actions, { text: "Check again" });
     this.secondary.addEventListener("click", () => {
       if (publish.checking) publish.cancel();

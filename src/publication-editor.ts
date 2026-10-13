@@ -22,6 +22,9 @@ import {
   type PublicationChange,
 } from "./publication-metadata";
 
+import { cleanupPublicationProperties } from "./publication-cleanup";
+import type { PublishOptions } from "./publish-options";
+
 interface Draft {
   operation: AuthorOperation;
   revision: string;
@@ -124,6 +127,29 @@ export class PublicationEditor extends Component {
         view.state.facet(EditorView.editable)
       );
     });
+  }
+  removeEmptyProperties(
+    file: TFile,
+    ctime: number,
+    layout: PublishOptions,
+    aastex: boolean,
+  ): void {
+    const view = this.editableView(file);
+    if (!this.alive || !view || file.stat.ctime !== ctime)
+      throw new Error(
+        "Open the original note for editing before removing empty properties.",
+      );
+    if (!this.flush(file.path, view))
+      throw new Error(
+        "Resolve or discard the pending publication edit before removing empty properties.",
+      );
+    if (this.editableView(file) !== view || file.stat.ctime !== ctime)
+      throw new Error("The original note is no longer editable.");
+    const text = view.state.doc.toString();
+    const change = cleanupPublicationProperties(text, layout, aastex);
+    if (change.from === change.to && !change.insert) return;
+    this.applyChange(view, file.path, change);
+    this.refresh();
   }
   mountAuthors(
     container: HTMLElement,

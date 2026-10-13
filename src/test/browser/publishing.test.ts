@@ -1034,7 +1034,12 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
         await editProperty(label, value);
       }
       await until("!window.publicationFixture.state().saving");
-      await page.locator('[data-property-control="remove:keywords"]').click();
+      assert.equal(
+        await page.locator('[data-property-control^="remove:"]').count(),
+        0,
+      );
+      await editProperty("Keywords", "", false);
+      await page.locator(".stratum-publishing-cleanup").click();
       await until("!window.publicationFixture.text().includes('keywords:')");
       const before = await page.evaluate("window.publicationFixture.text()");
       assert.match(
@@ -1570,7 +1575,7 @@ test("AASTeX settings omit static copy and title deletion while retaining autosa
   await scenario("aastex-modal-cleanup", async () => {
     for (const width of [320, 560]) {
       await page.setViewportSize(width, 900);
-      await reset({ aastex: true });
+      await reset({ aastex: true }, width);
       await openSettings();
       assert.equal(
         await page.evaluate(
@@ -1608,5 +1613,188 @@ test("AASTeX settings omit static copy and title deletion while retaining autosa
       await capture(`aastex-settings-cleanup-${width}`);
       await page.keyPress("Escape");
     }
+  });
+});
+
+test("cleanup silently follows the selected template and restores all removed keys with one undo", async () => {
+  await scenario("template-frontmatter-cleanup", async () => {
+    const source =
+      '---\ntitle: ""\nauthors: []\naffiliations: []\ndate: null\nkeywords: []\ncustom: "" # retained\n---\nBody\n';
+    for (const templateId of ["general", "academic", "package:aastex"]) {
+      for (const width of [320, 560]) {
+        await page.setViewportSize(width, 900);
+        await reset(
+          {
+            templateId,
+            aastex: templateId === "package:aastex",
+            source,
+          },
+          width,
+        );
+        await openSettings();
+        assert.equal(
+          await page.locator('[data-property-control^="remove:"]').count(),
+          0,
+        );
+        assert.deepEqual(
+          await page.evaluate(
+            "[...document.querySelectorAll('.stratum-publishing-footer button')].map(b=>b.textContent)",
+          ),
+          ["Reset to defaults", "Remove unused frontmatter", "Done"],
+        );
+        assert.equal(
+          await page.evaluate(`(() => {
+          const footer=document.querySelector('.stratum-publishing-footer');
+          const done=document.querySelector('.stratum-publishing-done');
+          return innerWidth===${width} && parseFloat(getComputedStyle(footer).marginTop)>0 &&
+            Math.abs(done.getBoundingClientRect().right-footer.getBoundingClientRect().right)<1 &&
+            document.documentElement.scrollWidth<=innerWidth;
+        })()`),
+          true,
+        );
+        await page.locator(".stratum-publishing-cleanup").click();
+        const cleaned = String(
+          await page.evaluate("window.publicationFixture.text()"),
+        );
+        if (templateId === "general") assert.equal(cleaned, source);
+        else if (templateId === "academic") {
+          assert.doesNotMatch(
+            cleaned,
+            /title:|authors:|affiliations:|date:|keywords:/,
+          );
+          assert.equal(
+            await page.evaluate("window.publicationFixture.state().canCreate"),
+            false,
+          );
+        } else {
+          assert.doesNotMatch(cleaned, /title:/);
+          assert.match(cleaned, /authors: \[\]/);
+          assert.match(cleaned, /keywords: \[\]/);
+        }
+        assert.match(cleaned, /custom: "" # retained\n---\nBody\n$/);
+        assert.equal(
+          await page.evaluate(
+            "[...document.querySelectorAll('.stratum-publishing-settings-modal .stratum-publish-error')].some(e=>!e.hidden && e.textContent.trim())",
+          ),
+          false,
+        );
+        if (templateId !== "general") {
+          await page.evaluate("window.publicationFixture.undoMetadataEdit()");
+          assert.equal(
+            await page.evaluate("window.publicationFixture.text()"),
+            source,
+          );
+          await page.evaluate("window.publicationFixture.redoMetadataEdit()");
+          assert.equal(
+            await page.evaluate("window.publicationFixture.text()"),
+            cleaned,
+          );
+        }
+        await capture(
+          `frontmatter-cleanup-${templateId.replace(":", "-")}-${width}`,
+        );
+        await page.keyPress("Escape");
+      }
+    }
+  });
+});
+
+test("cleanup flushes focused drafts but blocks conflicts, pending settings and unavailable original editors", async () => {
+  await scenario("frontmatter-cleanup-guards", async () => {
+    const source = "---\ntitle: Original\nkeywords: []\n---\nBody";
+    await reset({ templateId: "academic", source });
+    await openSettings();
+    await editProperty("Title", "Pending title", false);
+    await page.evaluate(
+      "document.querySelector('.stratum-publishing-cleanup').click()",
+    );
+    assert.match(
+      String(await page.evaluate("window.publicationFixture.text()")),
+      /title: Pending title/,
+    );
+    assert.doesNotMatch(
+      String(await page.evaluate("window.publicationFixture.text()")),
+      /keywords:/,
+    );
+    await editProperty("Title", "Conflicting draft", false);
+    await page.evaluate(
+      "window.publicationFixture.replaceText(window.publicationFixture.text().replace('Pending title','External title').replace('---\\nBody','keywords: []\\n---\\nBody'))",
+    );
+    const conflicted = await page.evaluate("window.publicationFixture.text()");
+    await page.evaluate(
+      "document.querySelector('.stratum-publishing-cleanup').click()",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      conflicted,
+    );
+    await until(
+      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Resolve or discard the pending publication edit')",
+    );
+
+    await reset({ templateId: "academic", source });
+    await openSettings();
+    await page.evaluate("window.publicationFixture.holdSaves(true)");
+    await page
+      .locator('select[aria-label="Title source"]')
+      .selectOption("body");
+    await until("window.publicationFixture.state().saving");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publishing-cleanup').disabled",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      source,
+    );
+    await page.evaluate("window.publicationFixture.holdSaves(false)");
+    await until("!window.publicationFixture.state().saving");
+    await until(
+      "!document.querySelector('.stratum-publishing-cleanup').disabled",
+    );
+    await page.evaluate(
+      "window.publicationFixture.detachEditor(); document.querySelector('.stratum-publishing-cleanup').click()",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      source,
+    );
+    await until(
+      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Open the original note for editing')",
+    );
+    await reset({ templateId: "academic", source });
+    await openSettings();
+    await page.evaluate(
+      "window.publicationFixture.makeEditorReadOnly(); document.querySelector('.stratum-publishing-cleanup').click()",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      source,
+    );
+    await until(
+      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Open the original note for editing')",
+    );
+  });
+});
+
+test("cleanup cannot target a switched note through a retained button", async () => {
+  await scenario("frontmatter-cleanup-captured-note", async () => {
+    const source = "---\ntitle: Original\nkeywords: []\n---\nBody";
+    await reset({ templateId: "academic", source });
+    await openSettings();
+    await page.evaluate(`(() => {
+      const button=document.querySelector('.stratum-publishing-cleanup');
+      window.publicationFixture.switchNote(); button.click();
+    })()`);
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      source,
+    );
+    assert.equal(
+      await page.locator(".stratum-publishing-settings-modal").count(),
+      0,
+    );
   });
 });
