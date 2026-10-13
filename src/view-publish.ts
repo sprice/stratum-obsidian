@@ -167,10 +167,11 @@ export class PublishPanel extends Component {
       attr: { role: "status", "aria-live": "polite" },
     });
     // The settings window opens Advanced layout and focuses the missing font.
-    // Focus returns to Settings, which stays visible once the error clears.
+    // Return to Choose font while the error remains, or Settings after repair.
     this.chooseFont = createStratumButton(this.status, { text: "Choose font" });
+    this.chooseFont.hidden = true;
     this.chooseFont.addEventListener("click", () => {
-      void this.publish.openSettings(this.settings);
+      void this.publish.openSettings(this.chooseFont);
     });
     this.cancel = createStratumButton(this.body, { text: "Cancel" });
     this.cancel.addEventListener("click", () => this.publish.cancel());
@@ -258,7 +259,9 @@ export class PublishPanel extends Component {
       !template || publish.busy || publish.preferencesSaving;
     this.create.disabled = !publish.canCreate();
     this.cancel.hidden = !publish.busy && !publish.checking;
+    const fontResolved = !this.chooseFont.hidden && !publish.fontError;
     this.chooseFont.hidden = !publish.fontError;
+    if (fontResolved) this.publish.adoptSettingsLauncher(this.settings);
     this.chooseFont.disabled = this.settings.disabled;
     this.statusMessage.empty();
     const notices = publish.readinessNotices;

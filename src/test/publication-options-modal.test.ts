@@ -71,6 +71,9 @@ class Element {
   setAttribute(name: string, value: string) {
     this.attrs.set(name, value);
   }
+  removeAttribute(name: string) {
+    this.attrs.delete(name);
+  }
   getAttribute(name: string) {
     return this.attrs.get(name) ?? null;
   }
@@ -514,5 +517,21 @@ test("AASTeX opens saved non-default switches and keeps pending values without a
   assert.equal(s.saves(), 1, "refresh never calls the update method");
   s.release();
   await settle();
+  s.modal.onClose();
+});
+
+test("opening the note reports a failure inside Settings and restores its button focus", async () => {
+  const s = setup();
+  Object.assign(s.publish, {
+    editPublicationDetails: () =>
+      Promise.reject(new Error("Synthetic open failure")),
+  });
+  const button = s.content
+    .all()
+    .find((el) => el.text === "Open note for editing")!;
+  button.listeners.get("click")!();
+  await settle();
+  assert.ok(s.content.all().some((el) => el.text === "Synthetic open failure"));
+  assert.equal(ownerDocument.activeElement, button);
   s.modal.onClose();
 });

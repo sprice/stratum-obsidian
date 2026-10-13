@@ -106,6 +106,7 @@ export class PublishController extends Component {
   private listeners = new Set<() => void>();
   private settingsModal?: import("./publication-options-modal").PublishingSettingsModal;
   private settingsRequest = 0;
+  private settingsLauncher?: HTMLElement;
   private aborter: AbortController | null = null;
   private loaded = false;
   private alive = true;
@@ -161,6 +162,7 @@ export class PublishController extends Component {
     );
     this.registerEvent(
       this.plugin.app.workspace.on("layout-change", () => {
+        if (this.openingLeaf) return;
         // A tab still opening the selected note counts as showing it.
         let selectedIsOpen = false;
         this.plugin.app.workspace.iterateRootLeaves((leaf) => {
@@ -712,6 +714,7 @@ export class PublishController extends Component {
   > {
     // A newer request or a close supersedes a window that is still loading.
     const request = ++this.settingsRequest;
+    this.settingsLauncher = launcher;
     try {
       if (view) {
         this.follow(view.leaf);
@@ -728,11 +731,12 @@ export class PublishController extends Component {
         request !== this.settingsRequest
       )
         return;
+      const currentLauncher = this.settingsLauncher ?? launcher;
       this.closeSettings();
       const modal = new PublishingSettingsModal(
         this.plugin.app,
         this,
-        launcher,
+        currentLauncher,
       );
       this.settingsModal = modal;
       modal.open();
@@ -744,6 +748,7 @@ export class PublishController extends Component {
   }
   closeSettings(): void {
     this.settingsRequest++;
+    this.settingsLauncher = undefined;
     const modal = this.settingsModal;
     this.settingsModal = undefined;
     modal?.close();
@@ -755,6 +760,8 @@ export class PublishController extends Component {
   }
   /** Moves focus return to a re-rendered panel's button after its launcher is removed. */
   adoptSettingsLauncher(launcher: HTMLElement): void {
+    if (this.settingsLauncher && !this.settingsLauncher.isConnected)
+      this.settingsLauncher = launcher;
     this.settingsModal?.adoptLauncher(launcher);
   }
 
@@ -793,6 +800,7 @@ export class PublishController extends Component {
       await workspace.revealLeaf(leaf);
     } catch (error) {
       this.fail(error);
+      throw error;
     }
   }
   async updateLayout(patch: Partial<PublishOptions>): Promise<void> {

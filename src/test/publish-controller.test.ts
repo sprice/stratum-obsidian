@@ -538,6 +538,8 @@ test("a tab opened for editing keeps the note until the tab shows it", async () 
     view: { getViewType: () => "empty" },
     openFile(opened) {
       // Obsidian can add, activate and lay out a new tab before its note loads.
+      layoutChange();
+      followed.push(controller.document);
       roots.unshift(tab as never);
       layoutChange();
       followed.push(controller.document);
@@ -554,7 +556,7 @@ test("a tab opened for editing keeps the note until the tab shows it", async () 
   const emitted: unknown[] = [];
   controller.subscribe(() => emitted.push(controller.document));
   await controller.editPublicationDetails();
-  assert.deepEqual(followed, [file, file, file]);
+  assert.deepEqual(followed, [file, file, file, file]);
   assert.ok(
     emitted.every((document) => document === file),
     "the settings window never sees another note",
@@ -1458,4 +1460,27 @@ test("exported heading issues invalidate the cached source preview", async () =>
     0,
     "changed source drops exported issues",
   );
+});
+
+test("loading Settings adopts a replacement launcher before the modal exists", async () => {
+  const f = setup();
+  const removed = { isConnected: false } as HTMLElement;
+  const replacement = { isConnected: true } as HTMLElement;
+  const pending = f.controller.openSettings(removed);
+  f.controller.adoptSettingsLauncher(replacement);
+  const modal = await pending;
+  assert.ok(modal);
+  assert.equal(
+    (modal as unknown as { launcher: unknown }).launcher,
+    replacement,
+  );
+  f.controller.closeSettings();
+  const connected = { isConnected: true } as HTMLElement;
+  const next = f.controller.openSettings(connected);
+  f.controller.adoptSettingsLauncher(replacement);
+  assert.equal(
+    ((await next) as unknown as { launcher: unknown }).launcher,
+    connected,
+  );
+  f.controller.onunload();
 });

@@ -429,9 +429,8 @@ test("Create status is hidden when ready and exposes only actionable requirement
   );
 });
 
-test("a font error offers Choose font, which opens Settings from the Settings button", () => {
+test("a font error opens Settings with Choose font as its launcher", () => {
   const { root, publish, settingsCalls, launchers, update } = setup();
-  const settings = root.all().find((el) => el.text === "Settings")!;
   const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
   const choose = status.all().find((el) => el.text === "Choose font")!;
   assert.equal(choose.hidden, true);
@@ -448,8 +447,8 @@ test("a font error offers Choose font, which opens Settings from the Settings bu
   assert.deepEqual(settingsCalls, ["open"]);
   assert.deepEqual(
     launchers,
-    [settings],
-    "focus returns to Settings, which stays visible after the error clears",
+    [choose],
+    "focus returns to the Choose font launcher",
   );
   publish.busy = true;
   update();

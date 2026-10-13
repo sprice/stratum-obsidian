@@ -610,12 +610,15 @@ export class PublishingSettingsModal extends Modal {
         if (opening) return;
         opening = true;
         open.setAttribute("aria-disabled", "true");
-        void this.publish.editPublicationDetails().finally(() => {
-          opening = false;
-          open.removeAttribute("aria-disabled");
-          if (this.properties) this.focusDetails();
-          else if (open.isConnected) open.focus();
-        });
+        void this.publish
+          .editPublicationDetails()
+          .catch((error) => this.fail(error))
+          .finally(() => {
+            opening = false;
+            open.removeAttribute("aria-disabled");
+            if (this.properties) this.focusDetails();
+            else if (open.isConnected) open.focus();
+          });
       });
     }
     this.properties?.refresh();
@@ -732,6 +735,7 @@ export class PublishingSettingsModal extends Modal {
     if (this.launcher.isConnected) this.launcher.focus();
   }
   adoptLauncher(launcher: HTMLElement): void {
-    if (!this.launcher.isConnected) this.launcher = launcher;
+    if (!this.launcher.isConnected || this.launcher.hidden)
+      this.launcher = launcher;
   }
 }

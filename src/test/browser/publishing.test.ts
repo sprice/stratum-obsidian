@@ -887,6 +887,15 @@ test("PDF-engine font errors use the same recovery and body default", () =>
       "Choose font",
     );
     await focusFont("Body font");
+    await page.keyPress("Escape");
+    await until("!document.querySelector('.modal')");
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement.textContent === 'Choose font'",
+      ),
+      true,
+    );
+    await focusFont("Body font");
     await choose("Body font", "", "bodyFont");
     assert.equal(
       await page.evaluate(
