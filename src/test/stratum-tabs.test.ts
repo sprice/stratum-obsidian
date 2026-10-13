@@ -25,7 +25,7 @@ test("restored tabs respect visibility and platform availability", () => {
     assert.equal(resolveActiveTab(readLastActiveTab(id), enabled, true), id);
   assert.equal(
     resolveActiveTab(readLastActiveTab("publish"), enabled, false),
-    "publish",
+    "browse",
   );
   assert.equal(
     resolveActiveTab(
@@ -55,7 +55,7 @@ test("missing and malformed preferences default on; explicit false survives", ()
   assert.equal(readEnabledTabs({ reader: false }).search, true);
 });
 
-test("platform filters Sync without changing saved preferences; all-off is valid", () => {
+test("platform filters Sync and Publish without changing saved preferences; all-off is valid", () => {
   const enabled = readEnabledTabs(undefined);
   assert.deepEqual(
     getVisibleTabs(enabled, true).map(({ id }) => id),
@@ -63,13 +63,13 @@ test("platform filters Sync without changing saved preferences; all-off is valid
   );
   assert.deepEqual(
     getVisibleTabs(enabled, false).map(({ id }) => id),
-    ["browse", "search", "reader", "sources", "publish"],
+    ["browse", "search", "reader", "sources"],
   );
   assert.equal(enabled.sync, true);
   assert.equal(enabled.publish, true);
   assert.equal(
     resolveActiveTab("publish", { ...allOff(), publish: true }, false),
-    "publish",
+    null,
   );
   assert.equal(
     resolveActiveTab(null, { ...allOff(), publish: true }, true),

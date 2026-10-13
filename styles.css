@@ -561,7 +561,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--size-4-1);
+  gap: var(--stratum-control-field-gap, var(--size-4-1));
   color: var(--text-muted);
   font-size: var(--font-ui-small);
 }
@@ -1941,4 +1941,17 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   align-items: center;
   gap: var(--size-4-2);
   min-width: 0;
+}
+
+.stratum-publishing-options {
+  --stratum-control-field-gap: var(--size-4-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+.stratum-publishing-options .setting-item {
+  column-gap: var(--size-4-3);
+}
+.stratum-control-disclosure-spaced {
+  margin-block-start: var(--size-4-4);
 }

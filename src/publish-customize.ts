@@ -5,6 +5,7 @@ import {
 } from "./publish-design-controls";
 import {
   createStratumInput,
+  stylePublishingOptions,
   createStratumField,
   createStratumSelect,
 } from "./ui-controls";
@@ -18,6 +19,7 @@ export function renderPublishCustomization(
   format?: "pdf",
   metadataControls = true,
 ): (key: "bodyFont" | "titleFont" | "opening") => void {
+  stylePublishingOptions(container);
   const preview = container.createDiv();
   let current = { ...options };
   renderPublicationPreview(preview, current);

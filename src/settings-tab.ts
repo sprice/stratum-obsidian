@@ -44,6 +44,7 @@ export class StratumSettingTab extends PluginSettingTab {
   private closeTabChooser?: () => void;
   private templateRow?: HTMLElement;
   focusAcademicDefaults(): void {
+    if (!Platform.isDesktopApp) return;
     new PublishingTemplatesModal(this.plugin, true).open();
   }
 

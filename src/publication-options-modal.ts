@@ -1,4 +1,10 @@
-import { Modal, type App, type TFile, type ToggleComponent } from "obsidian";
+import {
+  Modal,
+  Platform,
+  type App,
+  type TFile,
+  type ToggleComponent,
+} from "obsidian";
 import type { PublishController } from "./publish-controller";
 import type { PublicationForm } from "./publication-editor";
 import { PublicationPropertyControls } from "./publication-property-controls";
@@ -12,6 +18,7 @@ import {
 import {
   createStratumButton,
   createPublishingFooter,
+  stylePublishingOptions,
   createStratumSelect,
   createStratumDisclosure,
   createStratumSummary,
@@ -80,6 +87,7 @@ export class PublishingSettingsModal extends Modal {
   private title?: HTMLSelectElement;
   private closingError = false;
   private cleanupError = false;
+  private actionListener = () => this.updateActions();
   private retryButton!: HTMLButtonElement;
   private drafts: OptionDraftState;
   private saving = 0;
@@ -111,8 +119,14 @@ export class PublishingSettingsModal extends Modal {
     return file ? `${file.path}:${file.stat.ctime}` : "";
   }
   onOpen(): void {
+    if (!Platform.isDesktopApp) {
+      this.close();
+      return;
+    }
     this.alive = true;
     this.setTitle("Publishing settings");
+    this.contentEl.addEventListener("input", this.actionListener);
+    this.contentEl.addEventListener("change", this.actionListener);
     this.contentEl.createEl("p", {
       text: this.file?.basename ?? "",
       cls: "stratum-publish-meta",
@@ -131,6 +145,7 @@ export class PublishingSettingsModal extends Modal {
     const options = this.contentEl.createDiv({
       cls: "stratum-publishing-pdf-options",
     });
+    stylePublishingOptions(options);
     const aastex = this.publish.selectedTemplate?.renderer === "aastex";
     const title = createStratumSelect(options, {
       label: "Title source",
@@ -204,7 +219,9 @@ export class PublishingSettingsModal extends Modal {
           });
         })
         .catch((error) => this.fail(error));
-      const advanced = createStratumDisclosure(options);
+      const advanced = createStratumDisclosure(options, {
+        cls: "stratum-control-disclosure-spaced",
+      });
       createStratumSummary(advanced, { text: "Advanced layout" });
       const body = advanced.createDiv();
       let mounted = false;
@@ -278,11 +295,8 @@ export class PublishingSettingsModal extends Modal {
     this.reset.addEventListener("click", () =>
       this.save(
         async () => {
-          if (aastex) await this.publish.resetAastexPdfOptions();
-          else
-            await this.publish.updatePreferences({
-              templateId: this.templateId,
-            });
+          await this.publish.resetSettings();
+          this.pending.clear();
           for (const key of this.drafts.failures.keys())
             if (key.startsWith(aastex ? "aastex:" : "layout:"))
               this.drafts.failures.delete(key);
@@ -297,6 +311,11 @@ export class PublishingSettingsModal extends Modal {
       wrap: true,
       className: "stratum-publishing-cleanup",
     });
+    // Keep the focused draft until click: blur validation can move the footer
+    // between mouse-down and mouse-up. Cleanup captures and flushes it below.
+    this.cleanup.addEventListener("mousedown", (event) =>
+      event.preventDefault(),
+    );
     this.cleanup.addEventListener("click", () => {
       try {
         if (
@@ -477,6 +496,28 @@ export class PublishingSettingsModal extends Modal {
       if (!this.alive) this.publish.emit();
     }
   }
+  private updateActions(): void {
+    if (!this.alive || !this.done) return;
+    const busy =
+      this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;
+    this.done.disabled = busy;
+    const aastex = this.publish.selectedTemplate?.renderer === "aastex";
+    const failedReset = [...this.drafts.failures.keys()].some((key) =>
+      key.startsWith(aastex ? "aastex:" : "layout:"),
+    );
+    this.reset.disabled =
+      busy || (!this.publish.settingsResetChanges && !failedReset);
+    this.cleanup.disabled =
+      busy ||
+      !!this.drafts.failures.size ||
+      !this.file ||
+      !this.publish.plugin.publicationEditor?.cleanupChanges(
+        this.file,
+        this.ctime,
+        this.publish.layout,
+        aastex,
+      );
+  }
   private update(): void {
     if (!this.alive) return;
     if (
@@ -609,12 +650,11 @@ export class PublishingSettingsModal extends Modal {
       this.closingError = false;
       this.error.hidden = !this.drafts.failures.size && !this.cleanupError;
     }
-    this.done.disabled =
-      this.reset.disabled =
-      this.cleanup.disabled =
-        this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;
+    this.updateActions();
   }
   onClose(): void {
+    this.contentEl.removeEventListener("input", this.actionListener);
+    this.contentEl.removeEventListener("change", this.actionListener);
     this.properties?.capture();
     if (this.file) this.publish.plugin.publicationEditor?.flush(this.file.path);
     this.alive = false;

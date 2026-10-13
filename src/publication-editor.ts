@@ -105,6 +105,7 @@ export class PublicationEditor extends Component {
     this.views.add(view);
     return () => {
       this.views.delete(view);
+      this.refresh();
       for (const [path, active] of this.activeViews)
         if (active === view) this.activeViews.delete(path);
     };
@@ -181,18 +182,7 @@ export class PublicationEditor extends Component {
           "Open the original note for editing before saving this draft.",
         );
       const text = view.state.doc.toString();
-      if (
-        publicationPropertyRevision(publicationYaml(text).properties, key) !==
-        draft.revision
-      )
-        throw new Error(
-          "This property changed elsewhere. Your draft is retained; review the current value before applying it.",
-        );
-      this.applyChange(
-        view,
-        path,
-        changePublicationProperty(text, draft.operation),
-      );
+      this.applyChange(view, path, this.propertyChange(text, key, draft));
       this.session(path).properties.delete(key);
       this.refresh();
       return true;
@@ -203,6 +193,65 @@ export class PublicationEditor extends Component {
           : "The property could not be saved.";
       this.session(path).properties.set(key, draft);
       this.refresh();
+      return false;
+    }
+  }
+  private propertyChange(
+    text: string,
+    key: PublicationPropertyKey,
+    draft: PropertyDraft,
+  ): PublicationChange {
+    if (
+      publicationPropertyRevision(publicationYaml(text).properties, key) !==
+      draft.revision
+    )
+      throw new Error(
+        "This property changed elsewhere. Your draft is retained; review the current value before applying it.",
+      );
+    return changePublicationProperty(text, draft.operation);
+  }
+  private authorChange(text: string, draft: Draft): PublicationChange {
+    if (authorRevision(publicationYaml(text).properties) !== draft.revision)
+      throw new Error(
+        "The author list changed. Your draft is retained. Select its current target or discard it.",
+      );
+    return changePublicationAuthors(text, draft.operation);
+  }
+  cleanupChanges(
+    file: TFile,
+    ctime: number,
+    layout: PublishOptions,
+    aastex: boolean,
+  ): boolean {
+    try {
+      const view = this.editableView(file);
+      if (!this.alive || !view || file.stat.ctime !== ctime) return false;
+      for (const form of this.forms)
+        if (form.path === file.path) form.capture();
+      for (const form of this.propertyForms)
+        if (form.path === file.path) form.capture();
+      let text = view.state.doc.toString();
+      const project = (change: PublicationChange) => {
+        text =
+          text.slice(0, change.from) + change.insert + text.slice(change.to);
+      };
+      const session = this.session(file.path);
+      for (const draft of session.drafts.values()) {
+        if (
+          draft.conflict ||
+          (draft.file && (draft.file !== file || draft.ctime !== ctime))
+        )
+          return false;
+        project(this.authorChange(text, draft));
+      }
+      for (const [key, draft] of session.properties) {
+        if (draft.conflict || draft.file !== file || draft.ctime !== ctime)
+          return false;
+        project(this.propertyChange(text, key, draft));
+      }
+      const change = cleanupPublicationProperties(text, layout, aastex);
+      return change.from !== change.to || !!change.insert;
+    } catch {
       return false;
     }
   }
@@ -314,12 +363,7 @@ export class PublicationEditor extends Component {
         throw new Error(
           "Open the original note for editing before saving this draft.",
         );
-      const properties = publicationYaml(text).properties;
-      if (authorRevision(properties) !== draft.revision)
-        throw new Error(
-          "The author list changed. Your draft is retained. Select its current target or discard it.",
-        );
-      const change = changePublicationAuthors(text, draft.operation);
+      const change = this.authorChange(text, draft);
       draft.status = "committing";
       this.applyChange(view, path, change);
       draft.status = "committed";
@@ -407,6 +451,7 @@ export class PublicationEditor extends Component {
       if (!this.alive) return;
       for (const form of this.forms) form.refresh();
       for (const form of this.propertyForms) form.refresh();
+      this.plugin.publish?.emit();
     };
     return [
       ViewPlugin.fromClass(
@@ -416,7 +461,14 @@ export class PublicationEditor extends Component {
             this.cleanup = registerView(view);
           }
           update(update: import("@codemirror/view").ViewUpdate) {
-            if (update.docChanged) queueMicrotask(refreshForms);
+            if (
+              update.docChanged ||
+              update.startState.facet(EditorState.readOnly) !==
+                update.state.facet(EditorState.readOnly) ||
+              update.startState.facet(EditorView.editable) !==
+                update.state.facet(EditorView.editable)
+            )
+              queueMicrotask(refreshForms);
           }
           destroy() {
             this.cleanup();
@@ -506,6 +558,11 @@ export class PublicationForm {
     if (
       draft.operation.type !== "field" &&
       draft.operation.type !== "affiliation"
+    )
+      return;
+    if (
+      !this.service.session(this.path).drafts.has(key) &&
+      draft.operation.value === input.value
     )
       return;
     draft.operation.value = input.value;

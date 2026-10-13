@@ -176,3 +176,8 @@ export function createPublishingFooter(container: HTMLElement): HTMLDivElement {
     cls: "stratum-publish-actions stratum-publishing-footer",
   });
 }
+
+/** Publishing option groups share control and section spacing. */
+export function stylePublishingOptions(container: HTMLElement): void {
+  container.addClass("stratum-publishing-options");
+}

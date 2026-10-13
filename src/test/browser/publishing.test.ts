@@ -1451,78 +1451,31 @@ test("template and installed version selectors keep equal available columns and 
   });
 });
 
-test("mobile Create exposes the same Settings writer without a note widget or desktop actions", async () => {
-  await scenario("mobile-publishing-settings", async () => {
-    await reset({
-      mobile: true,
-      aastex: true,
-      source:
-        "---\ntitle: Paper\nstratum_publish:\n  authors:\n    - name: Original\n      email: author@example.org\n      affiliations: [Institute]\n---\nBody",
-    });
+test("mobile hides Publish and rejects the publishing Settings entry point without changing note content", async () => {
+  await scenario("mobile-publish-hidden", async () => {
+    await reset({ mobile: true, aastex: true, source: manuscript }, 320);
+    assert.equal(await page.locator(".stratum-publish-shell").count(), 0);
+    const availability = await page.evaluate<{
+      visible: string[];
+      active: string;
+      enabled: { publish: boolean };
+    }>("window.publicationFixture.mobileAvailability()");
+    assert.deepEqual(availability.visible, [
+      "browse",
+      "search",
+      "reader",
+      "sources",
+    ]);
+    assert.equal(availability.active, "browse");
+    assert.equal(availability.enabled.publish, true);
+    await page.evaluate("window.publicationFixture.openCommandSettings()");
     assert.equal(
-      await page.evaluate("window.publicationFixture.state().canPublishPdf"),
-      false,
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-publish-create').disabled",
-      ),
-      true,
-    );
-    assert.equal(
-      await page.evaluate(
-        "[...document.querySelectorAll('.stratum-publish-tabs button')].some(b=>b.textContent === 'Documents')",
-      ),
-      false,
-    );
-    await openSettings();
-    await editProperty("Author 1 name", "Mobile author");
-    assert.equal(
-      await page.evaluate(
-        "window.publicationFixture.text().includes('name: Mobile author')",
-      ),
-      true,
-    );
-    assert.equal(
-      await page.locator(".cm-editor .stratum-publication-details").count(),
+      await page.locator(".stratum-publishing-settings-modal").count(),
       0,
     );
     assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-document-options-modal').textContent.includes('Create PDF documents in desktop Obsidian')",
-      ),
-      true,
-    );
-    await capture("mobile-platform-publishing-settings");
-    await page.locator(".stratum-publishing-done").click();
-    await reset({
-      mobile: true,
-      templateId: "academic",
-      editable: false,
-      source: manuscript,
-    });
-    await openSettings();
-    await page.locator('button[aria-label="Open note for editing"]').click();
-    await until(
-      "window.publicationFixture.state().editable && !document.querySelector('.modal')",
-    );
-    await openSettings();
-    await editProperty("Title", "Mobile title");
-    assert.equal(
-      await page.evaluate(
-        "window.publicationFixture.text().includes('title: Mobile title')",
-      ),
-      true,
-    );
-    await page.evaluate(
-      "document.querySelector('.stratum-publishing-advanced').open = true",
-    );
-    await until("!!document.querySelector('.stratum-publish-font-status')");
-    await page.evaluate(
-      "document.querySelector('.stratum-publish-section').open = true",
-    );
-    await until(
-      "document.querySelector('.stratum-publish-font-status').textContent.includes('selected on desktop')",
+      await page.evaluate("window.publicationFixture.text()"),
+      manuscript,
     );
     assert.equal(
       await page.evaluate(
@@ -1536,7 +1489,6 @@ test("mobile Create exposes the same Settings writer without a note widget or de
 test("editor undo and redo transactions refresh Settings metadata without the removed note widget", async () => {
   await scenario("metadata-editor-history", async () => {
     await reset({
-      mobile: true,
       templateId: "academic",
       source: manuscript.replace("tags:", "title: Original\ntags:"),
     });
@@ -1720,6 +1672,9 @@ test("cleanup flushes focused drafts but blocks conflicts, pending settings and 
     await page.evaluate(
       "window.publicationFixture.replaceText(window.publicationFixture.text().replace('Pending title','External title').replace('---\\nBody','keywords: []\\n---\\nBody'))",
     );
+    await page.evaluate(
+      "document.querySelector('[aria-label=\"Title\"]').blur()",
+    );
     const conflicted = await page.evaluate("window.publicationFixture.text()");
     await page.evaluate(
       "document.querySelector('.stratum-publishing-cleanup').click()",
@@ -1729,7 +1684,7 @@ test("cleanup flushes focused drafts but blocks conflicts, pending settings and 
       conflicted,
     );
     await until(
-      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Resolve or discard the pending publication edit')",
+      "document.querySelector('.stratum-publishing-cleanup').disabled && document.querySelector('.stratum-publishing-settings-modal').textContent.includes('changed elsewhere')",
     );
 
     await reset({ templateId: "academic", source });
@@ -1762,7 +1717,7 @@ test("cleanup flushes focused drafts but blocks conflicts, pending settings and 
       source,
     );
     await until(
-      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Open the original note for editing')",
+      "document.querySelector('.stratum-publishing-cleanup').disabled",
     );
     await reset({ templateId: "academic", source });
     await openSettings();
@@ -1774,7 +1729,7 @@ test("cleanup flushes focused drafts but blocks conflicts, pending settings and 
       source,
     );
     await until(
-      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Open the original note for editing')",
+      "document.querySelector('.stratum-publishing-cleanup').disabled",
     );
   });
 });
@@ -1796,5 +1751,184 @@ test("cleanup cannot target a switched note through a retained button", async ()
       await page.locator(".stratum-publishing-settings-modal").count(),
       0,
     );
+  });
+});
+
+test("reset availability reacts to saved changes and resets only the selected template's options", async () => {
+  await scenario("reset-no-op-states", async () => {
+    for (const templateId of ["general", "academic", "package:aastex"]) {
+      await reset({
+        templateId,
+        aastex: templateId === "package:aastex",
+        bodyFont: "",
+        titleFont: "",
+        source: manuscript,
+      });
+      await openSettings();
+      await until(
+        "document.querySelector('.stratum-publishing-reset').disabled",
+      );
+      const before = await page.evaluate("window.publicationFixture.text()");
+      if (templateId === "package:aastex") {
+        await page
+          .locator(".stratum-aastex-option:first-of-type .checkbox-container")
+          .click();
+      } else {
+        await page
+          .locator('select[aria-label="Title source"]')
+          .selectOption(templateId === "general" ? "properties" : "body");
+      }
+      await until(
+        "!window.publicationFixture.state().saving && !document.querySelector('.stratum-publishing-reset').disabled",
+      );
+      await page.evaluate(
+        "document.querySelector('.stratum-publishing-reset').click()",
+      );
+      await until(
+        "!window.publicationFixture.state().saving && document.querySelector('.stratum-publishing-reset').disabled",
+      );
+      assert.equal(
+        await page.evaluate("window.publicationFixture.text()"),
+        before,
+      );
+      await page.keyPress("Escape");
+    }
+  });
+});
+
+test("cleanup availability follows focused drafts, current mappings, external edits and undo without saving during prediction", async () => {
+  await scenario("cleanup-no-op-states", async () => {
+    for (const aastex of [false, true]) {
+      const source = "---\ntitle: Populated\nkeywords: [retained]\n---\nBody";
+      await reset({ templateId: "academic", aastex, bodyFont: "", source });
+      await openSettings();
+      await until(
+        "document.querySelector('.stratum-publishing-cleanup').disabled",
+      );
+      await editProperty("Title", "", false);
+      await until(
+        "!document.querySelector('.stratum-publishing-cleanup').disabled",
+      );
+      assert.equal(
+        await page.evaluate("window.publicationFixture.text()"),
+        source,
+      );
+      await editProperty("Title", "Populated", false);
+      await until(
+        "document.querySelector('.stratum-publishing-cleanup').disabled",
+      );
+      await editProperty("Title", "", false);
+      await page.locator(".stratum-publishing-cleanup").click();
+      await until(
+        "document.querySelector('.stratum-publishing-cleanup').disabled",
+      );
+      assert.doesNotMatch(
+        String(await page.evaluate("window.publicationFixture.text()")),
+        /title:/,
+      );
+      await page.evaluate("window.publicationFixture.undoMetadataEdit()");
+      await until(
+        "!document.querySelector('.stratum-publishing-cleanup').disabled",
+      );
+      await page.evaluate("window.publicationFixture.redoMetadataEdit()");
+      await until(
+        "document.querySelector('.stratum-publishing-cleanup').disabled",
+      );
+      await page.evaluate(
+        "window.publicationFixture.replaceText(window.publicationFixture.text().replace('---\\nBody', 'title: null\\n---\\nBody'))",
+      );
+      await until(
+        "!document.querySelector('.stratum-publishing-cleanup').disabled",
+      );
+      await page.keyPress("Escape");
+    }
+    await reset({
+      aastex: true,
+      source:
+        "---\ntitle: Populated\nstratum_publish:\n  authors:\n    - name: Author\n      email: author@example.org\n      affiliations: [Institute]\n---\nBody",
+    });
+    await openSettings();
+    const authorSource = await page.evaluate(
+      "window.publicationFixture.text()",
+    );
+    await page.evaluate(
+      "document.querySelector('[aria-label=\"Author 1 name\"]').focus(); document.querySelector('.stratum-publishing-settings-modal').dispatchEvent(new Event('change', {bubbles:true}))",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().pending"),
+      false,
+    );
+    await editProperty("Author 1 name", "", false);
+    await until(
+      "!document.querySelector('.stratum-publishing-cleanup').disabled",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      authorSource,
+    );
+    await editProperty("Author 1 name", "Author", false);
+    await until(
+      "document.querySelector('.stratum-publishing-cleanup').disabled",
+    );
+    await page.keyPress("Escape");
+    await reset({ templateId: "general", source: '---\ntitle: ""\n---\nBody' });
+    await openSettings();
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publishing-cleanup').disabled",
+      ),
+      true,
+    );
+    await page
+      .locator('select[aria-label="Title source"]')
+      .selectOption("properties");
+    await until(
+      "!document.querySelector('.stratum-publishing-cleanup').disabled",
+    );
+  });
+});
+
+test("PDF option fields and Advanced layout use shared token spacing across templates and narrow widths", async () => {
+  await scenario("pdf-options-shared-spacing", async () => {
+    for (const templateId of ["general", "academic", "package:aastex"])
+      for (const theme of ["dark", "light"] as const)
+        for (const width of [320, 560]) {
+          const aastex = templateId === "package:aastex";
+          await reset({ templateId, aastex, theme, bodyFont: "" }, width);
+          await openSettings();
+          assert.equal(
+            await page.evaluate(`(() => {
+        const options=document.querySelector('.stratum-publishing-pdf-options');
+        const field=options.querySelector('.stratum-control-field');
+        return innerWidth===${width} && parseFloat(getComputedStyle(field).gap)===8 &&
+          parseFloat(getComputedStyle(options).gap)===12 && document.documentElement.scrollWidth<=innerWidth;
+      })()`),
+            true,
+          );
+          if (!aastex) {
+            assert.equal(
+              await page.evaluate(
+                "parseFloat(getComputedStyle(document.querySelector('.stratum-publishing-advanced')).marginTop)",
+              ),
+              16,
+            );
+            await page.evaluate(
+              "document.querySelector('.stratum-publishing-advanced').open=true",
+            );
+            await until(
+              "!!document.querySelector('.stratum-publish-customize .stratum-control-field')",
+            );
+            assert.equal(
+              await page.evaluate(
+                "[...document.querySelectorAll('.stratum-publish-customize .stratum-control-field')].every(e=>parseFloat(getComputedStyle(e).gap)===8)",
+              ),
+              true,
+            );
+          }
+          await capture(
+            `pdf-options-spacing-${templateId.replace(":", "-")}-${theme}-${width}`,
+          );
+          await page.keyPress("Escape");
+        }
   });
 });

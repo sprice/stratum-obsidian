@@ -63,6 +63,9 @@ class Element {
   addEventListener(name: string, callback: () => void) {
     this.listeners.set(name, callback);
   }
+  removeEventListener(name: string, callback: () => void) {
+    if (this.listeners.get(name) === callback) this.listeners.delete(name);
+  }
   empty() {
     this.children = [];
   }
@@ -135,7 +138,10 @@ function setup(
         reject = fail;
       });
     },
-    resetAastexPdfOptions() {
+    get settingsResetChanges() {
+      return true;
+    },
+    resetSettings() {
       resets++;
       return Promise.resolve();
     },
@@ -156,6 +162,7 @@ function setup(
     "publication-options-modal.ts",
     {
       Modal,
+      Platform: { isDesktopApp: true },
       ToggleComponent: ToggleComponentMock,
       ButtonComponent: ButtonComponentMock,
       DropdownComponent: DropdownComponentMock,

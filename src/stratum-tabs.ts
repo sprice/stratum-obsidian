@@ -34,7 +34,7 @@ export function readEnabledTabs(
 
 export function getVisibleTabs(enabled: EnabledTabs, isDesktop: boolean) {
   return STRATUM_TABS.filter(
-    ({ id }) => enabled[id] && (id !== "sync" || isDesktop),
+    ({ id }) => enabled[id] && (!["sync", "publish"].includes(id) || isDesktop),
   );
 }
 

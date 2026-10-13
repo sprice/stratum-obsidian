@@ -1021,8 +1021,8 @@ test("mobile tracks notes and stores settings without tools or cached desktop re
   assert.equal(f.payloads.length, 0);
 });
 
-test("Settings command loads portable preferences for its captured note and cancels after a note switch", async () => {
-  const f = setup({}, true, false);
+test("Settings command loads preferences for its captured note and cancels after a note switch", async () => {
+  const f = setup({}, true, true);
   f.controller.catalog = null;
   await f.controller.openSettings({} as never, f.other.view as never);
   assert.deepEqual(f.calls.settings, [f.other.view.file.path]);
@@ -1033,4 +1033,57 @@ test("Settings command loads portable preferences for its captured note and canc
   assert.equal(f.calls.detect, 0);
   f.controller.onunload();
   assert.equal(f.calls.settingsClosed, 1);
+});
+
+test("mobile Settings entry points cannot open a publishing modal", async () => {
+  const f = setup({}, true, false);
+  await f.controller.openSettings({} as never, f.other.view as never);
+  await f.controller.editPublicationDetails();
+  assert.deepEqual(f.calls.settings, []);
+  assert.equal(f.calls.settingsClosed, 0);
+});
+test("reset availability follows the exact selected template target and AASTeX option scope", async () => {
+  const f = setup();
+  await f.controller.updatePreferences({ templateId: "academic" });
+  assert.equal(f.controller.settingsResetChanges, false);
+  await f.controller.updateLayout({ margin: 1.4 });
+  assert.equal(f.controller.settingsResetChanges, true);
+  await f.controller.resetSettings();
+  assert.equal(f.controller.settingsResetChanges, false);
+  await f.controller.updatePreferences({ templateId: "package:aastex" });
+  await f.controller.updateLayout({ titleSource: "body" });
+  assert.equal(f.controller.settingsResetChanges, false);
+  await f.controller.updateAastexPdfOptions({ showLineNumbers: false });
+  assert.equal(f.controller.settingsResetChanges, true);
+  await f.controller.resetSettings();
+  assert.equal(f.controller.settingsResetChanges, false);
+  assert.equal(f.controller.layout.titleSource, "body");
+});
+
+test("reset prediction and execution follow edited reusable template defaults", async () => {
+  const { readPublishingTemplates } = await import("../publish-templates");
+  const state = readPublishingTemplates(undefined);
+  const custom = {
+    ...state.templates[0],
+    id: "custom-layout",
+    name: "Custom",
+    layout: { ...state.templates[0].layout, bodySize: 11 },
+  };
+  const f = setup({
+    publishingTemplates: readPublishingTemplates({
+      templates: [...state.templates, custom],
+    }),
+  });
+  await f.controller.updatePreferences({ templateId: custom.id });
+  assert.equal(f.controller.settingsResetChanges, false);
+  f.plugin.settings.publishingTemplates = readPublishingTemplates({
+    templates: [
+      ...state.templates,
+      { ...custom, layout: { ...custom.layout, bodySize: 13 } },
+    ],
+  });
+  assert.equal(f.controller.settingsResetChanges, true);
+  await f.controller.resetSettings();
+  assert.equal(f.controller.layout.bodySize, 13);
+  assert.equal(f.controller.settingsResetChanges, false);
 });

@@ -431,6 +431,53 @@ export class PublishController extends Component {
         : "Check this note's publishing properties.";
     }
   }
+  private templatePreferencePatch(
+    id: string,
+    current: NotePublishPreferences,
+  ): Partial<NotePublishPreferences> {
+    const template = this.publishingTemplates.templates.find(
+      (t) => t.id === id,
+    );
+    if (!template)
+      throw new Error("This publishing template is no longer available.");
+    return {
+      templateId: id,
+      documentType: template.documentType,
+      opening: template.layout.titleSource,
+      pdf: { ...template.layout },
+      ...(template.renderer === "aastex"
+        ? {
+            aastex: current.aastex ?? {
+              options: readAastexPdfOptions(undefined),
+              package: { ...AASTEX_PACKAGE_REFERENCE },
+            },
+          }
+        : {}),
+    };
+  }
+  get settingsResetChanges(): boolean {
+    if (!this.selectedTemplate) return false;
+    if (this.selectedTemplate.renderer === "aastex")
+      return (
+        JSON.stringify(this.aastexPdfOptions) !==
+        JSON.stringify(readAastexPdfOptions(undefined))
+      );
+    const current = this.notePreferences;
+    const target = this.templatePreferencePatch(
+      this.selectedTemplate.id,
+      current,
+    );
+    return (
+      current.documentType !== target.documentType ||
+      current.opening !== target.opening ||
+      JSON.stringify(current.pdf) !== JSON.stringify(target.pdf)
+    );
+  }
+  resetSettings(): Promise<void> {
+    return this.selectedTemplate?.renderer === "aastex"
+      ? this.resetAastexPdfOptions()
+      : this.updatePreferences({ templateId: this.selectedTemplate?.id });
+  }
   updatePreferences(
     patch: Partial<NotePublishPreferences>,
     layoutPatch?: { format: "pdf"; patch: Partial<PublishOptions> },
@@ -460,24 +507,11 @@ export class PublishController extends Component {
           ...current[layoutPatch.format],
           ...layoutPatch.patch,
         });
-      if (patch.templateId) {
-        const template = this.publishingTemplates.templates.find(
-          (t) => t.id === patch.templateId,
-        );
-        if (!template)
-          throw new Error("This publishing template is no longer available.");
+      if (patch.templateId)
         patch = {
           ...patch,
-          documentType: template.documentType,
-          opening: template.layout.titleSource,
-          pdf: { ...template.layout },
+          ...this.templatePreferencePatch(patch.templateId, current),
         };
-        if (template.renderer === "aastex")
-          patch.aastex = current.aastex ?? {
-            options: readAastexPdfOptions(undefined),
-            package: { ...AASTEX_PACKAGE_REFERENCE },
-          };
-      }
       await this.store.setPreferences(
         note.id,
         this.preferencesFor({ ...current, ...patch }),
@@ -503,6 +537,7 @@ export class PublishController extends Component {
   ): Promise<
     import("./publication-options-modal").PublishingSettingsModal | undefined
   > {
+    if (!Platform.isDesktopApp) return;
     try {
       if (view) {
         this.follow(view.leaf);
@@ -530,6 +565,7 @@ export class PublishController extends Component {
   }
 
   async editPublicationDetails(): Promise<void> {
+    if (!Platform.isDesktopApp) return;
     const file = this.document;
     if (!file) return;
     const view = this.leaf?.view;

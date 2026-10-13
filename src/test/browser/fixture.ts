@@ -2,6 +2,11 @@ import { TFile, MarkdownView, editorInfoField, Platform } from "obsidian";
 import { desktopCalls } from "./obsidian-host";
 import { EditorState, StateEffect, type ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import {
+  readEnabledTabs,
+  getVisibleTabs,
+  resolveActiveTab,
+} from "../../stratum-tabs";
 import { PublicationEditor } from "../../publication-editor";
 import { stringify } from "yaml";
 import { publicationYaml } from "../../publication-metadata";
@@ -69,7 +74,7 @@ class MemoryVault implements PublishAdapter {
   }
 }
 let controller: PublishController;
-let panel: PublishPanel;
+let panel: PublishPanel | undefined;
 let adapter: MemoryVault;
 let sourceEditor: EditorView | undefined;
 let metadata: PublicationEditor;
@@ -282,10 +287,26 @@ async function reset(options: FixtureOptions = {}) {
       : {}),
   });
   await controller.reload();
-  panel = new PublishPanel(root, controller);
-  panel.onload();
+  if (!options.mobile) {
+    panel = new PublishPanel(root, controller);
+    panel.onload();
+  } else panel = undefined;
 }
 export const publicationFixture = {
+  mobileAvailability() {
+    const enabled = readEnabledTabs(undefined);
+    const visible = getVisibleTabs(enabled, Platform.isDesktopApp).map(
+      (tab) => tab.id,
+    );
+    return {
+      visible,
+      active: resolveActiveTab("publish", enabled, Platform.isDesktopApp),
+      enabled,
+    };
+  },
+  openCommandSettings() {
+    return controller.openSettings(root);
+  },
   reset,
   text() {
     return sourceEditor?.state.doc.toString() ?? sourceText;
