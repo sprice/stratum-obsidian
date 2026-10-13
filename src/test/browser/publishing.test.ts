@@ -2221,7 +2221,7 @@ test("confirmed publication retains an accent outline icon until Documents is ac
     await page.evaluate(
       "document.querySelector('.stratum-publish-tabs button:nth-child(2)').focus()",
     );
-    await page.keyPress("Space");
+    await page.type(" ");
     assert.equal(
       await page.evaluate(
         "document.querySelector('.stratum-publish-success-icon').hidden",
