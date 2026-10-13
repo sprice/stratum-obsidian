@@ -177,6 +177,11 @@ test("a failed confirm reports its error and stays open for a retry", async () =
   await settle();
   assert.deepEqual(errors, [failure]);
   assert.equal(accept.disabled, false);
+  assert.equal(
+    focus.active,
+    accept,
+    "Failed confirm can be retried by keyboard",
+  );
   assert.equal(host.closed, 0);
   accept.click();
   await settle();

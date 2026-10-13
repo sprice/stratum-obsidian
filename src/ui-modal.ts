@@ -44,6 +44,7 @@ export class ConfirmModal extends Modal {
         .then(() => this.close())
         .catch((error: unknown) => {
           accept.disabled = false;
+          accept.focus();
           onError?.(error);
         });
     });
