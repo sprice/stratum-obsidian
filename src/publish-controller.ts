@@ -3,6 +3,7 @@ import {
   mappedPublishingProperties,
   publishingPropertyProblem,
   publicationProperties,
+  type PublishingIssue,
 } from "./publish-properties";
 import {
   readPublishingTemplates,
@@ -62,9 +63,10 @@ import type { renderAastexPublication } from "./publication-render";
 type Checked<T> = { value: T } | { error: unknown };
 interface NoteChecks {
   aastex: Checked<ReturnType<typeof aastexProblems>>;
-  properties: Checked<string>;
+  properties: Checked<PublishingIssue | undefined>;
   readinessNotices: { text: string; settings: boolean }[];
   academicProblem: string;
+  publishingIssues: PublishingIssue[];
   aastexHeadingProblems: string[];
   duplicateTitleWarning: boolean;
 }
@@ -505,8 +507,16 @@ export class PublishController extends Component {
         if (this.aastexPackageProblem)
           return [{ text: "Review the AASTeX package update", settings: true }];
         const aastex = this.aastexCheck;
+        // Only the title property can be fixed in Settings; a body title cannot.
         return "value" in aastex
-          ? aastex.value.notices
+          ? aastex.value.issues
+              .filter((issue) => issue.blocking)
+              .map((issue) => ({
+                text: issue.message,
+                settings:
+                  issue.target !== "title" ||
+                  this.layout.titleSource === "properties",
+              }))
           : [{ text: this.academicProblem, settings: false }];
       }
       if (!this.propertyDefinitions.length) return [];
@@ -514,7 +524,7 @@ export class PublishController extends Component {
       if (!("value" in properties))
         return [{ text: this.academicProblem, settings: false }];
       return properties.value
-        ? [{ text: properties.value, settings: true }]
+        ? [{ text: properties.value.message, settings: true }]
         : [];
     });
   }
@@ -524,7 +534,11 @@ export class PublishController extends Component {
       if (this.selectedTemplate?.renderer === "aastex") {
         if (this.aastexPackageProblem) return this.aastexPackageProblem;
         const aastex = this.aastexCheck;
-        if ("value" in aastex) return aastex.value.errors.join("\n");
+        if ("value" in aastex)
+          return aastex.value.issues
+            .filter((issue) => issue.blocking)
+            .map((issue) => issue.message)
+            .join("\n");
         return aastex.error instanceof Error
           ? aastex.error.message
           : "Repair the publication metadata.";
@@ -533,10 +547,48 @@ export class PublishController extends Component {
       if (!this.propertyDefinitions.length) return "";
       // Reading the note's properties also reports unreadable YAML.
       const properties = this.propertyCheck;
-      if ("value" in properties) return properties.value;
+      if ("value" in properties) return properties.value?.message ?? "";
       return properties.error instanceof Error
         ? properties.error.message
         : "Check this note's publishing properties.";
+    });
+  }
+  /**
+   * The note's metadata issues for the selected template, placed for the
+   * Settings forms. A title issue belongs to the Title field only when that
+   * property is the title source. The package update notice is separate.
+   */
+  get publishingIssues(): PublishingIssue[] {
+    if (!this.selectedTemplate) return [];
+    return this.noteCheck("publishingIssues", () => {
+      const failure = (error: unknown, fallback: string): PublishingIssue[] => [
+        {
+          target: "general",
+          message: error instanceof Error ? error.message : fallback,
+          blocking: true,
+        },
+      ];
+      let issues: PublishingIssue[];
+      if (this.selectedTemplate?.renderer === "aastex") {
+        const aastex = this.aastexCheck;
+        if (!("value" in aastex))
+          return failure(aastex.error, "Repair the publication metadata.");
+        issues = aastex.value.issues;
+      } else {
+        if (!this.propertyDefinitions.length) return [];
+        const properties = this.propertyCheck;
+        if (!("value" in properties))
+          return failure(
+            properties.error,
+            "Check this note's publishing properties.",
+          );
+        issues = properties.value ? [properties.value] : [];
+      }
+      return this.layout.titleSource === "properties"
+        ? issues
+        : issues.map((issue) =>
+            issue.target === "title" ? { ...issue, target: "general" } : issue,
+          );
     });
   }
   private templatePreferencePatch(

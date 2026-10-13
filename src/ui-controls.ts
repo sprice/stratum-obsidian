@@ -30,6 +30,41 @@ export function createStratumField(
   });
 }
 
+const fieldMessages = new WeakMap<HTMLElement, HTMLElement>();
+let fieldMessageCount = 0;
+/**
+ * Show or clear a validation message after a control's field. The message
+ * describes the control, which is marked invalid while `invalid` is set.
+ */
+export function setStratumFieldMessage(
+  control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  message: string,
+  invalid = !!message,
+): void {
+  let element = fieldMessages.get(control);
+  if (!message) {
+    element?.remove();
+    fieldMessages.delete(control);
+    control.removeAttribute("aria-describedby");
+  } else {
+    if (!element) {
+      element = createEl("p", {
+        cls: "stratum-control-message",
+        attr: { id: `stratum-field-message-${++fieldMessageCount}` },
+      });
+      (control.closest("label") ?? control).insertAdjacentElement(
+        "afterend",
+        element,
+      );
+      fieldMessages.set(control, element);
+    }
+    element.setText(message);
+    control.setAttribute("aria-describedby", element.id);
+  }
+  if (invalid) control.setAttribute("aria-invalid", "true");
+  else control.removeAttribute("aria-invalid");
+}
+
 export function createStratumIconButton(
   container: HTMLElement,
   options: {

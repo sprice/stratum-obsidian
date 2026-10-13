@@ -19,12 +19,14 @@ export async function renderAastexPublication(
   preferences: NotePublishPreferences,
   signal: AbortSignal,
 ) {
-  const { manuscript, errors } = aastexProblems(
+  const { manuscript, issues } = aastexProblems(
     text,
     preferences.pdf.titleSource,
     "pdf",
   );
-  if (errors.length) throw new Error(errors.join("\n"));
+  const errors = issues.filter((issue) => issue.blocking);
+  if (errors.length)
+    throw new Error(errors.map((issue) => issue.message).join("\n"));
   const keys = aastexCitationKeys(
     manuscript.body + "\n\n" + manuscript.abstract,
   );

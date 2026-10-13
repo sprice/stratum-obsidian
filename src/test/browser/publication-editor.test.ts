@@ -205,7 +205,7 @@ test("affiliation conflicts require an explicit current affiliation target", asy
     ["Example Observatory", "Retained affiliation draft"],
   );
 });
-test("composition Enter retains the draft; title-source changes refresh validation", async () => {
+test("composition Enter retains the draft; title-source changes keep note issues out of the author form", async () => {
   await reset();
   await page.evaluate(
     'window.publicationEditorFixture.edit("Author 1 name", "Composition draft"); window.publicationEditorFixture.key("Author 1 name", "Enter", false, true)',
@@ -222,7 +222,20 @@ test("composition Enter retains the draft; title-source changes refresh validati
     'window.publicationEditorFixture.key("Author 1 name", "Enter"); window.publicationEditorFixture.titleSource("body")',
   );
   await until(
-    'document.querySelector(".stratum-publication-validation").textContent.includes("title")',
+    'window.publicationEditorFixture.authors()[0].name === "Composition draft"',
+  );
+  // The missing body title is a note issue; Settings lists it outside the form.
+  assert.equal(
+    await page.evaluate(
+      'window.publicationEditorFixture.issues().some((issue) => issue.message.includes("title"))',
+    ),
+    true,
+  );
+  assert.equal(
+    await page.evaluate(
+      'document.querySelector(".stratum-publication-content").textContent.includes("title")',
+    ),
+    false,
   );
 });
 test("metadata never adds a custom panel inside the note editor", async () => {
@@ -233,23 +246,43 @@ test("metadata never adds a custom panel inside the note editor", async () => {
     'document.querySelector(".stratum-publication-content") === null',
   );
 });
-test("the form distinguishes PDF requirements from guidance without changing source", async () => {
+test("author issues show as Required in their own card without changing source", async () => {
   await page.evaluate(
-    'window.publicationEditorFixture.reset(window.publicationEditorFixture.sample.replace("      email: alex@example.org\\n", "").replace("## Abstract\\nSynthetic abstract.\\n", ""))',
+    'window.publicationEditorFixture.reset(window.publicationEditorFixture.sample.replace("      email: alex@example.org\\n", "").replace("    - name: Morgan Sample\\n", "    - name: \\"\\"\\n").replace("## Abstract\\nSynthetic abstract.\\n", ""))',
   );
+  const source = await page.evaluate("window.publicationEditorFixture.text()");
+  const cards = () =>
+    page.evaluate(
+      '[...document.querySelectorAll(".stratum-publication-content > fieldset")].map((card) => [...card.querySelectorAll(".stratum-publication-validation p")].map((p) => p.textContent))',
+    );
   await until(
     'document.querySelector(".stratum-publication-content").textContent.includes("Required: Author 1 needs an email address.")',
   );
-  assert.equal(
-    await page.evaluate(
-      'document.querySelector(".stratum-publication-content").textContent.includes("Guidance: No Abstract section was found.")',
-    ),
-    true,
-  );
-  const source = await page.evaluate("window.publicationEditorFixture.text()");
+  assert.deepEqual(await cards(), [
+    ["Required: Author 1 needs an email address."],
+    ["Required: Author 2 needs a name."],
+  ]);
   assert.equal(
     await page.evaluate("window.publicationEditorFixture.text()"),
     source,
+  );
+  // Guidance about the whole note shows in Settings, not in the author form.
+  assert.equal(
+    await page.evaluate(
+      'document.querySelector(".stratum-publication-content").textContent.includes("No Abstract section was found.")',
+    ),
+    false,
+  );
+  await page.evaluate(
+    'window.publicationEditorFixture.edit("Author 1 email", "alex@example.org"); window.publicationEditorFixture.key("Author 1 email", "Enter")',
+  );
+  await until(
+    "!document.querySelector('.stratum-publication-content > fieldset .stratum-publication-validation p')?.textContent.includes('Author 1')",
+  );
+  assert.deepEqual(await cards(), [[], ["Required: Author 2 needs a name."]]);
+  assert.equal(
+    await page.evaluate("window.publicationEditorFixture.authors()[0].email"),
+    "alex@example.org",
   );
 });
 test("flush uses the edited view when another view of the same note is registered first", async () => {

@@ -1227,6 +1227,71 @@ test("readiness notices direct author fields to Settings and body title repair t
   f.leaf.view.text = "---\ntitle: [\n---\nBody";
   assert.equal(f.controller.readinessNotices[0].settings, false);
 });
+test("Settings issues keep their messages and target the field that resolves them", async () => {
+  const f = setup();
+  await f.controller.updatePreferences({ templateId: "package:aastex" });
+  await f.controller.updateLayout({ titleSource: "properties" });
+  f.leaf.view.text =
+    "---\nstratum_publish:\n  authors:\n    - name: Alex\n      affiliations: [Example University]\n---\nBody";
+  // Issues may come from the controller's module realm.
+  const issues = () =>
+    JSON.parse(
+      JSON.stringify(f.controller.publishingIssues),
+    ) as typeof f.controller.publishingIssues;
+  const placed = () =>
+    issues().map((issue) => [
+      issue.target === "author" ? issue.author : issue.target,
+      issue.blocking,
+      issue.message,
+    ]);
+  assert.deepEqual(placed(), [
+    ["title", true, "Add a manuscript title using the selected title source."],
+    [0, true, "Author 1 needs an email address."],
+    [
+      "general",
+      false,
+      "No Abstract section was found. Check the journal's submission requirements.",
+    ],
+  ]);
+  assert.equal(
+    f.controller.academicProblem,
+    "Add a manuscript title using the selected title source.\nAuthor 1 needs an email address.",
+  );
+  // A missing body title cannot be fixed in the Title field.
+  await f.controller.updateLayout({ titleSource: "body" });
+  assert.deepEqual(placed()[0], [
+    "general",
+    true,
+    "Add a manuscript title using the selected title source.",
+  ]);
+  f.leaf.view.text = "---\ntitle: [\n---\nBody";
+  assert.deepEqual(
+    issues().map((issue) => [issue.target, issue.blocking]),
+    [["general", true]],
+  );
+  assert.equal(
+    f.controller.publishingIssues[0].message,
+    f.controller.academicProblem,
+  );
+
+  await f.controller.updatePreferences({ templateId: "general" });
+  await f.controller.updateLayout({ titleSource: "properties" });
+  // General templates read properties with this harness's JSON parseYaml.
+  f.leaf.view.text = '---\n{"tags":["synthetic"]}\n---\nBody';
+  assert.deepEqual(issues(), [
+    {
+      target: "title",
+      message: "Add a value for the required “title” property.",
+      blocking: true,
+    },
+  ]);
+  assert.equal(
+    f.controller.academicProblem,
+    "Add a value for the required “title” property.",
+  );
+  f.leaf.view.text = '---\n{"title":"Synthetic"}\n---\nBody';
+  assert.deepEqual(issues(), []);
+});
 
 test("problem checks parse the manuscript once per text revision", async () => {
   const { controller, leaf, calls } = setup();
@@ -1237,6 +1302,7 @@ test("problem checks parse the manuscript once per text revision", async () => {
     for (let i = 0; i < 3; i++) {
       void controller.academicProblem;
       void controller.readinessNotices;
+      void controller.publishingIssues;
       void controller.aastexHeadingProblems;
       void controller.duplicateTitleWarning;
       controller.canCreate();

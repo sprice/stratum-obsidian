@@ -991,6 +991,20 @@ async function editProperty(label: string, value: string, commit = true) {
 }
 const manuscript =
   "---\ntags: [private, retained] # Keep this comment\ncustom:\n  untouched: true\n---\n\n## Introduction\nSynthetic manuscript body.\n";
+/** The Title field's invalid state and the text of the message describing it. */
+function titleIssue() {
+  return page.evaluate(`(() => {
+    const input = document.querySelector('.stratum-publishing-settings-modal input[aria-label="Title"]');
+    const id = input?.getAttribute('aria-describedby');
+    return [input?.getAttribute('aria-invalid') ?? null, id ? document.getElementById(id)?.textContent ?? "missing" : null];
+  })()`);
+}
+/** Settings validation block text, which excludes field issues. */
+function validationBlock() {
+  return page.evaluate<string>(
+    "document.querySelector('.stratum-publishing-validation').innerText.trim()",
+  );
+}
 
 test("General and Academic settings edit only publishing fields, enforce dynamic title requirements and reset formatting only", async () => {
   await scenario("common-details-matrix", async () => {
@@ -1020,8 +1034,21 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
         await page.evaluate("window.publicationFixture.state().canCreate"),
         false,
       );
+      await until(
+        "document.querySelector('.stratum-publishing-settings-modal input[aria-label=\"Title\"]').getAttribute('aria-invalid') === 'true'",
+      );
+      assert.deepEqual(await titleIssue(), [
+        "true",
+        "Required: Add a value for the required “title” property.",
+      ]);
+      assert.equal(await validationBlock(), "");
+      if (templateId === "general") await capture("title-field-issue");
       await editProperty("Title", "Edited manuscript title");
       await until("window.publicationFixture.state().canCreate");
+      await until(
+        "!document.querySelector('.stratum-publishing-settings-modal input[aria-label=\"Title\"]').hasAttribute('aria-invalid')",
+      );
+      assert.deepEqual(await titleIssue(), [null, null]);
       if (templateId === "academic") {
         await page.locator('button[aria-label="Add author"]').click();
         await editProperty("Author 1 name", "Alex");
@@ -1104,11 +1131,31 @@ test("AASTeX modal shares author edits, preserves legacy associations and keeps 
         .count(),
       0,
     );
+    // Legacy authors have no cards yet, so their issues stay in the alert.
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publishing-validation [role=\"alert\"]').textContent",
+      ),
+      "Required: Author 1 needs an email address.\nRequired: Author 1 needs an affiliation/address.",
+    );
+    assert.equal(
+      await page
+        .locator(
+          ".stratum-publishing-settings-modal .stratum-publication-validation[data-author]",
+        )
+        .count(),
+      0,
+    );
     await page
       .locator(
         '.stratum-publishing-settings-modal button[aria-label="Use existing authors"]',
       )
       .click();
+    await until(
+      "document.querySelector('.stratum-publishing-settings-modal fieldset')?.textContent.includes('Required: Author 1 needs an email address.')",
+    );
+    assert.doesNotMatch(await validationBlock(), /Author 1/);
+    await capture("aastex-author-card-issues");
     await editProperty("Author 1 email", "legacy@example.org");
     await page
       .locator(
@@ -1140,10 +1187,15 @@ test("AASTeX modal shares author edits, preserves legacy associations and keeps 
     );
     assert.match(original, /Explicit affiliation/);
     assert.equal(
+      await validationBlock(),
+      "Guidance: No Abstract section was found. Check the journal's submission requirements.",
+    );
+    assert.equal(
       await page.evaluate(
-        "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('No Abstract section was found')",
+        "document.querySelector('.stratum-publishing-settings-modal').textContent.split('No Abstract section was found').length",
       ),
-      true,
+      2,
+      "Guidance shows once, in the validation block",
     );
     await page
       .locator('select[aria-label="Title source"]')
@@ -1153,17 +1205,28 @@ test("AASTeX modal shares author edits, preserves legacy associations and keeps 
       "window.publicationFixture.replaceText(window.publicationFixture.text().replace('# Leading title\\n', ''))",
     );
     await until("!window.publicationFixture.state().canCreate");
+    // The Title property cannot supply a body title, so the issue is general.
     await until(
-      "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('Add a manuscript title using the selected title source')",
+      "document.querySelector('.stratum-publishing-validation').textContent.includes('Required: Add a manuscript title using the selected title source.')",
     );
+    assert.deepEqual(await titleIssue(), [null, null]);
     await page
       .locator('select[aria-label="Title source"]')
       .selectOption("properties");
     await until("window.publicationFixture.state().canCreate");
     await editProperty("Title", "");
     await until("!window.publicationFixture.state().canCreate");
+    await until(
+      "document.querySelector('.stratum-publishing-settings-modal input[aria-label=\"Title\"]').getAttribute('aria-invalid') === 'true'",
+    );
+    assert.deepEqual(await titleIssue(), [
+      "true",
+      "Required: Add a manuscript title using the selected title source.",
+    ]);
+    assert.doesNotMatch(await validationBlock(), /manuscript title/);
     await editProperty("Title", "Restored property title");
     await until("window.publicationFixture.state().canCreate");
+    assert.deepEqual(await titleIssue(), [null, null]);
     await capture("aastex-common-settings");
   });
 });

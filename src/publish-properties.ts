@@ -66,25 +66,47 @@ function validValue(field: PublishingProperty, value: unknown): boolean {
       ? validDate(value)
       : typeof value === "string";
 }
+/** A validation message and the form control where it belongs. */
+export type PublishingIssue = {
+  message: string;
+  /** Blocking issues prevent export; guidance does not. */
+  blocking: boolean;
+} & (
+  | { target: "title" | "general" }
+  /** `author` is the author's zero-based position. */
+  | { target: "author"; author: number }
+);
+/** The message with the Required or Guidance label that the forms show. */
+export function publishingIssueText(issue: PublishingIssue): string {
+  return `${issue.blocking ? "Required" : "Guidance"}: ${issue.message}`;
+}
+/** The first problem with the note's publishing properties, if any. */
 export function publishingPropertyProblem(
   properties: Record<string, unknown>,
   definitions: PublishingProperty[],
-): string {
+): PublishingIssue | undefined {
   for (const field of definitions) {
     const value = properties[field.key];
     const empty =
       !present(value) ||
       (typeof value === "string" && !value.trim()) ||
       (Array.isArray(value) && !textList(value).length);
+    const issue = (message: string): PublishingIssue => ({
+      target: field.use === "title" ? "title" : "general",
+      message,
+      blocking: true,
+    });
     if (empty) {
       if (field.required)
-        return `Add a value for the required “${field.key}” property.`;
+        return issue(`Add a value for the required “${field.key}” property.`);
       continue;
     }
     if (field.required && !validValue(field, value))
-      return `The “${field.key}” property must be ${field.type === "list" ? "a list of text values" : field.type === "date" ? "a valid date" : "text"}.`;
+      return issue(
+        `The “${field.key}” property must be ${field.type === "list" ? "a list of text values" : field.type === "date" ? "a valid date" : "text"}.`,
+      );
   }
-  return "";
+  return undefined;
 }
 export function addPublishingProperties(
   properties: Record<string, unknown>,

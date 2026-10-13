@@ -3,7 +3,6 @@ import type { PublishController } from "./publish-controller";
 import type { PublicationForm } from "./publication-editor";
 import { PublicationPropertyControls } from "./publication-property-controls";
 import { publicationAuthors } from "./publication-metadata";
-import { aastexProblems } from "./publication-package";
 import { AASTEX_HEADING_WARNING } from "./publication-headings";
 import {
   AASTEX_OPTION_LABELS,
@@ -19,6 +18,10 @@ import { renderPublishCustomization } from "./publish-customize";
 import { resetNoteCitationStyle } from "./citation-style-choice";
 import { openStratumSettings } from "./view-helpers";
 import type { PublishOptions } from "./publish-options";
+import {
+  publishingIssueText,
+  type PublishingIssue,
+} from "./publish-properties";
 import type { AastexPdfOptions } from "./publication-options";
 
 interface OptionDraftState {
@@ -153,8 +156,13 @@ export class PublishingSettingsModal extends Modal {
       cls: "stratum-publishing-details",
     });
     this.authorContainer = this.contentEl.createDiv();
-    this.validation = this.contentEl.createDiv({ attr: { role: "status" } });
+    this.validation = this.contentEl.createDiv({
+      cls: "stratum-publishing-validation",
+      attr: { role: "status" },
+    });
+    // One line per issue, in the warning color of the inline messages.
     this.academicAlert = this.validation.createEl("p", {
+      cls: "stratum-publish-notice",
       attr: { role: "alert" },
     });
     this.academicAlert.hidden = true;
@@ -594,9 +602,12 @@ export class PublishingSettingsModal extends Modal {
       this.title.value = this.publish.layout.titleSource;
     let showAuthors =
       this.publish.selectedTemplate?.documentType === "academic";
+    // The author form has a card for each author only once they are structured.
+    let authorCards = false;
     try {
+      authorCards = publicationAuthors(this.publish.noteProperties).structured;
       showAuthors ||=
-        publicationAuthors(this.publish.noteProperties).structured ||
+        authorCards ||
         (Object.hasOwn(this.publish.noteProperties, "author") &&
           !Object.hasOwn(this.publish.noteProperties, "authors"));
     } catch {
@@ -622,20 +633,28 @@ export class PublishingSettingsModal extends Modal {
         input.disabled = this.busyControls.get(input)!;
         this.busyControls.delete(input);
       }
-    setLiveText(this.academicAlert, this.publish.academicProblem);
-    let notes: string[] = [];
-    if (this.publish.selectedTemplate?.renderer === "aastex") {
-      try {
-        notes = aastexProblems(
-          target?.state.doc.toString() ?? "",
-          this.publish.layout.titleSource,
-          "pdf",
-        ).warnings;
-      } catch {
-        /* Blocking metadata errors are shown above. */
-      }
-    } else if (this.publish.duplicateTitleWarning)
-      notes = ["Title may appear twice. Review the title source."];
+    // Title and author issues show at their fields once those are mounted.
+    const inline = (issue: PublishingIssue) =>
+      (issue.target === "title" && !!this.properties) ||
+      (issue.target === "author" && !!this.authors && authorCards);
+    const issues = this.publish.publishingIssues.filter(
+      (issue) => !inline(issue),
+    );
+    setLiveText(
+      this.academicAlert,
+      issues
+        .filter((issue) => issue.blocking)
+        .map(publishingIssueText)
+        .join("\n"),
+    );
+    const notes = issues
+      .filter((issue) => !issue.blocking)
+      .map(publishingIssueText);
+    if (
+      this.publish.selectedTemplate?.renderer !== "aastex" &&
+      this.publish.duplicateTitleWarning
+    )
+      notes.push("Title may appear twice. Review the title source.");
     patchBlock(this.validationNotes, notes.join("\n"), (container) => {
       for (const note of notes)
         container.createEl("p", { text: note, cls: "stratum-publish-meta" });

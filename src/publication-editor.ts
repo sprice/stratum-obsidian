@@ -8,7 +8,6 @@ import {
   TFile,
 } from "obsidian";
 import type StratumPlugin from "./plugin";
-import { aastexProblems } from "./publication-package";
 import {
   authorRevision,
   changePublicationAuthors,
@@ -24,6 +23,7 @@ import {
 
 import { cleanupPublicationProperties } from "./publication-cleanup";
 import type { PublishOptions } from "./publish-options";
+import { publishingIssueText } from "./publish-properties";
 import {
   createStratumButton,
   createStratumField,
@@ -790,7 +790,7 @@ export class PublicationForm {
                   ? author.email
                   : author.affiliations[Number(affiliation)];
         }
-        this.updateValidation(text);
+        this.updateValidation();
         return;
       }
       this.structure = structure;
@@ -813,10 +813,6 @@ export class PublicationForm {
           text: "Email and affiliations are optional for this template. Email is saved in the note and is not printed.",
           cls: "stratum-publication-help",
         });
-      this.element.createDiv({
-        cls: "stratum-publication-validation",
-        attr: { "data-author": "general" },
-      });
       if (!model.structured && model.legacy.length) {
         this.element.createEl("p", {
           text: "Existing authors: " + model.legacy.join(", "),
@@ -859,7 +855,7 @@ export class PublicationForm {
         );
         card.createDiv({
           cls: "stratum-publication-validation",
-          attr: { "data-author": String(index + 1) },
+          attr: { "data-author": String(index) },
         });
         author.affiliations.forEach((value, affiliation) => {
           const row = card.createDiv({
@@ -981,7 +977,7 @@ export class PublicationForm {
             conflict,
           );
         }
-      this.updateValidation(text);
+      this.updateValidation();
     } catch (error) {
       this.structure = "";
       this.element.empty();
@@ -1008,31 +1004,26 @@ export class PublicationForm {
         .find((control) => control.dataset.publicationControl === focused)
         ?.focus();
   }
-  private updateValidation(text: string): void {
+  /** Author issues show in their cards; Settings shows the rest. */
+  private updateValidation(): void {
     const publish = this.service.plugin.publish;
-    const problems =
-      publish?.document?.path === this.path &&
-      publish.selectedTemplate?.renderer === "aastex"
-        ? aastexProblems(text, publish.layout.titleSource, "pdf")
-        : null;
+    const issues =
+      publish?.document?.path === this.path ? publish.publishingIssues : [];
     for (const group of Array.from(
       this.element.querySelectorAll<HTMLElement>(
         ".stratum-publication-validation",
       ),
     )) {
       group.empty();
-      for (const [label, messages] of [
-        ["Required", problems?.errors ?? []],
-        ["Guidance", problems?.warnings ?? []],
-      ] as const)
-        for (const message of messages) {
-          const author = /^Author (\d+) /.exec(message)?.[1] ?? "general";
-          if (group.dataset.author === author)
-            group.createEl("p", {
-              text: `${label}: ${message}`,
-              cls: "stratum-publication-warning",
-            });
-        }
+      for (const issue of issues)
+        if (
+          issue.target === "author" &&
+          String(issue.author) === group.dataset.author
+        )
+          group.createEl("p", {
+            text: publishingIssueText(issue),
+            cls: "stratum-publication-warning",
+          });
     }
   }
 }

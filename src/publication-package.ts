@@ -8,6 +8,7 @@ import { DEFAULT_ACADEMIC_OPTIONS } from "./publish-options";
 import type { PublishingTemplate } from "./publish-templates";
 import { publicationAuthors, publicationYaml } from "./publication-metadata";
 import type { PublishFormat } from "./publish-model";
+import type { PublishingIssue } from "./publish-properties";
 
 type Requirement = "required" | "warning" | "optional";
 type RuleKey = "title" | "authors" | "email" | "affiliations" | "abstract";
@@ -286,6 +287,7 @@ export function aastexManuscript(
     authors: publicationAuthors(properties).authors,
   };
 }
+/** Package rules decide which issues block export and which are guidance. */
 export function aastexProblems(
   text: string,
   titleSource: "body" | "properties",
@@ -293,33 +295,34 @@ export function aastexProblems(
   pkg = aastexPackage,
 ) {
   const manuscript = aastexManuscript(text, titleSource);
-  const errors: string[] = [],
-    warnings: string[] = [];
-  const notices: { text: string; settings: boolean }[] = [];
-  const requirement = (key: RuleKey, message: string, settings = true) => {
+  const issues: PublishingIssue[] = [];
+  const requirement = (key: RuleKey, message: string, author?: number) => {
     const rule = pkg.schema.rules[format][key];
-    if (rule === "required") {
-      errors.push(message);
-      notices.push({ text: message, settings });
-    } else if (rule === "warning") warnings.push(message);
+    if (rule === "optional") return;
+    const blocking = rule === "required";
+    issues.push(
+      author === undefined
+        ? { target: key === "title" ? "title" : "general", message, blocking }
+        : { target: "author", author, message, blocking },
+    );
   };
   if (!manuscript.title)
     requirement(
       "title",
       "Add a manuscript title using the selected title source.",
-      titleSource === "properties",
     );
   if (!manuscript.authors.length)
     requirement("authors", "Add at least one author.");
   for (const [i, author] of manuscript.authors.entries()) {
     if (!author.name.trim())
-      requirement("authors", `Author ${i + 1} needs a name.`);
+      requirement("authors", `Author ${i + 1} needs a name.`, i);
     if (!author.email.trim())
-      requirement("email", `Author ${i + 1} needs an email address.`);
+      requirement("email", `Author ${i + 1} needs an email address.`, i);
     if (!author.affiliations.some((value) => value.trim()))
       requirement(
         "affiliations",
         `Author ${i + 1} needs an affiliation/address.`,
+        i,
       );
   }
   if (!manuscript.abstract)
@@ -327,7 +330,7 @@ export function aastexProblems(
       "abstract",
       "No Abstract section was found. Check the journal's submission requirements.",
     );
-  return { errors, warnings, manuscript, notices };
+  return { manuscript, issues };
 }
 export function escapeLatex(text: string): string {
   const escapes: Record<string, string> = {

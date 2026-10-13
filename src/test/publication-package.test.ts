@@ -159,8 +159,59 @@ test("note rendering consumes the chosen title and promotes section headings wit
 test("AASTeX PDF requires publication metadata and an abstract", () => {
   const text =
     "---\nstratum_publish:\n  authors:\n    - name: Alex\n---\n## Introduction\nDraft";
-  assert.equal(aastexProblems(text, "properties", "pdf").errors.length, 3);
-  assert.equal(aastexProblems(sample, "properties", "pdf").errors.length, 0);
+  assert.deepEqual(aastexProblems(text, "properties", "pdf").issues, [
+    {
+      target: "title",
+      message: "Add a manuscript title using the selected title source.",
+      blocking: true,
+    },
+    {
+      target: "author",
+      author: 0,
+      message: "Author 1 needs an email address.",
+      blocking: true,
+    },
+    {
+      target: "author",
+      author: 0,
+      message: "Author 1 needs an affiliation/address.",
+      blocking: true,
+    },
+    {
+      target: "general",
+      message:
+        "No Abstract section was found. Check the journal's submission requirements.",
+      blocking: false,
+    },
+  ]);
+  assert.deepEqual(aastexProblems(sample, "properties", "pdf").issues, []);
+});
+test("AASTeX issues target the title, each author by position, or the whole note", () => {
+  const text =
+    "---\nstratum_publish:\n  authors:\n    - name: Alex\n      email: alex@example.org\n      affiliations: [Example University]\n    - name: ''\n      email: ''\n      affiliations: [Example Observatory]\n---\n# Body title\n";
+  assert.deepEqual(
+    aastexProblems(text, "body", "pdf").issues.map((issue) => [
+      issue.target === "author" ? issue.author : issue.target,
+      issue.message,
+    ]),
+    [
+      [1, "Author 2 needs a name."],
+      [1, "Author 2 needs an email address."],
+      [
+        "general",
+        "No Abstract section was found. Check the journal's submission requirements.",
+      ],
+    ],
+  );
+  assert.deepEqual(
+    aastexProblems("---\ntitle: Synthetic\n---\n", "properties", "pdf")
+      .issues[0],
+    {
+      target: "general",
+      message: "Add at least one author.",
+      blocking: true,
+    },
+  );
 });
 test("title and abstract resolve once, nested abstract content survives, fenced headings are ignored", () => {
   const text =
@@ -537,14 +588,18 @@ test("package declarations drive requirements and class rendering; inconsistent 
     "affiliations: []\n",
   );
   assert.ok(
-    aastexProblems(text, "properties", "pdf").errors.some((message) =>
-      message.includes("affiliation"),
+    aastexProblems(text, "properties", "pdf").issues.some(
+      (issue) => issue.blocking && issue.message.includes("affiliation"),
     ),
   );
-  assert.equal(aastexProblems(text, "properties", "pdf", pkg).errors.length, 0);
+  const relaxed = aastexProblems(text, "properties", "pdf", pkg).issues;
+  assert.equal(relaxed.filter((issue) => issue.blocking).length, 0);
   assert.ok(
-    aastexProblems(text, "properties", "pdf", pkg).warnings.some((message) =>
-      message.includes("affiliation"),
+    relaxed.some(
+      (issue) =>
+        !issue.blocking &&
+        issue.target === "author" &&
+        issue.message.includes("affiliation"),
     ),
   );
   const tex = aastexLatex(

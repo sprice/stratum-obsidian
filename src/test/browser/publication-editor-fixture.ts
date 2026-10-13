@@ -14,6 +14,7 @@ import {
   publicationAuthors,
   publicationYaml,
 } from "../../publication-metadata";
+import { aastexProblems } from "../../publication-package";
 import type StratumPlugin from "../../plugin";
 import type {
   Editor,
@@ -70,7 +71,15 @@ const publish = {
   document: { path },
   notePreferences: { templateId: "package:aastex" },
   selectedTemplate: { renderer: "aastex" },
-  layout: { titleSource: "properties" },
+  layout: { titleSource: "properties" as "body" | "properties" },
+  /** The controller's issues for the note, from the same package validator. */
+  get publishingIssues() {
+    try {
+      return aastexProblems(text(), this.layout.titleSource, "pdf").issues;
+    } catch {
+      return [];
+    }
+  },
   emit() {},
 };
 function editorInfo(current: () => EditorView) {
@@ -229,6 +238,7 @@ const fixture = {
   flush: () => service.flush(path),
   authors: () => publicationAuthors(publicationYaml(text()).properties).authors,
   pending: () => service.pending(path),
+  issues: () => publish.publishingIssues,
   open: () => mountForm(),
   backgroundText: () => backgroundView?.state.doc.toString(),
   blockedTransactions: () => blockedTransactions,

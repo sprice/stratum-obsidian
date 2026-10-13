@@ -59,7 +59,7 @@ export async function renderPublication(
       publicationFrontmatter(text).properties,
       definitions,
     );
-    if (problem) throw new Error(problem);
+    if (problem) throw new Error(problem.message);
   }
   const metadata = academicMetadata(
     definitions

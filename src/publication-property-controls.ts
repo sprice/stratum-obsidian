@@ -14,8 +14,10 @@ import {
   createStratumInput,
   createStratumTextarea,
   createStratumToggle,
+  setStratumFieldMessage,
 } from "./ui-controls";
 import type { PublishOptions } from "./publish-options";
+import { publishingIssueText } from "./publish-properties";
 const flags: Partial<Record<PublicationPropertyKey, keyof PublishOptions>> = {
   authors: "showAuthors",
   affiliations: "showAffiliations",
@@ -198,7 +200,24 @@ export class PublicationPropertyControls {
       !!(
         this.pending.get(flags[key]!)?.value ?? this.publish.layout[flags[key]!]
       );
+    // Settings shows every other issue in its validation block.
+    const titleIssues =
+      this.publish.document?.path === this.path
+        ? this.publish.publishingIssues.filter(
+            (issue) => issue.target === "title",
+          )
+        : [];
+    const titleMessage = titleIssues.map(publishingIssueText).join("\n");
+    const titleInvalid = titleIssues.some((issue) => issue.blocking);
+    const showTitleIssue = () => {
+      const input = this.container.querySelector<HTMLInputElement>(
+        'input[data-property-control="title"]',
+      );
+      if (input) setStratumFieldMessage(input, titleMessage, titleInvalid);
+    };
     const signature = JSON.stringify([
+      titleMessage,
+      titleInvalid,
       keys.map((key) => [
         key,
         Object.hasOwn(properties, key),
@@ -252,6 +271,7 @@ export class PublicationPropertyControls {
         const key = field.dataset.publicationOptional as PublicationPropertyKey;
         field.hidden = !enabled(key) && !session.properties.get(key)?.conflict;
       }
+      showTitleIssue();
       this.syncToggles();
       return;
     }
@@ -367,6 +387,7 @@ export class PublicationPropertyControls {
       for (const key of ["authors", "affiliations"] as const) {
         this.inclusion(this.container, key);
       }
+    showTitleIssue();
     this.syncToggles();
     if (focused)
       this.container

@@ -1834,9 +1834,13 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   margin-inline-start: auto;
 }
 .stratum-publication-warning,
-.stratum-publication-conflict {
+.stratum-publication-conflict,
+.stratum-control-message {
   color: var(--text-warning);
   font-size: var(--font-ui-small);
+}
+.stratum-control-message {
+  margin: 0;
 }
 .stratum-publication-conflict {
   border-top: 1px solid var(--background-modifier-border);

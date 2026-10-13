@@ -112,6 +112,7 @@ function setup(
     layout: { titleSource: "properties" },
     noteProperties: {},
     academicProblem: "",
+    publishingIssues: [] as import("../publish-properties").PublishingIssue[],
     aastexHeadingProblems: [],
     aastexPackageProblem: "",
     readiness: { pdf: true },
@@ -384,7 +385,13 @@ test("alerts keep their nodes when unchanged and change text in place", () => {
     alerts().length === initial.length &&
     alerts().every((el, index) => el === initial[index]);
   s.publish.aastexPackageProblem = "Synthetic package problem.";
-  s.publish.academicProblem = "Synthetic academic problem.";
+  s.publish.publishingIssues = [
+    {
+      target: "general",
+      message: "Synthetic academic problem.",
+      blocking: true,
+    },
+  ];
   s.emit();
   assert.ok(same(), "Messages reuse the persistent alerts");
   const texts = () =>
@@ -392,7 +399,7 @@ test("alerts keep their nodes when unchanged and change text in place", () => {
       .filter((el) => !el.hidden)
       .map((el) => el.text);
   assert.deepEqual(texts(), [
-    "Synthetic academic problem.",
+    "Required: Synthetic academic problem.",
     "Synthetic package problem.",
   ]);
   const approve = s.content
@@ -403,7 +410,7 @@ test("alerts keep their nodes when unchanged and change text in place", () => {
   assert.ok(same());
   assert.ok(s.content.contains(approve), "The approve button is not rebuilt");
   s.publish.aastexPackageProblem = "Synthetic package update.";
-  s.publish.academicProblem = "";
+  s.publish.publishingIssues = [];
   s.emit();
   assert.ok(same());
   assert.deepEqual(texts(), ["Synthetic package update."]);
@@ -412,5 +419,40 @@ test("alerts keep their nodes when unchanged and change text in place", () => {
   s.emit();
   assert.deepEqual(texts(), []);
   assert.ok(!s.content.contains(approve));
+  s.modal.onClose();
+});
+
+test("without editable fields, the validation block lists every issue with its label", () => {
+  const s = setup();
+  s.publish.publishingIssues = [
+    {
+      target: "title",
+      message: "Synthetic title problem.",
+      blocking: true,
+    },
+    {
+      target: "author",
+      author: 0,
+      message: "Synthetic author problem.",
+      blocking: true,
+    },
+    {
+      target: "general",
+      message: "Synthetic guidance.",
+      blocking: false,
+    },
+  ];
+  s.emit();
+  const alert = s.content
+    .all()
+    .find((el) => el.text.startsWith("Required: Synthetic title"))!;
+  assert.equal(alert.attrs.get("role"), "alert");
+  assert.equal(
+    alert.text,
+    "Required: Synthetic title problem.\nRequired: Synthetic author problem.",
+  );
+  assert.ok(
+    s.content.all().some((el) => el.text === "Guidance: Synthetic guidance."),
+  );
   s.modal.onClose();
 });
