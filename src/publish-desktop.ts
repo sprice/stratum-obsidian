@@ -645,6 +645,7 @@ $endif$
 
 interface BibliographyResponse {
   statusCode?: number;
+  headers: { location?: string };
   destroy(): void;
   on(event: "data", listener: (bytes: Uint8Array) => void): void;
   on(event: "error", listener: (error: Error) => void): void;
@@ -685,74 +686,130 @@ export async function downloadAastexBibliography(
   };
   if (signal?.aborted) throw new Error("Publishing cancelled.");
   return new Promise((resolve, reject) => {
-    const request = https.get(
-      specification.url,
-      {
-        signal,
-        headers: {
-          "Cache-Control": "no-store",
-          "User-Agent": "Stratum-Obsidian (AASTeX publishing)",
-        },
-      },
-      (response) => {
-        if (response.statusCode !== 200) {
-          response.destroy();
-          reject(
+    let active: BibliographyRequest | undefined;
+    let settled = false;
+    const finish = (error?: Error, bytes?: Uint8Array) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(bytes!);
+    };
+    const timer = window.setTimeout(() => {
+      const error = new Error(
+        "Downloading the AAS bibliography style timed out.",
+      );
+      finish(error);
+      active?.destroy(error);
+    }, timeout);
+    const download = (url: string, redirects: number) => {
+      if (settled) return;
+      try {
+        if (new URL(url).protocol !== "https:")
+          throw new Error("The AAS bibliography download requires HTTPS.");
+        const request = https.get(
+          url,
+          {
+            signal,
+            headers: {
+              "Cache-Control": "no-store",
+              "User-Agent": "Stratum-Obsidian (AASTeX publishing)",
+            },
+          },
+          (response) => {
+            if (settled) {
+              response.destroy();
+              return;
+            }
+            response.on("error", (error) => finish(error));
+            if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0)) {
+              const location = response.headers.location;
+              response.destroy();
+              if (redirects === 3) {
+                finish(
+                  new Error(
+                    "The AAS bibliography download redirected too many times.",
+                  ),
+                );
+                return;
+              }
+              if (!location) {
+                finish(
+                  new Error(
+                    "The AAS bibliography redirect has no Location header.",
+                  ),
+                );
+                return;
+              }
+              try {
+                download(new URL(location, url).href, redirects + 1);
+              } catch (error) {
+                finish(
+                  error instanceof Error ? error : new Error(String(error)),
+                );
+              }
+              return;
+            }
+            if (response.statusCode !== 200) {
+              response.destroy();
+              finish(
+                new Error(
+                  `AAS could not supply the bibliography style (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
+                ),
+              );
+              return;
+            }
+            const chunks: Uint8Array[] = [];
+            let length = 0;
+            response.on("data", (chunk: Uint8Array) => {
+              if (settled) return;
+              length += chunk.length;
+              if (length > 1_000_000) {
+                const error = new Error(
+                  "The AAS bibliography download is too large.",
+                );
+                finish(error);
+                response.destroy();
+                request.destroy(error);
+              } else chunks.push(chunk);
+            });
+            response.on("end", () => {
+              if (settled) return;
+              if (signal?.aborted) {
+                finish(new Error("Publishing cancelled."));
+                return;
+              }
+              const bytes = Buffer.concat(chunks);
+              if (
+                crypto.createHash("sha256").update(bytes).digest("hex") !==
+                specification.sha256
+              ) {
+                finish(
+                  new Error(
+                    "The AAS bibliography style changed. Update Stratum before publishing this PDF.",
+                  ),
+                );
+                return;
+              }
+              finish(undefined, Uint8Array.from(bytes));
+            });
+          },
+        );
+        active = request;
+        request.on("error", (error) =>
+          finish(
             new Error(
-              `AAS could not supply the bibliography style (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
+              signal?.aborted
+                ? "Publishing cancelled."
+                : `Could not download the AAS bibliography style. Check your internet connection and try again. ${error.message}`,
             ),
-          );
-          return;
-        }
-        const chunks: Uint8Array[] = [];
-        let length = 0;
-        response.on("data", (chunk: Uint8Array) => {
-          length += chunk.length;
-          if (length > 1_000_000)
-            request.destroy(
-              new Error("The AAS bibliography download is too large."),
-            );
-          else chunks.push(chunk);
-        });
-        response.on("error", reject);
-        response.on("end", () => {
-          if (signal?.aborted) {
-            reject(new Error("Publishing cancelled."));
-            return;
-          }
-          const bytes = Buffer.concat(chunks);
-          if (
-            crypto.createHash("sha256").update(bytes).digest("hex") !==
-            specification.sha256
-          ) {
-            reject(
-              new Error(
-                "The AAS bibliography style changed. Update Stratum before publishing this PDF.",
-              ),
-            );
-            return;
-          }
-          resolve(Uint8Array.from(bytes));
-        });
-      },
-    );
-    const timer = window.setTimeout(
-      () =>
-        request.destroy(
-          new Error("Downloading the AAS bibliography style timed out."),
-        ),
-      timeout,
-    );
-    request.on("close", () => window.clearTimeout(timer));
-    request.on("error", (error) =>
-      reject(
-        new Error(
-          signal?.aborted
-            ? "Publishing cancelled."
-            : `Could not download the AAS bibliography style. Check your internet connection and try again. ${error.message}`,
-        ),
-      ),
-    );
+          ),
+        );
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+    download(specification.url, 0);
   });
 }
 async function convertAastexPublication(

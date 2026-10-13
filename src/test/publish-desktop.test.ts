@@ -1,4 +1,6 @@
 import test from "node:test";
+import { createHash } from "node:crypto";
+import { setTimeout as schedule } from "node:timers";
 import { EventEmitter } from "node:events";
 import { posix } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -709,3 +711,133 @@ test(
         }
   },
 );
+
+test("AAS bibliography download bounds HTTPS redirects, bytes, hash and total time", async () => {
+  const bytes = new TextEncoder().encode("Synthetic bibliography style");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  type Hop = {
+    status?: number;
+    location?: string;
+    bytes?: Uint8Array;
+    wait?: number;
+  };
+  let hops: Hop[] = [];
+  let urls: string[] = [];
+  let destroyed = 0;
+  const requests: EventEmitter[] = [];
+  const https = {
+    get(
+      url: string,
+      _options: unknown,
+      callback: (response: EventEmitter) => void,
+    ) {
+      urls.push(url);
+      const hop = hops.shift();
+      assert.ok(hop, "unexpected network hop");
+      const request = new EventEmitter() as EventEmitter & {
+        destroy(error?: Error): void;
+      };
+      request.destroy = (error) => {
+        if (error) request.emit("error", error);
+      };
+      requests.push(request);
+      schedule(() => {
+        const response = new EventEmitter() as EventEmitter & {
+          statusCode: number;
+          headers: { location?: string };
+          destroy(): void;
+        };
+        response.statusCode = hop.status ?? 200;
+        response.headers = { location: hop.location };
+        response.destroy = () => {
+          destroyed++;
+        };
+        callback(response);
+        if (response.statusCode === 200) {
+          response.emit("data", hop.bytes ?? bytes);
+          response.emit("end");
+        }
+        request.emit("close");
+      }, hop.wait ?? 0);
+      return request;
+    },
+  };
+  const { downloadAastexBibliography: download } = runtime(true, undefined, {
+    "node:https": https,
+  });
+  const run = (
+    next: Hop[],
+    timeout = 1000,
+    url = "https://aas.test/style.bst",
+  ) => {
+    hops = [...next];
+    urls = [];
+    destroyed = 0;
+    return download({ url, sha256 }, undefined, timeout);
+  };
+  assert.deepEqual(Array.from(await run([{}])), Array.from(bytes));
+  for (const status of [301, 302, 303, 307, 308]) {
+    assert.deepEqual(
+      Array.from(
+        await run([
+          { status, location: "../next.bst" },
+          { status, location: "https://cdn.test/style.bst" },
+          {},
+        ]),
+      ),
+      Array.from(bytes),
+    );
+    assert.deepEqual(urls, [
+      "https://aas.test/style.bst",
+      "https://aas.test/next.bst",
+      "https://cdn.test/style.bst",
+    ]);
+    assert.equal(destroyed, 2);
+  }
+  await assert.rejects(
+    run([{ status: 302, location: "http://unsafe.test/style" }]),
+    /requires HTTPS/,
+  );
+  assert.equal(urls.length, 1);
+  await assert.rejects(
+    run(Array.from({ length: 4 }, () => ({ status: 302, location: "/next" }))),
+    /too many times/,
+  );
+  assert.equal(destroyed, 4);
+  assert.deepEqual(
+    Array.from(
+      await run([
+        ...Array.from({ length: 3 }, () => ({
+          status: 302,
+          location: "/next",
+        })),
+        {},
+      ]),
+    ),
+    Array.from(bytes),
+  );
+  await assert.rejects(
+    run([
+      { status: 302, location: "/next" },
+      { bytes: new Uint8Array(1_000_001) },
+    ]),
+    /too large/,
+  );
+  await assert.rejects(
+    run([{ status: 302, location: "/next" }, { bytes: new Uint8Array([1]) }]),
+    /style changed/,
+  );
+  await assert.rejects(
+    run([{ status: 302, location: "/next", wait: 20 }, { wait: 60 }], 50),
+    /timed out/,
+  );
+  // Allow the late response to arrive; it must be destroyed and never resolve the timed-out operation.
+  await delay(70);
+  assert.equal(destroyed, 2);
+  await assert.rejects(
+    run([], 1000, "http://unsafe.test/style"),
+    /requires HTTPS/,
+  );
+  assert.equal(urls.length, 0);
+  await assert.rejects(run([{ status: 302 }]), /no Location/);
+});
