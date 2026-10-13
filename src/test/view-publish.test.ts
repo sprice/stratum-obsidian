@@ -392,3 +392,118 @@ test("Create status is hidden when ready and exposes only actionable requirement
       .some((el) => el.text.includes("Settings: Review PDF tool setup")),
   );
 });
+
+test("controller updates keep template and version options until their choices change", () => {
+  const { root, publish, update } = setup();
+  const select = (label: string) =>
+    root
+      .all()
+      .find(
+        (el) => el.tag === "select" && el.attrs.get("aria-label") === label,
+      )!;
+  const template = select("Choose template");
+  const version = select("Choose template version");
+  publish.notePreferences.templateId = "package:aastex";
+  update();
+  const templateOptions = [...template.children];
+  const versionOptions = [...version.children];
+  assert.equal(template.value, "package:aastex");
+  assert.deepEqual(
+    versionOptions.map((option) => option.value),
+    ["package:aastex"],
+  );
+  update();
+  update();
+  assert.ok(
+    template.children.every(
+      (option, index) => option === templateOptions[index],
+    ),
+    "unchanged template families keep their option elements",
+  );
+  assert.ok(
+    version.children.every((option, index) => option === versionOptions[index]),
+    "unchanged versions keep their option elements",
+  );
+  const older = {
+    ...AASTEX_TEMPLATE,
+    id: "package:aastex-synthetic-older",
+    version: { familyId: "package:aastex", label: "Synthetic older" },
+  };
+  Object.defineProperty(publish, "publishingTemplates", {
+    get() {
+      const stored = readPublishingTemplates(undefined);
+      return {
+        ...stored,
+        templates: [...stored.templates, AASTEX_TEMPLATE, older],
+      };
+    },
+  });
+  update();
+  assert.equal(template.children[3], templateOptions[3]);
+  assert.deepEqual(
+    version.children.map((option) => option.text),
+    [AASTEX_TEMPLATE.version!.label, "Synthetic older"],
+  );
+  assert.equal(version.value, "package:aastex");
+  publish.notePreferences.templateId = "general";
+  update();
+  assert.equal(template.value, "general");
+  assert.deepEqual(
+    version.children.map((option) => option.value),
+    ["general"],
+  );
+});
+
+test("Documents keeps unchanged rows and rebuilds when visible document details change", () => {
+  const { root, publish, update } = setup();
+  root
+    .all()
+    .find((el) => el.text === "Documents")!
+    .listeners.get("click")!();
+  const document: PublishedDocument = {
+    id: "first",
+    noteId: "note-one",
+    filename: "Synthetic first.pdf",
+    format: "pdf",
+    createdAt: "2026-10-05T12:00:00Z",
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+  };
+  publish.documents = [document];
+  update();
+  const list = root.all().find((el) => el.cls === "stratum-publish-list")!;
+  const row = list.children[0];
+  list.scrollTop = 120;
+  const actions = () =>
+    list.children[0].children.find(
+      (el) => el.cls === "stratum-publish-row-actions",
+    )!.children;
+  const save = actions()[2];
+  Object.assign(publish, { saveCopy: () => new Promise(() => {}) });
+  save.listeners.get("click")!();
+  assert.equal(save.disabled, true);
+  publish.documents = [{ ...document }];
+  update();
+  update();
+  assert.equal(list.children[0], row, "unchanged rows are not rebuilt");
+  assert.equal(list.scrollTop, 120);
+  assert.equal(save.disabled, true, "an action in progress stays disabled");
+  assert.equal(actions()[1].disabled, true);
+  publish.sourceNote = (() => ({ path: "Synthetic.md" })) as never;
+  update();
+  assert.notEqual(list.children[0], row);
+  assert.equal(
+    actions()[1].disabled,
+    false,
+    "source availability updates the source action",
+  );
+  assert.equal(list.scrollTop, 120, "a rebuild restores the scroll position");
+  const available = list.children[0];
+  publish.documents = [{ ...document, filename: "Synthetic renamed.pdf" }];
+  update();
+  assert.notEqual(list.children[0], available);
+  assert.ok(
+    list.all().some((el) => el.text === "Synthetic renamed.pdf"),
+    "a changed filename rebuilds the row",
+  );
+});

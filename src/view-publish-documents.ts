@@ -56,6 +56,7 @@ export class PublishedDocumentsPanel extends Component {
   private scope!: HTMLSelectElement;
   private list!: HTMLElement;
   private rendered = false;
+  private listSignature?: string;
   constructor(
     private container: HTMLElement,
     private publish: PublishController,
@@ -99,6 +100,21 @@ export class PublishedDocumentsPanel extends Component {
     const listContext = showAll
       ? "all"
       : `note:${publish.document?.path ?? ""}`;
+    const documents = (showAll ? publish.allDocuments : publish.documents).map(
+      (doc) => ({ doc, sourceAvailable: !!publish.sourceNote(doc) }),
+    );
+    // Rebuilding unchanged rows would reset scrolling and in-progress actions.
+    const listSignature = JSON.stringify([
+      listContext,
+      documents.map(({ doc, sourceAvailable }) => [
+        doc.id,
+        doc.filename,
+        doc.createdAt,
+        sourceAvailable,
+      ]),
+    ]);
+    if (listSignature === this.listSignature) return;
+    this.listSignature = listSignature;
     const visible = !this.container.hidden;
     const scrollTop =
       this.state.context === listContext
@@ -108,7 +124,6 @@ export class PublishedDocumentsPanel extends Component {
         : 0;
     this.state.context = listContext;
     this.list.empty();
-    const documents = showAll ? publish.allDocuments : publish.documents;
     if (!documents.length)
       this.list.createEl("p", {
         text: showAll
@@ -116,7 +131,7 @@ export class PublishedDocumentsPanel extends Component {
           : "No published PDF documents for this note",
         cls: "stratum-publish-meta",
       });
-    for (const doc of documents) {
+    for (const { doc, sourceAvailable } of documents) {
       const row = this.list.createDiv({ cls: "stratum-publish-row" });
       const details = row.createDiv({ cls: "stratum-publish-document" });
       details.createDiv({
@@ -129,7 +144,6 @@ export class PublishedDocumentsPanel extends Component {
       });
       const actions = row.createDiv({ cls: "stratum-publish-row-actions" });
       this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
-      const sourceAvailable = !!publish.sourceNote(doc);
       this.icon(
         actions,
         "file-text",

@@ -36,6 +36,8 @@ export class PublishPanel extends Component {
   private template!: HTMLSelectElement;
   private version!: HTMLSelectElement;
   private versionField!: HTMLElement;
+  private templateOptions?: string;
+  private versionOptions?: string;
   constructor(
     private container: HTMLElement,
     private publish: PublishController,
@@ -216,19 +218,39 @@ export class PublishPanel extends Component {
       templates,
       publish.notePreferences.templateId,
     );
-    this.template.empty();
-    this.template.createEl("option", { value: "", text: "Choose template" });
     const families = publishingTemplateFamilies(templates);
-    for (const family of families)
-      this.template.createEl("option", { value: family.id, text: family.name });
+    // Rebuilding options on every update would reset an open dropdown.
+    const templateOptions = JSON.stringify(
+      families.map((family) => [family.id, family.name]),
+    );
+    if (templateOptions !== this.templateOptions) {
+      this.templateOptions = templateOptions;
+      this.template.empty();
+      this.template.createEl("option", { value: "", text: "Choose template" });
+      for (const family of families)
+        this.template.createEl("option", {
+          value: family.id,
+          text: family.name,
+        });
+    }
     const selectedFamily = families.find((family) =>
       family.choices.some((choice) => choice.id === template?.id),
     );
     this.template.value = selectedFamily?.id ?? "";
     this.versionField.hidden = !selectedFamily?.versioned;
-    this.version.empty();
-    for (const choice of selectedFamily?.choices ?? [])
-      this.version.createEl("option", { value: choice.id, text: choice.label });
+    const choices = selectedFamily?.choices ?? [];
+    const versionOptions = JSON.stringify(
+      choices.map((choice) => [choice.id, choice.label]),
+    );
+    if (versionOptions !== this.versionOptions) {
+      this.versionOptions = versionOptions;
+      this.version.empty();
+      for (const choice of choices)
+        this.version.createEl("option", {
+          value: choice.id,
+          text: choice.label,
+        });
+    }
     this.version.value = template?.id ?? "";
     this.version.disabled =
       !hasNote || publish.busy || publish.preferencesSaving;

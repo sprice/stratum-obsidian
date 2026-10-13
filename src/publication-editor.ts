@@ -58,7 +58,8 @@ export class PublicationEditor extends Component {
   private forms = new Set<PublicationForm>();
   private propertyForms = new Set<PropertyForm>();
   private alive = true;
-  private refreshQueued = false;
+  /** Paths whose forms refresh in the queued microtask; `null` means every form. */
+  private refreshQueue?: { paths: Set<string> | null };
   constructor(readonly plugin: StratumPlugin) {
     super();
   }
@@ -257,15 +258,31 @@ export class PublicationEditor extends Component {
     this.forms.add(form);
     return () => this.forms.delete(form);
   }
-  refresh(): void {
-    if (!this.alive || this.refreshQueued) return;
-    this.refreshQueued = true;
+  /**
+   * Batches form refreshes into one microtask. Without a path, every form
+   * refreshes and the Publish tab updates. With a path, only that note's forms
+   * refresh; the controller's debounced `editor-change` updates the tab.
+   */
+  refresh(path?: string): void {
+    if (!this.alive) return;
+    if (this.refreshQueue) {
+      if (path === undefined) this.refreshQueue.paths = null;
+      else this.refreshQueue.paths?.add(path);
+      return;
+    }
+    const queue = {
+      paths: path === undefined ? null : new Set([path]),
+    };
+    this.refreshQueue = queue;
     queueMicrotask(() => {
-      this.refreshQueued = false;
+      this.refreshQueue = undefined;
       if (!this.alive) return;
-      for (const form of this.forms) form.refresh();
-      for (const form of this.propertyForms) form.refresh();
-      this.plugin.publish?.emit();
+      const { paths } = queue;
+      for (const form of this.forms)
+        if (!paths || paths.has(form.path)) form.refresh();
+      for (const form of this.propertyForms)
+        if (!paths || paths.has(form.path)) form.refresh();
+      if (!paths) this.plugin.publish?.emit();
     });
   }
   async open(view: MarkdownView): Promise<void> {
@@ -424,11 +441,14 @@ export class PublicationEditor extends Component {
   }
   extension(): Extension {
     const registerView = (view: EditorView) => this.registerView(view);
-    const refreshForms = () => {
-      if (!this.alive) return;
-      for (const form of this.forms) form.refresh();
-      for (const form of this.propertyForms) form.refresh();
-      this.plugin.publish?.emit();
+    const refreshAll = () => this.refresh();
+    // Typing refreshes only that note's open forms. Read-only changes also
+    // update the Publish tab at once; text changes reach it through the
+    // controller's debounced workspace `editor-change` handler.
+    const refreshNote = (view: EditorView) => {
+      if (!this.forms.size && !this.propertyForms.size) return;
+      const path = view.state.field(editorInfoField, false)?.file?.path;
+      if (path) this.refresh(path);
     };
     return [
       ViewPlugin.fromClass(
@@ -439,13 +459,13 @@ export class PublicationEditor extends Component {
           }
           update(update: import("@codemirror/view").ViewUpdate) {
             if (
-              update.docChanged ||
               update.startState.facet(EditorState.readOnly) !==
                 update.state.facet(EditorState.readOnly) ||
               update.startState.facet(EditorView.editable) !==
                 update.state.facet(EditorView.editable)
             )
-              queueMicrotask(refreshForms);
+              refreshAll();
+            else if (update.docChanged) refreshNote(update.view);
           }
           destroy() {
             this.cleanup();

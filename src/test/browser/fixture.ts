@@ -77,6 +77,7 @@ let editorContainer: HTMLElement | undefined;
 let sourceText = "";
 let currentFile: TFile;
 let historyChange: { forward: ChangeSet; inverse: ChangeSet } | undefined;
+let editorChangeTimer: number | undefined;
 export interface FixtureOptions {
   bodyFont?: string;
   titleFont?: string;
@@ -101,6 +102,7 @@ async function reset(options: FixtureOptions = {}) {
   metadata?.unload();
   editorContainer?.remove();
   historyChange = undefined;
+  window.clearTimeout(editorChangeTimer);
   sourceText = options.source ?? source;
   controller?.onunload();
   root.empty();
@@ -225,6 +227,13 @@ async function reset(options: FixtureOptions = {}) {
         extensions: [
           editorInfoField.init(() => ({ file: currentFile, editor }) as never),
           metadata.extension(),
+          // Obsidian fires workspace `editor-change` for every document change;
+          // PublishController debounces it into one Publish tab update.
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            window.clearTimeout(editorChangeTimer);
+            editorChangeTimer = window.setTimeout(() => controller.emit(), 250);
+          }),
         ],
       }),
     });
