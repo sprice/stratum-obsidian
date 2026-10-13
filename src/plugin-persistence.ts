@@ -1,5 +1,4 @@
 import { readPublishingTemplates } from "./publish-templates";
-import { readAastexPdfOptions } from "./publication-options";
 import {
   DEFAULT_SOURCE_SUMMARY_TEMPLATE,
   DIVIDED_SOURCE_SUMMARY_TEMPLATE,
@@ -440,9 +439,6 @@ function readStoredSettings(value: unknown): Omit<
   );
   nextSettings.publishingTemplates = readPublishingTemplates(
     value.publishingTemplates,
-  );
-  nextSettings.aastexPdfDefaults = readAastexPdfOptions(
-    value.aastexPdfDefaults,
   );
   for (const key of ["pandocPath", "tectonicPath"] as const) {
     if (typeof value[key] === "string" && !value[key].includes("\0"))

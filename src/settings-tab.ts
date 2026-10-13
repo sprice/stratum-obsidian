@@ -43,11 +43,6 @@ export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
   private closeTabChooser?: () => void;
   private templateRow?: HTMLElement;
-  focusAcademicDefaults(): void {
-    if (!Platform.isDesktopApp) return;
-    new PublishingTemplatesModal(this.plugin, true).open();
-  }
-
   async openNoteTemplateEditor(): Promise<void> {
     const { NoteTemplateModal } = await import("./note-template-modal");
     if (this.plugin.isUnloaded) return;

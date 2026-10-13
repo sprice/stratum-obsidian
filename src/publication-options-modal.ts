@@ -652,4 +652,3 @@ export class PublishingSettingsModal extends Modal {
     if (this.launcher.isConnected) this.launcher.focus();
   }
 }
-export { PublishingSettingsModal as AastexOptionsModal };

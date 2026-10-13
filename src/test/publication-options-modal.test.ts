@@ -87,15 +87,7 @@ function setup(
   let saves = 0;
   const writes: string[] = [];
   const publish = {
-    plugin: {
-      settings: {
-        aastexPdfDefaults: {
-          showLineNumbers: true,
-          showDraftDateHeader: true,
-          numberedHeadings: false,
-        },
-      },
-    },
+    plugin: { settings: {} },
     document: {
       path: "Papers/Synthetic.md",
       basename: "Synthetic",
@@ -155,7 +147,7 @@ function setup(
       (this as unknown as { onClose(): void }).onClose();
     }
   }
-  const { AastexOptionsModal } = loadRuntime<
+  const { PublishingSettingsModal } = loadRuntime<
     typeof import("../publication-options-modal")
   >(
     "publication-options-modal.ts",
@@ -169,7 +161,7 @@ function setup(
     "browser",
   );
   const launcher = new Element("button");
-  const modal = new AastexOptionsModal(
+  const modal = new PublishingSettingsModal(
     {} as never,
     publish as never,
     launcher as never,

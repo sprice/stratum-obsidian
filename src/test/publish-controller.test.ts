@@ -878,20 +878,13 @@ test("AASTeX PDF bypasses CSL formatting, passes its class payload and records i
   );
 });
 
-test("AASTeX ignores legacy vault defaults, serializes per-note changes and resets explicitly", async () => {
-  const { controller, plugin } = setup({
-    aastexPdfDefaults: {
-      showLineNumbers: false,
-      showDraftDateHeader: false,
-      numberedHeadings: true,
-    },
-  });
+test("AASTeX starts from defaults, serializes per-note changes and resets explicitly", async () => {
+  const { controller } = setup();
   await controller.updatePreferences({ templateId: "package:aastex" });
   assert.deepEqual(
     JSON.parse(JSON.stringify(controller.aastexPdfOptions)),
     DEFAULT_AASTEX_PDF_OPTIONS,
   );
-  plugin.settings.aastexPdfDefaults = { ...DEFAULT_AASTEX_PDF_OPTIONS };
   await controller.reload();
   assert.equal(controller.aastexPdfOptions.showLineNumbers, true);
   await Promise.all([

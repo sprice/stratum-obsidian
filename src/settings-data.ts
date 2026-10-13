@@ -1,8 +1,4 @@
 import type { PublishingTemplates } from "./publish-templates";
-import {
-  DEFAULT_AASTEX_PDF_OPTIONS,
-  type AastexPdfOptions,
-} from "./publication-options";
 import { DEFAULT_SOURCE_SUMMARY_TEMPLATE } from "./source-summary-template";
 import { DEFAULT_NOTES_TEMPLATE } from "./literature-note-template";
 import { INITIAL_CITATION_STYLES } from "./citation-style-defaults";
@@ -52,7 +48,6 @@ export interface PendingAuthState {
 }
 
 export interface StratumSettings {
-  aastexPdfDefaults: AastexPdfOptions;
   publishingTemplates?: PublishingTemplates;
   publishReadinessCache: PublishReadinessCache | null;
   publishPdfSetupComplete: boolean;
@@ -93,7 +88,6 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
-  aastexPdfDefaults: { ...DEFAULT_AASTEX_PDF_OPTIONS },
   publishReadinessCache: null,
   publishPdfSetupComplete: false,
   pandocPath: "",

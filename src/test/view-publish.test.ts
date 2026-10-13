@@ -83,7 +83,6 @@ class Element {
 function setup(state?: import("../view-publish").PublishViewState) {
   const root = new Element();
   const settingsCalls: string[] = [];
-  const focusedFonts: string[] = [];
   const updates: (() => void)[] = [];
   const publish = {
     plugin: {
@@ -170,10 +169,6 @@ function setup(state?: import("../view-publish").PublishViewState) {
           close() {}
         },
       },
-      "./publish-customize": {
-        renderPublishCustomization: () => (key: string) =>
-          focusedFonts.push(key),
-      },
     },
   );
   new PublishPanel(root as never, publish as never, state).onload();
@@ -181,7 +176,6 @@ function setup(state?: import("../view-publish").PublishViewState) {
     root,
     publish,
     settingsCalls,
-    focusedFonts,
     update: () => updates.forEach((callback) => callback()),
   };
 }

@@ -80,7 +80,6 @@ function renderPublishingTemplate(
   plugin: StratumPlugin,
   template: PublishingTemplate,
   refresh: () => void,
-  academicTarget: (properties: HTMLDetailsElement, row: HTMLElement) => void,
   rename: (name: string) => void,
   reopen: () => void,
 ): void {
@@ -121,7 +120,7 @@ function renderPublishingTemplate(
     fail,
     "pdf",
   );
-  const { details: prefill, body: prefillBody } = createPublicationSection(
+  const { body: prefillBody } = createPublicationSection(
     details,
     "Prefill details",
   );
@@ -133,27 +132,26 @@ function renderPublishingTemplate(
     ["authors", "Authors"],
     ["affiliations", "Affiliations"],
   ] as const) {
-    const row = new Setting(prefillBody)
+    new Setting(prefillBody)
       .setName(name)
       .setDesc(
         "One entry per line. Leave blank to enter details separately in each note.",
+      )
+      .addTextArea((input) =>
+        styleStratumComponent(input)
+          .setValue(template.prefill[key].join("\n"))
+          .onChange(async (value) => {
+            const current = publishingTemplatesFor(plugin).templates.find(
+              (t) => t.id === template.id,
+            )!;
+            await update({
+              prefill: readAcademicDefaults({
+                ...current.prefill,
+                [key]: value.split(/\r?\n/),
+              }),
+            }).catch(fail);
+          }),
       );
-    if (key === "authors") academicTarget(prefill, row.settingEl);
-    row.addTextArea((input) =>
-      styleStratumComponent(input)
-        .setValue(template.prefill[key].join("\n"))
-        .onChange(async (value) => {
-          const current = publishingTemplatesFor(plugin).templates.find(
-            (t) => t.id === template.id,
-          )!;
-          await update({
-            prefill: readAcademicDefaults({
-              ...current.prefill,
-              [key]: value.split(/\r?\n/),
-            }),
-          }).catch(fail);
-        }),
-    );
   }
   new Setting(details)
     .setName("Duplicate template")
@@ -241,18 +239,13 @@ function renderPublishingTemplate(
 
 /** Keeps template fields out of the main plugin settings page. */
 export class PublishingTemplatesModal extends Modal {
-  constructor(
-    private plugin: StratumPlugin,
-    private academicDefaults = false,
-  ) {
+  constructor(private plugin: StratumPlugin) {
     super(plugin.app);
     this.modalEl.addClass("stratum-modal");
   }
 
   onOpen(): void {
-    const id = this.plugin.publish?.notePreferences.templateId;
-    if (this.academicDefaults && id) this.editTemplate(id, true);
-    else this.renderList();
+    this.renderList();
   }
 
   private renderList(): void {
@@ -341,7 +334,7 @@ export class PublishingTemplatesModal extends Modal {
       );
   }
 
-  private editTemplate(id: string, focusProperties = false): void {
+  private editTemplate(id: string): void {
     const template = publishingTemplatesFor(this.plugin).templates.find(
       (candidate) => candidate.id === id,
     );
@@ -353,17 +346,6 @@ export class PublishingTemplatesModal extends Modal {
       this.plugin,
       template,
       () => this.renderList(),
-      (properties, row) => {
-        if (focusProperties) {
-          properties.open = true;
-          // Wait until the textarea has been added and the modal is laid out.
-          window.requestAnimationFrame(() => {
-            if (!row.isConnected) return;
-            row.scrollIntoView({ block: "center" });
-            row.querySelector<HTMLTextAreaElement>("textarea")?.focus();
-          });
-        }
-      },
       (name) => this.setTitle(`Edit ${name} template`),
       () => this.editTemplate(id),
     );

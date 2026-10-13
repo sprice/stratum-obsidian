@@ -657,14 +657,8 @@ test("template management stays in its own screen, with academic properties in t
   assert.equal(academic().name, "My academic paper", "Reset keeps the name");
 });
 
-test("publishing settings omit vault AASTeX defaults and preserve legacy stored choices", () => {
+test("publishing settings omit vault AASTeX defaults", () => {
   const f = fixture(true);
-  const legacy = {
-    showLineNumbers: false,
-    showDraftDateHeader: false,
-    numberedHeadings: true,
-  };
-  f.plugin.settings.aastexPdfDefaults = legacy;
   assert.ok(
     !f.tab
       .getSettingDefinitions()
@@ -672,5 +666,4 @@ test("publishing settings omit vault AASTeX defaults and preserve legacy stored 
         section.items.some((setting) => setting.name.startsWith("AASTeX:")),
       ),
   );
-  assert.equal(f.plugin.settings.aastexPdfDefaults, legacy);
 });
