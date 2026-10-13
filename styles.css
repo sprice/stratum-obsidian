@@ -557,6 +557,17 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 
 /* Shared Stratum controls keep Obsidian's native input and button styling. */
+.stratum-control-card {
+  min-width: 0;
+  margin: 0;
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+}
+.stratum-control-card > legend {
+  padding: 0 var(--size-4-1);
+  font-weight: var(--font-semibold);
+}
 .stratum-control-field {
   min-width: 0;
   display: flex;
@@ -576,6 +587,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   width: auto;
 }
 .stratum-control-field > .stratum-control-input {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
 }
@@ -1800,32 +1812,30 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   font-size: var(--font-ui-small);
   margin: 0;
 }
-.stratum-publication-author {
-  min-width: 0;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  padding: var(--size-4-3);
-}
-.stratum-publication-author legend {
-  font-weight: var(--font-semibold);
-  padding: 0 var(--size-4-1);
-}
-.stratum-publication-field {
-  display: grid;
-  gap: var(--size-4-1);
-  margin-bottom: var(--size-4-3);
-  font-size: var(--font-ui-small);
-}
-.stratum-publication-field input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-}
-.stratum-publication-actions {
+.stratum-publication-content > .stratum-control-card {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+.stratum-publication-validation:empty {
+  display: none;
+}
+/* The remove icon matches the input's height so both stay centered. */
+.stratum-publication-affiliation {
+  display: flex;
+  align-items: flex-end;
   gap: var(--size-4-2);
-  margin-top: var(--size-4-3);
+}
+.stratum-publication-affiliation > .stratum-control-field {
+  flex: 1;
+}
+.stratum-publication-affiliation > .clickable-icon {
+  min-height: var(--input-height);
+}
+.stratum-publication-author-order {
+  display: flex;
+  gap: var(--size-4-1);
+  margin-inline-start: auto;
 }
 .stratum-publication-warning,
 .stratum-publication-conflict {

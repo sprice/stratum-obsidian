@@ -24,6 +24,13 @@ import {
 
 import { cleanupPublicationProperties } from "./publication-cleanup";
 import type { PublishOptions } from "./publish-options";
+import {
+  createStratumButton,
+  createStratumField,
+  createStratumFieldset,
+  createStratumIconButton,
+  createStratumInput,
+} from "./ui-controls";
 
 interface Draft {
   operation: AuthorOperation;
@@ -538,19 +545,28 @@ export class PublicationForm {
     this.cleanup();
     queueMicrotask(() => this.service.flush(this.path, this.view));
   }
+  /**
+   * `label` is the accessible name, tooltip and focus key. Text buttons show
+   * `text` when the surrounding card already names the author.
+   */
   private action(
     label: string,
     action: () => void,
     parent = this.element,
-    disabled = false,
+    options: { text?: string; icon?: string; disabled?: boolean } = {},
   ): HTMLButtonElement {
-    const button = parent.createEl("button", {
-      text: label,
-      attr: { type: "button", "aria-label": label },
-    });
-    button.className = "stratum-control-button";
+    const button = options.icon
+      ? createStratumIconButton(parent, {
+          icon: options.icon,
+          ariaLabel: label,
+        })
+      : createStratumButton(parent, {
+          text: options.text ?? label,
+          tooltip: label,
+        });
+    button.setAttribute("aria-label", label);
     button.dataset.publicationControl = label;
-    button.disabled = disabled;
+    button.disabled = options.disabled ?? false;
     // A blur commit can replace this widget before the subsequent click arrives.
     // Keep the input focused until the click handler can flush and act together.
     button.addEventListener("pointerdown", (event) => {
@@ -614,20 +630,18 @@ export class PublicationForm {
     operation: AuthorOperation,
     key: string,
   ): void {
-    const row = parent.createEl("label", { cls: "stratum-publication-field" });
-    row.createSpan({ text: label });
+    const field = createStratumField(parent, label);
     const draft = this.service.session(this.path).drafts.get(key);
-    const input = row.createEl("input", {
-      attr: { type: "text", "aria-label": label },
+    const input = createStratumInput(field, {
+      type: "text",
+      attr: {
+        "aria-label": label,
+        "aria-required": String(
+          this.service.plugin.publish?.document?.path === this.path &&
+            this.service.plugin.publish.selectedTemplate?.renderer === "aastex",
+        ),
+      },
     });
-    input.className = "stratum-control-input";
-    input.setAttribute(
-      "aria-required",
-      String(
-        this.service.plugin.publish?.document?.path === this.path &&
-          this.service.plugin.publish.selectedTemplate?.renderer === "aastex",
-      ),
-    );
     input.dataset.publicationControl = key;
     input.value =
       draft && "value" in draft.operation ? draft.operation.value : value;
@@ -826,10 +840,9 @@ export class PublicationForm {
         ? model.authors
         : []
       ).entries()) {
-        const card = this.element.createEl("fieldset", {
-          cls: "stratum-publication-author",
+        const card = createStratumFieldset(this.element, {
+          legend: `Author ${index + 1}`,
         });
-        card.createEl("legend", { text: `Author ${index + 1}` });
         this.input(
           card,
           `Author ${index + 1} name`,
@@ -849,8 +862,11 @@ export class PublicationForm {
           attr: { "data-author": String(index + 1) },
         });
         author.affiliations.forEach((value, affiliation) => {
+          const row = card.createDiv({
+            cls: "stratum-publication-affiliation",
+          });
           this.input(
-            card,
+            row,
             `Author ${index + 1} affiliation ${affiliation + 1}`,
             value,
             { type: "affiliation", author: index, index: affiliation, value },
@@ -864,31 +880,37 @@ export class PublicationForm {
                 author: index,
                 index: affiliation,
               }),
-            card,
+            row,
+            { icon: "trash-2" },
           );
         });
-        const actions = card.createDiv({ cls: "stratum-publication-actions" });
+        const actions = card.createDiv({ cls: "stratum-publish-row-actions" });
         this.action(
           `Add affiliation to author ${index + 1}`,
           () => this.operate({ type: "add-affiliation", author: index }),
           actions,
+          { text: "Add affiliation" },
         );
+        const order = actions.createDiv({
+          cls: "stratum-publication-author-order",
+        });
         this.action(
           `Move author ${index + 1} up`,
           () => this.operate({ type: "move", author: index, direction: -1 }),
-          actions,
-          index === 0,
+          order,
+          { icon: "arrow-up", disabled: index === 0 },
         );
         this.action(
           `Move author ${index + 1} down`,
           () => this.operate({ type: "move", author: index, direction: 1 }),
-          actions,
-          index === model.authors.length - 1,
+          order,
+          { icon: "arrow-down", disabled: index === model.authors.length - 1 },
         );
         this.action(
           `Remove author ${index + 1}`,
           () => this.operate({ type: "remove", author: index }),
-          actions,
+          order,
+          { icon: "trash-2" },
         );
       }
       this.action("Add author", () => this.operate({ type: "add" }));

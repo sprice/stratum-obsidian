@@ -111,7 +111,7 @@ async function until(expression: string) {
 async function reset() {
   await page.evaluate("window.publicationEditorFixture.reset()");
   await until(
-    'document.querySelectorAll(".stratum-publication-author").length === 2',
+    'document.querySelectorAll(".stratum-publication-content > fieldset").length === 2',
   );
 }
 async function click(label: string) {
@@ -257,7 +257,7 @@ test("flush uses the edited view when another view of the same note is registere
     "window.publicationEditorFixture.reset(window.publicationEditorFixture.sample, true)",
   );
   await until(
-    'document.querySelectorAll(".stratum-publication-author").length === 2',
+    'document.querySelectorAll(".stratum-publication-content > fieldset").length === 2',
   );
   await page.evaluate(
     'window.publicationEditorFixture.edit("Author 1 name", "Active view author"); window.publicationEditorFixture.flush()',
@@ -334,23 +334,91 @@ test("switching Source and Live Preview flushes a valid draft and preserves the 
 test("narrow layouts keep the shared metadata form within its settings surface", async () => {
   await page.setViewportSize(360, 900);
   await reset();
-  const fits = await page.evaluate(`(() => {
+  const overflowing = await page.evaluate(`(() => {
     const widget = document.querySelector('.stratum-publication-content');
     const bounds = widget.getBoundingClientRect();
-    return [...widget.querySelectorAll('input,button')].every(control => {
-      const rect = control.getBoundingClientRect();
-      return rect.left >= bounds.left && rect.right <= bounds.right;
-    });
+    return [...widget.querySelectorAll('input,button')]
+      .filter(control => {
+        const rect = control.getBoundingClientRect();
+        return rect.left < bounds.left || rect.right > bounds.right;
+      })
+      .map(control => control.getAttribute('aria-label'));
   })()`);
-  assert.equal(fits, true);
   await page.setViewportSize(560, 900);
+  assert.deepEqual(overflowing, []);
+});
+test("author cards use shared fields, text actions and labelled icon actions", async () => {
+  await reset();
+  const controls = await page.evaluate(`(() => {
+    const card = document.querySelector('.stratum-publication-content > fieldset');
+    const button = (label) => {
+      const element = document.querySelector('button[aria-label="' + label + '"]');
+      return {
+        text: element.textContent,
+        icon: element.classList.contains('clickable-icon'),
+        key: element.dataset.publicationControl,
+        disabled: element.disabled,
+      };
+    };
+    const input = card.querySelector('input[aria-label="Author 1 name"]');
+    return {
+      card: card.className,
+      legend: card.querySelector(':scope > legend').textContent,
+      field: input.parentElement.className,
+      label: input.parentElement.firstChild.textContent,
+      input: input.className,
+      required: input.getAttribute('aria-required'),
+      key: input.dataset.publicationControl,
+      add: button('Add author'),
+      affiliation: button('Add affiliation to author 1'),
+      up: button('Move author 1 up'),
+      down: button('Move author 1 down'),
+      remove: button('Remove author 1'),
+      removeAffiliation: button('Remove affiliation 1 from author 1'),
+    };
+  })()`);
+  assert.deepEqual(controls, {
+    card: "stratum-control-card",
+    legend: "Author 1",
+    field: "stratum-control-field",
+    label: "Author 1 name",
+    input: "stratum-control-input",
+    required: "true",
+    key: "0:name",
+    add: {
+      text: "Add author",
+      icon: false,
+      key: "Add author",
+      disabled: false,
+    },
+    affiliation: {
+      text: "Add affiliation",
+      icon: false,
+      key: "Add affiliation to author 1",
+      disabled: false,
+    },
+    up: { text: "↑", icon: true, key: "Move author 1 up", disabled: true },
+    down: {
+      text: "↓",
+      icon: true,
+      key: "Move author 1 down",
+      disabled: false,
+    },
+    remove: { text: "×", icon: true, key: "Remove author 1", disabled: false },
+    removeAffiliation: {
+      text: "×",
+      icon: true,
+      key: "Remove affiliation 1 from author 1",
+      disabled: false,
+    },
+  });
 });
 test("a protected frontmatter transaction retries only the validated edit without losing the body", async () => {
   await page.evaluate(
     "window.publicationEditorFixture.reset(window.publicationEditorFixture.sample, false, true)",
   );
   await until(
-    'document.querySelectorAll(".stratum-publication-author").length === 2',
+    'document.querySelectorAll(".stratum-publication-content > fieldset").length === 2',
   );
   await click("Add author");
   await until("window.publicationEditorFixture.authors().length === 3");
@@ -374,7 +442,7 @@ test("the trusted frontmatter retry respects an explicitly read-only note", asyn
     "window.publicationEditorFixture.reset(window.publicationEditorFixture.sample, false, true, true)",
   );
   await until(
-    'document.querySelectorAll(".stratum-publication-author").length === 2',
+    'document.querySelectorAll(".stratum-publication-content > fieldset").length === 2',
   );
   await page.evaluate(
     'window.publicationEditorFixture.edit("Author 1 name", "Read-only draft"); window.publicationEditorFixture.flush()',
@@ -398,7 +466,7 @@ test("a partially accepted transaction retains the draft without overwriting the
     "window.publicationEditorFixture.reset(window.publicationEditorFixture.sample, false, false, false, true)",
   );
   await until(
-    'document.querySelectorAll(".stratum-publication-author").length === 2',
+    'document.querySelectorAll(".stratum-publication-content > fieldset").length === 2',
   );
   await page.evaluate(
     'window.publicationEditorFixture.edit("Author 1 name", "Alex Partial Draft"); window.publicationEditorFixture.flush()',
@@ -464,7 +532,7 @@ test("legacy import is explicit, keeps the old properties and does not assign gl
   );
   await click("Use existing authors");
   await until(
-    'document.querySelectorAll(".stratum-publication-author").length === 2',
+    'document.querySelectorAll(".stratum-publication-content > fieldset").length === 2',
   );
   const authors = await page.evaluate<
     { name: string; affiliations: string[] }[]

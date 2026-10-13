@@ -57,13 +57,12 @@ class Element {
   }
 }
 
-const { createStratumTabs } = loadRuntime<typeof import("../ui-controls")>(
-  "ui-controls.ts",
-  {
-    setIcon() {},
-    setTooltip() {},
-  },
-);
+const { createStratumFieldset, createStratumTabs } = loadRuntime<
+  typeof import("../ui-controls")
+>("ui-controls.ts", {
+  setIcon() {},
+  setTooltip() {},
+});
 
 function setup(selected: "one" | "two" | "three" | null = "two") {
   const root = new Element();
@@ -218,4 +217,19 @@ test("tab column counts follow the number of tabs", () => {
     "--stratum-tab-count": "1",
     "--stratum-compact-tab-count": "1",
   });
+});
+
+test("fieldsets are shared cards labelled by their legend", () => {
+  const root = new Element();
+  const fieldset = createStratumFieldset(root as unknown as HTMLElement, {
+    legend: "Synthetic group",
+    cls: "synthetic-extra",
+  }) as unknown as Element;
+  assert.equal(root.children[0], fieldset);
+  assert.equal(fieldset.tag, "fieldset");
+  assert.equal(fieldset.className, "synthetic-extra stratum-control-card");
+  assert.deepEqual(
+    fieldset.children.map((child) => [child.tag, child.text]),
+    [["legend", "Synthetic group"]],
+  );
 });

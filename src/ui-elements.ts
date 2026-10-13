@@ -74,6 +74,23 @@ export function createStratumSelectElement(
   return controlElement(container, "select", "stratum-control-select", options);
 }
 
+/** A native fieldset drawn as a bordered card, labelled by its legend. */
+export function createStratumFieldset(
+  container: HTMLElement,
+  options: { legend: string; cls?: string },
+): HTMLFieldSetElement {
+  const fieldset = controlElement(
+    container,
+    "fieldset",
+    "stratum-control-card",
+    {
+      cls: options.cls,
+    },
+  );
+  fieldset.createEl("legend", { text: options.legend });
+  return fieldset;
+}
+
 export function createStratumDisclosure(
   container: HTMLElement,
   options?: DomElementInfo,

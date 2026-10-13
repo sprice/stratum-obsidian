@@ -12,6 +12,7 @@ export {
   createStratumInput,
   createStratumTextarea,
   createStratumSelectElement,
+  createStratumFieldset,
   createStratumDisclosure,
   createStratumSummary,
   styleStratumComponent,

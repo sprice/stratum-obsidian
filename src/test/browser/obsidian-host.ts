@@ -223,8 +223,14 @@ export function setIcon(button: HTMLElement, icon: string) {
     button.append(svg);
     return;
   }
+  const glyphs: Record<string, string> = {
+    settings: "⚙",
+    "arrow-up": "↑",
+    "arrow-down": "↓",
+    "trash-2": "×",
+  };
   button.createSpan({
-    text: icon === "settings" ? "⚙" : "↗",
+    text: glyphs[icon] ?? "↗",
     attr: { "aria-hidden": "true" },
   });
 }
