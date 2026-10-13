@@ -415,3 +415,34 @@ test("author add, remove and move keep CRLF line endings", () => {
   assert.match(text, /# author/);
   assert.ok(text.endsWith("other: x\r\n---\r\nBody\r\n"));
 });
+
+test("filling a tagged empty author name preserves spacing and comments", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    for (const suffix of ["", " # author"]) {
+      const source = note(
+        newline,
+        "stratum_publish:",
+        "  authors:",
+        `    - name: !!str${suffix}`,
+        "      email: synthetic@example.org",
+      );
+      const next = edit(source, {
+        type: "field",
+        author: 0,
+        key: "name",
+        value: "Synthetic Author",
+      });
+      assert.equal(
+        next,
+        source.replace(
+          `name: !!str${suffix}`,
+          `name: !!str Synthetic Author${suffix}`,
+        ),
+      );
+      assert.equal(
+        publicationAuthors(publicationYaml(next).properties).authors[0].name,
+        "Synthetic Author",
+      );
+    }
+  }
+});

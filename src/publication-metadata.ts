@@ -195,12 +195,16 @@ export function changePublicationAuthors(
         original.type !== "BLOCK_FOLDED"
       ) {
         const scalar = document.createNode(operation.value);
-        const insert =
+        let insert =
           author.flow || /[\r\n]/.test(operation.value)
             ? JSON.stringify(operation.value)
             : new Document(scalar).toString({ lineWidth: 0 }).trimEnd();
+        const from = offset + original.range[0];
+        if (/\S/.test(text[from - 1] ?? "")) insert = " " + insert;
+        if (from === offset + original.range[1] && text[from] === "#")
+          insert += " ";
         return {
-          from: offset + original.range[0],
+          from,
           to: offset + original.range[1],
           insert,
         };
