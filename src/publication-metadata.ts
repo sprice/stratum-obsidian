@@ -374,7 +374,7 @@ export function changePublicationProperty(
       let insert = [lines[0] + comment, ...lines.slice(1)]
         .map((line, i) => (i && blockList ? indent + line : line))
         .join(newline);
-      if (text[from - 1] === ":") insert = " " + insert;
+      if (/\S/.test(text[from - 1] ?? "")) insert = " " + insert;
       if (from === to && text[to] === "#") insert += " ";
       return { from, to, insert: insert + ending };
     }

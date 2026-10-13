@@ -241,6 +241,8 @@ test("filling an empty property value writes valid YAML on the key line", () => 
   for (const [line, expected] of [
     ["title:", "title: My Paper"],
     ["title: ", "title: My Paper"],
+    ["title: !!str", "title: !!str My Paper"],
+    ["title: !!str # note", "title: !!str My Paper # note"],
     ["title:   # note", "title:   My Paper # note"],
   ]) {
     const next = setProperty(note("\n", line, "other: x"), {
