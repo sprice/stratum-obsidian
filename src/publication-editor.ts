@@ -871,7 +871,7 @@ export class PublicationForm {
             { icon: "trash-2" },
           );
         });
-        const actions = card.createDiv({ cls: "stratum-publish-row-actions" });
+        const actions = card.createDiv({ cls: "stratum-control-actions" });
         this.action(
           `Add affiliation to author ${index + 1}`,
           () => this.operate({ type: "add-affiliation", author: index }),

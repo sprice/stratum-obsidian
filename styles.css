@@ -76,11 +76,6 @@
   outline-offset: -2px;
 }
 
-/* Panel layout classes must not override the native hidden state. */
-.stratum-tab-content > [hidden] {
-  display: none;
-}
-
 .stratum-tab-content {
   min-width: 0;
   min-height: 0;
@@ -453,7 +448,8 @@
   gap: 0.75rem;
 }
 
-.stratum-modal-meta {
+.stratum-modal-meta,
+.stratum-publication-help {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
@@ -561,6 +557,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   min-width: 0;
   margin: 0;
   padding: var(--size-4-3);
+}
+.stratum-control-card,
+.stratum-publish-tools {
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
 }
@@ -687,9 +686,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   min-height: var(--input-height);
   white-space: normal;
 }
-.stratum-collection-tools button[hidden] {
-  display: none;
-}
+
 @container stratum-sidebar (max-width: 28rem) {
   .stratum-collection-filters {
     grid-template-columns: minmax(0, 1fr);
@@ -706,9 +703,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   max-width: 100%;
   justify-content: center;
 }
-.stratum-collection-summary button[hidden] {
-  display: none;
-}
+
 .stratum-collection-results:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
@@ -772,9 +767,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   align-items: center;
   justify-content: space-between;
 }
-.stratum-sources-header > [hidden] {
-  display: none;
-}
+
 .stratum-sources-context button[aria-pressed="true"] {
   color: var(--interactive-accent);
 }
@@ -812,9 +805,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-citation-settings-button {
   margin-top: var(--size-2-2);
 }
-.stratum-sources-document[hidden] {
-  display: none;
-}
+
 .stratum-sources-summary,
 .stratum-sources-meta,
 .stratum-sources-empty {
@@ -826,9 +817,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   flex-wrap: wrap;
   gap: var(--size-4-2);
 }
-.stratum-sources-tools[hidden] {
-  display: none;
-}
+
 .stratum-sources-tools > .stratum-control-search {
   flex: 1 1 140px;
 }
@@ -949,10 +938,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   margin-top: var(--size-4-2);
   font-size: var(--font-ui-small);
 }
-.stratum-sources-issue {
-  color: var(--text-warning);
-  font-size: var(--font-ui-small);
-}
+
 .stratum-sources button:focus-visible,
 .stratum-sources summary:focus-visible {
   outline: 2px solid var(--interactive-accent);
@@ -967,9 +953,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-tab-bar > button {
   padding-inline: var(--size-4-2);
 }
-.stratum-tab-content > [hidden] {
-  display: none;
-}
+
 .stratum-sources-tab {
   height: 100%;
   min-height: 0;
@@ -1111,7 +1095,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--size-4-2);
 }
-.stratum-publish-customize-row,
 .stratum-publish-controls {
   margin-block-end: var(--size-4-3);
 }
@@ -1123,73 +1106,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-controls > button {
   align-self: stretch;
 }
-.stratum-publish-template-selectors > [hidden] {
-  display: none;
-}
-.stratum-publish-configuration,
-.stratum-publish-academic {
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-4-3);
-}
-.stratum-publish-configuration .stratum-control-field {
-  width: 100%;
-}
-.stratum-publish-template-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: var(--size-4-2);
-}
-.stratum-publish-template-row > button {
-  margin: 0;
-}
-.stratum-publish-customization > summary {
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: var(--size-4-2) 0;
-}
-/* "Customize…" shares its line with a flush-right reset; the options open full width. */
-.stratum-publish-customize-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-}
-.stratum-publish-customize-row > .stratum-publish-customization {
-  grid-row: 1;
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-.stratum-publish-customize-row > .stratum-publish-customization > summary {
-  width: 50%;
-  box-sizing: border-box;
-  padding-block: 0;
-  line-height: var(--input-height);
-}
-.stratum-publish-customize-row > .stratum-publish-reset {
-  grid-row: 1;
-  grid-column: 2;
-  justify-self: end;
-}
-/* Very narrow sidebars stack them: reset first, then Customize, both flush left. */
-@container stratum-sidebar (max-width: 16rem) {
-  .stratum-publish-customize-row {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: var(--size-4-2);
-  }
-  .stratum-publish-customize-row > .stratum-publish-reset {
-    grid-row: 1;
-    grid-column: 1;
-    justify-self: start;
-  }
-  .stratum-publish-customize-row > .stratum-publish-customization {
-    grid-row: 2;
-    grid-column: 1;
-  }
-  .stratum-publish-customize-row > .stratum-publish-customization > summary {
-    width: auto;
-  }
-}
+
 .stratum-publish-customize {
   display: flex;
   flex-direction: column;
@@ -1203,6 +1120,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 
 .stratum-publish-actions,
+.stratum-control-actions,
 .stratum-publish-row-actions {
   display: flex;
   align-items: center;
@@ -1231,7 +1149,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   flex-direction: column;
   align-items: stretch;
   gap: var(--size-4-3);
-  margin-top: var(--size-4-4);
 }
 .stratum-publish-history .stratum-control-field {
   width: 50%;
@@ -1261,15 +1178,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   flex-wrap: nowrap;
   gap: var(--size-2-1);
 }
-/* Themes may override the browser's default hidden rule for buttons. */
-.stratum-publish-setup [hidden],
-.stratum-view .stratum-publish-panel [hidden] {
-  display: none;
-}
-.stratum-publish-tools {
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m);
-}
+
 .stratum-publish-tool {
   padding: var(--size-4-3);
 }
@@ -1488,10 +1397,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
 }
-.stratum-sources-context [hidden],
-.stratum-sources-summary[hidden] {
-  display: none;
-}
+
 .stratum-citation-status {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1791,10 +1697,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-section-body > p:first-child {
   margin-top: 0;
 }
-.stratum-publish-font-status[hidden],
-.stratum-publish-font-retry[hidden] {
-  display: none;
-}
+
 .stratum-publish-font-retry {
   align-self: flex-start;
 }
@@ -1803,11 +1706,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   gap: var(--size-4-3);
   margin-bottom: var(--size-4-6);
 }
-.stratum-publication-help {
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
-  margin: 0;
-}
+
 .stratum-publication-content > .stratum-control-card {
   display: flex;
   flex-direction: column;
@@ -1833,6 +1732,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   gap: var(--size-4-1);
   margin-inline-start: auto;
 }
+.stratum-sources-issue,
 .stratum-publication-warning,
 .stratum-publication-conflict,
 .stratum-control-message {
@@ -1862,19 +1762,11 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   flex-shrink: 0;
   margin-bottom: var(--size-4-4);
 }
-.stratum-document-options-modal {
-  max-width: 560px;
-}
-
-.stratum-publish-shell > [role="tabpanel"][hidden] {
-  display: none;
-}
 
 .stratum-publishing-settings-modal .stratum-publishing-property {
   display: flex;
   flex-direction: column;
   gap: var(--size-4-2);
-  margin-bottom: var(--size-4-4);
 }
 .stratum-publishing-settings-modal .stratum-control-input,
 .stratum-publishing-settings-modal .stratum-control-field,
@@ -1922,9 +1814,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   width: var(--size-4-4);
   height: var(--size-4-4);
 }
-.stratum-publish-success-icon[hidden] {
-  display: none;
-}
 
 .stratum-sr-only {
   position: absolute;
@@ -1938,6 +1827,15 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   border: 0;
 }
 
-.stratum-control-field[hidden] {
+/* The writing-note link's display rule has higher specificity than scoped hidden. */
+.stratum-sources
+  .stratum-sources-context
+  button.stratum-sources-document[hidden]:not(.clickable-icon) {
+  display: none;
+}
+
+/* Keep native visibility within Stratum surfaces, including modal fields. */
+:is([class^="stratum-"], [class*=" stratum-"])[hidden],
+:is([class^="stratum-"], [class*=" stratum-"]) [hidden] {
   display: none;
 }

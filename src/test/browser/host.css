@@ -59,7 +59,8 @@ body.theme-light {
 }
 button,
 select,
-input {
+input,
+textarea {
   font: inherit;
   color: var(--text-normal);
   background: var(--interactive-normal);
@@ -85,7 +86,8 @@ button.clickable-icon {
 select {
   appearance: auto;
 }
-input {
+input,
+textarea {
   width: 100%;
 }
 summary {
