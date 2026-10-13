@@ -487,6 +487,14 @@ Coverage varies by source. Stratum sends only the DOI to OpenAlex, not your draf
 
 Style and language requests identify resources. They do not contain your draft or reference data.
 
+### AASTeX downloads and privacy
+
+When you create an AASTeX PDF with citations, Stratum downloads a file from the American Astronomical Society at `journals.aas.org`. This file controls how references appear in your PDF.
+
+The download uses a secure connection. Stratum checks that it matches the expected file, then saves it in the plugin folder for reuse.
+
+**Your manuscript and reference data are not sent to AAS.**
+
 ### Your writing and credentials
 
 Stratum does not upload your Obsidian drafts or personal writing in literature notes. Zotero notes and annotations are imported source material.
