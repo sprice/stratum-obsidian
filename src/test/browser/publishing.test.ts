@@ -981,8 +981,12 @@ async function openSettings() {
   await until("!!document.querySelector('.stratum-publishing-settings-modal')");
 }
 async function editProperty(label: string, value: string, commit = true) {
+  await until(`(() => {
+    const input = document.querySelector('.stratum-publishing-settings-modal input:not([type="checkbox"])[aria-label="${label}"], .stratum-publishing-settings-modal textarea[aria-label="${label}"]');
+    return !!input && !input.disabled && input.getClientRects().length>0;
+  })()`);
   await page.evaluate(`(() => {
-    const input = document.querySelector('.stratum-publishing-settings-modal [aria-label="${label}"]');
+    const input = document.querySelector('.stratum-publishing-settings-modal input:not([type="checkbox"])[aria-label="${label}"], .stratum-publishing-settings-modal textarea[aria-label="${label}"]');
     input.focus(); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event('input', {bubbles:true}));
     ${commit ? "input.blur();" : ""}
   })()`);
@@ -1020,16 +1024,26 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
       );
       await editProperty("Title", "Edited manuscript title");
       await until("window.publicationFixture.state().canCreate");
-      for (const [key, label, value] of [
-        ["authors", "Authors", "Alex\nMorgan"],
-        ["date", "Date", "2026-10-12"],
-        ["keywords", "Keywords", "one\ntwo"],
+      if (templateId === "academic") {
+        await page.locator('button[aria-label="Add author"]').click();
+        await editProperty("Author 1 name", "Alex");
+      } else {
+        await page.locator('.checkbox-container[aria-label="Authors"]').click();
+        await editProperty("Authors", "Alex\nMorgan");
+      }
+      for (const [label, value] of [
+        ["Date", "2026-10-12"],
+        ["Keywords", "one\ntwo"],
       ]) {
-        await page
-          .locator('select[aria-label="Add publishing property"]')
-          .selectOption(key);
+        const enabled = await page.evaluate(
+          `document.querySelector('.checkbox-container[aria-label="${label}"] input').checked`,
+        );
+        if (!enabled)
+          await page
+            .locator(`.checkbox-container[aria-label="${label}"]`)
+            .click();
         await until(
-          `!!document.querySelector('.stratum-publishing-settings-modal [aria-label="${label}"]')`,
+          `!document.querySelector('[data-property-control="${label.toLowerCase()}"]').closest('.stratum-control-field').hidden`,
         );
         await editProperty(label, value);
       }
@@ -1930,5 +1944,247 @@ test("PDF option fields and Advanced layout use shared token spacing across temp
           );
           await page.keyPress("Escape");
         }
+  });
+});
+
+test("Date and Keywords toggles reveal inputs, preserve disabled values and leave inactive keys outside cleanup", async () => {
+  await scenario("direct-property-toggles", async () => {
+    for (const templateId of ["general", "academic"] as const) {
+      await reset(
+        {
+          templateId,
+          source:
+            "---\ntitle: Paper\ndate: 2026-10-13\nkeywords: [one, two]\n---\nBody",
+        },
+        320,
+      );
+      await openSettings();
+      assert.equal(
+        await page
+          .locator('select[aria-label="Add publishing property"]')
+          .count(),
+        0,
+      );
+      const before = await page.evaluate("window.publicationFixture.text()");
+      for (const label of ["Date", "Keywords"]) {
+        const toggle = `.checkbox-container[aria-label="${label}"]`;
+        await until(
+          `!window.publicationFixture.state().saving && !document.querySelector('${toggle}').classList.contains('is-disabled')`,
+        );
+        if (
+          !(await page.evaluate(
+            `document.querySelector('${toggle} input').checked`,
+          ))
+        )
+          await page.locator(toggle).click();
+        await until(
+          `!document.querySelector('[data-property-control="${label.toLowerCase()}"]').closest('.stratum-control-field').hidden`,
+        );
+        await until(
+          `!window.publicationFixture.state().saving && !document.querySelector('${toggle}').classList.contains('is-disabled')`,
+        );
+        await page.locator(toggle).click();
+        await until(
+          `document.querySelector('[data-property-control="${label.toLowerCase()}"]').closest('.stratum-control-field').hidden`,
+        );
+      }
+      assert.equal(
+        await page.evaluate("window.publicationFixture.text()"),
+        before,
+      );
+      assert.equal(
+        await page.evaluate(
+          "document.querySelector('.stratum-publishing-cleanup').disabled",
+        ),
+        true,
+      );
+      await capture(`direct-property-toggles-${templateId}-320`);
+      await page.keyPress("Escape");
+    }
+  });
+});
+
+test("Academic shares grouped authors without automatic legacy conversion or AASTeX requirements", async () => {
+  await scenario("academic-grouped-authors", async () => {
+    const source =
+      "---\ntitle: Paper\nauthors: [Alex, Morgan]\naffiliations: [Institute]\ncustom: exact # retained\n---\nBody";
+    await reset({ templateId: "academic", source });
+    await openSettings();
+    assert.equal(
+      await page.locator('textarea[aria-label="Authors"]').count(),
+      0,
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      source,
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().canCreate"),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publishing-settings-modal').textContent.includes('affiliations must be assigned')",
+      ),
+      true,
+    );
+    await page.locator('button[aria-label="Use existing authors"]').click();
+    await until(
+      "!!document.querySelector('input[aria-label=\"Author 1 name\"]')",
+    );
+    await page
+      .locator('button[aria-label="Add affiliation to author 1"]')
+      .click();
+    await editProperty("Author 1 affiliation 1", "Institute");
+    await until("window.publicationFixture.state().canCreate");
+    const grouped = String(
+      await page.evaluate("window.publicationFixture.text()"),
+    );
+    assert.match(grouped, /authors: \[Alex, Morgan\]/);
+    assert.match(grouped, /affiliations: \[Institute\]/);
+    assert.match(grouped, /stratum_publish:/);
+    assert.match(grouped, /custom: exact # retained/);
+    await capture("academic-grouped-authors");
+    await page.keyPress("Escape");
+    await page.evaluate(
+      "window.publicationFixture.selectTemplate('package:aastex')",
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.text()"),
+      grouped,
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().canCreate"),
+      false,
+    );
+  });
+});
+
+test("Settings readiness notices inherit warning color while failures remain errors", async () => {
+  await scenario("settings-readiness-notice", async () => {
+    await reset({ aastex: true, source: "---\ntitle: Paper\n---\nBody" });
+    await until(
+      "document.querySelector('.stratum-publish-notice')?.textContent.includes('Add at least one author, in Settings')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "(() => {document.body.style.setProperty('--text-warning', 'rgb(240, 140, 30)');return getComputedStyle(document.querySelector('.stratum-publish-notice')).color;})()",
+      ),
+      "rgb(240, 140, 30)",
+    );
+    await page.evaluate("window.publicationFixture.unrelatedError()");
+    await until(
+      "!!document.querySelector('.stratum-publish-status .stratum-publish-error')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-status').textContent.includes(', in Settings')",
+      ),
+      false,
+    );
+    await reset({
+      aastex: true,
+      source: "---\nstratum_publish:\n  authors: []\n---\nBody",
+    });
+    await page.evaluate("window.publicationFixture.setTitleSource('body')");
+    await until(
+      "document.querySelector('.stratum-publish-notice')?.textContent.includes('Add a manuscript title using the selected title source.')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-notice').textContent.split('\\n')[0].includes('in Settings')",
+      ),
+      false,
+    );
+  });
+});
+
+test("confirmed publication shows a transient accent outline icon, restarts for repeats and clears on Documents", async () => {
+  await scenario("publication-success-indicator", async () => {
+    await reset({ templateId: "general" });
+    await page.evaluate(
+      "document.body.style.setProperty('--interactive-accent', 'rgb(145, 80, 220)');window.publicationFixture.confirmPublished()",
+    );
+    await until(
+      "!document.querySelector('.stratum-publish-success-icon').hidden",
+    );
+    assert.equal(
+      await page.evaluate(
+        "getComputedStyle(document.querySelector('.stratum-publish-success-icon')).color",
+      ),
+      "rgb(145, 80, 220)",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon svg').getAttribute('fill')",
+      ),
+      "none",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-sr-only').textContent",
+      ),
+      "PDF created. Available in documents.",
+    );
+    await delay(220);
+    await capture("publication-success-indicator");
+    await delay(1700);
+    await page.evaluate("window.publicationFixture.confirmPublished()");
+    await delay(1700);
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').hidden",
+      ),
+      false,
+    );
+    await page.locator(".stratum-publish-tabs button:nth-child(2)").click();
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').hidden",
+      ),
+      true,
+    );
+    await page.locator(".stratum-publish-tabs button:first-child").click();
+    await page.evaluate("window.publicationFixture.unrelatedError()");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').hidden",
+      ),
+      true,
+    );
+    await page.evaluate(`(() => {
+      window.originalPublicationMatchMedia = window.matchMedia;
+      window.matchMedia = (query) => ({matches: query.includes('prefers-reduced-motion'), media: query});
+    })()`);
+    await page.evaluate("window.publicationFixture.confirmPublished()");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').getAnimations().length===0",
+      ),
+      true,
+    );
+    await page.evaluate(
+      "window.matchMedia=window.originalPublicationMatchMedia",
+    );
+    await until(
+      "document.querySelector('.stratum-publish-success-icon').hidden",
+    );
+    await page.evaluate("window.publicationFixture.confirmPublished()");
+    await until(
+      "!document.querySelector('.stratum-publish-success-icon').hidden",
+    );
+    await page.evaluate("window.publicationFixture.remountPanel()");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').hidden",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-sr-only').textContent",
+      ),
+      "",
+    );
   });
 });

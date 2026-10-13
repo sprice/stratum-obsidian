@@ -846,6 +846,11 @@ export class PublicationForm {
           text: "For PDF, each author needs a name, email and affiliation. Emails are supplied to the class without being printed.",
           cls: "stratum-publication-help",
         });
+      if (!aastex && publish?.selectedTemplate?.documentType === "academic")
+        this.content.createEl("p", {
+          text: "Email and affiliations are optional for this template. Email is saved in the note and is not printed.",
+          cls: "stratum-publication-help",
+        });
       this.content.createDiv({
         cls: "stratum-publication-validation",
         attr: { "data-author": "general" },
@@ -854,6 +859,17 @@ export class PublicationForm {
         this.content.createEl("p", {
           text: "Existing authors: " + model.legacy.join(", "),
         });
+        if (
+          Array.isArray(properties.affiliations) &&
+          properties.affiliations.length
+        )
+          this.content.createEl("p", {
+            text:
+              "Existing affiliations: " +
+              properties.affiliations.join("; ") +
+              ". Using grouped authors keeps these properties in the note, but affiliations must be assigned to individual authors for PDF output.",
+            cls: "stratum-publication-help",
+          });
         this.action("Use existing authors", () =>
           this.operate({ type: "import" }),
         );

@@ -564,7 +564,8 @@ export class PublishingSettingsModal extends Modal {
         this.title.ownerDocument.activeElement !== this.title)
     )
       this.title.value = this.publish.layout.titleSource;
-    let showAuthors = this.publish.selectedTemplate?.renderer === "aastex";
+    let showAuthors =
+      this.publish.selectedTemplate?.documentType === "academic";
     try {
       showAuthors ||=
         publicationAuthors(this.publish.noteProperties).structured ||

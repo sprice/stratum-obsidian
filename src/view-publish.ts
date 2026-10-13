@@ -3,7 +3,7 @@ import {
   publishingTemplateFamilies,
 } from "./publish-templates";
 import { createStratumSelect, createStratumButton } from "./ui-controls";
-import { Component } from "obsidian";
+import { Component, setIcon } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import { PublishingSettingsModal } from "./publication-options-modal";
 import {
@@ -13,9 +13,13 @@ import {
 export interface PublishViewState {
   section: "publish" | "documents";
   documents: PublishedDocumentsState;
+  lastPublishedId?: string;
 }
 export class PublishPanel extends Component {
   private body!: HTMLElement;
+  private successIcon!: HTMLElement;
+  private successAnnouncement!: HTMLElement;
+  private successTimer?: number;
   private shell!: HTMLElement;
   private documentsContainer!: HTMLElement;
   private documentsPanel!: PublishedDocumentsPanel;
@@ -37,6 +41,7 @@ export class PublishPanel extends Component {
     super();
   }
   onload(): void {
+    this.state.lastPublishedId ??= this.publish.lastPublishedId;
     this.shell = this.container.createDiv({ cls: "stratum-publish-shell" });
     const tabBar = this.shell.createDiv({
       cls: "stratum-publish-tabs",
@@ -53,6 +58,14 @@ export class PublishPanel extends Component {
       tab.id = `${prefix}-${section}-tab`;
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-controls", `${prefix}-${section}-panel`);
+      if (section === "documents") {
+        this.successIcon = tab.createSpan({
+          cls: "stratum-publish-success-icon",
+          attr: { "aria-hidden": "true" },
+        });
+        setIcon(this.successIcon, "file-text");
+        this.successIcon.hidden = true;
+      }
       this.tabs.set(section, tab);
       tab.addEventListener("click", () => this.selectSection(section));
       tab.addEventListener("keydown", (event) => {
@@ -69,6 +82,10 @@ export class PublishPanel extends Component {
         }
       });
     }
+    this.successAnnouncement = this.shell.createDiv({
+      cls: "stratum-sr-only",
+      attr: { role: "status", "aria-live": "polite" },
+    });
     this.body = this.shell.createDiv({
       cls: "stratum-publish-panel",
       attr: { role: "tabpanel", "aria-labelledby": `${prefix}-publish-tab` },
@@ -169,6 +186,31 @@ export class PublishPanel extends Component {
   }
   private update(): void {
     const publish = this.publish;
+    if (
+      publish.lastPublishedId &&
+      publish.lastPublishedId !== this.state.lastPublishedId
+    ) {
+      this.state.lastPublishedId = publish.lastPublishedId;
+      if (this.state.section === "publish") {
+        this.clearSuccess();
+        this.successIcon.hidden = false;
+        this.successIcon
+          .getAnimations()
+          .forEach((animation) => animation.cancel());
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+          this.successIcon.animate(
+            [
+              { opacity: 0, transform: "translateY(4px)" },
+              { opacity: 1, transform: "translateY(0)" },
+            ],
+            { duration: 180 },
+          );
+        this.successAnnouncement.setText(
+          "PDF created. Available in documents.",
+        );
+        this.successTimer = window.setTimeout(() => this.clearSuccess(), 3000);
+      }
+    }
     const hasNote = !!publish.document && publish.document.extension === "md";
     const templates = publish.publishingTemplates;
     const template = selectedPublishingTemplate(
@@ -200,6 +242,7 @@ export class PublishPanel extends Component {
     this.create.disabled = !publish.canCreate();
     this.cancel.hidden = !publish.busy && !publish.checking;
     this.status.empty();
+    const notices = publish.readinessNotices;
     const problem = publish.error
       ? publish.fontError
         ? publish.error
@@ -211,30 +254,46 @@ export class PublishPanel extends Component {
             ? "Open a Markdown note to publish it."
             : !template
               ? "Choose a template before publishing."
-              : publish.academicProblem ||
+              : (notices?.length
+                  ? notices
+                      .map((notice) =>
+                        notice.settings
+                          ? notice.text.replace(/[.!]$/, "") + ", in Settings"
+                          : notice.text,
+                      )
+                      .join("\n")
+                  : publish.academicProblem) ||
                 (publish.document &&
                 publish.plugin.publicationEditor?.pending?.(
                   publish.document.path,
                 )
-                  ? "Finish or resolve the pending publication edit in Settings."
+                  ? "Finish or resolve the pending publication edit, in Settings"
                   : "") ||
                 (!publish.canPublishPdf
                   ? "Create PDF documents in desktop Obsidian. Edit this note’s metadata and settings here."
                   : !publish.readiness?.pdf
-                    ? "PDF tools need setup. Open Settings for details."
+                    ? "Review PDF tool setup, in Settings"
                     : ""));
     this.status.hidden = !problem;
     if (problem)
       this.status.createEl("p", {
         text: problem,
-        cls:
-          publish.error || publish.academicProblem
-            ? "stratum-publish-error"
-            : "",
+        cls: publish.error
+          ? "stratum-publish-error"
+          : publish.progress || publish.checking
+            ? ""
+            : "stratum-publish-notice",
       });
+  }
+  private clearSuccess(): void {
+    if (this.successTimer !== undefined) window.clearTimeout(this.successTimer);
+    this.successTimer = undefined;
+    if (this.successIcon) this.successIcon.hidden = true;
+    this.successAnnouncement?.setText("");
   }
   private selectSection(section: "publish" | "documents"): void {
     this.state.section = section;
+    if (section === "documents") this.clearSuccess();
     this.body.hidden = section !== "publish";
     this.documentsPanel.setVisible(section === "documents");
     for (const [key, tab] of this.tabs) {
@@ -243,6 +302,7 @@ export class PublishPanel extends Component {
     }
   }
   onunload(): void {
+    this.clearSuccess();
     this.optionsModal?.close();
     this.shell?.remove();
   }

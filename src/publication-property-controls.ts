@@ -12,7 +12,6 @@ import {
   createStratumButton,
   createStratumField,
   createStratumInput,
-  createStratumSelect,
   createStratumTextarea,
   createStratumToggle,
 } from "./ui-controls";
@@ -106,22 +105,13 @@ export class PublicationPropertyControls {
       ctime: this.file.stat.ctime,
     };
   }
-  private commit(operation: PublicationPropertyOperation): void {
-    if (!this.alive || this.publish.busy) return;
-    if (!this.service.flush(this.path)) return;
-    this.service.commitProperty(
-      this.path,
-      operation.key,
-      this.draft(operation),
-    );
-  }
   private inclusion(
     parent: HTMLElement,
     key: "authors" | "affiliations" | "date" | "keywords",
   ): void {
     const flag = flags[key]!;
     const toggle = createStratumToggle(parent, {
-      label: `Include ${key} in PDF`,
+      label: PUBLICATION_PROPERTIES[key],
       value: this.pending.get(flag)?.value ?? !!this.publish.layout[flag],
       onChange: (value) => {
         if (this.refreshing || !this.alive || this.publish.busy) return;
@@ -180,6 +170,7 @@ export class PublicationPropertyControls {
       return;
     }
     const aastex = this.publish.selectedTemplate?.renderer === "aastex";
+    const academic = this.publish.selectedTemplate?.documentType === "academic";
     const structured = !!(
       properties.stratum_publish &&
       typeof properties.stratum_publish === "object" &&
@@ -191,16 +182,22 @@ export class PublicationPropertyControls {
       (key) =>
         (aastex
           ? key === "title"
-          : !structured || !["authors", "affiliations"].includes(key)) ||
+          : (!structured && !academic) ||
+            !["authors", "affiliations"].includes(key)) ||
         session.properties.has(key),
     );
     const requiredTitle = this.publish.layout.titleSource === "properties";
-    const visible = keys.filter(
-      (key) =>
-        Object.hasOwn(properties, key) ||
-        (key === "title" && requiredTitle) ||
-        session.properties.has(key),
+    const visible = keys.filter((key) =>
+      key === "title"
+        ? Object.hasOwn(properties, key) ||
+          requiredTitle ||
+          session.properties.has(key)
+        : true,
     );
+    const enabled = (key: PublicationPropertyKey) =>
+      !!(
+        this.pending.get(flags[key]!)?.value ?? this.publish.layout[flags[key]!]
+      );
     const signature = JSON.stringify([
       keys.map((key) => [
         key,
@@ -214,6 +211,8 @@ export class PublicationPropertyControls {
         draft.conflict,
       ]),
       this.publish.layout,
+      this.publish.preferencesSaving,
+      [...this.pending],
       this.publish.busy,
       visible,
     ]);
@@ -245,6 +244,14 @@ export class PublicationPropertyControls {
           session.properties.get(key)?.operation.value ?? properties[key],
         );
       }
+      for (const field of Array.from(
+        this.container.querySelectorAll<HTMLElement>(
+          "[data-publication-optional]",
+        ),
+      )) {
+        const key = field.dataset.publicationOptional as PublicationPropertyKey;
+        field.hidden = !enabled(key) && !session.properties.get(key)?.conflict;
+      }
       this.syncToggles();
       return;
     }
@@ -259,10 +266,17 @@ export class PublicationPropertyControls {
       const row = this.container.createDiv({
         cls: "stratum-publishing-property",
       });
+      if (key !== "title" && !aastex) this.inclusion(row, key);
       const field = createStratumField(
         row,
-        PUBLICATION_PROPERTIES[key] + (required ? " · required" : ""),
+        key === "title"
+          ? PUBLICATION_PROPERTIES[key] + (required ? " · required" : "")
+          : "",
       );
+      if (key !== "title") {
+        field.dataset.publicationOptional = key;
+        field.hidden = !enabled(key) && !session.properties.get(key)?.conflict;
+      }
       const draft = session.properties.get(key);
       const options = {
         value: display(draft?.operation.value ?? properties[key]),
@@ -324,12 +338,6 @@ export class PublicationPropertyControls {
           text: "The PDF uses the title in your document; this property is retained.",
           cls: "stratum-publish-meta",
         });
-      const flag = flags[key];
-      if (flag && !aastex)
-        this.inclusion(
-          row,
-          key as "authors" | "affiliations" | "date" | "keywords",
-        );
       if (draft?.conflict) {
         row.createEl("p", { text: draft.conflict, attr: { role: "alert" } });
         row.createEl("p", {
@@ -355,33 +363,10 @@ export class PublicationPropertyControls {
         });
       }
     }
-    if (structured && !aastex)
+    if ((structured || academic) && !aastex)
       for (const key of ["authors", "affiliations"] as const) {
         this.inclusion(this.container, key);
       }
-    const available = keys.filter((key) => !visible.includes(key));
-    if (available.length) {
-      const select = createStratumSelect(this.container, {
-        label: "Add property",
-        ariaLabel: "Add publishing property",
-        value: "",
-        choices: [
-          { value: "", label: "Choose a property" },
-          ...available.map((key) => ({
-            value: key,
-            label: PUBLICATION_PROPERTIES[key],
-          })),
-        ],
-      });
-      select.disabled = this.publish.busy;
-      select.addEventListener("change", () => {
-        const key = select.value as PublicationPropertyKey;
-        if (!available.includes(key)) return;
-        this.commit({ key, value: list(key) ? [] : "" });
-        const flag = flags[key];
-        if (flag) void this.changeLayout({ [flag]: true }).catch(() => {});
-      });
-    }
     this.syncToggles();
     if (focused)
       this.container

@@ -67,6 +67,7 @@ export class PublishController extends Component {
   busy = false;
   checking = false;
   progress = "";
+  lastPublishedId?: string;
   error = "";
   errorMessage = "";
   fontError: PublishFontError | null = null;
@@ -399,6 +400,32 @@ export class PublishController extends Component {
       return this.academicInfo.duplicateTitle;
     } catch {
       return false;
+    }
+  }
+  get readinessNotices(): { text: string; settings: boolean }[] {
+    if (!this.selectedTemplate) return [];
+    if (this.selectedTemplate.renderer === "aastex") {
+      if (this.aastexPackageProblem)
+        return [{ text: "Review the AASTeX package update", settings: true }];
+      try {
+        return aastexProblems(
+          this.currentText(),
+          this.layout.titleSource,
+          "pdf",
+        ).notices;
+      } catch {
+        return [{ text: this.academicProblem, settings: false }];
+      }
+    }
+    if (!this.propertyDefinitions.length) return [];
+    try {
+      const text = publishingPropertyProblem(
+        this.noteProperties,
+        this.propertyDefinitions,
+      );
+      return text ? [{ text, settings: true }] : [];
+    } catch {
+      return [{ text: this.academicProblem, settings: false }];
     }
   }
   get academicProblem(): string {
@@ -1012,6 +1039,7 @@ export class PublishController extends Component {
         bytes,
       );
       await this.reload();
+      if (!aborter.signal.aborted && this.alive) this.lastPublishedId = id;
     } catch (error) {
       this.fail(error, "There was an error creating the PDF file");
       // A missing font is a layout choice, not a tool failure.

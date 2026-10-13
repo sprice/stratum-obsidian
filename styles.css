@@ -1955,3 +1955,32 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-control-disclosure-spaced {
   margin-block-start: var(--size-4-4);
 }
+
+.stratum-publish-notice {
+  color: var(--text-warning);
+  white-space: pre-line;
+}
+.stratum-publish-success-icon {
+  display: inline-flex;
+  color: var(--interactive-accent);
+  margin-inline-start: var(--size-4-2);
+}
+.stratum-publish-success-icon[hidden] {
+  display: none;
+}
+
+.stratum-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.stratum-control-field[hidden] {
+  display: none;
+}

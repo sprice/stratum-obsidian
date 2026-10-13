@@ -642,3 +642,58 @@ test("repeated titles keep the body heading and keywords follow the abstract", a
   });
   assert.doesNotMatch(empty.html, /Keywords/);
 });
+
+test("Academic renders grouped authors and assigned affiliations without requiring or printing email", async () => {
+  const { renderPublication } = loadRuntime<typeof import("../publish-render")>(
+    "publish-render.ts",
+    {
+      parseYaml: JSON.parse,
+      Component: class {
+        load() {}
+        unload() {}
+      },
+      TFile: class {},
+      MarkdownRenderer: {
+        render: (_app: unknown, _markdown: string, root: Element) => {
+          root.append("<p>Body.</p>");
+          return Promise.resolve();
+        },
+      },
+    },
+    { createDiv: () => new Element() },
+    "browser",
+    { "./publish-document": publishDocument, "./publish-math": publishMath },
+  );
+  const { publicationProperties } = await import("../publish-properties");
+  const preferences = readNotePreferences({ documentType: "academic" });
+  const source =
+    "---\n" +
+    JSON.stringify({
+      title: "Paper",
+      authors: ["Legacy"],
+      affiliations: ["Unassigned legacy"],
+      stratum_publish: {
+        authors: [
+          { name: "Alex", email: "", affiliations: ["Institute"] },
+          { name: "Morgan", email: "optional@example.org", affiliations: [] },
+        ],
+      },
+    }) +
+    "\n---\nBody";
+  const rendered = await renderPublication(
+    {} as never,
+    source,
+    "Synthetic.md",
+    "Paper",
+    undefined,
+    new AbortController().signal,
+    preferences,
+    publicationProperties(preferences.pdf),
+  );
+  assert.match(rendered.html, /Alex, Morgan/);
+  assert.match(rendered.html, /Alex: Institute/);
+  assert.doesNotMatch(
+    rendered.html,
+    /optional@example.org|Unassigned legacy|>Legacy</,
+  );
+});

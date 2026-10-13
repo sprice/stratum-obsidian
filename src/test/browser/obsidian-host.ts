@@ -191,6 +191,34 @@ export function setTooltip(button: HTMLElement, text: string) {
   button.setAttribute("aria-label", text);
 }
 export function setIcon(button: HTMLElement, icon: string) {
+  if (icon === "file-text") {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    for (const [key, value] of Object.entries({
+      viewBox: "0 0 24 24",
+      width: "18",
+      height: "18",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "aria-hidden": "true",
+    }))
+      svg.setAttribute(key, value);
+    for (const d of [
+      "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z",
+      "M14 2v6h6",
+      "M8 13h8",
+      "M8 17h8",
+    ]) {
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      path.setAttribute("d", d);
+      svg.append(path);
+    }
+    button.append(svg);
+    return;
+  }
   button.createSpan({
     text: icon === "settings" ? "⚙" : "↗",
     attr: { "aria-hidden": "true" },

@@ -1087,3 +1087,41 @@ test("reset prediction and execution follow edited reusable template defaults", 
   assert.equal(f.controller.layout.bodySize, 13);
   assert.equal(f.controller.settingsResetChanges, false);
 });
+
+test("publish success IDs are emitted only after persistence, never for failed or cancelled creation", async () => {
+  for (const outcome of ["success", "failure", "cancel"] as const) {
+    const f = setup();
+    if (outcome === "failure")
+      f.behavior.conversionError = "Synthetic conversion failure";
+    const pending = f.controller.create();
+    assert.equal(f.controller.lastPublishedId, undefined);
+    if (outcome === "cancel") f.controller.cancel();
+    f.release();
+    await pending;
+    const catalog = await f.controller.store.list();
+    if (outcome === "success") {
+      assert.equal(f.controller.lastPublishedId, catalog.documents[0].id);
+      const previous = f.controller.lastPublishedId;
+      await f.controller.create();
+      assert.notEqual(f.controller.lastPublishedId, previous);
+    } else {
+      assert.equal(f.controller.lastPublishedId, undefined);
+      assert.equal(catalog.documents.length, 0);
+    }
+  }
+});
+test("readiness notices direct author fields to Settings and body title repair to the note", async () => {
+  const f = setup();
+  await f.controller.updatePreferences({ templateId: "package:aastex" });
+  f.leaf.view.text = "---\ntitle: Paper\n---\nBody";
+  assert.equal(f.controller.readinessNotices.length, 1);
+  assert.equal(
+    f.controller.readinessNotices[0].text,
+    "Add at least one author.",
+  );
+  assert.equal(f.controller.readinessNotices[0].settings, true);
+  await f.controller.updateLayout({ titleSource: "body" });
+  assert.equal(f.controller.readinessNotices[0].settings, false);
+  f.leaf.view.text = "---\ntitle: [\n---\nBody";
+  assert.equal(f.controller.readinessNotices[0].settings, false);
+});

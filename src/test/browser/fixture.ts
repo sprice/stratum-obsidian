@@ -12,7 +12,7 @@ import { stringify } from "yaml";
 import { publicationYaml } from "../../publication-metadata";
 import type { Editor, EditorTransaction } from "obsidian";
 import { PublishController } from "../../publish-controller";
-import { PublishPanel } from "../../view-publish";
+import { PublishPanel, type PublishViewState } from "../../view-publish";
 import { PublishFontError } from "../../publish-desktop";
 import type { PublishAdapter } from "../../publish-store";
 import type StratumPlugin from "../../plugin";
@@ -75,6 +75,7 @@ class MemoryVault implements PublishAdapter {
 }
 let controller: PublishController;
 let panel: PublishPanel | undefined;
+let panelState: PublishViewState;
 let adapter: MemoryVault;
 let sourceEditor: EditorView | undefined;
 let metadata: PublicationEditor;
@@ -287,12 +288,16 @@ async function reset(options: FixtureOptions = {}) {
       : {}),
   });
   await controller.reload();
+  panelState = { section: "publish", documents: {} };
   if (!options.mobile) {
-    panel = new PublishPanel(root, controller);
+    panel = new PublishPanel(root, controller, panelState);
     panel.onload();
   } else panel = undefined;
 }
 export const publicationFixture = {
+  setTitleSource(titleSource: "body" | "properties") {
+    return controller.updateLayout({ titleSource });
+  },
   mobileAvailability() {
     const enabled = readEnabledTabs(undefined);
     const visible = getVisibleTabs(enabled, Platform.isDesktopApp).map(
@@ -303,6 +308,35 @@ export const publicationFixture = {
       active: resolveActiveTab("publish", enabled, Platform.isDesktopApp),
       enabled,
     };
+  },
+  remountPanel() {
+    panel?.unload();
+    root.empty();
+    panel = new PublishPanel(root, controller, panelState);
+    panel.onload();
+  },
+  async confirmPublished() {
+    const id = crypto.randomUUID();
+    const note = await controller.store.note(
+      controller.document!.path,
+      controller.document!.basename,
+      controller.document!.stat.ctime,
+    );
+    await controller.store.create(
+      {
+        id,
+        noteId: note.id,
+        format: "pdf",
+        createdAt: new Date().toISOString(),
+        citationStyle: "apa",
+        citationLanguage: "en-US",
+      },
+      "Synthetic paper",
+      new ArrayBuffer(0),
+    );
+    await controller.reload();
+    controller.lastPublishedId = id;
+    controller.emit();
   },
   openCommandSettings() {
     return controller.openSettings(root);

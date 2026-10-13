@@ -295,15 +295,19 @@ export function aastexProblems(
   const manuscript = aastexManuscript(text, titleSource);
   const errors: string[] = [],
     warnings: string[] = [];
-  const requirement = (key: RuleKey, message: string) => {
+  const notices: { text: string; settings: boolean }[] = [];
+  const requirement = (key: RuleKey, message: string, settings = true) => {
     const rule = pkg.schema.rules[format][key];
-    if (rule === "required") errors.push(message);
-    else if (rule === "warning") warnings.push(message);
+    if (rule === "required") {
+      errors.push(message);
+      notices.push({ text: message, settings });
+    } else if (rule === "warning") warnings.push(message);
   };
   if (!manuscript.title)
     requirement(
       "title",
       "Add a manuscript title using the selected title source.",
+      titleSource === "properties",
     );
   if (!manuscript.authors.length)
     requirement("authors", "Add at least one author.");
@@ -323,7 +327,7 @@ export function aastexProblems(
       "abstract",
       "No Abstract section was found. Check the journal's submission requirements.",
     );
-  return { errors, warnings, manuscript };
+  return { errors, warnings, manuscript, notices };
 }
 export function escapeLatex(text: string): string {
   const escapes: Record<string, string> = {
