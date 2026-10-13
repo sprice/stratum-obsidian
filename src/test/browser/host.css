@@ -105,7 +105,20 @@ h4 {
   align-items: center;
   gap: 16px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-top: 1px solid var(--background-modifier-border);
+}
+.modal:not(.mod-settings)
+  .setting-item:not(.setting-item-heading):where(
+    :not(.setting-group *)
+  ):first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.modal:not(.mod-settings)
+  .setting-item:not(.setting-item-heading):where(
+    :not(.setting-group *)
+  ):last-child {
+  padding-bottom: 0;
 }
 .setting-item-info {
   flex: 1;

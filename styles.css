@@ -1763,6 +1763,14 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   margin-bottom: var(--size-4-4);
 }
 
+/* Nested and standalone inclusion rows share one native-setting rhythm. */
+.modal.stratum-modal.stratum-publishing-settings-modal
+  .stratum-publishing-details
+  .setting-item:not(.setting-item-heading) {
+  padding-block: var(--size-4-4);
+  border-top: none;
+  border-bottom: none;
+}
 .stratum-publishing-settings-modal .stratum-publishing-property {
   display: flex;
   flex-direction: column;

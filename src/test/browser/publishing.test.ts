@@ -2049,6 +2049,16 @@ test("PDF option fields and Advanced layout use shared token spacing across temp
           );
           if (!aastex) {
             assert.equal(
+              await page.evaluate(`(() => {
+                const rows = [...document.querySelectorAll('.stratum-publishing-details .setting-item')];
+                return rows.length === 4 && rows.every(row => {
+                  const style = getComputedStyle(row);
+                  return style.paddingTop === '16px' && style.paddingBottom === '16px' && style.borderTopWidth === '0px';
+                });
+              })()`),
+              true,
+            );
+            assert.equal(
               await page.evaluate(
                 "parseFloat(getComputedStyle(document.querySelector('.stratum-publishing-advanced')).marginTop)",
               ),
