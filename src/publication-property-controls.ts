@@ -18,6 +18,7 @@ import {
 } from "./ui-controls";
 import type { PublishOptions } from "./publish-options";
 import { publishingIssueText } from "./publish-properties";
+import { StableRender } from "./ui-render";
 const flags: Partial<Record<PublicationPropertyKey, keyof PublishOptions>> = {
   authors: "showAuthors",
   affiliations: "showAffiliations",
@@ -44,8 +45,7 @@ export class PublicationPropertyControls {
     original: string;
   };
   private alive = true;
-  private signature = "";
-  private structure = "";
+  private render: StableRender;
   private refreshing = false;
   private toggleRevision = 0;
   private toggles = new Map<keyof PublishOptions, ToggleComponent>();
@@ -63,6 +63,7 @@ export class PublicationPropertyControls {
     ) => publish.updateLayout(patch),
   ) {
     this.path = file.path;
+    this.render = new StableRender(container, "data-property-control");
     this.cleanup = service.registerPropertyForm(this);
     this.refresh();
   }
@@ -235,8 +236,7 @@ export class PublicationPropertyControls {
       this.publish.busy,
       visible,
     ]);
-    if (signature === this.signature) return;
-    this.signature = signature;
+    if (!this.render.changed(signature)) return;
     const structure = JSON.stringify([
       visible,
       requiredTitle,
@@ -252,7 +252,7 @@ export class PublicationPropertyControls {
           publicationPropertyRevision(properties, key),
         ]),
     ]);
-    if (structure === this.structure) {
+    if (this.render.keeps(structure)) {
       for (const input of Array.from(
         this.container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
           "input[data-property-control],textarea[data-property-control]",
@@ -275,13 +275,8 @@ export class PublicationPropertyControls {
       this.syncToggles();
       return;
     }
-    this.structure = structure;
     this.toggles.clear();
-    const active = this.container.doc.activeElement;
-    const focused = this.container.contains(active)
-      ? (active as HTMLElement).dataset.propertyControl
-      : undefined;
-    this.container.empty();
+    const restoreFocus = this.render.clear();
     for (const key of visible) {
       const required = key === "title" && requiredTitle;
       const row = this.container.createDiv({
@@ -390,9 +385,6 @@ export class PublicationPropertyControls {
       }
     showTitleIssue();
     this.syncToggles();
-    if (focused)
-      this.container
-        .querySelector<HTMLElement>(`[data-property-control="${focused}"]`)
-        ?.focus();
+    restoreFocus();
   }
 }

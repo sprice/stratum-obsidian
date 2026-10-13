@@ -31,6 +31,7 @@ import {
   createStratumIconButton,
   createStratumInput,
 } from "./ui-controls";
+import { focusControlByKey, StableRender } from "./ui-render";
 
 interface Draft {
   operation: AuthorOperation;
@@ -491,8 +492,7 @@ export class PublicationForm {
     key: string;
     draft: Draft;
   } | null = null;
-  private last = "";
-  private structure = "";
+  private render: StableRender;
   private destroyed = false;
   private file?: TFile;
   private ctime?: number;
@@ -504,6 +504,7 @@ export class PublicationForm {
     this.file = view.state.field(editorInfoField, false)?.file ?? undefined;
     this.ctime = this.file?.stat.ctime;
     this.element = createDiv({ cls: "stratum-publication-content" });
+    this.render = new StableRender(this.element, "data-publication-control");
     this.cleanup = service.registerForm(this);
     this.refresh();
   }
@@ -511,11 +512,7 @@ export class PublicationForm {
     return this.view === view && this.path === path;
   }
   focusControl(key: string): void {
-    Array.from(
-      this.element.querySelectorAll<HTMLElement>("[data-publication-control]"),
-    )
-      .find((control) => control.dataset.publicationControl === key)
-      ?.focus();
+    focusControlByKey(this.element, "data-publication-control", key);
   }
   capture(): void {
     if (
@@ -579,7 +576,7 @@ export class PublicationForm {
     return button;
   }
   private operate(operation: AuthorOperation): void {
-    this.structure = "";
+    this.render.invalidate();
     this.service.activate(this.view, this.path);
     if (!this.service.flush(this.path, this.view)) {
       new Notice("Resolve the pending author edit before changing the list.");
@@ -744,12 +741,8 @@ export class PublicationForm {
       ) +
       publish?.notePreferences.templateId +
       publish?.layout.titleSource;
-    if (signature === this.last) return;
-    this.last = signature;
-    const active = this.element.doc.activeElement;
-    const focused = this.element.contains(active)
-      ? (active as HTMLElement).dataset.publicationControl
-      : undefined;
+    if (!this.render.changed(signature)) return;
+    let restoreFocus: () => void;
     try {
       const { properties } = publicationYaml(text);
       const model = publicationAuthors(properties);
@@ -770,7 +763,7 @@ export class PublicationForm {
             revision,
           ]),
       });
-      if (structure === this.structure) {
+      if (this.render.keeps(structure)) {
         for (const input of Array.from(
           this.element.querySelectorAll<HTMLInputElement>(
             "input[data-publication-control]",
@@ -792,8 +785,7 @@ export class PublicationForm {
         this.updateValidation();
         return;
       }
-      this.structure = structure;
-      this.element.empty();
+      restoreFocus = this.render.clear();
 
       this.element.createEl("p", {
         text: "Authors are saved in this note. Each author can have several affiliations.",
@@ -978,8 +970,8 @@ export class PublicationForm {
         }
       this.updateValidation();
     } catch (error) {
-      this.structure = "";
-      this.element.empty();
+      this.render.invalidate();
+      restoreFocus = this.render.clear();
       this.element.createEl("p", {
         text:
           error instanceof Error
@@ -994,14 +986,7 @@ export class PublicationForm {
           this.service.refresh();
         });
     }
-    if (focused)
-      Array.from(
-        this.element.querySelectorAll<HTMLElement>(
-          "[data-publication-control]",
-        ),
-      )
-        .find((control) => control.dataset.publicationControl === focused)
-        ?.focus();
+    restoreFocus();
   }
   /** Author issues show in their cards; Settings shows the rest. */
   private updateValidation(): void {
