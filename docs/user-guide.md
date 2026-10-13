@@ -1,12 +1,15 @@
 # Stratum user guide
 
-Bring Zotero sources into Obsidian, keep your literature notes current, and use them while writing. For a product overview and installation instructions, see the [README](../README.md).
+Use Stratum to bring Zotero sources into Obsidian, connect your ideas, write with citations, and create PDFs.
+
+A **literature note** contains imported source material from Zotero as well as your own additional notes. A **writing note** is the Obsidian note where you develop an argument or write a draft.
+
+For installation instructions, see the [README](../README.md).
 
 - [Connect your accounts](#connect-your-accounts)
-- [Find and import sources](#find-and-import-sources)
-- [Sync a library or collection](#sync-a-library-or-collection)
-- [Browse your literature notes](#browse-your-literature-notes)
-- [Understand your literature notes](#understand-your-literature-notes)
+- [Create and sync literature notes](#create-and-sync-literature-notes)
+- [Use your literature notes](#use-your-literature-notes)
+- [Compare sources](#compare-sources)
 - [Write with citations](#write-with-citations)
 - [Publish documents](#publish-documents)
 - [Commands and hotkeys](#commands-and-hotkeys)
@@ -16,449 +19,490 @@ Bring Zotero sources into Obsidian, keep your literature notes current, and use 
 ## Connect your accounts
 
 1. Open **Settings → Stratum**.
-2. Select **Sign in** and complete the browser-based email code flow.
-3. Select **Connect Zotero** and approve access in your browser.
-4. Return to Obsidian. Stratum settings show your account and Zotero connection.
+2. Select **Sign in**.
+3. Complete the email code process in your browser.
+4. Select **Connect Zotero**.
+5. Approve access to your Zotero account in your browser.
+6. Return to Obsidian.
 
-A Stratum account and internet access are required for sign-in and Zotero authorization. Zotero access uses OAuth; you do not need to create an API key. The service handles cloud Zotero access, rate limiting, and cached search.
+Your account and Zotero connection appear in Stratum settings. Under **Libraries**, select your personal library and the group libraries you want to use.
 
-Choose your personal library and any group libraries under **Libraries** in Stratum settings. Sync is one way, from Zotero into Obsidian. Editing a literature note does not change the source in Zotero.
+You need a Stratum account and internet access to sign in, connect Zotero, and import sources through the cloud service.
 
-## Find and import sources
+Sync transfers source material from Zotero to Obsidian. Changes in an Obsidian literature note do not change the source in Zotero.
 
-Run **Stratum: Open library view** from the command palette to open the sidebar's **Search** tab. Search your Zotero library by title, author, or year, optionally narrow the search to a collection, and choose a source to create or update its literature note.
+## Create and sync literature notes
 
-Stratum imports supported Zotero source types, not just academic papers. It creates Markdown files with readable filenames, aliases, structured properties, source information, and available Zotero notes and annotations.
+### Sync a library or collection
 
-Tracked notes refresh automatically. Opening a literature note triggers a refresh; background cloud checks also keep tracked notes current. Cloud imports work without the Zotero desktop app running, including on mobile.
+Bulk sync imports sources from Zotero on the same computer. It requires desktop Obsidian.
 
-## Sync a library or collection
+1. Keep Zotero running on your computer.
+2. Open **Settings → Stratum → Sync**.
+3. Enable **Bulk sync**.
+4. Open the Stratum sidebar's **Sync** tab.
+5. Select a library.
+6. Select a collection if you want to import only that collection.
+7. Start the sync.
 
-Desktop bulk sync imports directly from your local Zotero app.
+With bulk sync enabled, Stratum checks Zotero for changes and updates open literature notes. Cloud refresh keeps tracked notes current when local Zotero access is unavailable.
 
-1. Open Zotero on your desktop.
-2. Sign in to Stratum and connect Zotero.
-3. In **Settings → Stratum → Sync**, enable **Bulk sync**.
-4. Open the Stratum sidebar's **Sync** tab, choose a library and optionally a collection, and start a sync.
+If Stratum cannot connect, make sure Zotero is running. In Zotero, enable **Settings → Advanced → Allow other applications on this computer to communicate with Zotero**.
 
-With bulk sync enabled, Stratum watches the local Zotero app for changes and refreshes open literature notes as highlights and annotations change. Cloud refresh is used when local Zotero access is unavailable.
+Use the default **Zotero local API port** unless you changed it in Zotero. Set **Zotero data directory** if your data uses a custom location.
 
-If Stratum cannot reach Zotero, check that the app is running and that its local API is available. The **Sync** settings include the local API port and, where available, the Zotero data directory. Most users can keep the defaults.
+### Import one source
 
-## Browse your literature notes
+1. Run **Stratum: Open library view** from Obsidian's command palette.
+2. In **Search**, search by title, author, or year.
+3. Select a collection to narrow the results if necessary.
+4. Select a source to create or update its literature note.
 
-Select **Browse literature notes** in the Stratum sidebar or run **Stratum: Browse papers by collection**. The browser opens directly, returning to the existing view if it is already open. A new browser starts with all imported papers. This browser opens notes you have already imported; it does not import sources or create collection pages.
+Cloud imports work on desktop and mobile. The Zotero desktop app does not need to be running.
 
-Use the **Collection** menu at the top to switch collections and the search field to filter by title, author, or year. Subcollections are included by default; collections with children offer an **Include subcollections** toggle. **All imported papers** and **Unfiled papers** are also available.
+Stratum imports books, articles, reports, and other supported Zotero source types. Notes contain available metadata, abstracts, Zotero notes, and annotations.
 
-Choose **Table** in the layout menu to compare all imported papers or the selected
-collection in the main pane. **Columns** selects up to eight bibliographic or
-research properties alongside clickable source titles. Select a heading to sort;
-select it again to reverse the order. Missing values stay last, and sorting applies
-to the entire filtered collection before pagination. Choose **List** to return
-to the title list. The browser saves its layout, columns, and sorting independently
-of the Citations sidebar, including when switching collections or reopening Obsidian.
+Opening a tracked literature note starts a refresh. Background checks also keep tracked notes current.
 
-Research columns read properties recorded in your literature notes, using the same
-options as the [Citations table](#compare-sources-in-a-table). Browsing and sorting
-leave your notes unchanged; no working note or Dataview installation is needed.
+### Import area annotation images
 
-Normal Obsidian link modifiers open notes in new tabs. The browser remembers the collection, query, and scroll position through workspace view state. Large results load in batches of 100.
+Stratum can import images from Zotero's **Select Area** tool. Fetching these images requires desktop Zotero and [Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases).
 
-Browsing works offline and without signing in. Membership reflects the last sync: Stratum saves collection keys in note properties and caches the library hierarchy locally. Older notes need a sync or refresh before appearing in collection-specific views. Until then, they remain visible in **All imported papers** and are not assumed to be unfiled.
+1. Install Better BibTeX in Zotero.
+2. Keep Zotero running with its local API enabled.
+3. Make sure the source has a citation key and a PDF available on your computer.
+4. Sync the source, library, or collection.
 
-If the hierarchy is unavailable, direct collection memberships remain browsable and the view explains that a sync is needed. Personal and group libraries remain distinct. One Zotero item has one canonical literature note even when it belongs to several collections. Browsing does not move or rename files.
+Stratum saves imported images in **Attachments** inside your literature notes folder. The folder is created when an image imports successfully.
 
-## Understand your literature notes
+If an image cannot import, its comment and Zotero link still import. Refresh the note or run another sync to retry.
 
-Each note has imported content and a personal writing section separated by the **My Notes** callout (`[!stratum]`).
+Sync preserves imported images and reuses their filenames. Stratum does not automatically delete unused images because other notes can link to them.
 
-- The imported section contains source information, the abstract, Zotero notes, color-grouped highlights, and links back to Zotero, when available.
-- Sync regenerates the imported section. Put your own writing below the **My Notes** boundary to preserve it across updates.
-- Stratum-managed properties contain source metadata, collection membership, and available enrichment data.
-- If the source is removed from Zotero, Stratum marks the note as deleted rather than deleting your vault file.
+Imported images work on mobile when your vault sync includes them. Drawing annotations and full PDF downloads are not included.
 
-Under **Settings → Stratum → Workspace defaults**, choose the literature notes folder and the filename format for new notes:
+## Use your literature notes
 
-| Format       | Example                         |
-| ------------ | ------------------------------- |
-| Readable     | `Smith 2026 - Example study.md` |
-| Citation key | `@smith2026example.md`          |
+### Keep your writing safe
 
-Changing the format does not bulk-rename existing notes. Citation key filenames are generated from author, year, and title; they are separate from the established citation keys used in your manuscripts. Filename preferences do not determine citation identity.
+Write your own notes **above the Synced source content notice**. The notice and everything below it belong to Stratum. Sync can replace that content.
+
+Keep the notice and its boundary marker in place. If the boundary is missing or damaged, Stratum stops the update to protect your writing.
+
+Stratum also preserves your properties outside its managed set. Source metadata properties, such as authors and year, are managed by Stratum.
+
+If Zotero deletes a source, Stratum marks its note as deleted. The note stays in your vault.
+
+Deleting a literature note also deletes writing stored only in that file. A new sync cannot recover that writing. Use a vault backup for recovery.
+
+### Set starting content and filenames
+
+Open **Settings → Stratum → Workspace defaults**:
+
+- **Literature note template** sets the starting content for your own notes.
+- **Literature notes folder** sets the destination for literature notes.
+- **Literature note filename format** sets the filename format for new notes.
+
+Template changes apply to new notes and unchanged starter content. They do not replace your writing.
+
+| Filename format | Example                         |
+| --------------- | ------------------------------- |
+| Readable        | `Smith 2026 - Example study.md` |
+| Citation key    | `@smith2026example.md`          |
+
+Changing the filename format does not rename existing notes. Changing the destination folder does not move existing notes.
+
+Citation key filenames and manuscript citation keys have separate purposes. A filename choice does not change an established citation key.
+
+### Browse imported notes
+
+1. Select **Browse literature notes** in the Stratum sidebar.
+2. Use **Collection** to select a collection or **All imported papers**.
+3. Search by title, author, or year.
+4. Select a title to open its literature note.
+
+You can also run **Stratum: Browse papers by collection**.
+
+Subcollections are included by default. Use **Include subcollections** to change this. **Unfiled papers** shows sources without a collection.
+
+The browser shows imported notes. It does not import sources or create collection pages. Browsing works offline and without signing in.
+
+Collection membership reflects the last sync. Sync or refresh notes if their collection information is missing.
+
+One Zotero source has one literature note, even when it belongs to several collections. Personal and group libraries remain separate.
+
+### Connect sources with your ideas
+
+Keep source-specific analysis in its literature note. Use a writing note to connect sources, other vault notes, and your own ideas.
+
+Run **Stratum: Insert literature note link** to link an imported source at the cursor. Use Obsidian links to connect other notes in your vault.
+
+### Insert a source summary
+
+Use a source summary to connect a source with your argument. The default summary includes a literature-note link and prompts for your own analysis.
+
+1. Open your writing note in an editing view.
+2. Place the cursor where you want the summary.
+3. Run **Stratum: Insert source summary**.
+4. Select an imported source.
+5. Write under **Main argument**, **Evidence and limits**, and **Connection to my work**.
+
+The summary inserts starting text, not an automatic analysis. It does not create a formal citation.
+
+To change its format, open **Settings → Stratum → Workspace defaults → Source summary template** and select **Edit template**.
+
+## Compare sources
+
+Use a table to compare source metadata and research properties you record. Dataview is not required.
+
+- To compare a library or collection, open **Browse literature notes**.
+- To compare sources in a writing note, open **Citations** for that note.
+
+In either view:
+
+1. Select **Table** from the layout menu.
+2. Select **Columns**.
+3. Choose up to eight properties to show beside the source title.
+4. Select a column heading to sort its values.
+5. Select the heading again to reverse the order.
+
+Missing values appear last. Choose **List** to return to the list view. Each view remembers its own layout, columns, and sorting.
+
+Research columns read properties in literature notes. For example:
+
+```yaml
+method: Interviews
+findings:
+  - Participants described different expectations.
+limitations: One study site.
+```
+
+Use **Other properties** for additional property names, separated by commas. Stratum preserves properties outside its managed set during sync.
+
+Tables display single values and lists. Empty values appear as a dash. Tables do not extract findings from prose or read Dataview inline fields.
+
+To compare one draft's sources while opening other notes, pin **Citations**. Scroll horizontally to see more columns in a narrow sidebar.
 
 ## Write with citations
 
-Run **Stratum: Insert or edit citation** in a Markdown editor, or type `@` and
-choose a source. Search imported literature notes by title, author, year, or
-citation key. No connection is required to search imported notes.
+### Insert or edit a citation
 
-In the composer:
+1. Open your writing note in an editing view.
+2. Place the cursor where you want the citation.
+3. Run **Stratum: Insert or edit citation**.
+4. Search imported sources by title, author, year, or citation key.
+5. Add one or more sources.
+6. Add published page numbers or another locator if needed.
+7. Review the Markdown preview.
+8. Save the citation.
 
-- Add one or more sources. Use **Move up** or **Remove** to adjust the group.
-- Enter an optional published page number, range, chapter, section, paragraph,
-  or volume. PDF file positions are not citation page numbers.
-- Expand **More options** for a prefix, suffix, or author suppression.
-- Choose **Narrative** for one source whose author belongs in the sentence.
-  Write any introductory prose in the manuscript; narrative citations cannot
-  also suppress the author.
-- Review the Markdown preview, then save. One undo restores the previous text.
+You can also type `@` to select a source. Searching imported sources works offline.
 
-Place the cursor anywhere in a supported citation, including its locator, and
-run the same command to edit it. Unsupported syntax or unresolved/ambiguous keys
-are left unchanged, with an explanation. Code, comments, and ordinary links are
-not treated as citations. Edit complex Pandoc constructs directly in Markdown.
+A **locator** identifies a page, chapter, section, paragraph, or volume. Use published page numbers, not the PDF viewer's page position.
 
-Saving updates `stratum.bib` before changing the manuscript. Established managed
-keys survive source metadata changes. A conflicting bibliography key blocks the
-whole group. Closing the composer or changing/closing the original note prevents
-insertion; reopen the command to use the new text. If cancellation occurs after
-a bibliography write has completed, its reference entries may remain, but the
-manuscript is not changed.
+Use **Move up** and **Remove** to change a citation group. **More options** contains prefix, suffix, and author-suppression controls.
 
-Examples (synthetic):
+Choose **Narrative** for one source when its author belongs in your sentence. A narrative citation cannot also suppress the author.
+
+To edit a citation, place the cursor inside it and run the same command. Undo restores the previous manuscript text.
+
+Stratum saves citations as Pandoc Markdown. For example:
 
 ```markdown
 [see @example2026, pp. 42–44; -@sample2025, chap. 3]
 @example2026 [p. xiv]
 ```
 
-**Insert literature note link** remains separate: it links a note for navigation,
-without creating a formal citation. The composer currently searches imported
-notes; direct citation of unsynced Zotero items is not included.
+Unsupported syntax and unknown or conflicting keys require attention before an edit. Stratum leaves these citations unchanged and explains the problem.
 
-The composer previews portable Pandoc Markdown. Reading view formats those
-citations using your selected style. Stratum does not modify Zotero data.
+Use **Insert literature note link** for a navigation link without a formal citation. Citation insertion searches imported notes, not sources still only in Zotero.
 
-### Citation styles and previews
+### Choose a citation style
 
-Choose the default style in **Settings → Stratum → Citations → Default citation style**.
-The initial default is APA 7th edition. APA, MLA 9, Chicago 18 notes and
-bibliography, IEEE, and NLM/Vancouver are bundled and initially available offline.
-Papers inherit the default until you choose a style for that note.
+Open **Settings → Stratum → Citations → Default citation style** to choose the plugin default. APA 7th edition is the initial default.
 
-**Choose default style** opens a searchable picker of your available styles.
-Choosing a style saves the default immediately. **Choose available citation
-styles** opens a searchable checklist covering Zotero's style repository.
-Checking a style downloads and saves it immediately; unchecking hides it from
-future choices without removing resources or changing existing notes. The current
-default is marked **Default** and cannot be unchecked until you choose another.
-The checklist shows enabled styles first and keeps saved styles accessible if
-the catalog cannot load. Language changes are saved with **Apply language**.
-The dialog shows a synthetic citation and reference example.
+APA, MLA 9, Chicago 18 notes and bibliography, IEEE, and NLM/Vancouver are available offline with the plugin.
 
-In the Citations tab, **Citation style for this note** switches immediately
-between your available styles and shows the style currently in use.
-An existing note style stays visible even if it is hidden from future choices.
-Selecting a style saves it for that note, even if it matches the overall default.
-**Manage citation styles** opens the style management dialog
-directly over Stratum settings. The same dialog is available through
-**Manage citation styles** under **Default citation style** in settings.
+To add styles, select **Manage citation styles**. Select styles from Zotero's style repository to download them. A style preview shows an example citation and reference.
 
-The command **Change citation style for this paper** also lets you override the
-note's language. Its **Use default style** action removes both overrides. The
-inline selector changes only the style and preserves any language override.
-Overrides use `stratum_citation_style` and `stratum_citation_language` frontmatter.
-Changing styles never rewrites citation keys, locators, or manuscript prose.
+In **Citations**, use **Citation style for this note** to choose a style for one writing note. This choice preserves its language setting.
 
-Live Preview always shows stable citation keys, locators, and affixes in the theme's
-link color, independent of the publication style. Select a citation to edit its
-Markdown directly, or click it and choose **Edit citation**. It needs no downloaded
-style or cached source data to display these authoring labels. Ordinary explanatory
-footnotes retain Obsidian's native editing behavior.
+Run **Stratum: Change citation style for this paper** to change both style and language. **Use default style** removes both overrides.
 
-Reading view formats supported Pandoc citations using the whole paper's citation
-order and the selected style. Source mode shows unmodified Markdown. Generated
-citation notes and reference lists appear only in Reading view.
+Changing styles does not rewrite citation keys, page numbers, or manuscript prose. Hiding a style from future choices does not change notes that use it.
 
-Reading view automatically adds a reference list after the paper when the selected
-style supplies one. It includes only formally cited sources and updates with the
-style and citation order. No heading, marker, or formatted references are written
-to the Markdown. In-text styles use the heading **References**; note-based styles
-use **Bibliography**, after their generated Notes section.
+### Read formatted citations and references
 
-An existing `<div id="refs"></div>` marker still controls explicit placement and
-suppresses the automatic list. **Insert bibliography here** remains available for this
-optional placement, but formatting stays in Reading view. Live Preview does not generate a reference
-list or citation notes.
+| Obsidian view | Citation display                                     |
+| ------------- | ---------------------------------------------------- |
+| Source mode   | Original Markdown.                                   |
+| Live Preview  | Citation keys, locators, and added text.             |
+| Reading view  | Formatted citations, citation notes, and references. |
 
-Note-based styles generate a numbered Notes section. Ordinary `[^note]`
-explanatory footnotes share its sequence and may contain citations. Their
-Markdown remains editable; citation-generated notes disappear or change when
-switching styles. Nested explanatory footnotes and inline `^[note text]` notes
-are not supported for citation formatting; use named `[^note]` definitions.
-Unsupported notes keep the original Reading output and show a formatting error.
+Reading view adds a reference list when the selected style supplies one. The list contains formally cited sources, not ordinary literature-note links.
 
-### Citations sidebar
+Stratum does not write formatted references into the Markdown. Run **Stratum: Insert bibliography here** to set an explicit position with `<div id="refs"></div>`.
 
-Run **Stratum: Show citations for current note**, or select **Citations** in the
-Stratum sidebar. Listing your sources uses local notes and the managed
-bibliography; it does not require a connection or change the manuscript.
-Fetching missing reference data is a separate action that requires Zotero access.
+Note-based styles create a numbered **Notes** section. Named explanatory footnotes, such as `[^note]`, share its sequence and can contain citations.
 
-Each source appears once with its authors, year, title, selectable `@citekey`,
-and separate counts for formal citations and literature-note links. Search
-by title, author, year, or key, and sort by first appearance, author, or title.
+Nested footnotes and inline `^[note text]` notes are not supported for citation formatting. Use named footnotes instead.
 
-- Select a title to open its literature note in a main-area tab. Existing tabs
-  are reused, and the writing note stays open.
-- Expand the occurrence count to see excerpts. Selecting one returns to the
-  writing note and selects the reference. Reading view switches to editing mode
-  for this action. If the text changed since the list was built, the panel
-  refreshes instead of navigating to an outdated position.
-- Pin the panel to keep its document while switching to another writing note.
-  Without a pin, the panel follows writing notes but keeps the manuscript
-  context when inspecting Stratum literature notes.
+### Check sources in the Citations sidebar
 
-The panel recognizes Pandoc keys, including narrative citations, grouped
-citations, suppressed authors, and braced keys. For example, `@example2024`
-and `[see @example2024, p. 8; -@sample2023]` reference two sources. Locators
-remain visible in occurrence excerpts; this feature does not edit them.
+Select **Citations** in the Stratum sidebar or run **Stratum: Show citations for current note**.
 
-Obsidian wikilinks, embeds, and Markdown links count when they resolve to a
-Stratum literature note. Ordinary links do not count. Embedded notes are not
-recursively scanned. The current note's footnote text is included; frontmatter,
-comments, and code are excluded. The Citations list is for navigation; style-based formatting appears in Reading view.
+Each source shows its authors, year, title, citation key, and counts for citations and literature-note links.
 
-### Compare sources in a table
+- Search by title, author, year, or key.
+- Select a source title to open its literature note.
+- Expand an occurrence count to see excerpts.
+- Select an excerpt to return to that reference in your writing note.
+- Pin the panel to keep the current note's sources while you open other notes.
 
-In **Citations**, choose **Table** from the layout menu. The table follows the
-current writing note's citations and literature-note links, just like the list.
-Pin Citations to keep comparing that note's sources while opening other notes.
-Your document stays unchanged, and Dataview is not required.
+The panel includes references in footnotes. It excludes properties, comments, and code. It does not scan inside embedded notes.
 
-Select **Columns** to choose up to eight properties alongside the source title.
-Authors, year, and type are shown initially. Publication and collections are
-also available. Select a column heading to sort; select it again to reverse
-the order. Sources with missing values stay at the end. The original sort menu
-returns to first appearance, author, or title order.
+### Read a source beside your draft
 
-Research columns such as method, findings, and limitations read properties you
-record in your literature notes. **Other properties** accepts comma-separated
-property names, including spaces and hyphens. For example, a literature note
-could have these user-owned properties:
+In Live Preview, select a citation and choose **Open in reader**. In Reading view, use the citation arrow or **Open in reader**.
 
-```yaml
-method: Interviews
-findings:
-  - Participants described different expectations across settings.
-limitations: A single setting; transfer to other contexts needs checking.
-research_status: Needs synthesis
-```
+A single source opens its literature note in the sidebar **Reader**. A citation group opens a source chooser.
 
-Stratum preserves properties outside its managed set during sync. The table
-displays scalar and list values; empty values appear as a dash. It does not
-extract assessments from prose, read Dataview inline fields, or edit properties.
-Keep judgments specific to one essay in that essay's working notes.
+Your writing note stays in its main tab. **Return to writing** returns to that tab. It restores the selection and scroll position when the text and view mode still match.
 
-Source navigation, occurrence excerpts, and source-health actions remain in the
-first column, including unresolved citations. Scroll horizontally in a narrow
-sidebar to reach additional columns. Layout, columns, and column sorting are
-saved with the Obsidian workspace while the Stratum view remains in its layout.
+Stratum does not guess a source when a key is unknown or conflicting. It opens **Citations** so you can resolve the problem.
 
-### Source health and recovery
+### Resolve citation problems
 
-Citations reports problems beside the affected citation while keeping the style
-control available. **Show citation in paper** returns to the exact occurrence.
+| Problem                 | Action                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| Citation data missing   | Select **Fetch citation data**. This requires Zotero access.                                            |
+| Unknown key             | Check the key, import the source, or use **Repair citation**.                                           |
+| Conflicting ownership   | Use **Review matching sources**, then repair the citation if needed.                                    |
+| Missing literature note | Sync the library to restore the note. Cached data can still format the citation.                        |
+| Duplicate notes         | Inspect the matching notes. Duplicates do not block formatting when source identity and data are clear. |
+| Style unavailable       | Download or select the style in citation settings.                                                      |
 
-- **Citation data missing:** choose **Fetch citation data** to retrieve the known
-  source through the existing Zotero connection. This updates cached reference
-  data only; it does not edit the paper or create a literature note. Disabled
-  libraries and connection failures show guidance and a retry action.
-- **Unknown key:** check the citation or import its source. Stratum does not guess
-  which Zotero item you intended.
-- **Conflicting ownership:** expand **Review matching sources** to inspect the
-  candidates. This list makes no ownership or manuscript changes.
-- **Missing literature note:** cached reference data can still format a known
-  citation. Sync the library to restore navigation to its note.
-- **Duplicate notes for one source:** inspect the duplicates; they do not make
-  the source's citation identity ambiguous or block formatting when data exists.
+**Fetch citation data** updates cached references. It does not edit your draft or create a literature note.
 
-Previously recorded Zotero unavailability is shown without deleting cached data.
-A failed network request is not treated as proof that a source was deleted.
-Unreadable reference files and unavailable styles remain document-level errors.
-Unsupported citation groups remain raw while supported groups still format.
-For note-based styles, ambiguous or unsupported explanatory footnotes stop
-formatting so Obsidian's native notes and their content remain visible;
-recovery never replaces an unreadable reference file with an empty one.
+To repair a key:
 
-### Reference data and offline use
+1. Select **Repair citation** in **Citations**.
+2. Select the intended imported source.
+3. Choose one occurrence or all matching occurrences in this writing note.
+4. Review the source, replacement key, and proposed changes.
+5. Select **Apply repair**.
 
-Sync now requests Zotero's structured CSL data, preserving source types, creator
-roles, dates, and publication details. It retains this data in the vault-root
-`stratum-references.json`, independently of the literature-note folder. Keep this
-file along with `stratum.bib` when backing up the vault. Older imported notes can
-be backfilled with **Refresh citation data**; this requires a Zotero connection
-and fetches only missing references. Normal sync updates cached references.
+Repair changes citation keys only. It preserves locators, prefixes, suffixes, and prose. It does not change other notes or manual bibliography content.
 
-Once reference data, a style, and its language are available locally, formatting
-works without Zotero running or an internet connection. Missing or conflicting
-sources leave citations as Markdown and show an explanation in Citations rather
-than silently producing an incomplete bibliography.
+Undo restores the manuscript edit. If the note or reference data changes during the preview, open the repair again.
 
-Downloading more styles contacts `www.zotero.org`; additional language resources
-come from the Citation Style Language project on `raw.githubusercontent.com`.
-Downloaded and imported style/language XML is cached in
-`citation-resources.json` within the plugin directory. Bundled resources are used
-from the current plugin version. Back up or sync the plugin directory to retain
-additional styles on other devices.
+Stratum preserves established citation keys when source metadata changes. The literature note's `citation_key` property does not replace an established manuscript key.
 
-These requests contain resource identifiers, not manuscript text or reference
-data. Formatting runs locally using citeproc-js; attribution and licenses are in
-[Third-party notices](../THIRD_PARTY_NOTICES.md).
+Missing or conflicting sources show an explanation instead of incomplete formatted references. Unsupported explanatory footnotes can also stop note-based formatting.
 
-This milestone does not add publishing or document export and does not require
-Pandoc to be installed. Publishing will need to carry these preferences and the
-same citation metadata into the export pipeline.
+### Use citations offline
 
-### Consistent keys and repairs
+Formatting works offline when the reference data, style, and language are available locally. Zotero does not need to be running.
 
-Citation suggestions and the composer show the established insertion key from
-`stratum.bib`, even if Zotero now supplies a different key. Existing historical
-keys remain valid. Citations shows the keys actually used in the paper. The
-literature note's `citation_key` records the supplied metadata; it does not
-replace established bibliography ownership. Already-cited sources are preferred
-in citation suggestions. Filename preferences do not determine citation identity.
+Normal sync updates cached reference data. Run **Stratum: Refresh citation data** to fetch missing data for imported notes.
 
-For an unknown or conflicting key, choose **Repair citation** in Citations:
+Back up `stratum.bib` and `stratum-references.json` at the vault root. Also back up the plugin directory to retain downloaded styles and languages.
 
-1. Choose the intended imported source.
-2. Select one occurrence (the default) or all matching occurrences in this paper.
-3. Review the source identity, replacement key, and exact changed tokens.
-4. Choose **Apply repair**. One undo restores the manuscript edit.
-
-The repair changes only citation-key tokens, retaining locators, prefixes,
-suffixes, and prose. It reuses a safe established key or adds a unique managed
-key for the chosen source. It never reassigns the ambiguous old key, edits other
-papers, or replaces manual bibliography content. Other papers may still require
-separate repairs. Unsupported citation syntax needs manual editing.
-
-If the paper, sources, or bibliography changes during the preview, reopen it.
-Cancellation or a failed reference write leaves the manuscript unchanged. An
-interruption after a completed reference write, or undoing the manuscript edit,
-may leave an unused bibliography entry; it is safe to keep. Repairs do not create
-literature notes, rename files, or fetch missing citation data automatically.
-
-### Reading the evidence while writing
-
-In Live Preview, click a citation and choose **Open in reader**. Reading view
-provides an arrow beside formatted citations and **Open in reader** beside
-citation notes. Footnote numbers still navigate to their notes.
-
-A single resolved source opens its literature note in the sidebar Reader. A group
-or multiple notes for one source opens a searchable chooser; choose the exact
-source or note. Unknown keys, conflicting ownership, and missing notes lead to
-Citations for recovery instead of opening a guessed match.
-
-The manuscript stays in its main tab. **Return to writing** returns to that tab
-and restores its selection and scroll when the text and view mode still match.
-If the text changed, Stratum focuses the editor without restoring stale offsets.
-If the original tab was closed or changed to another file, it explains why it
-cannot return. This navigation state lasts until the plugin unloads.
-
-Desktop keyboard and narrow-sidebar interactions have been checked. Mobile
-interaction remains untested. Representative CSL checks do not guarantee every
-custom style or every Pandoc syntax extension.
+Citation formatting does not require Pandoc. PDF publishing requires separate tools.
 
 ## Publish documents
 
-On desktop, use the **Publish** sidebar tab to create PDF snapshots of the
-active note with its selected citation style. **Manage tools** in
-**Settings → Stratum → Publishing → Publishing tools** opens installation help
-and status checks for Pandoc and Tectonic. Created PDFs stay in hidden plugin storage. **Create** configures the current note; **Documents** shows its PDFs or all PDFs in the vault, with preview, save a copy, and confirmed delete actions. Historical Word files and catalog entries remain stored but are hidden from this view. Legacy file-type selections are ignored.
+PDF publishing is available in desktop Obsidian. Stratum creates PDFs on your computer. It does not upload your draft.
 
-**Publish** and **Edit publication details** are available on desktop. On mobile, publishing settings, tools and history are hidden; native Properties/YAML and citation commands remain available. Stored publishing preferences and metadata are retained.
+### Choose a template
 
-In **Create**, choose a **Template**, then open **Settings** for that note. Versioned installed templates offer an adjacent **Version** selector; AASTeX currently offers 7.0.2. Older saved versions still require explicit approval to use the installed package. The custom in-note Publication details panel is removed; native Properties and the underlying YAML remain. **Document details** edits the title and supported properties, including the shared author, email, and affiliation editor. Required details appear first. General and Academic templates use **Date** and **Keywords** toggles to reveal their inputs; turning them off preserves saved values and omits them from PDF output. Academic papers use the same grouped author editor as AASTeX, with optional email and affiliations; Academic PDFs do not print email. Existing flat author and affiliation properties are preserved. **Use existing authors** creates grouped author entries; assign affiliations manually. If the note is not open in an editable Markdown view, choose **Open note for editing** before changing its details.
+Stratum includes two templates for everyday writing:
 
-**PDF options** contains the title source and template-specific choices. General and Academic include citation style and a collapsed **Advanced layout** section; AASTeX offers its three supported document options. Changes save automatically for the captured note. **Done** commits pending text; conflicts retain the draft for explicit recovery. **Reset to defaults** resets the current template’s options while preserving metadata and citation choices; it is disabled when there is nothing to reset. **Remove unused frontmatter** silently removes empty properties used by the selected template’s current settings, including empty required properties. Populated values, unknown fields and author rows stay intact; empty overrides remain when needed to prevent legacy authors from reappearing. The cleanup button is disabled when there are no eligible empty properties. Undo restores the cleanup. Reusable template defaults remain in Stratum settings. Create readiness notices use the theme’s warning color and direct you to Settings when appropriate. After a successful PDF is saved, an accent outline document icon appears at the right of **Documents** while on Create and remains until Documents is activated.
+| Template          | Use                                       |
+| ----------------- | ----------------------------------------- |
+| General documents | Documents with flexible layout options.   |
+| Academic papers   | Papers with document and author metadata. |
 
-AASTeX options are saved per note. New notes and **Reset to defaults** use the built-in defaults: line numbers on, draft date header on, headings already contain numbers off. Existing per-note choices remain in effect. Previous vault-wide AASTeX defaults are retained in settings data but ignored; their settings controls have been removed.
+Both include citation-style and layout options. For specialized formats, see [Supported templates](#supported-templates).
 
-The tab is enabled by default. To hide it, open **Settings → Stratum → Stratum tabs → Choose visible tabs** and uncheck **Publish**.
+### Set up publishing tools
 
-### AASTeX bibliography cache
+1. Open **Settings → Stratum → Publishing → Publishing tools**.
+2. Select **Manage tools**.
+3. Use **Get Pandoc** and **Get Tectonic** to install any missing tools.
+4. Select **Check again**.
+5. Resolve any reported setup problem before you create a PDF.
 
-Cited AASTeX PDFs need the pinned AAS bibliography style. Stratum downloads it
-from AAS when a verified local copy is unavailable and checks its SHA-256 before
-saving it or reusing it. Once cached, subsequent exports can use that style
-offline. This does not replace Tectonic's separate support files or other export
-requirements. Missing or corrupt entries require a fresh verified download; a
-changed required fingerprint selects a different cache entry.
+Stratum finds installed tools automatically. Use **Advanced** to select custom tool locations if necessary.
 
-The cache contains public bibliography-style bytes under
-`<vault config>/plugins/stratum/cache/bibliography/<SHA-256>.bst`. It contains no
-manuscript or reference data. Entries persist across plugin restarts and remain
-until the cache or plugin directory is removed. To clear them, stop publishing,
-disable Stratum, remove only this cache directory, and re-enable the plugin.
-Temporary export copies are cleaned up independently after success, failure, or
-cancellation. The upstream bibliography notice remains applicable; caching
-makes no new claim about commercial-use permission.
+The first PDF check can download typesetting files and take several minutes. Internet access is required when needed files are not cached.
+
+Offline publishing requires all necessary tools and typesetting support files to be available locally.
+
+### Create a PDF
+
+1. Open your writing note.
+2. Select **Publish** in the Stratum sidebar.
+3. In **Create**, choose a **Template**.
+4. Select a **Version** if the template offers one.
+5. Select **Settings**.
+6. Complete **Document details** and review **PDF options**.
+7. Select **Done**.
+8. Resolve any notices shown in **Create**.
+9. Select **Create PDF document**.
+
+Each created PDF is a saved copy of the note at that time. Later note edits do not change it.
+
+### Edit document details and authors
+
+**Publishing settings → Document details** contains the title and properties used by the selected template. Required fields appear first.
+
+You can also run **Stratum: Edit publication details**. This opens the same settings window on desktop.
+
+Open the note in an editing view to change its details. Select **Open note for editing** if prompted.
+
+- Use **Add author** to create an author entry.
+- Enter the author's name.
+- Enter an email if the template requires one.
+- Use **Add affiliation** for each affiliation.
+- Use the arrow controls to change author order.
+- Use the remove controls to remove an author or affiliation.
+
+Academic papers allow optional email and affiliations. Author emails do not appear in the PDF.
+
+**Use existing authors** creates grouped entries from author properties already in the note. Assign affiliations to the individual authors yourself.
+
+For General and Academic templates, **Date** and **Keywords** controls enable those fields. Turning a field off preserves its saved value and omits it from the PDF.
+
+Changes save to the note as you edit. **Done** saves pending text. If the note changes elsewhere, review the conflict before applying or discarding your draft.
+
+On mobile, edit publication metadata through Obsidian's native Properties or YAML. Publishing controls and PDF history are available only on desktop.
+
+### Set PDF options
+
+**Title source** selects a title property or a title in the document.
+
+General and Academic templates offer **Citation style** and **Advanced layout**. Use these controls for fonts, page layout, and other template options.
+
+Template-specific requirements and options are listed under [Supported templates](#supported-templates).
+
+**Reset to defaults** resets template options. It preserves document metadata and citation choices.
+
+**Remove unused frontmatter** removes empty properties used by the current template settings. It preserves populated values and unrelated properties. Undo restores removed properties.
+
+To configure reusable templates, open **Settings → Stratum → Publishing → Publishing templates** and select **Manage templates**.
+
+### Preview and save PDFs
+
+Open **Publish → Documents**. Choose **PDF documents for this note** or **All published PDF documents**.
+
+Each entry has these actions:
+
+- **Preview PDF** opens a preview in Obsidian.
+- **Open source note** opens the note used to create the PDF, if it still exists.
+- **Save as** saves a copy to a location you choose.
+- **Delete** opens a confirmation before removing the stored PDF.
+
+Deleting a stored PDF does not delete the source note or copies saved elsewhere.
+
+Stratum stores PDFs under `<vault config>/stratum/published`. Back up this folder if you want to retain PDF history.
+
+### Supported templates
+
+These templates provide specialized publication formats. Use the shared publishing workflow above and follow the requirements for your selected template.
+
+#### AASTeX
+
+The [AASTeX](https://journals.aas.org/aastex-package-for-manuscript-preparation/) template uses the American Astronomical Society’s document class and bibliography style.
+
+##### Requirements
+
+Every author needs a name, email, and affiliation. Author emails do not appear in the PDF.
+
+When **Title source** uses the document title, the title must be a leading `#` heading.
+
+##### PDF options
+
+- **Show line numbers**.
+- **Show draft date header**.
+- **Headings already contain numbers**.
+
+Review any heading-number warnings before publishing. AASTeX adds its own section numbers. Inconsistent existing numbers can cause duplicate numbering.
+
+##### Versions
+
+Select the template version in **Publish → Create**. If the selected version is unavailable, review the notice. Select **Use installed version** to approve the installed package.
+
+##### Support files
+
+AASTeX is supplied with the plugin. For cited PDFs, Stratum downloads the required bibliography style from AAS when no verified local copy is available.
+
+Stratum checks the file before saving or using it. The cached file contains no manuscript or reference data.
 
 ## Commands and hotkeys
 
 Open Obsidian's command palette and search for **Stratum**. Assign shortcuts under **Settings → Hotkeys**.
 
-| Command                              | What it does                                                |
-| ------------------------------------ | ----------------------------------------------------------- |
-| Open library view                    | Open the sidebar on Search.                                 |
-| Browse papers by collection          | Browse imported literature notes by collection.             |
-| Open literature note                 | Find an imported note and open it in the main workspace.    |
-| Open literature note in reader panel | Find an imported note and open it in the sidebar Reader.    |
-| Insert literature note link          | Insert a `[[wikilink]]` at the cursor.                      |
-| Insert or edit citation              | Compose or edit Pandoc citations with groups and locators.  |
-| Change citation style for this paper | Override the current paper's style and language.            |
-| Refresh citation data                | Fetch missing CSL reference data for imported notes.        |
-| Insert bibliography here             | Place an optional marker for Reading view's reference list. |
-| Show citations for current note      | Inspect cited sources, source health, and recovery actions. |
+| Command                              | Purpose                                             |
+| ------------------------------------ | --------------------------------------------------- |
+| Open library view                    | Open the Stratum sidebar on Search.                 |
+| Browse papers by collection          | Browse imported literature notes.                   |
+| Open literature note                 | Open an imported note in the main workspace.        |
+| Open literature note in reader panel | Open an imported note in the sidebar Reader.        |
+| Insert literature note link          | Insert a link at the cursor.                        |
+| Insert source summary                | Insert a source link and prompts for your analysis. |
+| Insert or edit citation              | Add or edit sources and locators in a citation.     |
+| Change citation style for this paper | Set a style and language for the writing note.      |
+| Refresh citation data                | Fetch missing reference data for imported notes.    |
+| Insert bibliography here             | Set the reference list position in Reading view.    |
+| Show citations for current note      | Inspect sources and resolve citation problems.      |
+| Edit publication details             | Open publishing settings on desktop.                |
 
 ## Enrichment
 
-For sources with a DOI, Stratum requests metadata from [OpenAlex](https://openalex.org/). Available data appears in note properties and the imported body:
+For sources with a DOI, Stratum requests additional data from [OpenAlex](https://openalex.org/). Available data appears in note properties and imported content.
 
-- **Impact:** citation count, citation percentile, field-weighted citation impact (FWCI), and a five-year citation trend.
-- **Open access:** access status and a direct PDF link when available.
-- **Topics and keywords:** topics, field/subfield hierarchy, and relevance-scored keywords, with wiki-links for backlinks.
-- **Authorship:** author names, ORCID links, and institutional affiliations.
-- **Funding:** funder names and award IDs.
-- **Integrity:** a retraction warning when the source is flagged as retracted.
+| Data        | Examples                                                                  |
+| ----------- | ------------------------------------------------------------------------- |
+| Impact      | Citation counts, percentiles, field-weighted impact, and citation trends. |
+| Open access | Access status and a PDF link.                                             |
+| Topics      | Research topics, fields, and keywords.                                    |
+| Authors     | ORCID links and institutional affiliations.                               |
+| Funding     | Funder names and award IDs.                                               |
+| Retractions | A warning when OpenAlex flags the source as retracted.                    |
 
-Availability depends on OpenAlex's coverage of the source. Only the DOI is sent for enrichment; your manuscript, personal notes, filenames, and annotations are not sent to OpenAlex.
+Coverage varies by source. Stratum sends only the DOI to OpenAlex, not your draft, personal notes, filenames, or annotations.
 
 ## Privacy and connections
 
 ### Network access
 
-- Cloud sync and session requests use the Stratum app's `/api/stratum` endpoint, which proxies authentication and functions to Supabase.
-- Desktop sync connects directly to the Zotero app on localhost.
-- Cloud imports fetch Zotero metadata, notes, and annotations through the service. Search metadata, including abstracts, and enrichment responses may be cached. Cache freshness is not a promise of automatic deletion.
-- Finding and downloading additional citation styles contacts `www.zotero.org`. Additional formatting languages come from the Citation Style Language project on `raw.githubusercontent.com`. These requests identify resources, not your manuscript or reference data.
-- Selecting Zotero, DOI, OpenAlex, or open access links opens the corresponding destination.
+- The Stratum service handles sign-in, Zotero authorization, cloud imports, and enrichment.
+- Desktop sync connects to Zotero on your computer.
+- Cloud imports fetch Zotero metadata, notes, and annotations. The service can cache search metadata, abstracts, and enrichment responses.
+- Additional citation styles come from `www.zotero.org`.
+- Additional citation languages come from the Citation Style Language project on `raw.githubusercontent.com`.
+- AASTeX bibliography-style downloads contact `journals.aas.org`. Tectonic can download typesetting support files.
+- Selecting an external source link opens its destination.
+
+Style and language requests identify resources. They do not contain your draft or reference data.
 
 ### Your writing and credentials
 
-Your Obsidian manuscript and personal writing below **My Notes** are not uploaded. Stratum writes literature notes locally into your vault. Zotero notes and annotations are source material fetched for imports, distinct from the personal writing you add in Obsidian.
+Stratum does not upload your Obsidian drafts or personal writing in literature notes. Zotero notes and annotations are imported source material.
 
-The plugin stores session tokens in Obsidian's platform-native `secretStorage` to stay signed in. It does not store your Zotero OAuth secret locally. Zotero OAuth secrets are encrypted server-side using AES-256, and database access is scoped per authenticated user.
+The plugin stores session tokens in Obsidian's `secretStorage`. It does not store your Zotero OAuth secret locally.
+
+The service encrypts Zotero OAuth secrets and restricts database access to the authenticated user.
 
 ### Analytics and diagnostics
 
-The plugin has no telemetry, analytics, ad tech, or third-party tracking SDKs. Debug builds can write local sync timing and response-code diagnostics to Obsidian's developer console.
+The plugin has no telemetry or analytics. Debug builds can write local sync timing and response codes to Obsidian's developer console.
 
-The Stratum website uses cookie-free Umami analytics for usage metrics. The managed service uses Sentry for technical error reporting with the Stratum account ID. Sentry user context does not include your email; request bodies, headers, cookies, and query parameters are removed from error events.
+The Stratum website uses cookie-free Umami analytics and Sentry for technical errors with the Stratum account ID.
 
-Citation formatting runs locally using citeproc-js. See [Third-party notices](../THIRD_PARTY_NOTICES.md) for attribution and licenses, and the [Stratum privacy policy](https://stratumnotes.com/privacy-policy) for service disclosures.
+Sentry user context excludes email. Error events omit request bodies, headers, cookies, and query parameters.
 
-## Area annotation images
+Citation formatting runs locally with citeproc-js. See [Third-party notices](../THIRD_PARTY_NOTICES.md) for licenses and attribution.
 
-On desktop, Stratum can import images made with Zotero’s **Select Area** tool alongside their comments and page links. Install [Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases), keep Zotero running, and make sure the item has a citation key and its PDF is available locally. Enable Zotero’s local API under **Settings → Advanced → Allow other applications on this computer to communicate with Zotero**.
-
-Stratum asks Better BibTeX to generate the selected area image, then reads that PNG from Zotero’s local cache. Images are saved in an **Attachments** folder inside your configured literature note folder. The folder is created only when an image is imported successfully. Images and your personal writing are not uploaded to Stratum.
-
-The existing **Zotero data directory** setting must point to your actual Zotero data directory if you use a custom location. No additional image setting is required.
-
-If an image cannot be retrieved, the annotation’s comment and Zotero link still import. Previously imported images are preserved. Run a full library or collection sync to backfill older notes or retry missing images after installing Better BibTeX. Refreshing an individual literature note also retries its images.
-
-Image filenames use a short lowercase title slug and the clipping’s annotation key, such as `stellar-motion-area-imgd1234.png`. Account IDs are not included. Filename collisions receive a numeric suffix without replacing existing files.
-
-Repeated syncs reuse the same image filenames; changes to a title or citation key do not rename them. Stratum does not automatically delete old images, since other notes may reference them. Imported images work on mobile when your vault sync includes them; fetching new images requires desktop Zotero. Drawing annotations and full PDF downloads are not included.
+See the [Stratum privacy policy](https://stratumnotes.com/privacy-policy) for service details.
