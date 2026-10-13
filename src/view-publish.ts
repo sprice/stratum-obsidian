@@ -17,12 +17,12 @@ export interface PublishViewState {
   section: "publish" | "documents";
   documents: PublishedDocumentsState;
   lastPublishedId?: string;
+  pendingPublishedId?: string;
 }
 export class PublishPanel extends Component {
   private body!: HTMLElement;
   private successIcon!: HTMLElement;
   private successAnnouncement!: HTMLElement;
-  private successTimer?: number;
   private shell!: HTMLElement;
   private documentsContainer!: HTMLElement;
   private documentsPanel!: PublishedDocumentsPanel;
@@ -62,17 +62,23 @@ export class PublishPanel extends Component {
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-controls", `${prefix}-${section}-panel`);
       if (section === "documents") {
+        tab.addClass("stratum-publish-documents-tab");
         this.successIcon = tab.createSpan({
           cls: "stratum-publish-success-icon",
           attr: { "aria-hidden": "true" },
         });
         setIcon(this.successIcon, "file-text");
-        this.successIcon.hidden = true;
+        this.successIcon.hidden = !this.state.pendingPublishedId;
       }
       this.tabs.set(section, tab);
       tab.addEventListener("click", () => this.selectSection(section));
       tab.addEventListener("keydown", (event) => {
         if (!this.publish.canPublishPdf) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          this.selectSection(section);
+          return;
+        }
         let next: "publish" | "documents" | undefined;
         if (event.key === "ArrowLeft" || event.key === "ArrowRight")
           next = section === "publish" ? "documents" : "publish";
@@ -195,7 +201,7 @@ export class PublishPanel extends Component {
     ) {
       this.state.lastPublishedId = publish.lastPublishedId;
       if (this.state.section === "publish") {
-        this.clearSuccess();
+        this.state.pendingPublishedId = publish.lastPublishedId;
         this.successIcon.hidden = false;
         this.successIcon
           .getAnimations()
@@ -211,7 +217,6 @@ export class PublishPanel extends Component {
         this.successAnnouncement.setText(
           "PDF created. Available in documents.",
         );
-        this.successTimer = window.setTimeout(() => this.clearSuccess(), 3000);
       }
     }
     const hasNote = !!publish.document && publish.document.extension === "md";
@@ -290,15 +295,14 @@ export class PublishPanel extends Component {
             : "stratum-publish-notice",
       });
   }
-  private clearSuccess(): void {
-    if (this.successTimer !== undefined) window.clearTimeout(this.successTimer);
-    this.successTimer = undefined;
+  private acknowledgePublication(): void {
+    this.state.pendingPublishedId = undefined;
     if (this.successIcon) this.successIcon.hidden = true;
     this.successAnnouncement?.setText("");
   }
   private selectSection(section: "publish" | "documents"): void {
     this.state.section = section;
-    if (section === "documents") this.clearSuccess();
+    if (section === "documents") this.acknowledgePublication();
     this.body.hidden = section !== "publish";
     this.documentsPanel.setVisible(section === "documents");
     for (const [key, tab] of this.tabs) {
@@ -307,7 +311,6 @@ export class PublishPanel extends Component {
     }
   }
   onunload(): void {
-    this.clearSuccess();
     this.optionsModal?.close();
     this.shell?.remove();
   }

@@ -2099,7 +2099,7 @@ test("Settings readiness notices inherit warning color while failures remain err
   });
 });
 
-test("confirmed publication shows a transient accent outline icon, restarts for repeats and clears on Documents", async () => {
+test("confirmed publication retains an accent outline icon until Documents is activated", async () => {
   await scenario("publication-success-indicator", async () => {
     await reset({ templateId: "general" });
     await page.evaluate(
@@ -2127,17 +2127,24 @@ test("confirmed publication shows a transient accent outline icon, restarts for 
       "PDF created. Available in documents.",
     );
     await delay(220);
+    assert.equal(
+      await page.evaluate(`(() => {
+      const icon=document.querySelector('.stratum-publish-success-icon'), button=icon.closest('button');
+      return Math.abs(button.getBoundingClientRect().right-icon.getBoundingClientRect().right-8-parseFloat(getComputedStyle(button).borderRightWidth))<1;
+    })()`),
+      true,
+    );
     await capture("publication-success-indicator");
     await delay(1700);
     await page.evaluate("window.publicationFixture.confirmPublished()");
-    await delay(1700);
+    await delay(3300);
     assert.equal(
       await page.evaluate(
         "document.querySelector('.stratum-publish-success-icon').hidden",
       ),
       false,
     );
-    await page.locator(".stratum-publish-tabs button:nth-child(2)").click();
+    await page.locator(".stratum-publish-success-icon svg").click();
     assert.equal(
       await page.evaluate(
         "document.querySelector('.stratum-publish-success-icon').hidden",
@@ -2166,8 +2173,11 @@ test("confirmed publication shows a transient accent outline icon, restarts for 
     await page.evaluate(
       "window.matchMedia=window.originalPublicationMatchMedia",
     );
-    await until(
-      "document.querySelector('.stratum-publish-success-icon').hidden",
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').hidden",
+      ),
+      false,
     );
     await page.evaluate("window.publicationFixture.confirmPublished()");
     await until(
@@ -2178,13 +2188,45 @@ test("confirmed publication shows a transient accent outline icon, restarts for 
       await page.evaluate(
         "document.querySelector('.stratum-publish-success-icon').hidden",
       ),
-      true,
+      false,
     );
     assert.equal(
       await page.evaluate(
         "document.querySelector('.stratum-sr-only').textContent",
       ),
       "",
+    );
+    await page.setViewportSize(320, 900);
+    assert.equal(
+      await page.evaluate(
+        `(() => { const icon=document.querySelector('.stratum-publish-success-icon'),button=icon.closest('button'); const range=document.createRange(); range.selectNodeContents(button.firstChild); return document.documentElement.scrollWidth<=innerWidth && range.getBoundingClientRect().right<icon.getBoundingClientRect().left && Math.abs(button.getBoundingClientRect().right-icon.getBoundingClientRect().right-8-parseFloat(getComputedStyle(button).borderRightWidth))<1; })()`,
+      ),
+      true,
+    );
+    await page.evaluate(
+      "document.querySelector('.stratum-publish-tabs button:nth-child(2)').focus()",
+    );
+    await page.keyPress("Enter");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').hidden",
+      ),
+      true,
+    );
+    await page.locator(".stratum-publish-tabs button:first-child").click();
+    await page.evaluate("window.publicationFixture.confirmPublished()");
+    await until(
+      "!document.querySelector('.stratum-publish-success-icon').hidden",
+    );
+    await page.evaluate(
+      "document.querySelector('.stratum-publish-tabs button:nth-child(2)').focus()",
+    );
+    await page.keyPress("Space");
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('.stratum-publish-success-icon').hidden",
+      ),
+      true,
     );
   });
 });

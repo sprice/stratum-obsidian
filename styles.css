@@ -1960,10 +1960,22 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   color: var(--text-warning);
   white-space: pre-line;
 }
+.stratum-publish-documents-tab {
+  position: relative;
+  padding-inline-end: calc(var(--size-4-4) + var(--size-4-2) * 2);
+}
 .stratum-publish-success-icon {
+  position: absolute;
+  inset-inline-end: var(--size-4-2);
+  inset-block: 0;
   display: inline-flex;
+  align-items: center;
+  width: var(--size-4-4);
   color: var(--interactive-accent);
-  margin-inline-start: var(--size-4-2);
+}
+.stratum-publish-success-icon svg {
+  width: var(--size-4-4);
+  height: var(--size-4-4);
 }
 .stratum-publish-success-icon[hidden] {
   display: none;
