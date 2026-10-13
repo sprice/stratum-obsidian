@@ -429,6 +429,31 @@ test("Create status is hidden when ready and exposes only actionable requirement
   );
 });
 
+test("unchanged publishing errors retain their element and scroll position across updates", () => {
+  const { root, publish, update } = setup();
+  publish.error = "Synthetic conversion failure";
+  publish.errorMessage = "Could not create PDF";
+  update();
+  const error = root.all().find((el) => el.cls === "stratum-publish-error")!;
+  error.scrollTop = 80;
+  update();
+  assert.equal(
+    root.all().find((el) => el.cls === "stratum-publish-error"),
+    error,
+  );
+  assert.equal(error.scrollTop, 80);
+  publish.error = "Another conversion failure";
+  update();
+  assert.ok(!root.all().includes(error));
+  assert.match(
+    root.all().find((el) => el.cls === "stratum-publish-error")!.text,
+    /Another conversion failure/,
+  );
+  publish.error = "";
+  update();
+  assert.ok(!root.all().some((el) => el.cls === "stratum-publish-error"));
+});
+
 test("a font error opens Settings with Choose font as its launcher", () => {
   const { root, publish, settingsCalls, launchers, update } = setup();
   const status = root.all().find((el) => el.cls === "stratum-publish-status")!;

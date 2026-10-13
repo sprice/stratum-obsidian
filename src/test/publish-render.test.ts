@@ -43,6 +43,10 @@ class Element {
           (part) =>
             part.trim() === "*" ||
             part.trim() === node.tag ||
+            (part.trim().startsWith(".") &&
+              (node.getAttribute("class") ?? "")
+                .split(/\s+/)
+                .includes(part.trim().slice(1))) ||
             (part.trim() === ".stratum-publish-image" &&
               node.getAttribute("class") === "stratum-publish-image") ||
             (part.trim() === 'input[type="checkbox"]' &&
@@ -247,6 +251,55 @@ test("rendering preserves safe table alignment while stripping CSS and event att
     );
   assert.match(html, /<td>justify<\/td>/);
   assert.doesNotMatch(html, /style=|onclick=|invalid\.example/);
+});
+
+test("publication removes callout SVG controls while retaining titles and content", async () => {
+  const { renderPublication } = loadRuntime<typeof import("../publish-render")>(
+    "publish-render.ts",
+    {
+      Component: class {
+        load() {}
+        unload() {}
+      },
+      TFile: class {},
+      MarkdownRenderer: {
+        render: (_app: unknown, _markdown: string, root: Element) => {
+          const callout = new Element();
+          callout.setAttribute("class", "callout");
+          const title = new Element();
+          title.setAttribute("class", "callout-title");
+          for (const control of ["callout-icon", "callout-fold"]) {
+            const icon = new Element();
+            icon.setAttribute("class", control);
+            icon.append(new Element("svg"));
+            title.append(icon);
+          }
+          title.append("Synthetic callout title");
+          callout.append(title);
+          const content = new Element("p");
+          content.append("Preserve the source content.");
+          callout.append(content);
+          root.append(callout);
+          return Promise.resolve();
+        },
+      },
+    },
+    { createDiv: () => new Element() },
+    "browser",
+    { "./publish-document": publishDocument, "./publish-math": publishMath },
+  );
+  const { html, assets } = await renderPublication(
+    {} as never,
+    "> [!info] Synthetic callout title\n> Preserve the source content.",
+    "Papers/Synthetic.md",
+    "Synthetic",
+    undefined,
+    new AbortController().signal,
+  );
+  assert.match(html, /Synthetic callout title/);
+  assert.match(html, /Preserve the source content\./);
+  assert.doesNotMatch(html, /<svg|callout-icon|callout-fold/);
+  assert.equal(assets.length, 0);
 });
 
 test("publication retains checked and unchecked task states after removing controls", async () => {

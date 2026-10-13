@@ -34,6 +34,7 @@ export class PublishPanel extends Component {
   private controls!: HTMLElement;
   private status!: HTMLElement;
   private statusMessage!: HTMLElement;
+  private statusContent?: string;
   private chooseFont!: HTMLButtonElement;
   private create!: HTMLButtonElement;
   private settings!: HTMLButtonElement;
@@ -263,7 +264,6 @@ export class PublishPanel extends Component {
     this.chooseFont.hidden = !publish.fontError;
     if (fontResolved) this.publish.adoptSettingsLauncher(this.settings);
     this.chooseFont.disabled = this.settings.disabled;
-    this.statusMessage.empty();
     const notices = publish.readinessNotices;
     const problem = publish.error
       ? publish.fontError
@@ -297,15 +297,18 @@ export class PublishPanel extends Component {
                   ? settingsNotice("Review PDF tool setup")
                   : ""));
     this.status.hidden = !problem;
-    if (problem)
-      this.statusMessage.createEl("p", {
-        text: problem,
-        cls: publish.error
-          ? "stratum-publish-error"
-          : publish.progress || publish.checking
-            ? ""
-            : "stratum-publish-notice",
-      });
+    const cls = publish.error
+      ? "stratum-publish-error"
+      : publish.progress || publish.checking
+        ? ""
+        : "stratum-publish-notice";
+    const content = JSON.stringify([problem, cls]);
+    // Preserve diagnostic selection and scrolling across unrelated refreshes.
+    if (content !== this.statusContent) {
+      this.statusContent = content;
+      this.statusMessage.empty();
+      if (problem) this.statusMessage.createEl("p", { text: problem, cls });
+    }
   }
   private acknowledgePublication(): void {
     this.state.pendingPublishedId = undefined;

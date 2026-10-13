@@ -824,23 +824,18 @@ test("publishing preferences serialize PDF edits and follow supported moves", as
   assert.equal(controller.preferencesSaving, false);
 });
 
-test("publishing errors expire after five seconds without refreshes extending them", () => {
+test("publishing errors remain available across refreshes without an expiry timer", () => {
   const { controller, timers } = setup();
   controller.fail(new Error("Synthetic failure"));
   assert.equal(controller.errorMessage, "There was an error with publishing");
-  const [firstId, first] = [...timers.entries()][0];
-  assert.equal(first.delay, 5_000);
+  assert.equal(timers.size, 0);
   controller.emit();
-  assert.equal(timers.get(firstId), first);
-  first.callback();
-  timers.delete(firstId);
-  assert.equal(controller.error, "");
-  assert.equal(controller.errorMessage, "");
+  assert.equal(controller.error, "Synthetic failure");
+  assert.equal(controller.errorMessage, "There was an error with publishing");
   controller.fail(new Error("Another failure"));
-  const secondId = [...timers.keys()][0];
   controller.fail(new Error("New failure"));
-  assert.equal(timers.has(secondId), false);
-  assert.equal(timers.size, 1);
+  assert.equal(controller.error, "New failure");
+  assert.equal(timers.size, 0);
   controller.onunload();
   assert.equal(timers.size, 0);
 });

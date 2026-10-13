@@ -1140,6 +1140,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 .stratum-publish-error {
   color: var(--text-error);
+  -webkit-user-select: text;
+  user-select: text;
   white-space: pre-wrap;
   max-height: 12rem;
   overflow: auto;

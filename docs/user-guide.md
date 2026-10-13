@@ -353,6 +353,10 @@ Offline publishing requires all necessary tools and typesetting support files to
 
 Each created PDF is a saved copy of the note at that time. Later note edits do not change it.
 
+PDFs retain callout titles and text, but omit Obsidian's icons and folding controls. Both writing notes and literature notes can be published.
+
+Embed figures as vault images using Markdown or Obsidian image embeds. PNG and JPEG images retain their original bytes; SVG, GIF, and WebP images are converted to PNG for PDF output. This also applies to figures in abstracts and callouts. Inline SVG markup and rendered diagrams are not supported; save them as vault images before publishing.
+
 ### Edit document details and authors
 
 **Publishing settings → Document details** contains the title and properties used by the selected template. Required fields appear first.

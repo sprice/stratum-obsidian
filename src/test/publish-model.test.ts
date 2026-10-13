@@ -220,6 +220,13 @@ test("publishing removes comments but preserves literal comment markers in code"
 });
 
 test("raw media checks distinguish HTML from code examples", () => {
+  assert.equal(hasUnsupportedHtmlMedia("Example `<svg></svg>`"), false);
+  assert.equal(
+    hasUnsupportedHtmlMedia(
+      '<svg><image href="https://example.com/image.png" /></svg>',
+    ),
+    true,
+  );
   assert.equal(
     hasUnsupportedHtmlMedia('Example `<img src="example.png">`'),
     false,

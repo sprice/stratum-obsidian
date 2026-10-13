@@ -202,7 +202,7 @@ function stripPublishComments(markdown: string): string {
 export function hasUnsupportedHtmlMedia(markdown: string): boolean {
   const walk = (node: MarkdownNode): boolean =>
     (node.type === "html" &&
-      /<(?:img|iframe|video|audio|object|embed|script|style|link)\b/i.test(
+      /<(?:img|svg|iframe|video|audio|object|embed|script|style|link)\b/i.test(
         node.value ?? "",
       )) ||
     (node.children ?? []).some(walk);

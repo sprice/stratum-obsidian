@@ -139,11 +139,17 @@ export async function renderPublication(
       element.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
     ))
       checkbox.replaceWith(checkbox.checked ? "[x] " : "[ ] ");
+    // Export document content, not Reading-view controls. In particular, callout
+    // SVG icons must not enter Pandoc's SVG/Inkscape conversion path.
     element
       .querySelectorAll(
-        "button, input, .copy-code-button, .metadata-container, .frontmatter, .heading-collapse-indicator, .collapse-indicator, .footnote-backref",
+        "button, input, .copy-code-button, .metadata-container, .frontmatter, .heading-collapse-indicator, .collapse-indicator, .callout-icon, .callout-fold, .footnote-backref",
       )
       .forEach((node) => node.remove());
+    if (element.querySelector("svg"))
+      throw new Error(
+        "This note contains an inline SVG that publishing does not support. Save the figure as an SVG file in the vault and embed it as an image before publishing.",
+      );
     for (const placeholder of Array.from(
       element.querySelectorAll(".stratum-publish-image"),
     )) {

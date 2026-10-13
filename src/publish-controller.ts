@@ -101,7 +101,6 @@ export class PublishController extends Component {
     enabled: boolean;
     issues: string[];
   };
-  private errorTimer: number | null = null;
   historyScope: "note" | "all" = "note";
   readonly store: PublishStore;
   private listeners = new Set<() => void>();
@@ -901,17 +900,10 @@ export class PublishController extends Component {
       this.emit();
       return;
     }
-    this.errorTimer = window.setTimeout(() => {
-      this.errorTimer = null;
-      this.error = "";
-      this.errorMessage = "";
-      this.emit();
-    }, 5_000);
+    // Keep conversion diagnostics available for inspection until the next attempt.
     this.emit();
   }
   private clearError(): void {
-    if (this.errorTimer !== null) window.clearTimeout(this.errorTimer);
-    this.errorTimer = null;
     this.error = "";
     this.errorMessage = "";
     this.fontError = null;
