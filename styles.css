@@ -1962,7 +1962,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 .stratum-publish-documents-tab {
   position: relative;
-  padding-inline-end: calc(var(--size-4-4) + var(--size-4-2) * 2);
+  padding-inline: calc(var(--size-4-4) + var(--size-4-2));
 }
 .stratum-publish-success-icon {
   position: absolute;

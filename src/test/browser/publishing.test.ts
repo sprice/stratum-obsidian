@@ -2230,3 +2230,47 @@ test("confirmed publication retains an accent outline icon until Documents is ac
     );
   });
 });
+
+test("Documents label stays centered in the entire button with and without its right-side icon", async () => {
+  await scenario("documents-centered-label", async () => {
+    for (const width of [320, 560]) {
+      await reset({ templateId: "general" }, width);
+      const geometry = () =>
+        page.evaluate<{
+          center: number;
+          buttonCenter: number;
+          labelRight: number;
+          iconLeft: number;
+          overflow: boolean;
+        }>(`(() => {
+        const button=document.querySelector('.stratum-publish-documents-tab'), icon=button.querySelector('.stratum-publish-success-icon');
+        const range=document.createRange(); range.selectNodeContents(button.firstChild);
+        const label=range.getBoundingClientRect(), b=button.getBoundingClientRect();
+        return {center:(label.left+label.right)/2, buttonCenter:(b.left+b.right)/2, labelRight:label.right, iconLeft:icon.getBoundingClientRect().left, overflow:document.documentElement.scrollWidth>innerWidth};
+      })()`);
+      const hidden = await geometry();
+      assert.ok(
+        Math.abs(hidden.center - hidden.buttonCenter) < 1,
+        JSON.stringify(hidden),
+      );
+      await page.evaluate("window.publicationFixture.confirmPublished()");
+      await until(
+        "!document.querySelector('.stratum-publish-success-icon').hidden",
+      );
+      const shown = await geometry();
+      assert.ok(
+        Math.abs(shown.center - shown.buttonCenter) < 1,
+        JSON.stringify(shown),
+      );
+      assert.ok(Math.abs(shown.center - hidden.center) < 1);
+      assert.ok(shown.labelRight < shown.iconLeft, JSON.stringify(shown));
+      assert.equal(shown.overflow, false);
+      await delay(220);
+      await capture(`documents-centered-label-${width}`);
+      await page.locator(".stratum-publish-success-icon svg").click();
+      const acknowledged = await geometry();
+      assert.ok(Math.abs(acknowledged.center - acknowledged.buttonCenter) < 1);
+      assert.ok(Math.abs(acknowledged.center - hidden.center) < 1);
+    }
+  });
+});
