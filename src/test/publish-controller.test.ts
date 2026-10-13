@@ -7,6 +7,7 @@ import {
   readAastexPdfOptions,
 } from "../publication-options";
 import { AASTEX_PACKAGE_REFERENCE } from "../publication-package";
+import * as publicationPackage from "../publication-package";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate as settle } from "node:timers/promises";
@@ -56,6 +57,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     save: 0,
     format: 0,
     aastex: 0,
+    parse: 0,
     settings: [] as string[],
     settingsClosed: 0,
   };
@@ -138,6 +140,22 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     },
     "browser",
     {
+      // Count manuscript parses while keeping the shipped parser.
+      "./publication-package": {
+        ...publicationPackage,
+        aastexManuscript: (
+          ...args: Parameters<typeof publicationPackage.aastexManuscript>
+        ) => {
+          calls.parse++;
+          return publicationPackage.aastexManuscript(...args);
+        },
+        aastexProblems: (
+          ...args: Parameters<typeof publicationPackage.aastexProblems>
+        ) => {
+          calls.parse++;
+          return publicationPackage.aastexProblems(...args);
+        },
+      },
       "./publication-options-modal": {
         PublishingSettingsModal: class {
           constructor(
@@ -1161,4 +1179,79 @@ test("readiness notices direct author fields to Settings and body title repair t
   assert.equal(f.controller.readinessNotices[0].settings, false);
   f.leaf.view.text = "---\ntitle: [\n---\nBody";
   assert.equal(f.controller.readinessNotices[0].settings, false);
+});
+
+test("problem checks parse the manuscript once per text revision", async () => {
+  const { controller, leaf, calls } = setup();
+  await controller.updatePreferences({ templateId: "package:aastex" });
+  await controller.updateAastexPdfOptions({ numberedHeadings: true });
+  leaf.view.text = aastexPackage.files["examples/manuscript.md"];
+  const read = () => {
+    for (let i = 0; i < 3; i++) {
+      void controller.academicProblem;
+      void controller.readinessNotices;
+      void controller.aastexHeadingProblems;
+      void controller.duplicateTitleWarning;
+      controller.canCreate();
+    }
+  };
+  calls.parse = 0;
+  read();
+  assert.equal(calls.parse, 1);
+  assert.equal(controller.academicProblem, "");
+  read();
+  assert.equal(calls.parse, 1, "unchanged text reuses the parse");
+  leaf.view.text += "\n\n## 3. Synthetic section\n\nSynthetic text.";
+  read();
+  assert.equal(calls.parse, 2);
+  assert.ok(controller.aastexHeadingProblems.length);
+});
+
+test("problem checks follow text, preference and template changes", async () => {
+  const { readPublishingTemplates } = await import("../publish-templates");
+  const state = readPublishingTemplates(undefined);
+  const custom = {
+    ...state.templates[0],
+    id: "custom-titled",
+    name: "Titled",
+    layout: { ...state.templates[0].layout, titleSource: "properties" },
+  };
+  const { controller, leaf, plugin } = setup({
+    publishingTemplates: readPublishingTemplates({
+      templates: [...state.templates, custom],
+    }),
+  });
+  await controller.updatePreferences({ templateId: custom.id });
+  assert.match(controller.academicProblem, /title/);
+  assert.equal(controller.readinessNotices.length, 1);
+  assert.equal(controller.canCreate(), false);
+
+  leaf.view.text =
+    '---\n{"title":"Synthetic title"}\n---\n\n# Synthetic title\n\nSynthetic body.';
+  assert.equal(controller.academicProblem, "");
+  assert.equal(controller.readinessNotices.length, 0);
+  assert.equal(controller.duplicateTitleWarning, true);
+  assert.equal(controller.canCreate(), true);
+
+  await controller.updateLayout({ titleSource: "body" });
+  assert.equal(controller.layout.titleSource, "body");
+  assert.equal(controller.duplicateTitleWarning, false);
+  await controller.updatePreferences({ templateId: "package:aastex" });
+  assert.equal(controller.selectedTemplate?.renderer, "aastex");
+  assert.match(controller.academicProblem, /author/);
+  await controller.updatePreferences({ templateId: custom.id });
+
+  plugin.settings.publishingTemplates = readPublishingTemplates({
+    templates: [...state.templates, { ...custom, name: "Renamed" }],
+  });
+  assert.equal(controller.selectedTemplate?.name, "Renamed");
+  plugin.settings.publishingTemplates = readPublishingTemplates({
+    templates: state.templates,
+  });
+  assert.equal(controller.selectedTemplate, undefined);
+  assert.equal(
+    controller.academicProblem,
+    "Choose a template before publishing.",
+  );
+  assert.equal(controller.readinessNotices.length, 0);
 });

@@ -7,6 +7,7 @@ import {
 import {
   readPublishingTemplates,
   selectedPublishingTemplate,
+  type PublishingTemplate,
 } from "./publish-templates";
 import {
   Component,
@@ -47,7 +48,6 @@ import {
   AASTEX_TEMPLATE,
   aastexProblems,
   aastexPackage,
-  aastexManuscript,
   AASTEX_PACKAGE_REFERENCE,
 } from "./publication-package";
 import {
@@ -58,6 +58,25 @@ import {
 import { AASTEX_HEADING_WARNING } from "./publication-headings";
 import { aastexHeadingIssues } from "./publication-heading-preview";
 import type { renderAastexPublication } from "./publication-render";
+
+type Checked<T> = { value: T } | { error: unknown };
+interface NoteChecks {
+  aastex: Checked<ReturnType<typeof aastexProblems>>;
+  properties: Checked<string>;
+  readinessNotices: { text: string; settings: boolean }[];
+  academicProblem: string;
+  aastexHeadingProblems: string[];
+  duplicateTitleWarning: boolean;
+}
+const sameInputs = (a: readonly unknown[], b: readonly unknown[]) =>
+  a.length === b.length && a.every((value, i) => value === b[i]);
+function checked<T>(compute: () => T): Checked<T> {
+  try {
+    return { value: compute() };
+  } catch (error) {
+    return { error };
+  }
+}
 
 export class PublishController extends Component {
   document: TFile | null = null;
@@ -96,6 +115,12 @@ export class PublishController extends Component {
   private sourceRevision = 0;
   private sourceText = "";
   private sourceTimer: number | null = null;
+  private preferenceCache?: {
+    inputs: unknown[];
+    preferences: NotePublishPreferences;
+    template: PublishingTemplate | undefined;
+  };
+  private checkCache?: { inputs: unknown[]; checks: Partial<NoteChecks> };
   preferencesSaving = false;
   constructor(readonly plugin: StratumPlugin) {
     super();
@@ -271,12 +296,78 @@ export class PublishController extends Component {
       ? view.editor.getValue()
       : this.sourceText;
   }
-  get notePreferences(): NotePublishPreferences {
+  /**
+   * Panels read these on every render, so they are recomputed only when an input
+   * changes. Saving or loading settings assigns a new `publishingTemplates`
+   * object and nothing edits it in place, so its identity is a complete key.
+   * The catalog and its notes are likewise replaced by `reload()`.
+   */
+  private get preferenceState() {
+    const document = this.document;
     const note = this.catalog?.notes.find(
-      (n) =>
-        n.path === this.document?.path && n.ctime === this.document?.stat.ctime,
+      (n) => n.path === document?.path && n.ctime === document?.stat.ctime,
     );
-    return this.preferencesFor(note?.preferences);
+    const inputs = [
+      document?.path,
+      document?.stat.ctime,
+      this.catalog,
+      note,
+      note?.preferences,
+      this.plugin.settings.publishingTemplates,
+    ];
+    if (
+      !this.preferenceCache ||
+      !sameInputs(this.preferenceCache.inputs, inputs)
+    ) {
+      const preferences = this.preferencesFor(note?.preferences);
+      this.preferenceCache = {
+        inputs,
+        preferences,
+        template: selectedPublishingTemplate(
+          this.publishingTemplates,
+          preferences.templateId,
+        ),
+      };
+    }
+    return this.preferenceCache;
+  }
+  get notePreferences(): NotePublishPreferences {
+    return this.preferenceState.preferences;
+  }
+  /** Problem checks parse the source once per text, preference or template change. */
+  private noteCheck<K extends keyof NoteChecks>(
+    name: K,
+    compute: () => NoteChecks[K],
+  ): NoteChecks[K] {
+    const inputs = [
+      this.notePreferences,
+      this.currentText(),
+      // Bumped by note switches and metadata changes, which the empty-text fallback reads.
+      this.sourceRevision,
+      this.exportedHeadingIssues,
+    ];
+    if (!this.checkCache || !sameInputs(this.checkCache.inputs, inputs))
+      this.checkCache = { inputs, checks: {} };
+    const checks = this.checkCache.checks;
+    if (!Object.hasOwn(checks, name)) checks[name] = compute();
+    return checks[name] as NoteChecks[K];
+  }
+  private get aastexCheck() {
+    return this.noteCheck("aastex", () =>
+      checked(() =>
+        aastexProblems(this.currentText(), this.layout.titleSource, "pdf"),
+      ),
+    );
+  }
+  private get propertyCheck() {
+    return this.noteCheck("properties", () =>
+      checked(() =>
+        publishingPropertyProblem(
+          this.noteProperties,
+          this.propertyDefinitions,
+        ),
+      ),
+    );
   }
   get publishingTemplates() {
     const state = readPublishingTemplates(
@@ -298,10 +389,7 @@ export class PublishController extends Component {
     };
   }
   get selectedTemplate() {
-    return selectedPublishingTemplate(
-      this.publishingTemplates,
-      this.notePreferences.templateId,
-    );
+    return this.preferenceState.template;
   }
   get aastexPdfOptions(): AastexPdfOptions {
     return readAastexPdfOptions(this.notePreferences.aastex?.options);
@@ -320,20 +408,21 @@ export class PublishController extends Component {
       !this.aastexPdfOptions.numberedHeadings
     )
       return [];
-    try {
-      const source = this.currentText();
+    return this.noteCheck("aastexHeadingProblems", () => {
       if (
-        this.exportedHeadingIssues?.source === source &&
+        this.exportedHeadingIssues?.source === this.currentText() &&
         this.exportedHeadingIssues.titleSource === this.layout.titleSource &&
         this.exportedHeadingIssues.enabled
       )
         return this.exportedHeadingIssues.issues;
-      return aastexHeadingIssues(
-        aastexManuscript(source, this.layout.titleSource).body,
-      );
-    } catch {
-      return [];
-    }
+      const aastex = this.aastexCheck;
+      if (!("value" in aastex)) return [];
+      try {
+        return aastexHeadingIssues(aastex.value.manuscript.body);
+      } catch {
+        return [];
+      }
+    });
   }
   updateAastexPdfOptions(patch: Partial<AastexPdfOptions>): Promise<void> {
     return this.updatePreferences({}, undefined, patch);
@@ -401,67 +490,54 @@ export class PublishController extends Component {
   get duplicateTitleWarning(): boolean {
     if (!this.selectedTemplate || this.layout.titleSource !== "properties")
       return false;
-    try {
-      return this.academicInfo.duplicateTitle;
-    } catch {
-      return false;
-    }
+    return this.noteCheck("duplicateTitleWarning", () => {
+      try {
+        return this.academicInfo.duplicateTitle;
+      } catch {
+        return false;
+      }
+    });
   }
   get readinessNotices(): { text: string; settings: boolean }[] {
     if (!this.selectedTemplate) return [];
-    if (this.selectedTemplate.renderer === "aastex") {
-      if (this.aastexPackageProblem)
-        return [{ text: "Review the AASTeX package update", settings: true }];
-      try {
-        return aastexProblems(
-          this.currentText(),
-          this.layout.titleSource,
-          "pdf",
-        ).notices;
-      } catch {
-        return [{ text: this.academicProblem, settings: false }];
+    return this.noteCheck("readinessNotices", () => {
+      if (this.selectedTemplate?.renderer === "aastex") {
+        if (this.aastexPackageProblem)
+          return [{ text: "Review the AASTeX package update", settings: true }];
+        const aastex = this.aastexCheck;
+        return "value" in aastex
+          ? aastex.value.notices
+          : [{ text: this.academicProblem, settings: false }];
       }
-    }
-    if (!this.propertyDefinitions.length) return [];
-    try {
-      const text = publishingPropertyProblem(
-        this.noteProperties,
-        this.propertyDefinitions,
-      );
-      return text ? [{ text, settings: true }] : [];
-    } catch {
-      return [{ text: this.academicProblem, settings: false }];
-    }
+      if (!this.propertyDefinitions.length) return [];
+      const properties = this.propertyCheck;
+      if (!("value" in properties))
+        return [{ text: this.academicProblem, settings: false }];
+      return properties.value
+        ? [{ text: properties.value, settings: true }]
+        : [];
+    });
   }
   get academicProblem(): string {
     if (!this.selectedTemplate) return "Choose a template before publishing.";
-    if (this.selectedTemplate.renderer === "aastex") {
-      if (this.aastexPackageProblem) return this.aastexPackageProblem;
-      try {
-        return aastexProblems(
-          this.currentText(),
-          this.layout.titleSource,
-          "pdf",
-        ).errors.join("\n");
-      } catch (error) {
-        return error instanceof Error
-          ? error.message
+    return this.noteCheck("academicProblem", () => {
+      if (this.selectedTemplate?.renderer === "aastex") {
+        if (this.aastexPackageProblem) return this.aastexPackageProblem;
+        const aastex = this.aastexCheck;
+        if ("value" in aastex) return aastex.value.errors.join("\n");
+        return aastex.error instanceof Error
+          ? aastex.error.message
           : "Repair the publication metadata.";
       }
-    }
-    // Without published properties, the note's YAML does not affect the document.
-    if (!this.propertyDefinitions.length) return "";
-    try {
+      // Without published properties, the note's YAML does not affect the document.
+      if (!this.propertyDefinitions.length) return "";
       // Reading the note's properties also reports unreadable YAML.
-      return publishingPropertyProblem(
-        this.noteProperties,
-        this.propertyDefinitions,
-      );
-    } catch (error) {
-      return error instanceof Error
-        ? error.message
+      const properties = this.propertyCheck;
+      if ("value" in properties) return properties.value;
+      return properties.error instanceof Error
+        ? properties.error.message
         : "Check this note's publishing properties.";
-    }
+    });
   }
   private templatePreferencePatch(
     id: string,
