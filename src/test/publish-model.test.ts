@@ -115,7 +115,7 @@ test("filenames are unique and safe on desktop platforms", () => {
   assert.doesNotMatch(publishFilename('A/B:C*D?"E', "pdf", 2), /[<>:"/\\|?*]/);
 });
 
-test("catalog rejects traversal, unknown formats and conflicting identity", () => {
+test("catalog rejects traversal and conflicting identity", () => {
   assert.deepEqual(readCatalog(JSON.stringify(emptyCatalog())), emptyCatalog());
   const catalog = {
     version: 1,
@@ -137,6 +137,54 @@ test("catalog rejects traversal, unknown formats and conflicting identity", () =
   assert.equal(readCatalog(JSON.stringify(catalog)).documents.length, 1);
   catalog.documents.push(catalog.documents[0]);
   assert.throws(() => readCatalog(JSON.stringify(catalog)), /conflicting/);
+});
+
+test("catalog drops non-PDF entries before validating PDF entries", () => {
+  const pdf = {
+    id: "doc",
+    noteId: "note",
+    filename: "Example.pdf",
+    format: "pdf",
+    createdAt: "2026-10-11T12:00:00Z",
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+  };
+  const catalog = {
+    version: 1,
+    notes: [{ id: "note", path: "Example.md", title: "Example", ctime: 1 }],
+    documents: [
+      pdf,
+      // Dropped entries are not checked for identity, filenames or notes.
+      { ...pdf, filename: "Example.docx", format: "docx" },
+      { ...pdf, id: "other", noteId: "missing", format: "docx" },
+      { id: "../outside", filename: "../outside.odt", format: "odt" },
+    ],
+  };
+  assert.deepEqual(readCatalog(JSON.stringify(catalog)).documents, [pdf]);
+  const renamed = { ...pdf, id: "renamed", filename: "Example.docx" };
+  assert.throws(
+    () =>
+      readCatalog(JSON.stringify({ ...catalog, documents: [pdf, renamed] })),
+    /invalid/,
+  );
+  const unregistered = {
+    ...pdf,
+    id: "other",
+    filename: "Other.pdf",
+    noteId: "missing",
+  };
+  assert.throws(
+    () =>
+      readCatalog(
+        JSON.stringify({ ...catalog, documents: [pdf, unregistered] }),
+      ),
+    /conflicting/,
+  );
+  assert.throws(
+    () =>
+      readCatalog(JSON.stringify({ ...catalog, documents: [pdf, { ...pdf }] })),
+    /conflicting/,
+  );
 });
 
 test("folder moves update descendants and deletion detaches retained publications", () => {

@@ -611,7 +611,6 @@ test(
     );
     assert.equal(result.pdf, false);
     assert.match(result.tectonic.error!, /Could not start/);
-    assert.equal(Object.hasOwn(result, "word"), false);
   },
 );
 

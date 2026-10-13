@@ -134,14 +134,12 @@ export class PublishStore {
       const note = catalog.notes.find((entry) => entry.id === id);
       if (!note)
         throw new Error("The publication source is no longer registered.");
-      note.preferences = { ...note.preferences, ...preferences };
+      note.preferences = preferences;
       await this.save(catalog);
     });
   }
   create(
-    document: Omit<PublishedDocument, "filename" | "format"> & {
-      format: "pdf";
-    },
+    document: Omit<PublishedDocument, "filename">,
     title: string,
     bytes: ArrayBuffer,
   ): Promise<PublishedDocument> {

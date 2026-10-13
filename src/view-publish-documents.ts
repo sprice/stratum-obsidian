@@ -108,9 +108,7 @@ export class PublishedDocumentsPanel extends Component {
         : 0;
     this.state.context = listContext;
     this.list.empty();
-    const documents = (
-      showAll ? publish.allDocuments : publish.documents
-    ).filter((document) => document.format === "pdf");
+    const documents = showAll ? publish.allDocuments : publish.documents;
     if (!documents.length)
       this.list.createEl("p", {
         text: showAll
@@ -130,8 +128,7 @@ export class PublishedDocumentsPanel extends Component {
         cls: "stratum-publish-meta",
       });
       const actions = row.createDiv({ cls: "stratum-publish-row-actions" });
-      if (doc.format === "pdf")
-        this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
+      this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
       const sourceAvailable = !!publish.sourceNote(doc);
       this.icon(
         actions,

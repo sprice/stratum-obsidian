@@ -1126,7 +1126,6 @@ export class PublishController extends Component {
         throw new Error(
           "This published file is missing. Save another publication or remove this entry.",
         );
-      if (document.format !== "pdf") return;
       const workspace = this.plugin.app.workspace;
       const existing = workspace
         .getLeavesOfType(VIEW_TYPE_PUBLISH_PREVIEW)
@@ -1144,7 +1143,6 @@ export class PublishController extends Component {
     }
   }
   async saveCopy(document: PublishedDocument): Promise<void> {
-    if (document.format !== "pdf") return;
     try {
       const bytes = await this.plugin.app.vault.adapter.readBinary(
         this.store.path(document),

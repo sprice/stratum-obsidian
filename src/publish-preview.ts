@@ -187,7 +187,7 @@ export class PublishPreviewView extends ItemView {
   private syncDocument(): void {
     if (!this.ready || !this.publish.catalog) return;
     const document = this.publish.catalog.documents.find(
-      (entry) => entry.id === this.documentId && entry.format === "pdf",
+      (entry) => entry.id === this.documentId,
     );
     if (!document) {
       this.currentId = null;

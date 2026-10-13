@@ -337,30 +337,6 @@ test("secondary selection and Documents state survive panel remounts", () => {
   );
   second.update();
   assert.ok(second.root.all().some((el) => el.text === "Create PDF document"));
-  assert.ok(
-    !second.root.all().some((el) => el.tag === "option" && el.value === "docx"),
-  );
-});
-
-test("Documents hides legacy Word entries without mutating history", () => {
-  const { root, publish, update } = setup();
-  publish.documents = ["pdf", "docx"].map((format) => ({
-    id: format,
-    noteId: "synthetic",
-    filename: `Synthetic.${format}`,
-    format,
-    createdAt: "2026-10-11T12:00:00Z",
-    citationStyle: "apa",
-    citationLanguage: "en-US",
-  })) as PublishedDocument[];
-  update();
-  const actions = root
-    .all()
-    .filter((el) => el.cls === "stratum-publish-row-actions");
-  assert.equal(actions.length, 1);
-  assert.equal(actions[0].children.length, 4);
-  assert.ok(!root.all().some((el) => el.text === "Synthetic.docx"));
-  assert.equal(publish.documents.length, 2);
 });
 
 test("one note Settings entry replaces scattered controls for all three templates", () => {

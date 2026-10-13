@@ -16,8 +16,7 @@ export interface PublishedDocument {
   id: string;
   noteId: string;
   filename: string;
-  // Historical DOCX entries remain readable; active creation supports PDF only.
-  format: PublishFormat | "docx";
+  format: PublishFormat;
   createdAt: string;
   citationStyle: string;
   citationLanguage: string;
@@ -66,6 +65,10 @@ export function readCatalog(text: string): PublishCatalog {
     throw new Error(
       "The published document catalog could not be read. Restore it from a backup before publishing.",
     );
+  // Publishing creates PDF only. Drop other entries but leave their files in place.
+  const documents = value.documents.filter(
+    (d: unknown) => !record(d) || d.format === "pdf",
+  );
   if (
     !value.notes.every(
       (n: unknown) =>
@@ -75,16 +78,14 @@ export function readCatalog(text: string): PublishCatalog {
         typeof n.title === "string" &&
         typeof n.ctime === "number",
     ) ||
-    !value.documents.every(
+    !documents.every(
       (d: unknown) =>
         record(d) &&
         id(d.id) &&
         id(d.noteId) &&
-        (d.format === "pdf" || d.format === "docx") &&
         typeof d.filename === "string" &&
-        /^[^/\\]+\.(pdf|docx)$/.test(d.filename) &&
+        /^[^/\\]+\.pdf$/.test(d.filename) &&
         !Array.from(d.filename).some((c) => c.charCodeAt(0) < 32) &&
-        d.filename.endsWith(`.${d.format}`) &&
         typeof d.createdAt === "string" &&
         Number.isFinite(Date.parse(d.createdAt)) &&
         typeof d.citationStyle === "string" &&
@@ -94,14 +95,10 @@ export function readCatalog(text: string): PublishCatalog {
     throw new Error(
       "The published document catalog contains invalid entries. Restore it from a backup before publishing.",
     );
-  const catalog = value as unknown as PublishCatalog;
+  const catalog = { ...value, documents } as unknown as PublishCatalog;
   for (const note of catalog.notes)
     if (note.preferences)
-      // Retain legacy preference data in storage while normalizing the active PDF view.
-      note.preferences = {
-        ...note.preferences,
-        ...readNotePreferences(note.preferences),
-      };
+      note.preferences = readNotePreferences(note.preferences);
   for (const document of catalog.documents)
     if (document.publishing) {
       if (!record(document.publishing) || !record(document.publishing.layout))

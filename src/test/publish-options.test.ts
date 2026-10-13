@@ -19,7 +19,7 @@ function academicRuntime() {
   );
 }
 
-test("publishing settings normalize malformed values and ignore legacy Word choices", () => {
+test("publishing settings normalize malformed values and drop legacy format preferences", () => {
   const options = readPublishOptions({
     bodyFont: "Bad\\command",
     titleSize: -1,

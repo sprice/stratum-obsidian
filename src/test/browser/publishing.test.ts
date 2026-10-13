@@ -734,10 +734,6 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
       await page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
       true,
     );
-    assert.equal(
-      await page.evaluate("window.publicationFixture.state().legacyDocuments"),
-      1,
-    );
     await page.evaluate("window.publicationFixture.addDocuments(12)");
     await page.evaluate(
       `(() => { const list = document.querySelector('.stratum-publish-list'); list.style.height = '160px'; list.style.flex = 'none'; list.scrollTop = 240; })()`,

@@ -83,7 +83,6 @@ export interface FixtureOptions {
   theme?: "light" | "dark";
   aastex?: boolean;
   templateId?: "general" | "academic";
-  legacyWord?: boolean;
   source?: string;
   editable?: boolean;
 }
@@ -272,12 +271,7 @@ async function reset(options: FixtureOptions = {}) {
   };
   preferences.pdf.bodyFont = options.bodyFont ?? "Missing Body Serif";
   preferences.pdf.titleFont = options.titleFont ?? "";
-  await controller.store.setPreferences(note.id, {
-    ...preferences,
-    ...(options.legacyWord
-      ? { format: "docx", docx: { bodyFont: "Legacy Word font" } }
-      : {}),
-  });
+  await controller.store.setPreferences(note.id, preferences);
   await controller.reload();
   panelState = { section: "publish", documents: {} };
   panel = new PublishPanel(root, controller, panelState);
@@ -404,31 +398,18 @@ export const publicationFixture = {
       1,
     );
     for (let index = 0; index < count; index++)
-      for (const format of ["pdf"] as const)
-        await controller.store.create(
-          {
-            id: crypto.randomUUID(),
-            noteId: note.id,
-            format,
-            createdAt: "2026-10-11T12:00:00Z",
-            citationStyle: "apa",
-            citationLanguage: "en-US",
-          },
-          "Synthetic paper",
-          new ArrayBuffer(0),
-        );
-    await controller.store.add(
-      {
-        id: crypto.randomUUID(),
-        noteId: note.id,
-        format: "docx",
-        filename: `Legacy-${crypto.randomUUID()}.docx`,
-        createdAt: "2026-10-11T12:00:00Z",
-        citationStyle: "apa",
-        citationLanguage: "en-US",
-      },
-      new ArrayBuffer(0),
-    );
+      await controller.store.create(
+        {
+          id: crypto.randomUUID(),
+          noteId: note.id,
+          format: "pdf",
+          createdAt: "2026-10-11T12:00:00Z",
+          citationStyle: "apa",
+          citationLanguage: "en-US",
+        },
+        "Synthetic paper",
+        new ArrayBuffer(0),
+      );
     await controller.reload();
   },
   holdSaves(value: boolean) {
@@ -459,9 +440,6 @@ export const publicationFixture = {
       fonts: controller.fontError?.fonts ?? [],
       aastexOptions: controller.aastexPdfOptions,
       saveCount: adapter.catalogWrites,
-      legacyDocuments: controller.allDocuments.filter(
-        (entry) => entry.format === "docx",
-      ).length,
     };
   },
   injectEngineError(font: string) {
