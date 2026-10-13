@@ -559,7 +559,7 @@ export class PublicationForm {
         })
       : createStratumButton(parent, {
           text: options.text ?? label,
-          tooltip: label,
+          tooltip: options.text && options.text !== label ? label : undefined,
         });
     button.setAttribute("aria-label", label);
     button.dataset.publicationControl = label;

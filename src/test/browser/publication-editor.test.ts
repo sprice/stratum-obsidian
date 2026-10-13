@@ -382,6 +382,13 @@ test("narrow layouts keep the shared metadata form within its settings surface",
 });
 test("author cards use shared fields, text actions and labelled icon actions", async () => {
   await reset();
+  assert.deepEqual(
+    await page.evaluate(`(() => [
+    document.querySelector('button[aria-label="Add author"]').dataset.tooltip ?? null,
+    document.querySelector('button[aria-label="Add affiliation to author 1"]').dataset.tooltip,
+  ])()`),
+    [null, "Add affiliation to author 1"],
+  );
   const controls = await page.evaluate(`(() => {
     const card = document.querySelector('.stratum-publication-content > fieldset');
     const button = (label) => {

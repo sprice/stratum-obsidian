@@ -207,6 +207,7 @@ export const MarkdownRenderer = {
   },
 };
 export function setTooltip(button: HTMLElement, text: string) {
+  button.dataset.tooltip = text;
   button.setAttribute("aria-label", text);
 }
 export function setIcon(button: HTMLElement, icon: string) {

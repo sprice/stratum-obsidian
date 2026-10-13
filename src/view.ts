@@ -343,9 +343,8 @@ export class StratumView extends ItemView {
   }
 
   private focusTab(tab: StratumTab): void {
-    const tabId = `${this.tabIdPrefix}-tab-${tab}`;
     window.requestAnimationFrame(() => {
-      this.contentEl.querySelector<HTMLElement>(`#${tabId}`)?.focus();
+      this.tabBar?.tab(tab)?.focus();
     });
   }
 
@@ -587,9 +586,9 @@ export class StratumView extends ItemView {
     if (focusedTabId) {
       const target =
         this.contentEl.querySelector<HTMLElement>(`#${focusedTabId}`) ??
-        this.contentEl.querySelector<HTMLElement>(
-          `#${this.tabIdPrefix}-tab-${this.plugin.activeViewTab}`,
-        );
+        (this.plugin.activeViewTab
+          ? tabBar.tab(this.plugin.activeViewTab)
+          : undefined);
       target?.focus();
     }
     if (browseSelection && this.plugin.activeViewTab === "browse") {
