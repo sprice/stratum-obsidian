@@ -5,7 +5,10 @@ import { PublicationEditor } from "../../publication-editor";
 import { stringify } from "yaml";
 import { publicationYaml } from "../../publication-metadata";
 import type { Editor, EditorTransaction } from "obsidian";
-import { PublishController } from "../../publish-controller";
+import {
+  PublishController,
+  PUBLISH_EDITOR_CHANGE_DELAY,
+} from "../../publish-controller";
 import { PublishPanel, type PublishViewState } from "../../view-publish";
 import { PublishFontError } from "../../publish-desktop";
 import type { PublishAdapter } from "../../publish-store";
@@ -233,7 +236,10 @@ async function reset(options: FixtureOptions = {}) {
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             window.clearTimeout(editorChangeTimer);
-            editorChangeTimer = window.setTimeout(() => controller.emit(), 250);
+            editorChangeTimer = window.setTimeout(
+              () => controller.emit(),
+              PUBLISH_EDITOR_CHANGE_DELAY,
+            );
           }),
         ],
       }),

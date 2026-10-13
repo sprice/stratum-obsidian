@@ -6,7 +6,7 @@ import {
   readPublicationPackageReference,
 } from "../publication-options";
 import { readNotePreferences } from "../publish-options";
-test("legacy AASTeX notes keep on/on/off defaults and never inherit new vault choices", () => {
+test("legacy AASTeX notes keep on/on/off defaults and accept valid per-note options", () => {
   assert.deepEqual(
     readNotePreferences({ templateId: "package:aastex" }).aastex,
     { options: DEFAULT_AASTEX_PDF_OPTIONS },

@@ -205,19 +205,13 @@ function edit(label: string, value: string) {
   input.value = value;
   input.dispatchEvent(new InputEvent("input", { bubbles: true, data: value }));
 }
-function key(
-  label: string,
-  value: string,
-  shiftKey = false,
-  isComposing = false,
-) {
+function key(label: string, value: string, isComposing = false) {
   document
     .querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!
     .dispatchEvent(
       new KeyboardEvent("keydown", {
         bubbles: true,
         key: value,
-        shiftKey,
         isComposing,
       }),
     );

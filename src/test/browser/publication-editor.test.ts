@@ -208,7 +208,7 @@ test("affiliation conflicts require an explicit current affiliation target", asy
 test("composition Enter retains the draft; title-source changes keep note issues out of the author form", async () => {
   await reset();
   await page.evaluate(
-    'window.publicationEditorFixture.edit("Author 1 name", "Composition draft"); window.publicationEditorFixture.key("Author 1 name", "Enter", false, true)',
+    'window.publicationEditorFixture.edit("Author 1 name", "Composition draft"); window.publicationEditorFixture.key("Author 1 name", "Enter", true)',
   );
   assert.equal(
     await page.evaluate("window.publicationEditorFixture.authors()[0].name"),

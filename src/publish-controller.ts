@@ -80,6 +80,8 @@ function checked<T>(compute: () => T): Checked<T> {
   }
 }
 
+export const PUBLISH_EDITOR_CHANGE_DELAY = 250;
+
 export class PublishController extends Component {
   document: TFile | null = null;
   leaf: WorkspaceLeaf | null = null;
@@ -212,7 +214,7 @@ export class PublishController extends Component {
         this.sourceTimer = window.setTimeout(() => {
           this.sourceTimer = null;
           this.emit();
-        }, 250);
+        }, PUBLISH_EDITOR_CHANGE_DELAY);
       }),
     );
     if (this.readiness) void this.validateCachedSupport();
