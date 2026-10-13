@@ -429,6 +429,38 @@ test("Create status is hidden when ready and exposes only actionable requirement
   );
 });
 
+test("a font error offers Choose font, which opens Settings from the Settings button", () => {
+  const { root, publish, settingsCalls, launchers, update } = setup();
+  const settings = root.all().find((el) => el.text === "Settings")!;
+  const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
+  const choose = status.all().find((el) => el.text === "Choose font")!;
+  assert.equal(choose.hidden, true);
+  publish.error =
+    "“Missing Synthetic Serif” isn’t available on this computer. Choose another font to publish this PDF.";
+  publish.fontError = { fonts: ["Missing Synthetic Serif"] };
+  update();
+  assert.equal(status.hidden, false);
+  assert.equal(choose.hidden, false);
+  assert.equal(choose.disabled, false);
+  settingsCalls.length = 0;
+  launchers.length = 0;
+  choose.listeners.get("click")!();
+  assert.deepEqual(settingsCalls, ["open"]);
+  assert.deepEqual(
+    launchers,
+    [settings],
+    "focus returns to Settings, which stays visible after the error clears",
+  );
+  publish.busy = true;
+  update();
+  assert.equal(choose.disabled, true);
+  publish.busy = false;
+  publish.error = "Synthetic unrelated failure";
+  publish.fontError = null;
+  update();
+  assert.equal(choose.hidden, true);
+});
+
 test("controller updates keep template and version options until their choices change", () => {
   const { root, publish, update } = setup();
   const select = (label: string) =>

@@ -140,7 +140,7 @@ export class PublicationPropertyControls {
         toggle.setDisabled(
           this.publish.busy ||
             (this.publish.preferencesSaving &&
-              !toggle.toggleEl.contains(document.activeElement)),
+              !toggle.toggleEl.contains(toggle.toggleEl.doc.activeElement)),
         );
       }
     } finally {
@@ -153,7 +153,7 @@ export class PublicationPropertyControls {
     if (
       !this.publish.busy &&
       this.active &&
-      this.container.contains(document.activeElement) &&
+      this.container.contains(this.container.doc.activeElement) &&
       !this.active.draft.conflict
     )
       return;
@@ -277,8 +277,9 @@ export class PublicationPropertyControls {
     }
     this.structure = structure;
     this.toggles.clear();
-    const focused = this.container.contains(document.activeElement)
-      ? (document.activeElement as HTMLElement).dataset.propertyControl
+    const active = this.container.doc.activeElement;
+    const focused = this.container.contains(active)
+      ? (active as HTMLElement).dataset.propertyControl
       : undefined;
     this.container.empty();
     for (const key of visible) {

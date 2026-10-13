@@ -1217,7 +1217,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-status p + p {
   margin-top: var(--size-4-2);
 }
-.stratum-publish-status p + button {
+.stratum-publish-status > button {
   margin-top: var(--size-4-3);
 }
 .stratum-publish-error {
@@ -1885,9 +1885,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publishing-settings-modal textarea {
   min-height: calc(var(--input-height) * 2);
   resize: vertical;
-}
-.stratum-publishing-settings-modal h4 {
-  margin-block: var(--size-4-4) var(--size-4-2);
 }
 
 .stratum-publishing-options {

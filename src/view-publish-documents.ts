@@ -24,8 +24,8 @@ export class PublishedDocumentsPanel extends Component {
   onload(): void {
     this.body = this.container.createDiv({ cls: "stratum-publish-documents" });
     const history = this.body.createDiv({ cls: "stratum-publish-history" });
-    history.createEl("h4", {
-      cls: "stratum-subheading",
+    history.createEl("h3", {
+      cls: "stratum-section-heading",
       text: "Published documents",
     });
     this.scope = createStratumSelect(history, {

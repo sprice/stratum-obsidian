@@ -115,6 +115,7 @@ export class PublishController extends Component {
   private preparing = false;
   private selectionKey = "";
   private sourceLeaf: WorkspaceLeaf | null = null;
+  private openingLeaf: WorkspaceLeaf | null = null;
   private sourceRevision = 0;
   private sourceText = "";
   private sourceTimer: number | null = null;
@@ -158,9 +159,11 @@ export class PublishController extends Component {
     );
     this.registerEvent(
       this.plugin.app.workspace.on("layout-change", () => {
+        // A tab still opening the selected note counts as showing it.
         let selectedIsOpen = false;
         this.plugin.app.workspace.iterateRootLeaves((leaf) => {
-          if (leaf === this.leaf) selectedIsOpen = true;
+          if (leaf === this.leaf || leaf === this.openingLeaf)
+            selectedIsOpen = true;
         });
         if (!selectedIsOpen) {
           this.document = null;
@@ -236,6 +239,14 @@ export class PublishController extends Component {
       if (candidate === leaf) root = true;
     });
     if (!root) return;
+    // A tab opened for editing can become active before its note loads. Keep
+    // the current note, and its settings window, until the tab shows it.
+    if (
+      leaf &&
+      leaf === this.openingLeaf &&
+      !(leaf.view instanceof MarkdownView && leaf.view.file === this.document)
+    )
+      return;
     if (leaf?.view.getViewType?.() === VIEW_TYPE_PUBLISH_PREVIEW) {
       const document = this.catalog?.documents.find(
         (entry) => entry.id === leaf.view.getState().documentId,
@@ -761,8 +772,12 @@ export class PublishController extends Component {
             leaf = candidate;
         });
         if (!leaf) {
-          leaf = workspace.getLeaf("tab");
-          await leaf.openFile(file);
+          leaf = this.openingLeaf = workspace.getLeaf("tab");
+          try {
+            await leaf.openFile(file);
+          } finally {
+            if (this.openingLeaf === leaf) this.openingLeaf = null;
+          }
         }
       }
       if (

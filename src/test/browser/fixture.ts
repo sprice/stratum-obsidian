@@ -78,6 +78,7 @@ let sourceText = "";
 let currentFile: TFile;
 let historyChange: { forward: ChangeSet; inverse: ChangeSet } | undefined;
 let editorChangeTimer: number | undefined;
+let failOpen = false;
 export interface FixtureOptions {
   bodyFont?: string;
   titleFont?: string;
@@ -239,7 +240,18 @@ async function reset(options: FixtureOptions = {}) {
     });
   };
   view.getState = () => ({});
+  failOpen = false;
   view.setState = () => {
+    if (failOpen) {
+      failOpen = false;
+      // Fail after a rendered frame, as loading a note would.
+      return new Promise((_, reject) =>
+        window.setTimeout(
+          () => reject(new Error("Synthetic note opening error")),
+          100,
+        ),
+      );
+    }
     installEditor();
     return Promise.resolve();
   };
@@ -429,6 +441,10 @@ export const publicationFixture = {
   },
   failSave(value: boolean) {
     adapter.failSave = value;
+  },
+  /** The next attempt to make the note editable fails. */
+  failNextOpen() {
+    failOpen = true;
   },
   unrelatedError() {
     controller.fail(new Error("Synthetic unrelated publishing error"));

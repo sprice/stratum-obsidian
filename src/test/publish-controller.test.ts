@@ -521,6 +521,50 @@ test("editing publication details opens the source when its Markdown tab is clos
   assert.equal(revealed.length, 2);
 });
 
+test("a tab opened for editing keeps the note until the tab shows it", async () => {
+  const { controller, plugin, leaf, roots, events, revealed } = setup();
+  Object.assign(plugin, {
+    publicationEditor: { open: () => Promise.resolve() },
+  });
+  const file = leaf.view.file;
+  roots.splice(0, 1);
+  controller.leaf = null;
+  const activate = (target: object) =>
+    (events.get("active-leaf-change") as (leaf: object) => void)(target);
+  const layoutChange = events.get("layout-change") as () => void;
+  const followed: unknown[] = [];
+  const tab: { view: object; openFile(file: File): Promise<void> } = {
+    view: { getViewType: () => "empty" },
+    openFile(opened) {
+      // Obsidian can add, activate and lay out a new tab before its note loads.
+      roots.unshift(tab as never);
+      layoutChange();
+      followed.push(controller.document);
+      activate(tab);
+      followed.push(controller.document);
+      tab.view = new View(opened, "Loaded source");
+      layoutChange();
+      activate(tab);
+      followed.push(controller.document);
+      return Promise.resolve();
+    },
+  };
+  plugin.app.workspace.getLeaf = () => tab;
+  const emitted: unknown[] = [];
+  controller.subscribe(() => emitted.push(controller.document));
+  await controller.editPublicationDetails();
+  assert.deepEqual(followed, [file, file, file]);
+  assert.ok(
+    emitted.every((document) => document === file),
+    "the settings window never sees another note",
+  );
+  assert.equal(controller.leaf, tab);
+  assert.deepEqual(revealed, [tab]);
+  tab.view = { getViewType: () => "empty" };
+  activate(tab);
+  assert.equal(controller.document, null, "later tab changes are followed");
+});
+
 test("unload cancels conversion before a document is added", async () => {
   const { controller, release } = setup();
   const pending = controller.create();

@@ -77,6 +77,21 @@ Object.assign(HTMLElement.prototype, {
     this.setAttribute(key, value);
   },
 });
+// Obsidian gives each node its own document and window, for pop-out windows.
+Object.defineProperties(Node.prototype, {
+  doc: {
+    configurable: true,
+    get(this: Node) {
+      return this.ownerDocument;
+    },
+  },
+  win: {
+    configurable: true,
+    get(this: Node) {
+      return this.ownerDocument?.defaultView;
+    },
+  },
+});
 Object.assign(window, {
   createDiv: (options?: DomElementInfo) => element(null, "div", options),
   createEl: <K extends keyof HTMLElementTagNameMap>(

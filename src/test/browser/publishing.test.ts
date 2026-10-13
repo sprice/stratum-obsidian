@@ -219,9 +219,14 @@ async function expectError(fonts: string[]) {
     message,
   );
 }
-async function focusFont(label: string) {
+/** Open Settings from the status's Choose font action, or from Settings. */
+async function focusFont(label: string, launcher = "Choose font") {
   await page
-    .locator('button[aria-label="Publishing settings for this note"]')
+    .locator(
+      launcher === "Choose font"
+        ? ".stratum-publish-status button:not([hidden])"
+        : 'button[aria-label="Publishing settings for this note"]',
+    )
     .click();
   await until(
     `document.activeElement?.getAttribute('aria-label') === ${JSON.stringify(label)}`,
@@ -827,7 +832,7 @@ test("failed save keeps the previous font and displays the save error", () =>
   scenario("failed-save", async () => {
     await reset({});
     await expectError(["Missing Body Serif"]);
-    await focusFont("Body font");
+    await focusFont("Body font", "Settings");
     await page.evaluate("window.publicationFixture.failSave(true)");
     await page
       .locator('select[aria-label="Body font"]')
@@ -875,6 +880,12 @@ test("PDF-engine font errors use the same recovery and body default", () =>
         .innerText(),
       `“${font}” isn’t available on this computer. Choose another font to publish this PDF.`,
     );
+    assert.equal(
+      await page
+        .locator(".stratum-publish-status button:not([hidden])")
+        .innerText(),
+      "Choose font",
+    );
     await focusFont("Body font");
     await choose("Body font", "", "bodyFont");
     assert.equal(
@@ -882,6 +893,22 @@ test("PDF-engine font errors use the same recovery and body default", () =>
         "[...document.querySelectorAll('.stratum-publish-error')].filter(el => !el.hidden && el.innerText).length",
       ),
       0,
+    );
+    assert.equal(
+      await page
+        .locator(".stratum-publish-status button:not([hidden])")
+        .count(),
+      0,
+      "Choose font leaves once the font error clears",
+    );
+    await page.keyPress("Escape");
+    await until("!document.querySelector('.modal')");
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement === document.querySelector('button[aria-label=\"Publishing settings for this note\"]')",
+      ),
+      true,
+      "closing returns focus to Settings",
     );
   }));
 
@@ -1013,7 +1040,7 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
       await openSettings();
       assert.deepEqual(
         await page.evaluate(
-          "[...document.querySelectorAll('.stratum-publishing-settings-modal h4')].map(el => el.textContent)",
+          "[...document.querySelectorAll('.stratum-publishing-settings-modal h4.stratum-subheading')].map(el => el.textContent)",
         ),
         ["Document details", "PDF options"],
       );
@@ -1372,21 +1399,42 @@ test("metadata requires an explicitly registered editable note while options rem
       await page.locator('select[aria-label="Title source"]').count(),
       1,
     );
-    await page
-      .locator(
-        '.stratum-publishing-settings-modal button[aria-label="Open note for editing"]',
-      )
-      .click();
+    await page.evaluate(
+      "window.openedModal = document.querySelector('.stratum-publishing-settings-modal')",
+    );
+    const openNote = page.locator(
+      '.stratum-publishing-settings-modal button[aria-label="Open note for editing"]',
+    );
+    await page.evaluate("window.publicationFixture.failNextOpen()");
+    await openNote.click();
+    await until("!!window.publicationFixture.state().error");
+    // A failed opening keeps the window, and focus returns to the button.
     await until(
-      "!document.querySelector('.modal') && window.publicationFixture.state().editable",
+      "document.activeElement?.getAttribute('aria-label') === 'Open note for editing'",
     );
-    await openSettings();
     assert.equal(
-      await page
-        .locator('.stratum-publishing-settings-modal input[aria-label="Title"]')
-        .count(),
-      1,
+      await page.evaluate(
+        "window.openedModal.isConnected && window.openedModal.contains(document.activeElement) && !document.activeElement.hasAttribute('aria-disabled')",
+      ),
+      true,
+      "focus stays in the window after a failed opening",
     );
+    await openNote.click();
+    // The note opens behind the window, which stays open and gains the fields.
+    await until(
+      "window.publicationFixture.state().editable && !!document.querySelector('.stratum-publishing-settings-modal input[aria-label=\"Title\"]')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelectorAll('.modal').length === 1 && window.openedModal.isConnected",
+      ),
+      true,
+      "the same window stays open",
+    );
+    await until(
+      "window.openedModal.contains(document.activeElement) && document.activeElement.matches('input')",
+    );
+    await capture("metadata-open-note-mounted");
   });
 });
 

@@ -570,7 +570,7 @@ export class PublicationForm {
     // A blur commit can replace this widget before the subsequent click arrives.
     // Keep the input focused until the click handler can flush and act together.
     button.addEventListener("pointerdown", (event) => {
-      if (this.active && this.element.contains(document.activeElement))
+      if (this.active && this.element.contains(this.element.doc.activeElement))
         event.preventDefault();
     });
     button.addEventListener("click", () => {
@@ -725,7 +725,7 @@ export class PublicationForm {
     const session = this.service.session(this.path);
     if (
       this.active &&
-      this.element.contains(document.activeElement) &&
+      this.element.contains(this.element.doc.activeElement) &&
       !this.active.draft.conflict
     )
       return;
@@ -746,11 +746,10 @@ export class PublicationForm {
       publish?.layout.titleSource;
     if (signature === this.last) return;
     this.last = signature;
-    const focused =
-      document.activeElement instanceof HTMLElement &&
-      this.element.contains(document.activeElement)
-        ? document.activeElement.dataset.publicationControl
-        : undefined;
+    const active = this.element.doc.activeElement;
+    const focused = this.element.contains(active)
+      ? (active as HTMLElement).dataset.publicationControl
+      : undefined;
     try {
       const { properties } = publicationYaml(text);
       const model = publicationAuthors(properties);

@@ -33,6 +33,8 @@ export class PublishPanel extends Component {
   private tabs!: StratumTabs<"publish" | "documents">;
   private controls!: HTMLElement;
   private status!: HTMLElement;
+  private statusMessage!: HTMLElement;
+  private chooseFont!: HTMLButtonElement;
   private create!: HTMLButtonElement;
   private settings!: HTMLButtonElement;
   private cancel!: HTMLButtonElement;
@@ -160,9 +162,15 @@ export class PublishPanel extends Component {
     this.create.addEventListener("click", () => {
       void this.publish.create();
     });
-    this.status = this.body.createDiv({
-      cls: "stratum-publish-status",
+    this.status = this.body.createDiv({ cls: "stratum-publish-status" });
+    this.statusMessage = this.status.createDiv({
       attr: { role: "status", "aria-live": "polite" },
+    });
+    // The settings window opens Advanced layout and focuses the missing font.
+    // Focus returns to Settings, which stays visible once the error clears.
+    this.chooseFont = createStratumButton(this.status, { text: "Choose font" });
+    this.chooseFont.addEventListener("click", () => {
+      void this.publish.openSettings(this.settings);
     });
     this.cancel = createStratumButton(this.body, { text: "Cancel" });
     this.cancel.addEventListener("click", () => this.publish.cancel());
@@ -184,7 +192,10 @@ export class PublishPanel extends Component {
         this.successIcon
           .getAnimations()
           .forEach((animation) => animation.cancel());
-        if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+        if (
+          !this.container.win.matchMedia("(prefers-reduced-motion: reduce)")
+            .matches
+        )
           this.successIcon.animate(
             [
               { opacity: 0, transform: "translateY(4px)" },
@@ -247,7 +258,9 @@ export class PublishPanel extends Component {
       !template || publish.busy || publish.preferencesSaving;
     this.create.disabled = !publish.canCreate();
     this.cancel.hidden = !publish.busy && !publish.checking;
-    this.status.empty();
+    this.chooseFont.hidden = !publish.fontError;
+    this.chooseFont.disabled = this.settings.disabled;
+    this.statusMessage.empty();
     const notices = publish.readinessNotices;
     const problem = publish.error
       ? publish.fontError
@@ -282,7 +295,7 @@ export class PublishPanel extends Component {
                   : ""));
     this.status.hidden = !problem;
     if (problem)
-      this.status.createEl("p", {
+      this.statusMessage.createEl("p", {
         text: problem,
         cls: publish.error
           ? "stratum-publish-error"

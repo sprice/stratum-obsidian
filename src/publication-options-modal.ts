@@ -151,7 +151,10 @@ export class PublishingSettingsModal extends Modal {
       cls: "stratum-publish-meta",
       attr: { role: "status", "aria-live": "polite" },
     });
-    this.contentEl.createEl("h4", { text: "Document details" });
+    this.contentEl.createEl("h4", {
+      cls: "stratum-subheading",
+      text: "Document details",
+    });
     this.details = this.contentEl.createDiv({
       cls: "stratum-publishing-details",
     });
@@ -167,7 +170,10 @@ export class PublishingSettingsModal extends Modal {
     });
     this.academicAlert.hidden = true;
     this.validationNotes = this.validation.createDiv();
-    this.contentEl.createEl("h4", { text: "PDF options" });
+    this.contentEl.createEl("h4", {
+      cls: "stratum-subheading",
+      text: "PDF options",
+    });
     const options = this.contentEl.createDiv({
       cls: "stratum-publishing-pdf-options",
     });
@@ -413,19 +419,23 @@ export class PublishingSettingsModal extends Modal {
     this.unsubscribe = this.publish.subscribe(() => this.update());
     this.update();
     queueMicrotask(() => {
-      if (!this.alive || this.publish.fontError) return;
-      const inputs = Array.from(
-        this.details.querySelectorAll<HTMLInputElement>("input"),
-      );
-      const authorInputs = Array.from(
-        this.authorContainer.querySelectorAll<HTMLInputElement>("input"),
-      );
-      const missing = [...inputs, ...authorInputs].find(
-        (input) =>
-          input.getAttribute("aria-required") === "true" && !input.value.trim(),
-      );
-      (missing ?? inputs[0])?.focus();
+      if (!this.publish.fontError) this.focusDetails();
     });
+  }
+  /** Focus the first missing required field, or the first property field. */
+  private focusDetails(): void {
+    if (!this.alive) return;
+    const inputs = Array.from(
+      this.details.querySelectorAll<HTMLInputElement>("input"),
+    );
+    const authorInputs = Array.from(
+      this.authorContainer.querySelectorAll<HTMLInputElement>("input"),
+    );
+    const missing = [...inputs, ...authorInputs].find(
+      (input) =>
+        input.getAttribute("aria-required") === "true" && !input.value.trim(),
+    );
+    (missing ?? inputs[0])?.focus();
   }
   /** Patch in place so the disclosure keeps its open state and focus across emits. */
   private updateCompatibility(): void {
@@ -588,9 +598,21 @@ export class PublishingSettingsModal extends Modal {
         text: "Open note for editing",
         tooltip: "Open note for editing",
       });
+      // The note opens behind this window, and `update` mounts its fields
+      // once it is editable. Opening it can move focus to the editor, so focus
+      // returns to the fields, or to this button when none mounted. The button
+      // stays enabled, since disabling it would drop focus to the body.
+      let opening = false;
       open.addEventListener("click", () => {
-        this.close();
-        void this.publish.editPublicationDetails();
+        if (opening) return;
+        opening = true;
+        open.setAttribute("aria-disabled", "true");
+        void this.publish.editPublicationDetails().finally(() => {
+          opening = false;
+          open.removeAttribute("aria-disabled");
+          if (this.properties) this.focusDetails();
+          else if (open.isConnected) open.focus();
+        });
       });
     }
     this.properties?.refresh();
