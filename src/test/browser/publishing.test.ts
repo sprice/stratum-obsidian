@@ -2064,7 +2064,7 @@ test("Settings readiness notices inherit warning color while failures remain err
   await scenario("settings-readiness-notice", async () => {
     await reset({ aastex: true, source: "---\ntitle: Paper\n---\nBody" });
     await until(
-      "document.querySelector('.stratum-publish-notice')?.textContent.includes('Add at least one author, in Settings')",
+      "document.querySelector('.stratum-publish-notice')?.textContent.includes('Settings: Add at least one author')",
     );
     assert.equal(
       await page.evaluate(
@@ -2078,7 +2078,7 @@ test("Settings readiness notices inherit warning color while failures remain err
     );
     assert.equal(
       await page.evaluate(
-        "document.querySelector('.stratum-publish-status').textContent.includes(', in Settings')",
+        "document.querySelector('.stratum-publish-status').textContent.includes('Settings: ')",
       ),
       false,
     );
@@ -2092,7 +2092,7 @@ test("Settings readiness notices inherit warning color while failures remain err
     );
     assert.equal(
       await page.evaluate(
-        "document.querySelector('.stratum-publish-notice').textContent.split('\\n')[0].includes('in Settings')",
+        "document.querySelector('.stratum-publish-notice').textContent.split('\\n')[0].includes('Settings: ')",
       ),
       false,
     );

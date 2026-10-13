@@ -10,6 +10,9 @@ import {
   PublishedDocumentsPanel,
   type PublishedDocumentsState,
 } from "./view-publish-documents";
+const settingsNotice = (message: string): string =>
+  `Settings: ${message.replace(/[.!]$/, "")}`;
+
 export interface PublishViewState {
   section: "publish" | "documents";
   documents: PublishedDocumentsState;
@@ -258,7 +261,7 @@ export class PublishPanel extends Component {
                   ? notices
                       .map((notice) =>
                         notice.settings
-                          ? notice.text.replace(/[.!]$/, "") + ", in Settings"
+                          ? settingsNotice(notice.text)
                           : notice.text,
                       )
                       .join("\n")
@@ -267,12 +270,14 @@ export class PublishPanel extends Component {
                 publish.plugin.publicationEditor?.pending?.(
                   publish.document.path,
                 )
-                  ? "Finish or resolve the pending publication edit, in Settings"
+                  ? settingsNotice(
+                      "Finish or resolve the pending publication edit",
+                    )
                   : "") ||
                 (!publish.canPublishPdf
                   ? "Create PDF documents in desktop Obsidian. Edit this note’s metadata and settings here."
                   : !publish.readiness?.pdf
-                    ? "Review PDF tool setup, in Settings"
+                    ? settingsNotice("Review PDF tool setup")
                     : ""));
     this.status.hidden = !problem;
     if (problem)

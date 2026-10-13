@@ -420,6 +420,6 @@ test("Create status is hidden when ready and exposes only actionable requirement
   assert.ok(
     status
       .all()
-      .some((el) => el.text.includes("Review PDF tool setup, in Settings")),
+      .some((el) => el.text.includes("Settings: Review PDF tool setup")),
   );
 });
