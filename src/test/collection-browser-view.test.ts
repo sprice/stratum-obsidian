@@ -31,6 +31,12 @@ class Element {
   selectionStart = 0;
   selectionEnd = 0;
   constructor(public tag = "div") {}
+  toggleClass(cls: string, value: boolean) {
+    const classes = this.className
+      .split(" ")
+      .filter((name) => name && name !== cls);
+    this.className = (value ? [...classes, cls] : classes).join(" ");
+  }
   addClass(...classes: string[]) {
     this.className = [this.className, ...classes].filter(Boolean).join(" ");
   }

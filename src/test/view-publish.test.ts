@@ -47,6 +47,11 @@ class Element {
   addClass(cls: string) {
     this.cls = [this.cls, cls].filter(Boolean).join(" ");
   }
+  toggleClass(cls: string, value: boolean) {
+    const classes = this.cls.split(" ").filter((name) => name && name !== cls);
+    this.cls = (value ? [...classes, cls] : classes).join(" ");
+  }
+  setCssProps() {}
   attrs = new Map<string, string>();
   setAttribute(name: string, value: string) {
     this.attrs.set(name, value);

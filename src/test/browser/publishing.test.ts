@@ -648,7 +648,7 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
     await page.evaluate("window.publicationFixture.reset({aastex:true})");
     assert.equal(
       await page.evaluate(
-        "document.querySelector('.stratum-publish-tabs button:first-child').textContent",
+        "document.querySelector('.stratum-publish-shell .stratum-tab-bar button:first-child').textContent",
       ),
       "Create",
     );
@@ -660,12 +660,12 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
       true,
     );
     await page.evaluate(
-      "document.querySelector('.stratum-publish-tabs button:first-child').focus()",
+      "document.querySelector('.stratum-publish-shell .stratum-tab-bar button:first-child').focus()",
     );
     await page.keyPress("ArrowRight");
     assert.equal(
       await page.evaluate(
-        "document.activeElement === document.querySelector('.stratum-publish-tabs button:last-child') && document.querySelector('.stratum-publish-panel').hidden && !document.querySelector('.stratum-publish-documents').parentElement.hidden",
+        "document.activeElement === document.querySelector('.stratum-publish-shell .stratum-tab-bar button:last-child') && document.querySelector('.stratum-publish-panel').hidden && !document.querySelector('.stratum-publish-documents').parentElement.hidden",
       ),
       true,
     );
@@ -720,7 +720,7 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
       .locator('select[aria-label="Choose which documents to view"]')
       .selectOption("all");
     await page.evaluate(
-      "document.querySelector('.stratum-publish-tabs button:last-child').focus()",
+      "document.querySelector('.stratum-publish-shell .stratum-tab-bar button:last-child').focus()",
     );
     await page.keyPress("Home");
     await page.keyPress("End");
@@ -743,7 +743,7 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
     );
     assert.ok(Number(scroll) > 0);
     await page.evaluate(
-      "document.querySelector('.stratum-publish-tabs button:last-child').focus()",
+      "document.querySelector('.stratum-publish-shell .stratum-tab-bar button:last-child').focus()",
     );
     await page.keyPress("Home");
     await page.evaluate("window.publicationFixture.addDocuments()");
@@ -2112,7 +2112,9 @@ test("confirmed publication retains an accent outline icon until Documents is ac
       ),
       true,
     );
-    await page.locator(".stratum-publish-tabs button:first-child").click();
+    await page
+      .locator(".stratum-publish-shell .stratum-tab-bar button:first-child")
+      .click();
     await page.evaluate("window.publicationFixture.unrelatedError()");
     assert.equal(
       await page.evaluate(
@@ -2165,7 +2167,7 @@ test("confirmed publication retains an accent outline icon until Documents is ac
       true,
     );
     await page.evaluate(
-      "document.querySelector('.stratum-publish-tabs button:nth-child(2)').focus()",
+      "document.querySelector('.stratum-publish-shell .stratum-tab-bar button:nth-child(2)').focus()",
     );
     await page.keyPress("Enter");
     assert.equal(
@@ -2174,13 +2176,15 @@ test("confirmed publication retains an accent outline icon until Documents is ac
       ),
       true,
     );
-    await page.locator(".stratum-publish-tabs button:first-child").click();
+    await page
+      .locator(".stratum-publish-shell .stratum-tab-bar button:first-child")
+      .click();
     await page.evaluate("window.publicationFixture.confirmPublished()");
     await until(
       "!document.querySelector('.stratum-publish-success-icon').hidden",
     );
     await page.evaluate(
-      "document.querySelector('.stratum-publish-tabs button:nth-child(2)').focus()",
+      "document.querySelector('.stratum-publish-shell .stratum-tab-bar button:nth-child(2)').focus()",
     );
     await page.type(" ");
     assert.equal(

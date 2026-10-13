@@ -2,7 +2,12 @@ import {
   selectedPublishingTemplate,
   publishingTemplateFamilies,
 } from "./publish-templates";
-import { createStratumSelect, createStratumButton } from "./ui-controls";
+import {
+  createStratumSelect,
+  createStratumButton,
+  createStratumTabs,
+  type StratumTabs,
+} from "./ui-controls";
 import { Component, setIcon } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import { PublishingSettingsModal } from "./publication-options-modal";
@@ -26,7 +31,7 @@ export class PublishPanel extends Component {
   private shell!: HTMLElement;
   private documentsContainer!: HTMLElement;
   private documentsPanel!: PublishedDocumentsPanel;
-  private tabs = new Map<"publish" | "documents", HTMLButtonElement>();
+  private tabs!: StratumTabs<"publish" | "documents">;
   private optionsModal?: PublishingSettingsModal;
   private controls!: HTMLElement;
   private status!: HTMLElement;
@@ -48,60 +53,45 @@ export class PublishPanel extends Component {
   onload(): void {
     this.state.lastPublishedId ??= this.publish.lastPublishedId;
     this.shell = this.container.createDiv({ cls: "stratum-publish-shell" });
-    const tabBar = this.shell.createDiv({
-      cls: "stratum-publish-tabs",
-      attr: { role: "tablist", "aria-label": "Publishing" },
+    this.tabs = createStratumTabs(this.shell, {
+      idPrefix: `stratum-publish-${crypto.randomUUID()}`,
+      label: "Publishing",
+      tabs: [
+        { id: "publish", label: "Create" },
+        {
+          id: "documents",
+          label: "Documents",
+          className: "stratum-publish-documents-tab",
+        },
+      ],
+      selected: this.state.section,
+      onSelect: (section) => this.selectSection(section),
     });
-    const prefix = `stratum-publish-${crypto.randomUUID()}`;
-    for (const section of ["publish", "documents"] as const) {
-      const tab = createStratumButton(tabBar, {
-        text: section === "publish" ? "Create" : "Documents",
-      });
-      tab.id = `${prefix}-${section}-tab`;
-      tab.setAttribute("role", "tab");
-      tab.setAttribute("aria-controls", `${prefix}-${section}-panel`);
-      if (section === "documents") {
-        tab.addClass("stratum-publish-documents-tab");
-        this.successIcon = tab.createSpan({
-          cls: "stratum-publish-success-icon",
-          attr: { "aria-hidden": "true" },
-        });
-        setIcon(this.successIcon, "file-text");
-        this.successIcon.hidden = !this.state.pendingPublishedId;
-      }
-      this.tabs.set(section, tab);
-      tab.addEventListener("click", () => this.selectSection(section));
-      tab.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          this.selectSection(section);
-          return;
-        }
-        let next: "publish" | "documents" | undefined;
-        if (event.key === "ArrowLeft" || event.key === "ArrowRight")
-          next = section === "publish" ? "documents" : "publish";
-        if (event.key === "Home") next = "publish";
-        if (event.key === "End") next = "documents";
-        if (next) {
-          event.preventDefault();
-          this.selectSection(next);
-          this.tabs.get(next)?.focus();
-        }
-      });
-    }
+    this.successIcon = this.tabs.tab("documents")!.createSpan({
+      cls: "stratum-publish-success-icon",
+      attr: { "aria-hidden": "true" },
+    });
+    setIcon(this.successIcon, "file-text");
+    this.successIcon.hidden = !this.state.pendingPublishedId;
     this.successAnnouncement = this.shell.createDiv({
       cls: "stratum-sr-only",
       attr: { role: "status", "aria-live": "polite" },
     });
     this.body = this.shell.createDiv({
       cls: "stratum-publish-panel",
-      attr: { role: "tabpanel", "aria-labelledby": `${prefix}-publish-tab` },
+      attr: {
+        role: "tabpanel",
+        "aria-labelledby": this.tabs.tabId("publish"),
+      },
     });
-    this.body.id = `${prefix}-publish-panel`;
+    this.body.id = this.tabs.panelId("publish");
     this.documentsContainer = this.shell.createDiv({
-      attr: { role: "tabpanel", "aria-labelledby": `${prefix}-documents-tab` },
+      attr: {
+        role: "tabpanel",
+        "aria-labelledby": this.tabs.tabId("documents"),
+      },
     });
-    this.documentsContainer.id = `${prefix}-documents-panel`;
+    this.documentsContainer.id = this.tabs.panelId("documents");
     this.documentsPanel = this.addChild(
       new PublishedDocumentsPanel(
         this.documentsContainer,
@@ -316,10 +306,7 @@ export class PublishPanel extends Component {
     if (section === "documents") this.acknowledgePublication();
     this.body.hidden = section !== "publish";
     this.documentsPanel.setVisible(section === "documents");
-    for (const [key, tab] of this.tabs) {
-      tab.setAttribute("aria-selected", String(key === section));
-      tab.tabIndex = key === section ? 0 : -1;
-    }
+    this.tabs.select(section);
   }
   onunload(): void {
     this.optionsModal?.close();

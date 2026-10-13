@@ -1865,16 +1865,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   height: auto;
   min-height: 0;
 }
-.stratum-publish-tabs {
+.stratum-publish-shell > .stratum-tab-bar {
   flex-shrink: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--size-4-2);
   margin-bottom: var(--size-4-4);
-}
-.stratum-publish-tabs > [aria-selected="true"] {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
 }
 .stratum-document-options-modal {
   max-width: 560px;
@@ -1936,7 +1929,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   color: var(--text-warning);
   white-space: pre-line;
 }
-.stratum-publish-documents-tab {
+/* Reserve the icon's width on both sides so the label stays centered. */
+.stratum-tab-bar > .stratum-publish-documents-tab {
   position: relative;
   padding-inline: calc(var(--size-4-4) + var(--size-4-2));
 }

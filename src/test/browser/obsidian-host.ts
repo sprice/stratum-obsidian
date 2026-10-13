@@ -66,6 +66,13 @@ Object.assign(HTMLElement.prototype, {
   removeClass(this: HTMLElement, ...names: string[]) {
     this.classList.remove(...names);
   },
+  toggleClass(this: HTMLElement, name: string, value: boolean) {
+    this.classList.toggle(name, value);
+  },
+  setCssProps(this: HTMLElement, props: Record<string, string>) {
+    for (const [key, value] of Object.entries(props))
+      this.style.setProperty(key, value);
+  },
   setAttr(this: HTMLElement, key: string, value: string) {
     this.setAttribute(key, value);
   },

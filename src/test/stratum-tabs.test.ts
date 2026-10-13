@@ -178,6 +178,12 @@ class Element {
   setAttr(key: string, value: string) {
     this.attrs[key] = value;
   }
+  toggleClass(cls: string, value: boolean) {
+    const classes = this.className
+      .split(" ")
+      .filter((name) => name && name !== cls);
+    this.className = (value ? [...classes, cls] : classes).join(" ");
+  }
   addClass(...classes: string[]) {
     this.className += " " + classes.join(" ");
   }

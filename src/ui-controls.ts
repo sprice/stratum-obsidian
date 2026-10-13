@@ -137,6 +137,89 @@ export function createStratumButton(
   return button;
 }
 
+export interface StratumTabItem<T extends string> {
+  id: T;
+  label: string;
+  className?: string;
+}
+
+export interface StratumTabs<T extends string> {
+  tabId(id: T): string;
+  panelId(id: T): string;
+  /** The tab button, for feature content such as a status icon. */
+  tab(id: T): HTMLButtonElement | undefined;
+  /** Reflect the selected tab; selection changes go through `onSelect`. */
+  select(id: T | null): void;
+}
+
+/**
+ * Tab list in the main Stratum tab bar style, with stable ids and roving
+ * focus. The caller owns selection state and the tab panels.
+ */
+export function createStratumTabs<T extends string>(
+  container: HTMLElement,
+  options: {
+    idPrefix: string;
+    label: string;
+    tabs: readonly StratumTabItem<T>[];
+    selected: T | null;
+    onSelect: (id: T, fromKeyboard: boolean) => void;
+  },
+): StratumTabs<T> {
+  const tabId = (id: T) => `${options.idPrefix}-tab-${id}`;
+  const panelId = (id: T) => `${options.idPrefix}-panel-${id}`;
+  const ids = options.tabs.map((item) => item.id);
+  // A hidden label avoids the tooltip Obsidian shows for aria-label.
+  const label = container.createSpan({ text: options.label });
+  label.id = `${options.idPrefix}-tablist-label`;
+  label.hidden = true;
+  const tabList = container.createDiv({ cls: "stratum-tab-bar" });
+  tabList.setAttribute("role", "tablist");
+  tabList.setAttribute("aria-labelledby", label.id);
+  tabList.setCssProps({
+    "--stratum-tab-count": String(Math.min(3, ids.length)),
+    "--stratum-compact-tab-count": String(Math.min(2, ids.length)),
+  });
+  const buttons = new Map<T, HTMLButtonElement>();
+  options.tabs.forEach((item, index) => {
+    const button = createStratumAction(tabList, { text: item.label });
+    if (item.className) button.addClass(item.className);
+    button.id = tabId(item.id);
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-controls", panelId(item.id));
+    buttons.set(item.id, button);
+    button.addEventListener("click", () => options.onSelect(item.id, false));
+    button.addEventListener("keydown", (event) => {
+      const last = ids.length - 1;
+      const next =
+        event.key === "ArrowRight"
+          ? ids[index === last ? 0 : index + 1]
+          : event.key === "ArrowLeft"
+            ? ids[index === 0 ? last : index - 1]
+            : event.key === "Home"
+              ? ids[0]
+              : event.key === "End"
+                ? ids[last]
+                : undefined;
+      if (next === undefined) return;
+      event.preventDefault();
+      options.onSelect(next, true);
+      buttons.get(next)?.focus();
+    });
+  });
+  const select = (selected: T | null) => {
+    const focusable = selected !== null && buttons.has(selected);
+    for (const [id, button] of buttons) {
+      const active = id === selected;
+      button.toggleClass("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active || (!focusable && id === ids[0]) ? 0 : -1;
+    }
+  };
+  select(options.selected);
+  return { tabId, panelId, tab: (id) => buttons.get(id), select };
+}
+
 export function createStratumToggle(
   container: HTMLElement,
   options: {
