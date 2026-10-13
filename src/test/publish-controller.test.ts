@@ -895,57 +895,59 @@ test("the packaged AASTeX choice preserves a custom template named aastex and it
   );
 });
 
-test("AASTeX PDF bypasses CSL formatting, passes its class payload and records its actual bibliography style", async () => {
-  const {
-    controller,
-    leaf,
-    plugin,
-    calls,
-    payloads,
-    release,
-    conversionTools,
-  } = setup();
-  const example = aastexPackage.files["examples/manuscript.md"];
-  const parsed = publicationYaml(example);
-  // The controller host uses JSON as its YAML subset; preserve the real example's data.
-  leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
-  plugin.citations.formatForPublication = () => {
-    calls.format++;
-    return Promise.reject(new Error("CSL style is unavailable"));
-  };
-  await controller.updatePreferences({ templateId: "package:aastex" });
-  controller.readiness = structuredClone(readySupport);
-  release();
-  await controller.create();
-  assert.equal(
-    conversionTools[0].bibliographyCache?.directory,
-    ".config/plugins/stratum/cache/bibliography",
-  );
-  assert.equal(
-    conversionTools[0].bibliographyCache?.adapter,
-    plugin.app.vault.adapter,
-  );
-  assert.equal(controller.error, "");
-  assert.equal(calls.format, 0);
-  assert.equal(calls.aastex, 1);
-  assert.equal(payloads.length, 1);
-  assert.ok(payloads[0]);
-  const documents = (await controller.store.list()).documents;
-  assert.equal(documents.length, 1);
-  assert.equal(
-    documents[0].citationStyle,
-    aastexPackage.manifest.bibliographyStyle,
-  );
-  assert.equal(documents[0].publishing?.template?.upstreamVersion, "7.0.2");
-  assert.equal(
-    documents[0].publishing?.template?.version,
-    AASTEX_PACKAGE_REFERENCE.version,
-  );
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(documents[0].publishing?.aastexPdfOptions)),
-    DEFAULT_AASTEX_PDF_OPTIONS,
-  );
-});
+for (const directory of [undefined, ".config/custom-plugins/stratum"])
+  test(`AASTeX PDF bypasses CSL formatting and uses ${directory ? "manifest" : "fallback"} cache directory`, async () => {
+    const {
+      controller,
+      leaf,
+      plugin,
+      calls,
+      payloads,
+      release,
+      conversionTools,
+    } = setup();
+    if (directory) Object.assign(plugin.manifest, { dir: directory });
+    const example = aastexPackage.files["examples/manuscript.md"];
+    const parsed = publicationYaml(example);
+    // The controller host uses JSON as its YAML subset; preserve the real example's data.
+    leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
+    plugin.citations.formatForPublication = () => {
+      calls.format++;
+      return Promise.reject(new Error("CSL style is unavailable"));
+    };
+    await controller.updatePreferences({ templateId: "package:aastex" });
+    controller.readiness = structuredClone(readySupport);
+    release();
+    await controller.create();
+    assert.equal(
+      conversionTools[0].bibliographyCache?.directory,
+      `${directory ?? ".config/plugins/stratum"}/cache/bibliography`,
+    );
+    assert.equal(
+      conversionTools[0].bibliographyCache?.adapter,
+      plugin.app.vault.adapter,
+    );
+    assert.equal(controller.error, "");
+    assert.equal(calls.format, 0);
+    assert.equal(calls.aastex, 1);
+    assert.equal(payloads.length, 1);
+    assert.ok(payloads[0]);
+    const documents = (await controller.store.list()).documents;
+    assert.equal(documents.length, 1);
+    assert.equal(
+      documents[0].citationStyle,
+      aastexPackage.manifest.bibliographyStyle,
+    );
+    assert.equal(documents[0].publishing?.template?.upstreamVersion, "7.0.2");
+    assert.equal(
+      documents[0].publishing?.template?.version,
+      AASTEX_PACKAGE_REFERENCE.version,
+    );
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(documents[0].publishing?.aastexPdfOptions)),
+      DEFAULT_AASTEX_PDF_OPTIONS,
+    );
+  });
 
 test("AASTeX starts from defaults, serializes per-note changes and resets explicitly", async () => {
   const { controller } = setup();

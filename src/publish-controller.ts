@@ -1103,7 +1103,7 @@ export class PublishController extends Component {
       tectonic: this.readiness.tectonic.path,
       bibliographyCache: {
         adapter: this.plugin.app.vault.adapter,
-        directory: `${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}/cache/bibliography`,
+        directory: `${this.plugin.manifest.dir ?? `${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}`}/cache/bibliography`,
       },
     };
     const aborter = (this.aborter = new AbortController());
