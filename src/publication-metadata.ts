@@ -341,41 +341,98 @@ export function changePublicationProperty(
   }
   const node = parsed.document.createNode(operation.value);
   if (old?.range) {
-    if (isSeq(node) && ((isMap(root) && root.flow) || (isSeq(old) && old.flow)))
+    const flowRoot = isMap(root) && root.flow;
+    if (
+      isSeq(node) &&
+      (flowRoot ||
+        (isSeq(old) && old.flow && old.items.length) ||
+        !node.items.length)
+    )
       node.flow = true;
-    let insert =
+    const blockList = isSeq(node) && !node.flow;
+    const { newline } = parsed;
+    const lines = (
       typeof operation.value === "string" &&
-      ((isMap(root) && root.flow) || /[\r\n]/.test(operation.value))
+      (flowRoot || /[\r\n]/.test(operation.value))
         ? JSON.stringify(operation.value)
-        : new Document(node).toString({ lineWidth: 0 }).trimEnd();
-    const from = parsed.offset + old.range[0],
-      to = parsed.offset + old.range[1];
-    // A block sequence starts on the next line, unlike a scalar or flow sequence.
-    if (isSeq(node) && !node.flow)
-      insert =
-        "\n" +
-        insert
-          .split("\n")
-          .map((line) => "  " + line)
-          .join(parsed.newline);
-    else insert = insert.replaceAll("\n", parsed.newline);
-    if (isScalar(old) && old.srcToken?.type === "block-scalar") {
-      const comment = old.srcToken.props.find(
-        (token) => token.type === "comment",
-      );
-      if (comment?.type === "comment") {
-        const end = insert.indexOf("\n");
-        const boundary =
-          end < 0 ? insert.length : end - (insert[end - 1] === "\r" ? 1 : 0);
-        insert =
-          insert.slice(0, boundary) +
-          " " +
-          comment.source +
-          insert.slice(boundary);
-      }
+        : new Document(node).toString({ lineWidth: 0 }).trimEnd()
+    ).split("\n");
+    const from = parsed.offset + old.range[0];
+    let to = parsed.offset + old.range[1];
+    const ending = text.slice(from, to).endsWith("\n") ? newline : "";
+    // A replaced block scalar's header comment sits inside its range.
+    const blockScalar =
+      isScalar(old) && old.srcToken?.type === "block-scalar"
+        ? old.srcToken
+        : undefined;
+    const token = blockScalar?.props.find((token) => token.type === "comment");
+    const comment = token?.type === "comment" ? " " + token.source : "";
+    const indent = text.slice(text.lastIndexOf("\n", from - 1) + 1, from);
+    const ownLine = /^[ \t]*$/.test(indent);
+    if (flowRoot || (blockList ? ownLine : !ownLine || isScalar(old))) {
+      // A block list keeps the existing list's column; an empty value sits right after its colon.
+      let insert = [lines[0] + comment, ...lines.slice(1)]
+        .map((line, i) => (i && blockList ? indent + line : line))
+        .join(newline);
+      if (text[from - 1] === ":") insert = " " + insert;
+      if (from === to && text[to] === "#") insert += " ";
+      return { from, to, insert: insert + ending };
     }
-    if (text.slice(from, to).endsWith("\n")) insert += parsed.newline;
-    return { from, to, insert };
+    const pair = isMap(root)
+      ? root.items.find(
+          (pair) => isScalar(pair.key) && pair.key.value === operation.key,
+        )
+      : undefined;
+    const colon =
+      pair && isScalar(pair.key) && pair.key.range
+        ? text.indexOf(":", parsed.offset + pair.key.range[1]) + 1
+        : 0;
+    if (!colon || colon > from)
+      throw new Error("Edit this property in Source mode.");
+    if (!blockList) {
+      // A scalar or flow value replacing a block collection moves to the key line; comments stay.
+      // The replaced collection's tag would corrupt the new value, so it is dropped.
+      const sep = pair?.srcToken?.sep ?? [];
+      const gap = sep.slice(
+        sep.findIndex((token) => token.type === "map-value-ind") + 1,
+      );
+      const prop = (type?: string) => type === "tag" || type === "anchor";
+      const between = gap
+        .filter(
+          (token, i) =>
+            !prop(token.type) &&
+            !(token.type === "space" && prop(gap[i + 1]?.type)),
+        )
+        .map((token) => token.source)
+        .join("")
+        .replace(/\r?\n[ \t]*(?=\r?\n|$)/g, "")
+        .trimEnd();
+      return {
+        from: colon,
+        to,
+        insert: ` ${lines.join(newline)}${comment}${between}${ending}`,
+      };
+    }
+    // A block list replacing a value on the key line starts on the next line.
+    let trailing = comment;
+    if (!blockScalar) {
+      const lineEnd = text.indexOf("\n", to);
+      const end = Math.max(
+        to,
+        lineEnd < 0
+          ? text.length
+          : lineEnd - (text[lineEnd - 1] === "\r" ? 1 : 0),
+      );
+      trailing = text.slice(to, end).trimEnd();
+      if (trailing && !/^\s/.test(trailing)) trailing = " " + trailing;
+      to = end;
+    }
+    return {
+      from: colon,
+      to,
+      insert:
+        trailing + lines.map((line) => newline + "  " + line).join("") + ending,
+    };
   }
   if (isMap(root) && root.flow)
     throw new Error("Add properties to a flow mapping in Source mode.");

@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   changePublicationAuthors,
+  changePublicationProperty,
   publicationAuthors,
   publicationYaml,
   type AuthorOperation,
+  type PublicationPropertyOperation,
 } from "../publication-metadata";
 
 function edit(text: string, operation: AuthorOperation) {
@@ -14,6 +16,16 @@ function edit(text: string, operation: AuthorOperation) {
   publicationYaml(next);
   return next;
 }
+function setProperty(text: string, operation: PublicationPropertyOperation) {
+  const change = changePublicationProperty(text, operation);
+  const next =
+    text.slice(0, change.from) + change.insert + text.slice(change.to);
+  publicationYaml(next);
+  return next;
+}
+const note = (newline: string, ...lines: string[]) =>
+  ["---", ...lines, "---", "Body", ""].join(newline);
+const bareLineFeed = /(?<!\r)\n/;
 test("structured authors take precedence, empty lists stay empty, and invalid data is not discarded", () => {
   assert.equal(
     publicationAuthors({ authors: ["Legacy"] }).authors[0].name,
@@ -223,4 +235,181 @@ test("author edits reject an anchored namespace without changing unrelated alias
     { type: "add" },
   ] as AuthorOperation[])
     assert.throws(() => edit(text, operation), /anchored/);
+});
+
+test("filling an empty property value writes valid YAML on the key line", () => {
+  for (const [line, expected] of [
+    ["title:", "title: My Paper"],
+    ["title: ", "title: My Paper"],
+    ["title:   # note", "title:   My Paper # note"],
+  ]) {
+    const next = setProperty(note("\n", line, "other: x"), {
+      key: "title",
+      value: "My Paper",
+    });
+    assert.equal(next, note("\n", expected, "other: x"));
+    assert.equal(publicationYaml(next).properties.title, "My Paper");
+  }
+  const dated = setProperty(note("\n", "date:"), {
+    key: "date",
+    value: "2026-10-13",
+  });
+  assert.equal(dated, note("\n", "date: 2026-10-13"));
+  assert.equal(publicationYaml(dated).properties.date, "2026-10-13");
+  assert.equal(
+    setProperty(note("\r\n", "keywords:", "other: x"), {
+      key: "keywords",
+      value: ["a", "b"],
+    }),
+    note("\r\n", "keywords:", "  - a", "  - b", "other: x"),
+  );
+});
+
+test("repeated block list edits keep the list's column and add no blank lines", () => {
+  for (const newline of ["\n", "\r\n"])
+    for (const indent of ["", "  "]) {
+      let text = note(
+        newline,
+        "keywords:",
+        `${indent}- a`,
+        `${indent}- b`,
+        "other: x",
+      );
+      for (const value of [["k1"], ["k1", "k2"], ["k2"]])
+        text = setProperty(text, { key: "keywords", value });
+      assert.equal(
+        text,
+        note(newline, "keywords:", `${indent}- k2`, "other: x"),
+      );
+      assert.doesNotMatch(text, /\n[ \t]*\r?\n/);
+      if (newline === "\r\n") assert.doesNotMatch(text, bareLineFeed);
+    }
+});
+
+test("property values switch between scalar, block list and empty list in place", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    const set = (lines: string[], value: string | string[]) => {
+      const next = setProperty(note(newline, ...lines, "other: x"), {
+        key: "keywords",
+        value,
+      });
+      if (newline === "\r\n") assert.doesNotMatch(next, bareLineFeed);
+      return next;
+    };
+    const expect = (...lines: string[]) => note(newline, ...lines, "other: x");
+    assert.equal(
+      set(["keywords: one  "], ["a", "b"]),
+      expect("keywords:", "  - a", "  - b"),
+    );
+    assert.equal(
+      set(["keywords: one # note"], ["a"]),
+      expect("keywords: # note", "  - a"),
+    );
+    assert.equal(
+      set(["keywords: [one, two] # note"], ["a"]),
+      expect("keywords: [ a ] # note"),
+    );
+    assert.equal(
+      set(["keywords: |- # note", "  one"], ["a"]),
+      expect("keywords: # note", "  - a"),
+    );
+    assert.equal(
+      set(["keywords: |", "  one"], ["a"]),
+      expect("keywords:", "  - a"),
+    );
+    assert.equal(
+      set(["keywords: >-", "  one"], "two"),
+      expect("keywords: two"),
+    );
+    assert.equal(set(["keywords:", "- a"], "solo"), expect("keywords: solo"));
+    assert.equal(
+      set(["keywords:", "  - a", "  - b"], "solo"),
+      expect("keywords: solo"),
+    );
+    assert.equal(set(["keywords:", "- a"], []), expect("keywords: []"));
+    assert.equal(set(["keywords:", "  - a"], []), expect("keywords: []"));
+    assert.equal(set(["keywords: one"], []), expect("keywords: []"));
+    assert.equal(set(["keywords:"], []), expect("keywords: []"));
+  }
+});
+
+test("a scalar or empty list replacing a tagged collection drops the tag and keeps comments", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    const set = (lines: string[], value: string | string[]) => {
+      const next = setProperty(note(newline, ...lines, "other: x"), {
+        key: "keywords",
+        value,
+      });
+      assert.deepEqual(publicationYaml(next).properties.keywords, value);
+      if (newline === "\r\n") assert.doesNotMatch(next, bareLineFeed);
+      return next;
+    };
+    const expect = (...lines: string[]) => note(newline, ...lines, "other: x");
+    for (const tag of ["!!seq", "!custom"])
+      assert.equal(
+        set([`keywords: ${tag}`, "  - a"], "solo"),
+        expect("keywords: solo"),
+      );
+    assert.equal(
+      set(["keywords: !!map", "  a: 1"], "solo"),
+      expect("keywords: solo"),
+    );
+    assert.equal(set(["keywords: !!seq", "  - a"], []), expect("keywords: []"));
+    assert.equal(
+      set(["keywords: !!seq # note", "  # more", "  - a"], "solo"),
+      expect("keywords: solo # note", "  # more"),
+    );
+    assert.equal(
+      set(["keywords: # note", "  !!seq", "  - a"], []),
+      expect("keywords: [] # note"),
+    );
+  }
+});
+
+test("keywords: # note keeps its comment through list edits", () => {
+  let text = note("\n", "keywords: # note", "other: x");
+  text = setProperty(text, { key: "keywords", value: ["a", "b"] });
+  assert.equal(
+    text,
+    note("\n", "keywords: # note", "  - a", "  - b", "other: x"),
+  );
+  text = setProperty(text, { key: "keywords", value: ["c"] });
+  assert.equal(text, note("\n", "keywords: # note", "  - c", "other: x"));
+  text = setProperty(text, { key: "keywords", value: [] });
+  assert.equal(text, note("\n", "keywords: [] # note", "other: x"));
+  text = setProperty(text, { key: "keywords", value: ["d"] });
+  assert.equal(text, note("\n", "keywords: # note", "  - d", "other: x"));
+});
+
+test("author add, remove and move keep CRLF line endings", () => {
+  let text = note(
+    "\r\n",
+    "title: Paper # keep",
+    "stratum_publish:",
+    "  authors:",
+    "    - name: Alex # author",
+    "      email: alex@example.org",
+    "      affiliations:",
+    "        - University",
+    "other: x",
+  );
+  text = edit(text, { type: "add" });
+  text = edit(text, { type: "field", author: 1, key: "name", value: "Morgan" });
+  text = edit(text, { type: "move", author: 1, direction: -1 });
+  assert.doesNotMatch(text, bareLineFeed);
+  assert.deepEqual(
+    publicationAuthors(publicationYaml(text).properties).authors.map(
+      (author) => author.name,
+    ),
+    ["Morgan", "Alex"],
+  );
+  text = edit(text, { type: "remove", author: 0 });
+  assert.doesNotMatch(text, bareLineFeed);
+  assert.deepEqual(
+    publicationAuthors(publicationYaml(text).properties).authors,
+    [{ name: "Alex", email: "alex@example.org", affiliations: ["University"] }],
+  );
+  assert.ok(text.startsWith("---\r\ntitle: Paper # keep\r\n"));
+  assert.match(text, /# author/);
+  assert.ok(text.endsWith("other: x\r\n---\r\nBody\r\n"));
 });

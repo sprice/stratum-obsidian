@@ -111,8 +111,8 @@ test("block scalar property edits preserve header comments and neighboring prope
     }
   }
 });
-function runtime() {
-  let text = sample;
+function runtime(initial = sample) {
+  let text = initial;
   let readOnly = false;
   const file = { path: "Synthetic.md", stat: { ctime: 1 } };
   let currentFile = file;
@@ -201,6 +201,24 @@ test("metadata sessions retain stale/failed drafts and never write without the o
   assert.equal(s.text(), before);
   s.unregister();
   assert.equal(s.service.flush(s.file.path), false);
+});
+
+test("filling an empty Title commits without a conflict", () => {
+  const s = runtime("---\ntitle:\nother: x\n---\nBody\n");
+  const draft = {
+    file: s.file as never,
+    ctime: 1,
+    operation: { key: "title" as const, value: "My Paper" },
+    revision: publicationPropertyRevision(
+      publicationYaml(s.text()).properties,
+      "title",
+    ),
+    conflict: "",
+  };
+  assert.equal(s.service.commitProperty(s.file.path, "title", draft), true);
+  assert.equal(draft.conflict, "");
+  assert.equal(s.service.pending(s.file.path), false);
+  assert.equal(s.text(), "---\ntitle: My Paper\nother: x\n---\nBody\n");
 });
 
 test("renaming the original file preserves drafts while same-path replacement rejects stale metadata and authors", () => {
