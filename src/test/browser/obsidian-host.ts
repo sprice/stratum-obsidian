@@ -380,3 +380,5 @@ export class Setting {
 export function requestUrl(): never {
   throw new Error("Network requests are outside the publishing fixture");
 }
+
+export class WorkspaceWindow {}

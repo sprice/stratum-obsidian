@@ -47,6 +47,8 @@ const cachedSupport = () => ({
 class FontError extends Error {
   fonts = ["Missing body"];
 }
+class Popout {}
+
 function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   let timerId = 0;
   const timers = new Map<number, { callback: () => void; delay: number }>();
@@ -120,6 +122,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
       Platform: { isDesktopApp: true },
       FileSystemAdapter: class {},
       MarkdownView: View,
+      WorkspaceWindow: Popout,
       TFile: File,
       Notice: class {},
       parseYaml: JSON.parse,
@@ -338,6 +341,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
         iterateRootLeaves: (callback: (leaf: object) => void) => {
           roots.forEach(callback);
         },
+        iterateAllLeaves: (_callback: (leaf: object) => void) => {},
         on: (event: string, callback: (...args: never[]) => void) => {
           events.set(event, callback);
           return {};
@@ -1481,6 +1485,30 @@ test("loading Settings adopts a replacement launcher before the modal exists", a
   assert.equal(
     ((await next) as unknown as { launcher: unknown }).launcher,
     connected,
+  );
+  f.controller.onunload();
+});
+
+test("pop-out notes can open Settings and remain selected through layout changes", async () => {
+  const f = setup();
+  const popout = { view: f.other.view, getContainer: () => new Popout() };
+  const sidebar = { view: f.leaf.view, getContainer: () => ({}) };
+  f.roots.splice(0);
+  f.plugin.app.workspace.iterateAllLeaves = (callback) => {
+    callback(popout);
+    callback(sidebar);
+  };
+  f.events.get("active-leaf-change")!(popout as never);
+  assert.equal(f.controller.document, f.other.view.file);
+  f.events.get("active-leaf-change")!(sidebar as never);
+  assert.equal(f.controller.document, f.other.view.file);
+  f.events.get("layout-change")!();
+  assert.equal(f.controller.document, f.other.view.file);
+  assert.ok(
+    await f.controller.openSettings(
+      { isConnected: true } as HTMLElement,
+      f.other.view as never,
+    ),
   );
   f.controller.onunload();
 });

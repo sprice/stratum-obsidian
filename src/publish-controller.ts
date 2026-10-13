@@ -17,6 +17,7 @@ import {
   Notice,
   Platform,
   TFile,
+  WorkspaceWindow,
   type WorkspaceLeaf,
 } from "obsidian";
 import type StratumPlugin from "./plugin";
@@ -165,7 +166,7 @@ export class PublishController extends Component {
         if (this.openingLeaf) return;
         // A tab still opening the selected note counts as showing it.
         let selectedIsOpen = false;
-        this.plugin.app.workspace.iterateRootLeaves((leaf) => {
+        this.eachDocumentLeaf((leaf) => {
           if (leaf === this.leaf || leaf === this.openingLeaf)
             selectedIsOpen = true;
         });
@@ -230,6 +231,14 @@ export class PublishController extends Component {
     if (this.sourceTimer !== null) window.clearTimeout(this.sourceTimer);
     this.listeners.clear();
   }
+  /** Main tabs and pop-outs can publish; sidebar focus keeps the current note. */
+  private eachDocumentLeaf(callback: (leaf: WorkspaceLeaf) => void): void {
+    const workspace = this.plugin.app.workspace;
+    workspace.iterateRootLeaves(callback);
+    workspace.iterateAllLeaves((leaf) => {
+      if (leaf.getContainer() instanceof WorkspaceWindow) callback(leaf);
+    });
+  }
   private followRecent(): void {
     this.follow(
       this.plugin.app.workspace.getMostRecentLeaf(
@@ -239,7 +248,7 @@ export class PublishController extends Component {
   }
   private follow(leaf: WorkspaceLeaf | null): void {
     let root = false;
-    this.plugin.app.workspace.iterateRootLeaves((candidate) => {
+    this.eachDocumentLeaf((candidate) => {
       if (candidate === leaf) root = true;
     });
     if (!root) return;
@@ -265,7 +274,7 @@ export class PublishController extends Component {
         file instanceof TFile && file.stat.ctime === note?.ctime ? file : null;
       // Keep an open source editor, including unsaved text, when available.
       let sourceLeaf: WorkspaceLeaf | null = null;
-      this.plugin.app.workspace.iterateRootLeaves((candidate) => {
+      this.eachDocumentLeaf((candidate) => {
         if (
           candidate.view instanceof MarkdownView &&
           candidate.view.file === this.document
@@ -773,7 +782,7 @@ export class PublishController extends Component {
       let leaf = this.leaf;
       if (!(leaf?.view instanceof MarkdownView) || leaf.view.file !== file) {
         leaf = null;
-        workspace.iterateRootLeaves((candidate) => {
+        this.eachDocumentLeaf((candidate) => {
           if (
             candidate.view instanceof MarkdownView &&
             candidate.view.file === file
@@ -1285,7 +1294,7 @@ export class PublishController extends Component {
     if (!file) return;
     const workspace = this.plugin.app.workspace;
     let existing: WorkspaceLeaf | null = null;
-    workspace.iterateRootLeaves((leaf) => {
+    this.eachDocumentLeaf((leaf) => {
       if (leaf.view instanceof MarkdownView && leaf.view.file === file)
         existing = leaf;
     });
