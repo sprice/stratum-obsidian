@@ -21,8 +21,11 @@ class Element {
   querySelectorAll(selector: string) {
     return this.all().filter((el) => selector.split(",").includes(el.tag));
   }
-  querySelector() {
-    return this.all().find((el) => el.tag === "input") ?? null;
+  querySelector(selector = "input") {
+    return (
+      this.all().find((el) => el.tag === (selector === "p" ? "p" : "input")) ??
+      null
+    );
   }
   contains(element: Element | null) {
     return !!element && this.all().includes(element);
@@ -71,7 +74,10 @@ class Element {
   getAttribute(name: string) {
     return this.attrs.get(name) ?? null;
   }
+  textWrites = 0;
+  emptyCalls = 0;
   setText(text: string) {
+    this.textWrites++;
     this.text = text;
   }
   addEventListener(name: string, callback: () => void) {
@@ -81,6 +87,7 @@ class Element {
     if (this.listeners.get(name) === callback) this.listeners.delete(name);
   }
   empty() {
+    this.emptyCalls++;
     this.children = [];
   }
   focus() {
@@ -454,5 +461,58 @@ test("without editable fields, the validation block lists every issue with its l
   assert.ok(
     s.content.all().some((el) => el.text === "Guidance: Synthetic guidance."),
   );
+  s.modal.onClose();
+});
+
+test("unchanged saves, failures and validation notes do not rewrite live content", async () => {
+  const s = setup();
+  s.publish.publishingIssues = [
+    { target: "general", message: "Synthetic guidance.", blocking: false },
+  ];
+  s.publish.preferencesSaving = true;
+  s.emit();
+  const saving = s.content.all().find((el) => el.text === "Saving settings…")!;
+  const guidance = s.content
+    .all()
+    .find((el) => el.text === "Guidance: Synthetic guidance.")!;
+  const writes = saving.textWrites;
+  s.emit();
+  s.emit();
+  assert.equal(saving.textWrites, writes);
+  assert.ok(s.content.all().includes(guidance));
+  s.publish.preferencesSaving = false;
+  s.emit();
+  s.toggles[0].listeners.get("click")!();
+  s.reject();
+  await settle();
+  const failure = s.content
+    .all()
+    .find((el) => el.text === "Synthetic save failure")!;
+  assert.ok(failure);
+  const failureWrites = failure.textWrites;
+  s.emit();
+  s.emit();
+  assert.equal(failure.textWrites, failureWrites);
+  assert.ok(s.content.all().includes(failure));
+  assert.ok(s.content.all().includes(guidance));
+  s.modal.onClose();
+});
+
+test("AASTeX opens saved non-default switches and keeps pending values without autosaving", async () => {
+  const s = setup({ numberedHeadings: true, showLineNumbers: false });
+  assert.equal(s.toggles[0].querySelector()!.checked, false);
+  assert.equal(s.toggles[2].querySelector()!.checked, true);
+  assert.equal(s.saves(), 0);
+  s.toggles[0].listeners.get("click")!();
+  s.emit();
+  assert.equal(s.publish.aastexPdfOptions.showLineNumbers, false);
+  assert.equal(
+    s.toggles[0].querySelector()!.checked,
+    true,
+    "pending value wins over saved value",
+  );
+  assert.equal(s.saves(), 1, "refresh never calls the update method");
+  s.release();
+  await settle();
   s.modal.onClose();
 });

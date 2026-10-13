@@ -471,7 +471,8 @@ export class PublishingSettingsModal extends Modal {
     this.error.hidden = false;
     let text = this.error.querySelector("p");
     if (!text) text = this.error.createEl("p");
-    text.setText(
+    setLiveText(
+      text,
       error instanceof Error
         ? error.message
         : "Could not save publishing settings.",
@@ -576,8 +577,10 @@ export class PublishingSettingsModal extends Modal {
       this.close();
       return;
     }
-    this.message.hidden = !this.saving && !this.publish.preferencesSaving;
-    this.message.setText(this.message.hidden ? "" : "Saving settings…");
+    setLiveText(
+      this.message,
+      this.saving || this.publish.preferencesSaving ? "Saving settings…" : "",
+    );
     this.updateCompatibility();
     const service = this.publish.plugin.publicationEditor;
     const target = service?.editableView(this.file);
