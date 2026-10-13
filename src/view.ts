@@ -64,7 +64,7 @@ import {
   getSelectedSyncLibrary,
   isLocalSyncSupported,
 } from "./plugin-local-sync";
-import { getSettingsManager } from "./view-helpers";
+import { openStratumSettings } from "./view-helpers";
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 import {
   type BulkLibrarySyncState,
@@ -607,9 +607,7 @@ export class StratumView extends ItemView {
     });
     button.type = "button";
     button.addEventListener("click", () => {
-      const settings = getSettingsManager(this.app);
-      settings?.open();
-      settings?.openTabById(this.plugin.manifest.id);
+      openStratumSettings(this.plugin);
     });
   }
 
@@ -621,9 +619,7 @@ export class StratumView extends ItemView {
     });
     button.type = "button";
     button.addEventListener("click", () => {
-      const settings = getSettingsManager(this.app);
-      settings?.open();
-      settings?.openTabById(this.plugin.manifest.id);
+      openStratumSettings(this.plugin);
       void this.plugin.settingTab?.openNoteTemplateEditor().catch(() => {
         new Notice("Could not open the template editor.");
       });

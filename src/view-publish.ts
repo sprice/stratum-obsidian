@@ -10,7 +10,6 @@ import {
 } from "./ui-controls";
 import { Component, setIcon } from "obsidian";
 import type { PublishController } from "./publish-controller";
-import { PublishingSettingsModal } from "./publication-options-modal";
 import {
   PublishedDocumentsPanel,
   type PublishedDocumentsState,
@@ -32,7 +31,6 @@ export class PublishPanel extends Component {
   private documentsContainer!: HTMLElement;
   private documentsPanel!: PublishedDocumentsPanel;
   private tabs!: StratumTabs<"publish" | "documents">;
-  private optionsModal?: PublishingSettingsModal;
   private controls!: HTMLElement;
   private status!: HTMLElement;
   private create!: HTMLButtonElement;
@@ -118,7 +116,7 @@ export class PublishPanel extends Component {
       choices: [],
     });
     this.template.addEventListener("change", () => {
-      this.optionsModal?.close();
+      this.publish.closeSettings();
       const family = publishingTemplateFamilies(
         this.publish.publishingTemplates,
       ).find((family) => family.id === this.template.value);
@@ -136,7 +134,7 @@ export class PublishPanel extends Component {
     this.version.addEventListener("change", () => {
       if (this.version.value === this.publish.notePreferences.templateId)
         return;
-      this.optionsModal?.close();
+      this.publish.closeSettings();
       void this.publish
         .updatePreferences({ templateId: this.version.value })
         .catch(() => {});
@@ -148,14 +146,11 @@ export class PublishPanel extends Component {
       tooltip: "Publishing settings for this note",
     });
     this.settings.addEventListener("click", () => {
-      this.optionsModal?.close();
-      this.optionsModal = new PublishingSettingsModal(
-        this.publish.plugin.app,
-        this.publish,
-        this.settings,
-      );
-      this.optionsModal.open();
+      void this.publish.openSettings(this.settings);
     });
+    // Sidebar re-renders recreate this panel; an open window stays with the
+    // controller and returns focus to the new Settings button.
+    this.publish.adoptSettingsLauncher(this.settings);
     this.create = createStratumButton(this.controls, {
       text: "Create PDF document",
       primary: true,
@@ -309,7 +304,6 @@ export class PublishPanel extends Component {
     this.tabs.select(section);
   }
   onunload(): void {
-    this.optionsModal?.close();
     this.shell?.remove();
   }
 }

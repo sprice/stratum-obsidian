@@ -160,14 +160,21 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
         PublishingSettingsModal: class {
           constructor(
             _app: unknown,
-            private publish: { document: File },
-            _launcher: unknown,
+            private publish: {
+              document: File;
+              settingsClosed(modal: unknown): void;
+            },
+            public launcher: unknown,
           ) {}
           open() {
             calls.settings.push(this.publish.document.path);
           }
           close() {
             calls.settingsClosed++;
+            this.publish.settingsClosed(this);
+          }
+          adoptLauncher(launcher: unknown) {
+            this.launcher = launcher;
           }
         },
       },
@@ -1095,6 +1102,46 @@ test("Settings command loads preferences for its captured note and cancels after
   assert.equal(f.calls.detect, 0);
   f.controller.onunload();
   assert.equal(f.calls.settingsClosed, 1);
+});
+
+test("the controller keeps at most one settings window across repeated opens and closes", async () => {
+  const f = setup();
+  const launcher = {} as never;
+  const first = f.controller.openSettings(launcher);
+  const second = f.controller.openSettings(launcher);
+  assert.equal(
+    await first,
+    undefined,
+    "a newer request supersedes a loading one",
+  );
+  const opened = await second;
+  assert.ok(opened);
+  assert.equal(f.calls.settings.length, 1);
+  assert.equal(f.calls.settingsClosed, 0);
+  const replacement = {} as never;
+  f.controller.adoptSettingsLauncher(replacement);
+  assert.equal(
+    (opened as unknown as { launcher: unknown }).launcher,
+    replacement,
+  );
+  await f.controller.openSettings(launcher);
+  assert.equal(f.calls.settings.length, 2);
+  assert.equal(f.calls.settingsClosed, 1, "reopening replaces the window");
+  const pending = f.controller.openSettings(launcher);
+  f.controller.closeSettings();
+  assert.equal(await pending, undefined, "closing cancels a loading window");
+  assert.equal(f.calls.settings.length, 2);
+  assert.equal(f.calls.settingsClosed, 2);
+  const last = await f.controller.openSettings(launcher);
+  last!.close();
+  assert.equal(f.calls.settingsClosed, 3);
+  f.controller.closeSettings();
+  f.controller.onunload();
+  assert.equal(
+    f.calls.settingsClosed,
+    3,
+    "a closed window is not closed again",
+  );
 });
 
 test("reset availability follows the exact selected template target and AASTeX option scope", async () => {

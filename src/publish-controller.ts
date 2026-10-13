@@ -100,7 +100,8 @@ export class PublishController extends Component {
   historyScope: "note" | "all" = "note";
   readonly store: PublishStore;
   private listeners = new Set<() => void>();
-  private commandSettings?: import("./publication-options-modal").PublishingSettingsModal;
+  private settingsModal?: import("./publication-options-modal").PublishingSettingsModal;
+  private settingsRequest = 0;
   private aborter: AbortController | null = null;
   private loaded = false;
   private alive = true;
@@ -212,8 +213,7 @@ export class PublishController extends Component {
     if (this.readiness) void this.validateCachedSupport();
   }
   onunload(): void {
-    this.commandSettings?.close();
-    this.commandSettings = undefined;
+    this.closeSettings();
     this.alive = false;
     this.clearError();
     this.aborter?.abort();
@@ -645,6 +645,8 @@ export class PublishController extends Component {
   ): Promise<
     import("./publication-options-modal").PublishingSettingsModal | undefined
   > {
+    // A newer request or a close supersedes a window that is still loading.
+    const request = ++this.settingsRequest;
     try {
       if (view) {
         this.follow(view.leaf);
@@ -655,20 +657,40 @@ export class PublishController extends Component {
       await this.reload();
       const { PublishingSettingsModal } =
         await import("./publication-options-modal");
-      if (!this.alive || this.document !== file) return;
-      this.commandSettings?.close();
+      if (
+        !this.alive ||
+        this.document !== file ||
+        request !== this.settingsRequest
+      )
+        return;
+      this.closeSettings();
       const modal = new PublishingSettingsModal(
         this.plugin.app,
         this,
         launcher,
       );
-      this.commandSettings = modal;
+      this.settingsModal = modal;
       modal.open();
       return modal;
     } catch (error) {
       this.fail(error);
       return;
     }
+  }
+  closeSettings(): void {
+    this.settingsRequest++;
+    const modal = this.settingsModal;
+    this.settingsModal = undefined;
+    modal?.close();
+  }
+  settingsClosed(
+    modal: import("./publication-options-modal").PublishingSettingsModal,
+  ): void {
+    if (this.settingsModal === modal) this.settingsModal = undefined;
+  }
+  /** Moves focus return to a re-rendered panel's button after its launcher is removed. */
+  adoptSettingsLauncher(launcher: HTMLElement): void {
+    this.settingsModal?.adoptLauncher(launcher);
   }
 
   async editPublicationDetails(): Promise<void> {

@@ -150,6 +150,10 @@ function setup(
       resets++;
       return Promise.resolve();
     },
+    closedSettings: [] as unknown[],
+    settingsClosed(modal: unknown) {
+      this.closedSettings.push(modal);
+    },
   };
   class Modal {
     modalEl = new Element();
@@ -217,9 +221,24 @@ test("options auto-save preserves focused switch and the captured note when swit
   assert.equal((s.modal as unknown as { closed: boolean }).closed, true);
   assert.equal(s.listeners.size, 0);
   assert.equal(s.launcher.focused, true);
+  assert.deepEqual(s.publish.closedSettings, [s.modal]);
   s.release();
   await Promise.resolve();
   assert.deepEqual(s.writes, ["Papers/Synthetic.md"]);
+});
+test("a removed launcher hands focus return to its replacement", () => {
+  const s = setup();
+  const replacement = new Element("button");
+  s.modal.adoptLauncher(replacement as never);
+  s.modal.close();
+  assert.equal(s.launcher.focused, true, "a connected launcher is kept");
+  assert.equal(replacement.focused, false);
+  const next = setup();
+  next.launcher.isConnected = false;
+  next.modal.adoptLauncher(replacement as never);
+  next.modal.close();
+  assert.equal(next.launcher.focused, false);
+  assert.equal(replacement.focused, true);
 });
 test("reset uses current defaults and failed auto-saves remain visible in the modal", async () => {
   const s = setup();

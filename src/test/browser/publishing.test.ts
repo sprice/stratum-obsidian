@@ -1250,6 +1250,47 @@ test("note and template changes close Settings without dropping captured metadat
   });
 });
 
+test("one Settings window survives panel re-renders and returns focus to the new button", async () => {
+  await scenario("settings-window-owner", async () => {
+    await reset({ templateId: "academic", source: manuscript });
+    await page.evaluate(`(() => {
+      const button = document.querySelector('button[aria-label="Publishing settings for this note"]');
+      button.click();
+      button.click();
+    })()`);
+    await until(
+      "!!document.querySelector('.stratum-publishing-settings-modal')",
+    );
+    const windows = () =>
+      page.evaluate(
+        "document.querySelectorAll('.stratum-publishing-settings-modal').length",
+      );
+    assert.equal(await windows(), 1, "a repeated click opens one window");
+    await page.evaluate("window.publicationFixture.remountPanel()");
+    await page.evaluate(
+      "window.publicationFixture.openCommandSettings().then(() => true)",
+    );
+    assert.equal(await windows(), 1, "the command replaces the window");
+    await page.keyPress("Escape");
+    await until("!document.querySelector('.modal')");
+    await openSettings();
+    await page.evaluate("window.publicationFixture.remountPanel()");
+    assert.equal(
+      await windows(),
+      1,
+      "a sidebar re-render keeps the open window",
+    );
+    await page.keyPress("Escape");
+    await until("!document.querySelector('.modal')");
+    assert.equal(
+      await page.evaluate(
+        "document.activeElement === document.querySelector('button[aria-label=\"Publishing settings for this note\"]')",
+      ),
+      true,
+    );
+  });
+});
+
 test("metadata requires an explicitly registered editable note while options remain available", async () => {
   await scenario("metadata-open-note", async () => {
     await reset({

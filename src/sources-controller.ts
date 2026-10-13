@@ -19,7 +19,7 @@ import {
   type BibliographyBinding,
 } from "./document-sources";
 import { shouldFollowSourceDocument } from "./sources-context";
-import { getSettingsManager } from "./view-helpers";
+import { openStratumSettings } from "./view-helpers";
 import type { SourceOccurrence } from "./source-occurrences";
 
 export class SourcesController extends Component {
@@ -78,9 +78,7 @@ export class SourcesController extends Component {
   }
   async manageCitationStyles(): Promise<void> {
     if (this.plugin.isUnloaded) return;
-    const settings = getSettingsManager(this.plugin.app);
-    settings?.open();
-    settings?.openTabById(this.plugin.manifest.id);
+    openStratumSettings(this.plugin);
     const { CitationPreferences } = await import("./citation-controls");
     if (!this.plugin.isUnloaded) new CitationPreferences(this.plugin).open();
   }

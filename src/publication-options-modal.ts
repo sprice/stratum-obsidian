@@ -17,7 +17,7 @@ import {
 } from "./ui-controls";
 import { renderPublishCustomization } from "./publish-customize";
 import { resetNoteCitationStyle } from "./citation-style-choice";
-import { getSettingsManager } from "./view-helpers";
+import { openStratumSettings } from "./view-helpers";
 import type { PublishOptions } from "./publish-options";
 import type { AastexPdfOptions } from "./publication-options";
 
@@ -291,9 +291,7 @@ export class PublishingSettingsModal extends Modal {
       });
       setup.addEventListener("click", () => {
         this.close();
-        const settings = getSettingsManager(this.publish.plugin.app);
-        settings?.open();
-        settings?.openTabById(this.publish.plugin.manifest.id);
+        openStratumSettings(this.publish.plugin);
       });
     }
     this.error = this.contentEl.createDiv({
@@ -686,6 +684,10 @@ export class PublishingSettingsModal extends Modal {
     this.properties?.destroy();
     this.authors?.destroy();
     this.contentEl.empty();
+    this.publish.settingsClosed(this);
     if (this.launcher.isConnected) this.launcher.focus();
+  }
+  adoptLauncher(launcher: HTMLElement): void {
+    if (!this.launcher.isConnected) this.launcher = launcher;
   }
 }

@@ -83,21 +83,27 @@ class Element {
     this.focused = true;
   }
   scrollIntoView() {}
+  remove() {}
 }
 
 function setup(state?: import("../view-publish").PublishViewState) {
   const root = new Element();
   const settingsCalls: string[] = [];
+  const launchers: unknown[] = [];
   const updates: (() => void)[] = [];
   const publish = {
-    plugin: {
-      manifest: { id: "stratum" },
-      app: {
-        setting: {
-          open: () => settingsCalls.push("open"),
-          openTabById: (id: string) => settingsCalls.push(id),
-        },
-      },
+    plugin: { manifest: { id: "stratum" }, app: {} },
+    openSettings(launcher: unknown) {
+      settingsCalls.push("open");
+      launchers.push(launcher);
+      return Promise.resolve(undefined);
+    },
+    closeSettings() {
+      settingsCalls.push("close");
+    },
+    adoptSettingsLauncher(launcher: unknown) {
+      settingsCalls.push("adopt");
+      launchers.push(launcher);
     },
     get publishingTemplates() {
       const stored = readPublishingTemplates(undefined);
@@ -164,23 +170,15 @@ function setup(state?: import("../view-publish").PublishViewState) {
     },
     { crypto },
     "browser",
-    {
-      "./publication-options-modal": {
-        PublishingSettingsModal: class {
-          constructor(_app: unknown, _publish: unknown, _launcher: unknown) {
-            settingsCalls.push("modal");
-          }
-          open() {}
-          close() {}
-        },
-      },
-    },
   );
-  new PublishPanel(root as never, publish as never, state).onload();
+  const panel = new PublishPanel(root as never, publish as never, state);
+  panel.onload();
   return {
     root,
+    panel,
     publish,
     settingsCalls,
+    launchers,
     update: () => updates.forEach((callback) => callback()),
   };
 }
@@ -366,7 +364,7 @@ test("one note Settings entry replaces scattered controls for all three template
     );
     controls.children[0].listeners.get("click")!();
   }
-  assert.deepEqual(settingsCalls, ["modal", "modal", "modal"]);
+  assert.deepEqual(settingsCalls, ["adopt", "open", "open", "open"]);
   publish.busy = true;
   update();
   assert.equal(root.all().find((el) => el.text === "Settings")!.disabled, true);
@@ -374,6 +372,39 @@ test("one note Settings entry replaces scattered controls for all three template
     root.all().find((el) => el.text === "Create PDF document")!.disabled,
     true,
   );
+});
+
+test("the controller owns the settings window across template changes and panel remounts", () => {
+  const state: import("../view-publish").PublishViewState = {
+    section: "publish",
+    documents: {},
+  };
+  const first = setup(state);
+  const settings = first.root.all().find((el) => el.text === "Settings")!;
+  assert.deepEqual(first.launchers, [settings], "the panel offers its button");
+  settings.listeners.get("click")!();
+  assert.deepEqual(first.launchers, [settings, settings]);
+  first.settingsCalls.length = 0;
+  const [template, version] = first.root
+    .all()
+    .filter((el) => el.tag === "select");
+  template.value = "academic";
+  template.listeners.get("change")!();
+  first.publish.notePreferences.templateId = "general";
+  version.value = "academic";
+  version.listeners.get("change")!();
+  assert.deepEqual(first.settingsCalls, ["close", "close"]);
+  first.settingsCalls.length = 0;
+  first.panel.onunload();
+  assert.deepEqual(
+    first.settingsCalls,
+    [],
+    "a sidebar re-render leaves the window open",
+  );
+  const second = setup(state);
+  assert.deepEqual(second.launchers, [
+    second.root.all().find((el) => el.text === "Settings"),
+  ]);
 });
 
 test("Create status is hidden when ready and exposes only actionable requirements or failures", () => {
