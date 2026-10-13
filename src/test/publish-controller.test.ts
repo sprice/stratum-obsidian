@@ -68,6 +68,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     probeError: "",
     renderError: "",
     detection: Promise.resolve(),
+    headingIssues: [] as string[],
   };
 
   const files = new Map<string, string | ArrayBuffer>();
@@ -197,7 +198,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
               abstractHtml: "<p>Synthetic abstract</p>",
               references: [],
               options: readAastexPdfOptions(publishing.aastex?.options),
-              headingIssues: [],
+              headingIssues: behavior.headingIssues,
             },
           });
         },
@@ -1413,4 +1414,48 @@ test("problem checks follow text, preference and template changes", async () => 
     "Choose a template before publishing.",
   );
   assert.equal(controller.readinessNotices.length, 0);
+});
+
+test("empty editor checks refresh after metadataCache frontmatter changes", async () => {
+  const f = setup();
+  await f.controller.updateLayout({ titleSource: "properties" });
+  f.leaf.view.text = "";
+  let frontmatter: Record<string, unknown> = {};
+  Object.assign(f.plugin.app.metadataCache, {
+    getFileCache: () => ({ frontmatter }),
+  });
+  assert.match(f.controller.academicProblem, /required.*title/);
+  assert.equal(f.controller.readinessNotices.length, 1);
+  frontmatter = { title: "Synthetic title" };
+  (f.events.get("metadata:changed") as (file: File) => void)(f.leaf.view.file);
+  assert.equal(f.controller.academicProblem, "");
+  assert.equal(f.controller.readinessNotices.length, 0);
+  frontmatter = {};
+  (f.events.get("metadata:changed") as (file: File) => void)(f.leaf.view.file);
+  assert.match(f.controller.academicProblem, /required.*title/);
+  assert.equal(f.controller.readinessNotices.length, 1);
+});
+
+test("exported heading issues invalidate the cached source preview", async () => {
+  const f = setup();
+  await f.controller.updatePreferences({ templateId: "package:aastex" });
+  await f.controller.updateAastexPdfOptions({ numberedHeadings: true });
+  const example = aastexPackage.files["examples/manuscript.md"];
+  const parsed = publicationYaml(example);
+  f.leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
+  assert.equal(f.controller.aastexHeadingProblems.length, 0);
+  f.behavior.headingIssues = ["Synthetic rendered heading warning"];
+  f.release();
+  await f.controller.create();
+  assert.equal(f.controller.error, "");
+  assert.deepEqual(
+    Array.from(f.controller.aastexHeadingProblems),
+    f.behavior.headingIssues,
+  );
+  f.leaf.view.text += "\n\n## New section\n\nSynthetic body.";
+  assert.equal(
+    f.controller.aastexHeadingProblems.length,
+    0,
+    "changed source drops exported issues",
+  );
 });
