@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
+import { SettingMock, ToggleComponentMock } from "./ui-component-mocks";
 
 type KeyEvent = { key: string; preventDefault(): void };
 
@@ -14,14 +15,19 @@ class Element {
   text = "";
   className = "";
   hidden = false;
+  checked = false;
   tabIndex = 0;
   type = "";
   constructor(public tag = "div") {}
-  private append(tag: string, options?: { text?: string; cls?: string }) {
+  private append(
+    tag: string,
+    options?: { text?: string; cls?: string; type?: string },
+  ) {
     const child = new Element(tag);
     child.doc = this.doc;
     child.text = options?.text ?? "";
     child.className = options?.cls ?? "";
+    child.type = options?.type ?? "";
     this.children.push(child);
     return child;
   }
@@ -46,6 +52,18 @@ class Element {
   setAttribute(key: string, value: string) {
     this.attrs[key] = value;
   }
+  setText(text: string) {
+    this.text = text;
+  }
+  querySelector(selector: string): Element | null {
+    assert.equal(selector, 'input[type="checkbox"]');
+    for (const child of this.children) {
+      if (child.tag === "input" && child.type === "checkbox") return child;
+      const match = child.querySelector(selector);
+      if (match) return match;
+    }
+    return null;
+  }
   setCssProps(props: Record<string, string>) {
     Object.assign(this.cssProps, props);
   }
@@ -57,12 +75,17 @@ class Element {
   }
 }
 
-const { createStratumFieldset, createStratumTabs } = loadRuntime<
-  typeof import("../ui-controls")
->("ui-controls.ts", {
+const host = {
+  Setting: SettingMock,
+  ToggleComponent: ToggleComponentMock,
   setIcon() {},
   setTooltip() {},
-});
+};
+const { createStratumFieldset, createStratumTabs, createStratumToggle } =
+  loadRuntime<typeof import("../ui-controls")>("ui-controls.ts", host);
+const { aastexOptionToggle } = loadRuntime<
+  typeof import("../publication-option-controls")
+>("publication-option-controls.ts", host);
 
 function setup(selected: "one" | "two" | "three" | null = "two") {
   const root = new Element();
@@ -231,5 +254,74 @@ test("fieldsets are shared cards labelled by their legend", () => {
   assert.deepEqual(
     fieldset.children.map((child) => [child.tag, child.text]),
     [["legend", "Synthetic group"]],
+  );
+});
+
+test("toggles are native setting rows with a labelled checkbox", () => {
+  const root = new Element();
+  const changes: boolean[] = [];
+  const toggle = createStratumToggle(root as unknown as HTMLElement, {
+    label: "Synthetic option",
+    value: true,
+    onChange: (value) => changes.push(value),
+    className: "synthetic-extra",
+  });
+  const [row] = root.children;
+  assert.equal(root.children.length, 1);
+  assert.deepEqual(row.className.split(" "), [
+    "setting-item",
+    "synthetic-extra",
+  ]);
+  const [info, control] = row.children;
+  assert.equal(info.className, "setting-item-info");
+  assert.equal(info.children[0].text, "Synthetic option");
+  assert.equal(control.className, "setting-item-control");
+  const container = toggle.toggleEl as unknown as Element;
+  assert.equal(control.children[0], container);
+  assert.ok(container.className.split(" ").includes("stratum-control-toggle"));
+  assert.equal(container.attrs["aria-label"], undefined);
+  const input = container.querySelector('input[type="checkbox"]')!;
+  assert.equal(input.attrs["aria-label"], "Synthetic option");
+  assert.equal(input.checked, true);
+  assert.deepEqual(changes, [], "The initial value is not a change");
+  container.listeners.get("click")!({ key: "", preventDefault() {} });
+  assert.deepEqual(changes, [false]);
+  assert.equal(input.checked, false);
+  toggle.setValue(true);
+  assert.equal(input.checked, true, "Programmatic refreshes keep the input");
+});
+
+test("AASTeX option toggles start from the defaults or the current value", () => {
+  const root = new Element();
+  const changes: boolean[] = [];
+  const keys = [
+    "showLineNumbers",
+    "showDraftDateHeader",
+    "numberedHeadings",
+  ] as const;
+  assert.deepEqual(
+    keys.map((key) =>
+      aastexOptionToggle(root as unknown as HTMLElement, key, (value) =>
+        changes.push(value),
+      ).getValue(),
+    ),
+    [true, true, false],
+  );
+  assert.deepEqual(
+    keys.map((key, index) =>
+      aastexOptionToggle(
+        root as unknown as HTMLElement,
+        key,
+        (value) => changes.push(value),
+        index !== 1,
+      ).getValue(),
+    ),
+    [true, false, true],
+  );
+  assert.deepEqual(changes, []);
+  assert.ok(
+    root.children.every((row) =>
+      row.className.split(" ").includes("stratum-aastex-option"),
+    ),
   );
 });

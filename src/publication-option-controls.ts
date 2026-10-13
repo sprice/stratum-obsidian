@@ -1,6 +1,9 @@
 import type { ToggleComponent } from "obsidian";
 import { createStratumToggle } from "./ui-controls";
-import type { AastexPdfOptions } from "./publication-options";
+import {
+  DEFAULT_AASTEX_PDF_OPTIONS,
+  type AastexPdfOptions,
+} from "./publication-options";
 
 export const AASTEX_OPTION_LABELS: Record<keyof AastexPdfOptions, string> = {
   showLineNumbers: "Show line numbers",
@@ -11,10 +14,11 @@ export function aastexOptionToggle(
   parent: HTMLElement,
   key: keyof AastexPdfOptions,
   change: (value: boolean) => void,
+  value = DEFAULT_AASTEX_PDF_OPTIONS[key],
 ): ToggleComponent {
   return createStratumToggle(parent, {
     label: AASTEX_OPTION_LABELS[key],
-    value: key !== "numberedHeadings",
+    value,
     onChange: change,
     className: "stratum-aastex-option",
   });

@@ -399,11 +399,13 @@ test("AASTeX document options stay compact, keyboard accessible and within a nar
     );
     assert.equal(
       await page.evaluate(`Array.from(document.querySelectorAll('.stratum-aastex-option')).every(row => {
-        const toggle = row.querySelector('.checkbox-container');
-        const label = row.querySelector('span');
+        const toggle = row.querySelector('.setting-item-control > .checkbox-container');
+        const label = row.querySelector('.setting-item-name');
+        const input = toggle.querySelector('input[type=checkbox]');
         const bounds = toggle.getBoundingClientRect();
-        return toggle.tagName === 'LABEL' && !!toggle.querySelector('input[type=checkbox]')
-          && toggle.getAttribute('aria-label') === label.textContent
+        return row.classList.contains('setting-item') && toggle.tagName === 'LABEL' && !!input
+          && input.getAttribute('aria-label') === label.textContent
+          && !toggle.hasAttribute('aria-label')
           && bounds.width === 40 && bounds.height === 22
           && Math.abs(bounds.right - row.getBoundingClientRect().right) < 1
           && label.getBoundingClientRect().right <= bounds.left;
@@ -1024,7 +1026,9 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
         await page.locator('button[aria-label="Add author"]').click();
         await editProperty("Author 1 name", "Alex");
       } else {
-        await page.locator('.checkbox-container[aria-label="Authors"]').click();
+        await page
+          .locator('.checkbox-container:has(input[aria-label="Authors"])')
+          .click();
         await editProperty("Authors", "Alex\nMorgan");
       }
       for (const [label, value] of [
@@ -1032,11 +1036,11 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
         ["Keywords", "one\ntwo"],
       ]) {
         const enabled = await page.evaluate(
-          `document.querySelector('.checkbox-container[aria-label="${label}"] input').checked`,
+          `document.querySelector('.checkbox-container:has(input[aria-label="${label}"]) input').checked`,
         );
         if (!enabled)
           await page
-            .locator(`.checkbox-container[aria-label="${label}"]`)
+            .locator(`.checkbox-container:has(input[aria-label="${label}"])`)
             .click();
         await until(
           `!document.querySelector('[data-property-control="${label.toLowerCase()}"]').closest('.stratum-control-field').hidden`,
@@ -1928,7 +1932,7 @@ test("Date and Keywords toggles reveal inputs, preserve disabled values and leav
       );
       const before = await page.evaluate("window.publicationFixture.text()");
       for (const label of ["Date", "Keywords"]) {
-        const toggle = `.checkbox-container[aria-label="${label}"]`;
+        const toggle = `.checkbox-container:has(input[aria-label="${label}"])`;
         await until(
           `!window.publicationFixture.state().saving && !document.querySelector('${toggle}').classList.contains('is-disabled')`,
         );

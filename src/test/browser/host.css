@@ -112,12 +112,21 @@ h4 {
   color: var(--text-muted);
   font-size: 13px;
 }
+/* Native controls sit at the row end, as in Obsidian's own settings. */
 .setting-item-control {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   max-width: 55%;
 }
 
 /* Obsidian's native ToggleComponent uses this switch container, not an input. */
 .checkbox-container {
+  display: inline-block;
+  position: relative;
+  flex-shrink: 0;
   --toggle-width: 40px;
   --toggle-thumb-height: 18px;
   --toggle-border-width: 2px;

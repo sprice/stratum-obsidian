@@ -189,19 +189,24 @@ export class PublishingSettingsModal extends Modal {
       ) as (keyof AastexPdfOptions)[])
         this.toggles.set(
           key,
-          aastexOptionToggle(options, key, (value) => {
-            if (this.refreshing) return;
-            const revision = ++this.revision;
-            this.pending.set(key, { value, revision });
-            this.save(
-              () => this.publish.updateAastexPdfOptions({ [key]: value }),
-              () => {
-                if (this.pending.get(key)?.revision === revision)
-                  this.pending.delete(key);
-              },
-              `aastex:${key}`,
-            );
-          }),
+          aastexOptionToggle(
+            options,
+            key,
+            (value) => {
+              if (this.refreshing) return;
+              const revision = ++this.revision;
+              this.pending.set(key, { value, revision });
+              this.save(
+                () => this.publish.updateAastexPdfOptions({ [key]: value }),
+                () => {
+                  if (this.pending.get(key)?.revision === revision)
+                    this.pending.delete(key);
+                },
+                `aastex:${key}`,
+              );
+            },
+            this.pending.get(key)?.value ?? this.publish.aastexPdfOptions[key],
+          ),
         );
       const compatibility = options.createDiv({
         cls: "stratum-publishing-compatibility",

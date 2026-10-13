@@ -2,7 +2,8 @@ import {
   ButtonComponent,
   DropdownComponent,
   SearchComponent,
-  ToggleComponent,
+  Setting,
+  type ToggleComponent,
   setIcon,
   setTooltip,
 } from "obsidian";
@@ -221,6 +222,10 @@ export function createStratumTabs<T extends string>(
   return { tabId, panelId, tab: (id) => buttons.get(id), select };
 }
 
+/**
+ * Native setting row with a switch, matching Obsidian's own toggle settings.
+ * The checkbox carries the accessible name; the switch container stays plain.
+ */
 export function createStratumToggle(
   container: HTMLElement,
   options: {
@@ -230,15 +235,13 @@ export function createStratumToggle(
     className?: string;
   },
 ): ToggleComponent {
-  const row = container.createDiv({
-    cls: options.className
-      ? `stratum-control-toggle-field ${options.className}`
-      : "stratum-control-toggle-field",
-  });
-  row.createSpan({ text: options.label });
-  const component = styleStratumComponent(new ToggleComponent(row)).setValue(
-    options.value,
-  );
+  let component!: ToggleComponent;
+  const setting = new Setting(container)
+    .setName(options.label)
+    .addToggle((toggle) => {
+      component = styleStratumComponent(toggle).setValue(options.value);
+    });
+  if (options.className) setting.settingEl.addClass(options.className);
   const input = component.toggleEl.querySelector<HTMLInputElement>(
     'input[type="checkbox"]',
   );
@@ -250,7 +253,6 @@ export function createStratumToggle(
     if (input) input.checked = value;
     options.onChange(value);
   });
-  component.toggleEl.setAttribute("aria-label", options.label);
   return component;
 }
 

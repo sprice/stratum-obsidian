@@ -57,3 +57,24 @@ export class ToggleComponentMock {
     return this;
   }
 }
+
+export class SettingMock {
+  settingEl: HTMLElement;
+  infoEl: HTMLElement;
+  nameEl: HTMLElement;
+  controlEl: HTMLElement;
+  constructor(parent: HTMLElement) {
+    this.settingEl = parent.createDiv({ cls: "setting-item" });
+    this.infoEl = this.settingEl.createDiv({ cls: "setting-item-info" });
+    this.nameEl = this.infoEl.createDiv({ cls: "setting-item-name" });
+    this.controlEl = this.settingEl.createDiv({ cls: "setting-item-control" });
+  }
+  setName(name: string) {
+    this.nameEl.setText(name);
+    return this;
+  }
+  addToggle(callback: (component: ToggleComponentMock) => unknown) {
+    callback(new ToggleComponentMock(this.controlEl));
+    return this;
+  }
+}

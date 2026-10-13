@@ -6,6 +6,7 @@ import {
   ButtonComponentMock,
   ToggleComponentMock,
   DropdownComponentMock,
+  SettingMock,
 } from "./ui-component-mocks";
 
 const ownerDocument: { activeElement: unknown } = { activeElement: null };
@@ -166,6 +167,7 @@ function setup(
     "publication-options-modal.ts",
     {
       Modal,
+      Setting: SettingMock,
       ToggleComponent: ToggleComponentMock,
       ButtonComponent: ButtonComponentMock,
       DropdownComponent: DropdownComponentMock,
