@@ -92,6 +92,7 @@ export class PublishController extends Component {
   private preferencePending = 0;
   private preparing = false;
   private selectionKey = "";
+  private sourceLeaf: WorkspaceLeaf | null = null;
   private sourceRevision = 0;
   private sourceText = "";
   private sourceTimer: number | null = null;
@@ -169,7 +170,10 @@ export class PublishController extends Component {
     if (this.plugin.app.metadataCache?.on)
       this.registerEvent(
         this.plugin.app.metadataCache.on("changed", (file) => {
-          if (file === this.document) this.emit();
+          if (file === this.document) {
+            this.syncSelection(true);
+            this.emit();
+          }
         }),
       );
     this.registerEvent(
@@ -238,11 +242,13 @@ export class PublishController extends Component {
     this.syncSelection();
     this.emit();
   }
-  private syncSelection(): void {
+  private syncSelection(refresh = false): void {
     const file = this.document;
     const key = file ? `${file.path}:${file.stat.ctime}` : "";
-    if (key === this.selectionKey) return;
+    if (!refresh && key === this.selectionKey && this.leaf === this.sourceLeaf)
+      return;
     this.selectionKey = key;
+    this.sourceLeaf = this.leaf;
     this.sourceText = "";
     const revision = ++this.sourceRevision;
     if (
@@ -595,10 +601,34 @@ export class PublishController extends Component {
     if (!Platform.isDesktopApp) return;
     const file = this.document;
     if (!file) return;
-    const view = this.leaf?.view;
-    if (view instanceof MarkdownView && view.file === file) {
+    try {
+      const workspace = this.plugin.app.workspace;
+      let leaf = this.leaf;
+      if (!(leaf?.view instanceof MarkdownView) || leaf.view.file !== file) {
+        leaf = null;
+        workspace.iterateRootLeaves((candidate) => {
+          if (
+            candidate.view instanceof MarkdownView &&
+            candidate.view.file === file
+          )
+            leaf = candidate;
+        });
+        if (!leaf) {
+          leaf = workspace.getLeaf("tab");
+          await leaf.openFile(file);
+        }
+      }
+      if (
+        !this.alive ||
+        this.plugin.app.vault.getAbstractFileByPath(file.path) !== file
+      )
+        return;
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView) || view.file !== file) return;
       await this.plugin.publicationEditor?.open(file, view);
-      if (this.leaf) await this.plugin.app.workspace.revealLeaf(this.leaf);
+      await workspace.revealLeaf(leaf);
+    } catch (error) {
+      this.fail(error);
     }
   }
   async updateLayout(patch: Partial<PublishOptions>): Promise<void> {

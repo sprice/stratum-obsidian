@@ -3,6 +3,15 @@
 This repository supports standalone plugin development. Users authenticate with
 Stratum’s hosted service; plugin contributors do not need the web-app checkout.
 
+## Workspace context
+
+When this repository is checked out as `packages/stratum-obsidian` within the
+Stratum workspace and `../../AGENTS.md` exists, read it and follow its applicable
+workspace, coordination, and delivery instructions alongside this file.
+
+Otherwise, follow this file independently. Standalone development does not
+require the private Stratum repository, its agent skills, or cloud configuration.
+
 ## Development
 
 - Use Node 22+ and the pinned pnpm version. `pnpm dev` watches.
@@ -16,8 +25,9 @@ Stratum’s hosted service; plugin contributors do not need the web-app checkout
 
 Assume full checks passed in the starting checkout. Run the affected tests and
 checks for the files/packages you changed. Do not run `pnpm check` or
-`check:plugin` by default. Broaden to related tests when shared behavior, dependencies, or a failure warrants it;
-run a full suite only for a concrete cross-cutting risk or an explicit request.
+`check:plugin` by default. Broaden to related tests when shared behavior,
+dependencies, or a failure warrants it; run a full suite only for a concrete
+cross-cutting risk or an explicit request.
 Do not repeat successful checks unless subsequent edits affect them.
 
 Run commands from this plugin directory. `<test-files>` means explicit file
@@ -64,14 +74,45 @@ production code; embedded assets use bytes. Encoding is allowed.
 - Keep vault access scoped to the feature. External services must have a disclosed
   purpose; do not transmit vault content without consent or add hidden telemetry.
 - Do not execute downloaded code or implement plugin auto-updates.
+- Public PRs, comments, fixtures, and documentation must not contain private issue
+  discussions or real user data. Read linked private context only with authorized
+  access; ask if essential context is unavailable.
 
 ## Delivery
 
-- Follow the root workspace's commit skill and Git workflow when in Stratum.
-  The plugin has its own staging area and history; commit and push it before
-  recording its pointer in the workspace.
+- When working within the Stratum workspace, follow its root commit skill and
+  applicable issue-delegation and Git workflow. Standalone contributors do not
+  need workspace-specific skills.
+- Run Git commands in the repository that owns the changes. The plugin has its
+  own staging area and history; stage only task-owned changes.
 - Use only `feature/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`, `perf/`,
-  `ci/`, or `hotfix/` branch prefixes. Create PRs only on explicit request.
-- Merging, releasing, and deployment require explicit authorization. For a
-  release, update `manifest.json` and `versions.json`, tag the exact manifest
-  version without a `v`, and attach the three release artifacts individually.
+  `ci/`, or `hotfix/` branch prefixes. Keep existing branch names unless asked
+  to rename them.
+- When standalone, create PRs only on explicit request. Use conventional commits
+  for authorized commits. For workspace tasks, follow the root's delivery
+  authorization rules.
+- Clarify blocking acceptance or compatibility decisions before implementation;
+  make routine choices independently.
+- Self-review the final diff for regressions, compatibility, privacy, and test
+  gaps. Fix actionable findings and rerun affected checks. Never bypass failing
+  checks; report unresolved limitations.
+- Plugin-only work does not require a root pointer update. For coordinated work,
+  commit and push the plugin before recording its commit in the root workspace.
+  Link companion PRs and explain merge order. After a squash or rebase merge,
+  the root must reference the final merged plugin SHA.
+- Update an existing task PR rather than opening duplicates. Continue authorized
+  PR feedback and CI remediation on the same branch.
+- Merging, enabling auto-merge, releasing, and deployment require explicit
+  authorization. For a release, update `manifest.json` and `versions.json`,
+  tag the exact manifest version without a `v`, and attach the three release
+  artifacts individually.
+
+## Code Review Rules
+
+- Preserve user-written note content and existing item links across sync, refresh,
+  and folder recreation. Check the link stability contract for identity changes.
+- Keep desktop-only Node/Electron code guarded on mobile; check unload cleanup
+  and avoid repeated vault-wide work during startup or sync.
+- Flag undisclosed network transmission of vault content and incompatible cloud
+  payload changes. Never include private issue discussions or real user data
+  in public artifacts.

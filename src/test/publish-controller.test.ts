@@ -265,6 +265,12 @@ function setup(
       },
     },
     app: {
+      metadataCache: {
+        on: (event: string, callback: (...args: never[]) => void) => {
+          events.set(`metadata:${event}`, callback);
+          return {};
+        },
+      },
       fileManager: {
         processFrontMatter: (
           file: File,
@@ -463,6 +469,38 @@ test("sidebar focus preserves selected note and another root Markdown note repla
   assert.equal(controller.document?.path, "Second.md");
 });
 
+test("editing publication details opens the source when its Markdown tab is closed", async () => {
+  const { controller, plugin, leaf, roots, revealed, opened } = setup();
+  const editing: View[] = [];
+  Object.assign(plugin, {
+    publicationEditor: {
+      open: (_file: File, view: View) => {
+        editing.push(view);
+        return Promise.resolve();
+      },
+    },
+  });
+  await controller.editPublicationDetails();
+  assert.equal(editing[0], leaf.view);
+  assert.equal(opened.length, 0);
+
+  roots.splice(0, 1);
+  controller.leaf = null;
+  const replacement = { view: new View(leaf.view.file, "Saved source") };
+  plugin.app.workspace.getLeaf = () => ({
+    ...replacement,
+    openFile: (file: File) => {
+      opened.push(file);
+      roots.push(replacement);
+      return Promise.resolve();
+    },
+  });
+  await controller.editPublicationDetails();
+  assert.equal(opened[0], leaf.view.file);
+  assert.equal(editing[1], replacement.view);
+  assert.equal(revealed.length, 2);
+});
+
 test("unload cancels conversion before a document is added", async () => {
   const { controller, release } = setup();
   const pending = controller.create();
@@ -529,6 +567,47 @@ test("a PDF preview follows its source note and keeps the open source editor", (
     "preview works even when the source tab is closed",
   );
   assert.equal(controller.leaf, null);
+});
+
+test("AASTeX preview readiness reloads the source after its editor closes and metadata changes", async () => {
+  const { controller, plugin, leaf, roots, events } = setup();
+  let saved = aastexPackage.files["examples/manuscript.md"];
+  leaf.view.text = saved;
+  plugin.app.vault.read = () => Promise.resolve(saved);
+  controller.catalog!.notes[0].preferences = readNotePreferences({
+    templateId: "package:aastex",
+    pdf: { titleSource: "properties" },
+  });
+  controller.catalog!.documents.push({
+    id: "pdf",
+    noteId: "synthetic-note",
+    filename: "First.pdf",
+    format: "pdf",
+    createdAt: new Date().toISOString(),
+    citationStyle: "aastex",
+    citationLanguage: "en-US",
+  });
+  assert.equal(controller.academicProblem, "");
+  const preview = {
+    view: {
+      getViewType: () => "stratum-publish-preview",
+      getState: () => ({ documentId: "pdf" }),
+    },
+  };
+  roots.push(preview as never);
+  events.get("active-leaf-change")!(preview as never);
+  roots.splice(0, 1);
+  events.get("active-leaf-change")!(preview as never);
+  await settle();
+  assert.equal(controller.leaf, null);
+  assert.equal(controller.academicProblem, "");
+  assert.equal(controller.canCreate(), true);
+
+  saved = saved.replace(/title: [^\n]+/, 'title: ""');
+  events.get("metadata:changed")!(leaf.view.file as never);
+  await settle();
+  assert.match(controller.academicProblem, /manuscript title/);
+  assert.equal(controller.canCreate(), false);
 });
 
 test("cancelled PDF publishing keeps the source for retry", async () => {

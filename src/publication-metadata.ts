@@ -343,7 +343,11 @@ export function changePublicationProperty(
   if (old?.range) {
     if (isSeq(node) && ((isMap(root) && root.flow) || (isSeq(old) && old.flow)))
       node.flow = true;
-    let insert = new Document(node).toString({ lineWidth: 0 }).trimEnd();
+    let insert =
+      typeof operation.value === "string" &&
+      ((isMap(root) && root.flow) || /[\r\n]/.test(operation.value))
+        ? JSON.stringify(operation.value)
+        : new Document(node).toString({ lineWidth: 0 }).trimEnd();
     const from = parsed.offset + old.range[0],
       to = parsed.offset + old.range[1];
     // A block sequence starts on the next line, unlike a scalar or flow sequence.
@@ -355,6 +359,21 @@ export function changePublicationProperty(
           .map((line) => "  " + line)
           .join(parsed.newline);
     else insert = insert.replaceAll("\n", parsed.newline);
+    if (isScalar(old) && old.srcToken?.type === "block-scalar") {
+      const comment = old.srcToken.props.find(
+        (token) => token.type === "comment",
+      );
+      if (comment?.type === "comment") {
+        const end = insert.indexOf("\n");
+        const boundary =
+          end < 0 ? insert.length : end - (insert[end - 1] === "\r" ? 1 : 0);
+        insert =
+          insert.slice(0, boundary) +
+          " " +
+          comment.source +
+          insert.slice(boundary);
+      }
+    }
     if (text.slice(from, to).endsWith("\n")) insert += parsed.newline;
     return { from, to, insert };
   }

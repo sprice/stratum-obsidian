@@ -66,6 +66,51 @@ test("unsupported field keys and aliased data are rejected without rewriting the
     /anchored|aliased/,
   );
 });
+test("flow property edits keep punctuation and multiline text inside the scalar", () => {
+  const source =
+    "---\r\n{title: Original, tags: [keep]} # retained\r\n---\r\nBody";
+  for (const value of [
+    "Hello, world",
+    "Title } text",
+    "Title [text]",
+    "Title\nSubtitle",
+  ]) {
+    const next = edit(source, { key: "title", value });
+    assert.deepEqual(publicationYaml(next).properties, {
+      title: value,
+      tags: ["keep"],
+    });
+    assert.equal(
+      next,
+      source.replace("title: Original", `title: ${JSON.stringify(value)}`),
+    );
+  }
+});
+test("block scalar property edits preserve header comments and neighboring properties", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    const source = [
+      "---",
+      "title: |- # Keep this comment",
+      "  Original title",
+      "# Neighbor comment",
+      "custom: retained",
+      "---",
+      "Body",
+    ].join(newline);
+    for (const value of ["Updated title", "Title\nSubtitle"]) {
+      const next = edit(source, { key: "title", value });
+      assert.equal(publicationYaml(next).properties.title, value);
+      assert.ok(next.includes("# Keep this comment"));
+      assert.ok(
+        next.endsWith(
+          ["# Neighbor comment", "custom: retained", "---", "Body"].join(
+            newline,
+          ),
+        ),
+      );
+    }
+  }
+});
 function runtime() {
   let text = sample;
   let readOnly = false;
