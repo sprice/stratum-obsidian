@@ -1,4 +1,4 @@
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import {
   editorInfoField,
@@ -6,13 +6,20 @@ import {
   setLivePreviewEffect,
   TFile,
 } from "./obsidian-host";
-import { PublicationEditor, PublicationForm } from "../../publication-editor";
+import {
+  PublicationEditor,
+  type PublicationForm,
+} from "../../publication-editor";
 import {
   publicationAuthors,
   publicationYaml,
 } from "../../publication-metadata";
 import type StratumPlugin from "../../plugin";
-import type { Editor, EditorTransaction } from "obsidian";
+import type {
+  Editor,
+  EditorTransaction,
+  TFile as ObsidianFile,
+} from "obsidian";
 
 const path = "Papers/Synthetic paper.md";
 const sample = `---
@@ -45,6 +52,8 @@ let rememberedInput: HTMLInputElement | null = null;
 let service: PublicationEditor;
 let form: PublicationForm | undefined;
 let panel: HTMLElement | undefined;
+let authorContainer: HTMLElement;
+const readOnlyState = new Compartment();
 const events: string[] = [];
 for (const type of ["focus", "blur", "pointerdown", "mousedown", "click"])
   document.addEventListener(
@@ -130,7 +139,7 @@ function reset(
         editorInfoField.init(() => editorInfo(() => view)),
         editorLivePreviewField,
         EditorView.lineWrapping,
-        EditorState.readOnly.of(readOnly),
+        readOnlyState.of(EditorState.readOnly.of(false)),
         protectFrontmatter
           ? EditorState.transactionFilter.of((transaction) => {
               let multiline = false;
@@ -156,15 +165,25 @@ function reset(
     }),
   });
   panel = document.body.createDiv({
-    cls: "synthetic-settings-metadata stratum-modal",
+    cls: "synthetic-settings-metadata modal stratum-modal stratum-publishing-settings-modal",
   });
+  authorContainer = panel.createDiv({ cls: "modal-content" }).createDiv();
+  form = undefined;
   if (Object.hasOwn(publicationYaml(source).properties, "stratum_publish"))
     mountForm();
+  // A note can become read-only after the settings window mounted its form.
+  if (readOnly)
+    view.dispatch({
+      effects: readOnlyState.reconfigure(EditorState.readOnly.of(true)),
+    });
 }
 function mountForm() {
-  if (form && form.element.isConnected) return;
-  form = new PublicationForm(service, view, path);
-  panel!.append(form.element);
+  if (form) return;
+  // Mount through the same service entry point as the Publishing settings window.
+  form = service.mountAuthors(
+    authorContainer,
+    view.state.field(editorInfoField).file as unknown as ObsidianFile,
+  );
 }
 function text() {
   return view.state.doc.toString();

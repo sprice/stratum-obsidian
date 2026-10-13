@@ -625,7 +625,7 @@ export class PublishController extends Component {
         return;
       const view = leaf.view;
       if (!(view instanceof MarkdownView) || view.file !== file) return;
-      await this.plugin.publicationEditor?.open(file, view);
+      await this.plugin.publicationEditor?.open(view);
       await workspace.revealLeaf(leaf);
     } catch (error) {
       this.fail(error);

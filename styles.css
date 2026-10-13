@@ -1790,24 +1790,10 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-font-retry {
   align-self: flex-start;
 }
-.stratum-publication-details {
-  white-space: normal;
-  min-width: 0;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m);
-  margin: 0 0 var(--size-4-6);
-  padding: var(--size-4-3);
-  background: var(--background-secondary);
-  font-family: var(--font-interface);
-}
-.stratum-publication-details > summary {
-  cursor: pointer;
-  font-weight: var(--font-semibold);
-}
 .stratum-publication-content {
   display: grid;
   gap: var(--size-4-3);
-  padding-top: var(--size-4-3);
+  margin-bottom: var(--size-4-6);
 }
 .stratum-publication-help {
   color: var(--text-muted);
@@ -1917,15 +1903,8 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   min-height: calc(var(--input-height) * 2);
   resize: vertical;
 }
-.stratum-publication-inline {
-  border: 0;
-  padding: 0;
-}
 .stratum-publishing-settings-modal h4 {
   margin-block: var(--size-4-4) var(--size-4-2);
-}
-.stratum-publishing-settings-modal .stratum-publication-content {
-  padding: 0;
 }
 
 .stratum-publishing-settings-modal .stratum-publishing-done {

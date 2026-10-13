@@ -46,7 +46,6 @@ interface PropertyForm {
   refresh(): void;
 }
 interface NoteSession {
-  open: boolean;
   drafts: Map<string, Draft>;
   properties: Map<PublicationPropertyKey, PropertyDraft>;
 }
@@ -93,7 +92,6 @@ export class PublicationEditor extends Component {
     let state = this.sessions.get(path);
     if (!state) {
       state = {
-        open: true,
         drafts: new Map(),
         properties: new Map(),
       };
@@ -158,7 +156,7 @@ export class PublicationEditor extends Component {
   ): PublicationForm | undefined {
     const view = this.editableView(file);
     if (!view) return;
-    const form = new PublicationForm(this, view, file.path, true);
+    const form = new PublicationForm(this, view, file.path);
     container.append(form.element);
     return form;
   }
@@ -270,21 +268,12 @@ export class PublicationEditor extends Component {
       this.plugin.publish?.emit();
     });
   }
-  async open(file: TFile, view?: MarkdownView): Promise<void> {
-    this.session(file.path).open = true;
-    if (view) {
-      await view.setState(
-        { ...view.getState(), mode: "source", source: false },
-        { history: false },
-      );
-    }
+  async open(view: MarkdownView): Promise<void> {
+    await view.setState(
+      { ...view.getState(), mode: "source", source: false },
+      { history: false },
+    );
     this.refresh();
-    const timer = window.setTimeout(() => {
-      if (!this.alive) return;
-      const form = [...this.forms].find((item) => item.path === file.path);
-      form?.focus();
-    }, 0);
-    this.register(() => window.clearTimeout(timer));
   }
   flush(path: string, preferred = this.activeViews.get(path)): boolean {
     if (!this.alive) return true;
@@ -306,18 +295,6 @@ export class PublicationEditor extends Component {
     for (const [key, draft] of session.properties)
       if (!draft.conflict) this.commitProperty(path, key, draft);
     return session.drafts.size === 0 && session.properties.size === 0;
-  }
-  focusNext(
-    view: EditorView,
-    path: string,
-    key: string,
-    backwards: boolean,
-  ): void {
-    queueMicrotask(() => {
-      if (!this.alive) return;
-      for (const form of this.forms)
-        if (form.matches(view, path)) form.focusNext(key, backwards);
-    });
   }
   focusControl(view: EditorView, path: string, key: string): void {
     queueMicrotask(() => {
@@ -480,9 +457,7 @@ export class PublicationEditor extends Component {
 }
 
 export class PublicationForm {
-  readonly element: HTMLDetailsElement;
-  private content: HTMLElement;
-  private summary: HTMLElement;
+  readonly element: HTMLElement;
   private cleanup: () => void;
   private active: {
     input: HTMLInputElement;
@@ -498,51 +473,19 @@ export class PublicationForm {
     private service: PublicationEditor,
     private view: EditorView,
     public path: string,
-    private inline = false,
   ) {
     this.file = view.state.field(editorInfoField, false)?.file ?? undefined;
     this.ctime = this.file?.stat.ctime;
-    this.element = createEl("details");
-    this.element.className = "stratum-publication-details";
-    this.element.open = inline || service.session(path).open;
-    if (inline) this.element.addClass("stratum-publication-inline");
-    this.summary = this.element.createEl("summary", {
-      text: "Publication details",
-    });
-    this.summary.hidden = inline;
-    this.content = this.element.createDiv({
-      cls: "stratum-publication-content",
-    });
-    this.element.addEventListener("toggle", () => {
-      if (!inline) this.service.session(this.path).open = this.element.open;
-      if (!this.element.open) this.service.flush(this.path);
-      this.view.requestMeasure();
-    });
+    this.element = createDiv({ cls: "stratum-publication-content" });
     this.cleanup = service.registerForm(this);
     this.refresh();
-  }
-  focus(): void {
-    this.element.open = true;
-    this.content.querySelector<HTMLElement>("input,button")?.focus();
   }
   matches(view: EditorView, path: string): boolean {
     return this.view === view && this.path === path;
   }
-  focusNext(key: string, backwards: boolean): void {
-    const controls = Array.from(
-      this.content.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-        "[data-publication-control]",
-      ),
-    ).filter((control) => !control.disabled);
-    const index = controls.findIndex(
-      (control) => control.dataset.publicationControl === key,
-    );
-    if (backwards && index === 0 && !this.inline) this.summary.focus();
-    else controls[index + (backwards ? -1 : 1)]?.focus();
-  }
   focusControl(key: string): void {
     Array.from(
-      this.content.querySelectorAll<HTMLElement>("[data-publication-control]"),
+      this.element.querySelectorAll<HTMLElement>("[data-publication-control]"),
     )
       .find((control) => control.dataset.publicationControl === key)
       ?.focus();
@@ -578,7 +521,7 @@ export class PublicationForm {
   private action(
     label: string,
     action: () => void,
-    parent = this.content,
+    parent = this.element,
     disabled = false,
   ): HTMLButtonElement {
     const button = parent.createEl("button", {
@@ -703,7 +646,6 @@ export class PublicationForm {
       fieldDraft.operation.value = input.value;
       this.service.session(this.path).drafts.set(key, fieldDraft);
       this.active = { input, key, draft: fieldDraft };
-      this.summary.setText("Publication details · pending edits");
     };
     input.addEventListener("focus", () => {
       if (this.destroyed) return;
@@ -732,34 +674,21 @@ export class PublicationForm {
       } else this.refresh();
     });
     input.addEventListener("keydown", (event) => {
-      if (this.destroyed) return;
-      const commit = () => {
-        input.blur();
-        const pending = this.service.session(this.path).drafts.get(key);
-        if (
-          pending &&
-          !pending.conflict &&
-          this.service.commit(this.view, this.path, key, pending)
-        )
-          original = input.value;
-      };
-      if (event.key === "Tab" && this.inline) return;
-      if (event.key === "Tab") {
-        event.preventDefault();
-        commit();
-        this.service.focusNext(this.view, this.path, key, event.shiftKey);
-      } else if (event.key === "Enter" && !event.isComposing) {
-        event.preventDefault();
-        commit();
-      }
+      if (this.destroyed || event.key !== "Enter" || event.isComposing) return;
+      event.preventDefault();
+      input.blur();
+      const pending = this.service.session(this.path).drafts.get(key);
+      if (
+        pending &&
+        !pending.conflict &&
+        this.service.commit(this.view, this.path, key, pending)
+      )
+        original = input.value;
     });
   }
   refresh(): void {
     if (this.destroyed) return;
     const session = this.service.session(this.path);
-    this.summary.setText(
-      `Publication details${session.drafts.size ? " · pending edits" : ""}`,
-    );
     if (
       this.active &&
       this.element.contains(document.activeElement) &&
@@ -810,7 +739,7 @@ export class PublicationForm {
       });
       if (structure === this.structure) {
         for (const input of Array.from(
-          this.content.querySelectorAll<HTMLInputElement>(
+          this.element.querySelectorAll<HTMLInputElement>(
             "input[data-publication-control]",
           ),
         )) {
@@ -828,13 +757,12 @@ export class PublicationForm {
                   : author.affiliations[Number(affiliation)];
         }
         this.updateValidation(text);
-        this.view.requestMeasure();
         return;
       }
       this.structure = structure;
-      this.content.empty();
+      this.element.empty();
 
-      this.content.createEl("p", {
+      this.element.createEl("p", {
         text: "Authors are saved in this note. Each author can have several affiliations.",
         cls: "stratum-publication-help",
       });
@@ -842,28 +770,28 @@ export class PublicationForm {
         this.service.plugin.publish?.document?.path === this.path &&
         this.service.plugin.publish?.selectedTemplate?.renderer === "aastex";
       if (aastex)
-        this.content.createEl("p", {
+        this.element.createEl("p", {
           text: "For PDF, each author needs a name, email and affiliation. Emails are supplied to the class without being printed.",
           cls: "stratum-publication-help",
         });
       if (!aastex && publish?.selectedTemplate?.documentType === "academic")
-        this.content.createEl("p", {
+        this.element.createEl("p", {
           text: "Email and affiliations are optional for this template. Email is saved in the note and is not printed.",
           cls: "stratum-publication-help",
         });
-      this.content.createDiv({
+      this.element.createDiv({
         cls: "stratum-publication-validation",
         attr: { "data-author": "general" },
       });
       if (!model.structured && model.legacy.length) {
-        this.content.createEl("p", {
+        this.element.createEl("p", {
           text: "Existing authors: " + model.legacy.join(", "),
         });
         if (
           Array.isArray(properties.affiliations) &&
           properties.affiliations.length
         )
-          this.content.createEl("p", {
+          this.element.createEl("p", {
             text:
               "Existing affiliations: " +
               properties.affiliations.join("; ") +
@@ -878,7 +806,7 @@ export class PublicationForm {
         ? model.authors
         : []
       ).entries()) {
-        const card = this.content.createEl("fieldset", {
+        const card = this.element.createEl("fieldset", {
           cls: "stratum-publication-author",
         });
         card.createEl("legend", { text: `Author ${index + 1}` });
@@ -946,7 +874,7 @@ export class PublicationForm {
       this.action("Add author", () => this.operate({ type: "add" }));
       for (const [key, draft] of session.drafts)
         if (draft.conflict) {
-          const conflict = this.content.createDiv({
+          const conflict = this.element.createDiv({
             cls: "stratum-publication-conflict",
             attr: { role: "alert" },
           });
@@ -1014,8 +942,8 @@ export class PublicationForm {
       this.updateValidation(text);
     } catch (error) {
       this.structure = "";
-      this.content.empty();
-      this.content.createEl("p", {
+      this.element.empty();
+      this.element.createEl("p", {
         text:
           error instanceof Error
             ? error.message
@@ -1031,13 +959,12 @@ export class PublicationForm {
     }
     if (focused)
       Array.from(
-        this.content.querySelectorAll<HTMLElement>(
+        this.element.querySelectorAll<HTMLElement>(
           "[data-publication-control]",
         ),
       )
         .find((control) => control.dataset.publicationControl === focused)
         ?.focus();
-    this.view.requestMeasure();
   }
   private updateValidation(text: string): void {
     const publish = this.service.plugin.publish;
@@ -1047,7 +974,7 @@ export class PublicationForm {
         ? aastexProblems(text, publish.layout.titleSource, "pdf")
         : null;
     for (const group of Array.from(
-      this.content.querySelectorAll<HTMLElement>(
+      this.element.querySelectorAll<HTMLElement>(
         ".stratum-publication-validation",
       ),
     )) {

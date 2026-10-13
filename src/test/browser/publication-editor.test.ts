@@ -98,9 +98,9 @@ async function until(expression: string) {
       const button = document.querySelector('button[aria-label="Add author"]');
       if (!button) return null;
       const rect = button.getBoundingClientRect();
-      const details = button.closest('details');
-      return {rect: rect.toJSON(), target: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.tagName, open: details.open,
-        whiteSpace: getComputedStyle(details).whiteSpace, display: getComputedStyle(button.parentElement).display,
+      const form = button.closest('.stratum-publication-content');
+      return {rect: rect.toJSON(), target: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.tagName,
+        whiteSpace: getComputedStyle(form).whiteSpace, display: getComputedStyle(button.parentElement).display,
         sheets: [...document.styleSheets].map(sheet=>({href:sheet.href,rules:sheet.cssRules.length}))};
     })(),
     active: document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.tagName,
@@ -128,28 +128,39 @@ async function click(label: string) {
   })()`);
   await page.locator(selector).click();
 }
-test("Tab commits YAML, maintains focus, and Shift+Tab reaches the summary", async () => {
+test("the settings form keeps native focus order and commits YAML on blur and Enter", async () => {
   await reset();
-  await page.evaluate(
-    'window.publicationEditorFixture.edit("Author 1 name", "Alex Changed"); window.publicationEditorFixture.key("Author 1 name", "Tab")',
+  assert.equal(
+    await page.evaluate(
+      'document.querySelectorAll(".stratum-publishing-settings-modal :is(details, summary)").length',
+    ),
+    0,
   );
+  await page.evaluate(
+    'window.publicationEditorFixture.edit("Author 1 name", "Alex Changed")',
+  );
+  await page.keyPress("Tab");
   await until(
     'window.publicationEditorFixture.authors()[0].name === "Alex Changed"',
   );
-  assert.equal(
-    await page.evaluate('document.activeElement.getAttribute("aria-label")'),
-    "Author 1 email",
+  await until(
+    'document.activeElement.getAttribute("aria-label") === "Author 1 email"',
   );
-  await page.evaluate(
-    'window.publicationEditorFixture.key("Author 1 email", "Tab", true)',
-  );
+  await page.keyPress("Shift+Tab");
   await until(
     'document.activeElement.getAttribute("aria-label") === "Author 1 name"',
   );
-  await page.evaluate(
-    'window.publicationEditorFixture.key("Author 1 name", "Tab", true)',
+  await page.keyPress("Tab");
+  await page.evaluate("document.activeElement.select()");
+  await page.type("alex@changed.example");
+  await page.keyPress("Enter");
+  await until(
+    'window.publicationEditorFixture.authors()[0].email === "alex@changed.example"',
   );
-  await until('document.activeElement.tagName === "SUMMARY"');
+  assert.equal(
+    await page.evaluate("window.publicationEditorFixture.pending()"),
+    false,
+  );
   assert.match(
     await page.evaluate<string>("window.publicationEditorFixture.text()"),
     /unrelated: retained # Keep this comment/,
@@ -219,7 +230,7 @@ test("metadata never adds a custom panel inside the note editor", async () => {
     'window.publicationEditorFixture.reset("A literal example:\\n\\nstratum_publish:\\n  authors: []\\n")',
   );
   await until(
-    'document.querySelector(".stratum-publication-details") === null',
+    'document.querySelector(".stratum-publication-content") === null',
   );
 });
 test("the form distinguishes PDF requirements from guidance without changing source", async () => {
@@ -303,7 +314,7 @@ test("switching Source and Live Preview flushes a valid draft and preserves the 
     'window.publicationEditorFixture.authors()[0].email === "changed@example.org"',
   );
   assert.equal(
-    await page.locator(".cm-editor .stratum-publication-details").count(),
+    await page.locator(".cm-editor .stratum-publication-content").count(),
     0,
   );
   await page.evaluate("window.publicationEditorFixture.blurRememberedInput()");
@@ -324,7 +335,7 @@ test("narrow layouts keep the shared metadata form within its settings surface",
   await page.setViewportSize(360, 900);
   await reset();
   const fits = await page.evaluate(`(() => {
-    const widget = document.querySelector('.stratum-publication-details');
+    const widget = document.querySelector('.stratum-publication-content');
     const bounds = widget.getBoundingClientRect();
     return [...widget.querySelectorAll('input,button')].every(control => {
       const rect = control.getBoundingClientRect();
@@ -444,7 +455,7 @@ test("legacy import is explicit, keeps the old properties and does not assign gl
     'window.publicationEditorFixture.reset("---\\ntitle: Legacy manuscript\\nauthors: [Alex Example, Morgan Sample]\\naffiliations: [Global University]\\n---\\n\\nSynthetic body remains unchanged.\\n"); window.publicationEditorFixture.open()',
   );
   await until(
-    'document.querySelector(".stratum-publication-details") !== null',
+    'document.querySelector(".stratum-publication-content") !== null',
   );
   assert.ok(
     !(

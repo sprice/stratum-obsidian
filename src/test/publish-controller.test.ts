@@ -474,7 +474,7 @@ test("editing publication details opens the source when its Markdown tab is clos
   const editing: View[] = [];
   Object.assign(plugin, {
     publicationEditor: {
-      open: (_file: File, view: View) => {
+      open: (view: View) => {
         editing.push(view);
         return Promise.resolve();
       },

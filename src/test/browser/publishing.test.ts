@@ -1531,7 +1531,7 @@ test("editor undo and redo transactions refresh Settings metadata without the re
       false,
     );
     assert.equal(
-      await page.locator(".cm-editor .stratum-publication-details").count(),
+      await page.locator(".cm-editor .stratum-publication-content").count(),
       0,
     );
   });
