@@ -1,55 +1,12 @@
-import { Component, Modal, type App } from "obsidian";
-import {
-  createStratumButton,
-  createStratumSelect,
-  createStratumIconButton,
-} from "./ui-controls";
+import { Component } from "obsidian";
+import { createStratumSelect, createStratumIconButton } from "./ui-controls";
+import { ConfirmModal } from "./ui-modal";
 import type { PublishController } from "./publish-controller";
 import type { PublishedDocument } from "./publish-model";
 export interface PublishedDocumentsState {
   scope?: "note" | "all";
   context?: string;
   scroll?: number;
-}
-class DeletePublicationModal extends Modal {
-  constructor(
-    app: App,
-    private publish: PublishController,
-    private document: PublishedDocument,
-  ) {
-    super(app);
-    this.modalEl.addClass("stratum-modal");
-  }
-  onOpen(): void {
-    this.setTitle("Delete published document?");
-    this.contentEl.createEl("p", { text: this.document.filename });
-    this.contentEl.createEl("p", {
-      text: "This removes the stored document. Your source note and copies saved elsewhere are kept.",
-    });
-    const actions = this.contentEl.createDiv({
-      cls: "stratum-publish-actions",
-    });
-    const cancel = createStratumButton(actions, { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const remove = createStratumButton(actions, {
-      text: "Delete document",
-      className: "mod-warning",
-    });
-    remove.addEventListener("click", () => {
-      remove.disabled = true;
-      void this.publish
-        .remove(this.document)
-        .then(() => this.close())
-        .catch((error) => {
-          this.publish.fail(error);
-          remove.disabled = false;
-        });
-    });
-    cancel.focus();
-  }
-  onClose(): void {
-    this.contentEl.empty();
-  }
 }
 export class PublishedDocumentsPanel extends Component {
   private body!: HTMLElement;
@@ -156,7 +113,17 @@ export class PublishedDocumentsPanel extends Component {
         publish.saveCopy(doc),
       );
       this.icon(actions, "trash-2", "Delete", doc, () =>
-        new DeletePublicationModal(publish.plugin.app, publish, doc).open(),
+        new ConfirmModal(publish.plugin.app, {
+          title: "Delete published document?",
+          message: [
+            doc.filename,
+            "This removes the stored document. Your source note and copies saved elsewhere are kept.",
+          ],
+          confirmLabel: "Delete document",
+          warning: true,
+          confirm: () => publish.remove(doc),
+          onError: (error) => publish.fail(error),
+        }).open(),
       );
     }
     this.state.scroll = scrollTop;

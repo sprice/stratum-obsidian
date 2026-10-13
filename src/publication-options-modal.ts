@@ -11,8 +11,6 @@ import {
 } from "./publication-option-controls";
 import {
   createStratumButton,
-  createPublishingFooter,
-  stylePublishingOptions,
   createStratumSelect,
   createStratumDisclosure,
   createStratumSummary,
@@ -165,7 +163,7 @@ export class PublishingSettingsModal extends Modal {
     const options = this.contentEl.createDiv({
       cls: "stratum-publishing-pdf-options",
     });
-    stylePublishingOptions(options);
+    options.addClass("stratum-publishing-options");
     const aastex = this.publish.selectedTemplate?.renderer === "aastex";
     const title = createStratumSelect(options, {
       label: "Title source",
@@ -309,9 +307,10 @@ export class PublishingSettingsModal extends Modal {
       void this.retryOptions();
     });
     this.error.hidden = true;
-    const actions = createPublishingFooter(this.contentEl);
+    const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
+    // Obsidian keeps the secondary group at the start on desktop, before Done.
     const leading = actions.createDiv({
-      cls: "stratum-publishing-footer-leading",
+      cls: "stratum-publish-actions mod-secondary",
     });
     this.reset = createStratumButton(leading, {
       text: "Reset to defaults",

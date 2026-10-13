@@ -255,15 +255,3 @@ export function createStratumToggle(
   });
   return component;
 }
-
-/** Shared spacing for publishing settings dialog actions. */
-export function createPublishingFooter(container: HTMLElement): HTMLDivElement {
-  return container.createDiv({
-    cls: "stratum-publish-actions stratum-publishing-footer",
-  });
-}
-
-/** Publishing option groups share control and section spacing. */
-export function stylePublishingOptions(container: HTMLElement): void {
-  container.addClass("stratum-publishing-options");
-}

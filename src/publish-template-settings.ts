@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting } from "obsidian";
+import { Modal, Notice, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
 import { renderPublishCustomization } from "./publish-customize";
 import { createPublicationSection } from "./publish-design-controls";
@@ -11,11 +11,8 @@ import {
   type PublishingTemplate,
   type PublishingTemplates,
 } from "./publish-templates";
-import {
-  createStratumButton,
-  createPublishingFooter,
-  styleStratumComponent,
-} from "./ui-controls";
+import { styleStratumComponent } from "./ui-controls";
+import { ConfirmModal } from "./ui-modal";
 
 function publishingTemplatesFor(plugin: StratumPlugin): PublishingTemplates {
   return readPublishingTemplates(plugin.settings.publishingTemplates);
@@ -35,42 +32,6 @@ async function savePublishingTemplates(
     throw error;
   }
   plugin.refreshViews();
-}
-/** Deleting a custom template asks first; notes and published documents are kept. */
-class DeletePublishingTemplateModal extends Modal {
-  constructor(
-    app: App,
-    private name: string,
-    private confirm: () => Promise<void>,
-  ) {
-    super(app);
-    this.modalEl.addClass("stratum-modal");
-  }
-  onOpen(): void {
-    this.setTitle(`Delete “${this.name}” template?`);
-    this.contentEl.createEl("p", {
-      text: "Notes using this template will need another template selected. Your notes and published documents will be kept.",
-    });
-    const actions = createPublishingFooter(this.contentEl);
-    const cancel = createStratumButton(actions, { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const remove = createStratumButton(actions, {
-      text: "Delete template",
-      className: "mod-warning",
-    });
-    remove.addEventListener("click", () => {
-      remove.disabled = true;
-      void this.confirm()
-        .then(() => this.close())
-        .catch(() => {
-          remove.disabled = false;
-        });
-    });
-    cancel.focus();
-  }
-  onClose(): void {
-    this.contentEl.empty();
-  }
 }
 const fail = (_error: unknown) =>
   new Notice("Could not save publishing templates. Try again.");
@@ -214,25 +175,26 @@ function renderPublishingTemplate(
         styleStratumComponent(button)
           .setButtonText("Delete template")
           .onClick(() => {
-            new DeletePublishingTemplateModal(
-              plugin.app,
-              template.name,
-              async () => {
-                try {
-                  await savePublishingTemplates(
-                    plugin,
-                    removePublishingTemplate(
-                      publishingTemplatesFor(plugin),
-                      template.id,
-                    ),
-                  );
-                  refresh();
-                } catch (error) {
-                  fail(error);
-                  throw error;
-                }
+            // Deleting asks first; notes and published documents are kept.
+            new ConfirmModal(plugin.app, {
+              title: `Delete “${template.name}” template?`,
+              message: [
+                "Notes using this template will need another template selected. Your notes and published documents will be kept.",
+              ],
+              confirmLabel: "Delete template",
+              warning: true,
+              confirm: async () => {
+                await savePublishingTemplates(
+                  plugin,
+                  removePublishingTemplate(
+                    publishingTemplatesFor(plugin),
+                    template.id,
+                  ),
+                );
+                refresh();
               },
-            ).open();
+              onError: fail,
+            }).open();
           }),
       );
 }

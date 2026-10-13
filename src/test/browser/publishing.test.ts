@@ -704,7 +704,7 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
       true,
     );
     await page
-      .locator(".modal .stratum-publish-actions button:first-child")
+      .locator(".modal .modal-button-container button:first-child")
       .click();
     assert.equal(await page.locator(".stratum-publish-filename").count(), 1);
     await page
@@ -713,7 +713,7 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
       )
       .click();
     await page
-      .locator(".modal .stratum-publish-actions button:last-child")
+      .locator(".modal .modal-button-container button:last-child")
       .click();
     await until(
       "document.querySelectorAll('.stratum-publish-filename').length === 0 && !document.querySelector('.modal')",
@@ -1569,16 +1569,18 @@ test("cleanup silently follows the selected template and restores all removed ke
         );
         assert.deepEqual(
           await page.evaluate(
-            "[...document.querySelectorAll('.stratum-publishing-footer button')].map(b=>b.textContent)",
+            "[...document.querySelectorAll('.modal-button-container button')].map(b=>b.textContent)",
           ),
           ["Reset to defaults", "Remove unused frontmatter", "Done"],
         );
         assert.equal(
           await page.evaluate(`(() => {
-          const footer=document.querySelector('.stratum-publishing-footer');
+          const footer=document.querySelector('.modal-button-container');
           const done=document.querySelector('.stratum-publishing-done');
+          const leading=footer.querySelector('.mod-secondary');
           return innerWidth===${width} && parseFloat(getComputedStyle(footer).marginTop)>0 &&
             Math.abs(done.getBoundingClientRect().right-footer.getBoundingClientRect().right)<1 &&
+            Math.abs(leading.getBoundingClientRect().left-footer.getBoundingClientRect().left)<1 &&
             document.documentElement.scrollWidth<=innerWidth;
         })()`),
           true,

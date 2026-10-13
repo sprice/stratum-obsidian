@@ -1339,10 +1339,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-install a + a {
   margin-inline-start: var(--size-4-4);
 }
-.stratum-publish-setup-actions {
-  justify-content: flex-end;
-  margin-top: var(--size-4-4);
-}
 .stratum-publish-setup details {
   margin: var(--size-4-3) 0;
 }
@@ -1888,21 +1884,6 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 }
 .stratum-publishing-settings-modal h4 {
   margin-block: var(--size-4-4) var(--size-4-2);
-}
-
-.stratum-publishing-settings-modal .stratum-publishing-done {
-  margin-inline-start: auto;
-}
-
-.stratum-publishing-footer {
-  margin-top: var(--size-4-4);
-}
-.stratum-publishing-footer-leading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--size-4-2);
-  min-width: 0;
 }
 
 .stratum-publishing-options {
