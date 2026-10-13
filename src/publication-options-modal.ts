@@ -344,7 +344,7 @@ export class PublishingSettingsModal extends Modal {
       ),
     );
     this.cleanup = createStratumButton(leading, {
-      text: "Remove unused frontmatter",
+      text: "Remove empty properties",
       wrap: true,
       className: "stratum-publishing-cleanup",
     });

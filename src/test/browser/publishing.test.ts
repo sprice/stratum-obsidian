@@ -1723,7 +1723,7 @@ test("cleanup silently follows the selected template and restores all removed ke
           await page.evaluate(
             "[...document.querySelectorAll('.modal-button-container button')].map(b=>b.textContent)",
           ),
-          ["Reset to defaults", "Remove unused frontmatter", "Done"],
+          ["Reset to defaults", "Remove empty properties", "Done"],
         );
         assert.equal(
           await page.evaluate(`(() => {
