@@ -67,7 +67,8 @@ export function readCatalog(text: string): PublishCatalog {
     );
   // Publishing creates PDF only. Drop other entries but leave their files in place.
   const documents = value.documents.filter(
-    (d: unknown) => !record(d) || d.format === "pdf",
+    (d: unknown) =>
+      !record(d) || typeof d.format !== "string" || d.format === "pdf",
   );
   if (
     !value.notes.every(
@@ -81,6 +82,7 @@ export function readCatalog(text: string): PublishCatalog {
     !documents.every(
       (d: unknown) =>
         record(d) &&
+        d.format === "pdf" &&
         id(d.id) &&
         id(d.noteId) &&
         typeof d.filename === "string" &&

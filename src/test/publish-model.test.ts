@@ -161,6 +161,14 @@ test("catalog drops non-PDF entries before validating PDF entries", () => {
     ],
   };
   assert.deepEqual(readCatalog(JSON.stringify(catalog)).documents, [pdf]);
+  for (const format of [undefined, null, 1, {}, []])
+    assert.throws(
+      () =>
+        readCatalog(
+          JSON.stringify({ ...catalog, documents: [{ ...pdf, format }] }),
+        ),
+      /invalid/,
+    );
   const renamed = { ...pdf, id: "renamed", filename: "Example.docx" };
   assert.throws(
     () =>
