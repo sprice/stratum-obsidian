@@ -2397,3 +2397,59 @@ test("Documents label stays centered in the entire button with and without its r
     }
   });
 });
+
+test("property YAML alerts and unchanged conflict recovery keep their nodes", async () => {
+  await scenario("persistent-property-alerts", async () => {
+    await reset({
+      templateId: "general",
+      source: "---\ntitle: Synthetic\n---\nBody",
+    });
+    await openSettings();
+    await page.evaluate("document.activeElement.blur()");
+    await page.evaluate(
+      "window.publicationFixture.replaceText('---\\ntitle: [\\n---\\nBody')",
+    );
+    await until(
+      "!!document.querySelector('.stratum-publishing-details [role=alert]')",
+    );
+    assert.equal(
+      await page.evaluate(`(async () => {
+      const alert = document.querySelector('.stratum-publishing-details [role=alert]');
+      window.publicationFixture.setBusy(false);
+      await Promise.resolve();
+      window.publicationFixture.setBusy(false);
+      await Promise.resolve();
+      return alert === document.querySelector('.stratum-publishing-details [role=alert]');
+    })()`),
+      true,
+    );
+    await page.keyPress("Escape");
+    await reset({
+      templateId: "general",
+      source: "---\ntitle: Original\n---\nBody",
+    });
+    await openSettings();
+    await editProperty("Title", "Retained draft", false);
+    await page.evaluate(
+      "window.publicationFixture.replaceText(window.publicationFixture.text().replace('title: Original', 'title: Newer'))",
+    );
+    await page.evaluate(
+      "document.querySelector('input[aria-label=Title]').blur()",
+    );
+    await until(
+      "document.querySelector('.stratum-publishing-details').textContent.includes('This property changed elsewhere')",
+    );
+    assert.equal(
+      await page.evaluate(`(async () => {
+      const alert = document.querySelector('.stratum-publishing-details [role=alert]');
+      window.publicationFixture.setBusy(false);
+      await Promise.resolve();
+      window.publicationFixture.setBusy(false);
+      await Promise.resolve();
+      return alert === document.querySelector('.stratum-publishing-details [role=alert]');
+    })()`),
+      true,
+    );
+    await page.keyPress("Escape");
+  });
+});

@@ -162,12 +162,15 @@ export class PublicationPropertyControls {
     try {
       properties = this.properties();
     } catch (error) {
-      this.container.empty();
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Repair the note's YAML in Source mode.";
+      if (!this.render.changed(JSON.stringify(["yaml-error", message]))) return;
+      this.render.invalidate();
+      this.render.clear();
       this.container.createEl("p", {
-        text:
-          error instanceof Error
-            ? error.message
-            : "Repair the note's YAML in Source mode.",
+        text: message,
         attr: { role: "alert" },
       });
       return;
