@@ -1,8 +1,8 @@
 # Third-party notices
 
 Stratum's own code is MIT licensed. Bundled dependencies and citation resources
-retain the licenses below. These notices and the full citeproc license are
-included in the distributed `main.js`.
+retain the licenses below. These notices and the citeproc, YAML, and AASTeX
+license notices are included in the distributed `main.js`.
 
 ## citeproc-js 2.4.63 — CPAL-1.0
 
@@ -107,13 +107,50 @@ Copyright Eemeli Aro <eemeli@gmail.com>.
 See [the full license](licenses/yaml.txt).
 Source: https://github.com/eemeli/yaml
 
-## AASTeX 7.0.2 and its bibliography style
+## Pandoc LaTeX template helpers — BSD-3-Clause
 
-The unmodified class is distributed under LPPL 1.3c or later. The bibliography
-style is not bundled: cited PDF exports download it directly from AAS when a
-verified local cache entry is unavailable. Cached bytes are checked against the
-manifest's SHA-256 before each use. Temporary conversion copies are removed
-after export; the plugin-local cache remains until explicitly removed.
-Its own non-profit use and distribution notice remains applicable. The package
-manifest records the official archive and download checksums. See
+Stratum's AASTeX template includes and adapts Pandoc's LaTeX helpers for lists
+and image sizing under the BSD-3-Clause option.
+Source: https://github.com/jgm/pandoc-templates/blob/master/common.latex
+
+Copyright (c) 2014--2019, John MacFarlane
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above
+  copyright notice, this list of conditions and the following
+  disclaimer in the documentation and/or other materials provided
+  with the distribution.
+* Neither the name of John MacFarlane nor the names of other
+  contributors may be used to endorse or promote products derived
+  from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+## AASTeX 7.0.2 — LPPL-1.3c-or-later
+
+Stratum bundles the unmodified `aastex702.cls` under LPPL 1.3c or later. See
 [src/publication-templates/aastex/licenses/NOTICE.txt](src/publication-templates/aastex/licenses/NOTICE.txt).
+
+### Downloaded bibliography style
+
+For cited AASTeX PDF exports, Stratum downloads
+[`aasjournalv7.1.bst`](https://journals.aas.org/wp-content/uploads/2026/06/aasjournalv7.1.bst)
+directly from the American Astronomical Society and caches it locally. Stratum
+does not include or redistribute this file in its plugin releases. The downloaded
+file retains its original copyright and usage notices.
