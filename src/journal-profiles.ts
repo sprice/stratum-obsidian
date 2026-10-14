@@ -202,25 +202,27 @@ export function journalFiles(
     throw new Error(`Required ${profile.name} assets are missing.`);
   return files;
 }
-export const JOURNAL_TEMPLATES: PublishingTemplate[] = profiles.map((p) => ({
-  id: p.id,
-  name: p.name,
-  documentType: "academic",
-  renderer: "journal",
-  version: {
-    familyId: `journal:${p.family}`,
-    label: `${p.label} · ${p.upstreamVersion}${p.blocker ? " · unavailable" : ""}`,
-  },
-  layout: {
-    ...DEFAULT_ACADEMIC_OPTIONS,
-    titleSource: "body",
-    showDate: false,
-    bodyFont: "",
-    titleFont: "",
-  },
-  properties: [],
-  prefill: { authors: [], affiliations: [], date: "", keywords: [] },
-}));
+export const JOURNAL_TEMPLATES: PublishingTemplate[] = profiles
+  .filter((p) => !p.blocker)
+  .map((p) => ({
+    id: p.id,
+    name: p.name,
+    documentType: "academic",
+    renderer: "journal",
+    version: {
+      familyId: `journal:${p.family}`,
+      label: `${p.label} · ${p.upstreamVersion}`,
+    },
+    layout: {
+      ...DEFAULT_ACADEMIC_OPTIONS,
+      titleSource: "body",
+      showDate: false,
+      bodyFont: "",
+      titleFont: "",
+    },
+    properties: [],
+    prefill: { authors: [], affiliations: [], date: "", keywords: [] },
+  }));
 export function journalProperties(
   profile: JournalProfile,
 ): PublishingProperty[] {

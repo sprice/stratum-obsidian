@@ -1536,12 +1536,26 @@ test("journal profiles retain each layout across switching and record package pr
   assert.equal(documents[0].citationStyle, "IEEEtran");
 });
 
-test("unavailable journal assets block publication without touching history", async () => {
+test("deferred journal choices are hidden and cannot be selected", async () => {
   const { controller, release } = setup();
-  await controller.updatePreferences({ templateId: "journal:jmlr-journal" });
+  await controller.updatePreferences({ templateId: "" });
+  await assert.rejects(
+    controller.updatePreferences({ templateId: "journal:jmlr-journal" }),
+    /no longer available/,
+  );
+  await assert.rejects(
+    controller.updatePreferences({ templateId: "journal:aa-standard" }),
+    /no longer available/,
+  );
   controller.readiness = structuredClone(readySupport);
   release();
-  assert.match(controller.academicProblem, /redistribution permission/);
+  assert.ok(
+    controller.publishingTemplates.templates.every(
+      (template) => !/journal:(aa|jmlr)-/.test(template.id),
+    ),
+  );
+  assert.equal(controller.selectedTemplate, undefined);
+  assert.match(controller.academicProblem, /Choose a template/);
   assert.equal(controller.canCreate(), false);
   await controller.create();
   assert.equal((await controller.store.list()).documents.length, 0);

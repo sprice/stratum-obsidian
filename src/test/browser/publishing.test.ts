@@ -2524,7 +2524,7 @@ test("Title validation merges its description and removes only its own help id",
   });
 });
 
-test("journal settings expose family metadata and block unavailable styles", async () => {
+test("journal settings expose family metadata and omit deferred styles", async () => {
   await scenario("journal-settings", async () => {
     await page.evaluate(
       `window.publicationFixture.reset({templateId:"journal:acm-conference", source:${JSON.stringify(`---\nstratum_publish:\n  authors:\n    - name: Example Author\n      email: author@example.invalid\n      affiliations: [Example Institute]\n---\n# Example manuscript\n## Abstract\nSynthetic abstract.\n## Introduction\nBody.`)}})`,
@@ -2547,11 +2547,14 @@ test("journal settings expose family metadata and block unavailable styles", asy
         .count(),
       0,
     );
-    await page.evaluate(
-      'window.publicationFixture.reset({templateId:"journal:jmlr-journal"})',
+    assert.equal(
+      await page.locator('select[aria-label="Choose template"]').count(),
+      1,
     );
     assert.equal(
-      await page.evaluate("window.publicationFixture.state().canCreate"),
+      await page.evaluate(
+        `Array.from(document.querySelectorAll('select[aria-label="Choose template"] option')).some(option => /JMLR|Astronomy & Astrophysics|unavailable/i.test(option.textContent))`,
+      ),
       false,
     );
   });

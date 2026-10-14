@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import {
   JOURNAL_PROFILES,
+  JOURNAL_TEMPLATES,
   journalFiles,
   journalLatex,
   journalProblems,
@@ -63,6 +64,20 @@ test("all ten families and required profiles are present with explicit blockers"
       );
     else journalFiles(profile);
   }
+});
+test("template choices include every runnable profile and exclude deferred families", () => {
+  assert.deepEqual(
+    JOURNAL_TEMPLATES.map((template) => template.id),
+    JOURNAL_PROFILES.filter((profile) => !profile.blocker).map(
+      (profile) => profile.id,
+    ),
+  );
+  assert.equal(JOURNAL_TEMPLATES.length, 22);
+  assert.ok(
+    JOURNAL_TEMPLATES.every(
+      (template) => !/journal:(aa|jmlr)-/.test(template.id),
+    ),
+  );
 });
 test("disabled keywords preserve malformed note values without blocking or publishing them", () => {
   const profile = JOURNAL_PROFILES.find((p) => p.family === "research")!;

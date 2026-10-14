@@ -421,24 +421,27 @@ Choose a family in **Publish → Template**, then choose its **Profile / version
 The selected class controls page layout and bibliography. General and Academic
 layouts remain available when you want to customize fonts, margins, and CSL styles.
 
-| Family                   | Profiles                                                                    |
-| ------------------------ | --------------------------------------------------------------------------- |
-| ACM                      | Conference (`sigconf`), journal (`acmsmall`), anonymous review              |
-| IEEE                     | Journal, conference                                                         |
-| APS / AIP                | APS Physical Review A preprint/reprint; AIP JCP numerical/author-year       |
-| Elsevier                 | Preprint, review, journal; each with numerical/author-year citations        |
-| Elsevier CAS             | Single column, double column                                                |
-| MNRAS                    | Standard manuscript, referee                                                |
-| Springer LNCS            | Proceedings                                                                 |
-| Research / preprint      | Original Stratum single/double-column layouts                               |
-| Astronomy & Astrophysics | Unavailable pending official asset/access and permission verification       |
-| JMLR                     | Unavailable pending redistribution permission for the official author style |
+| Family              | Profiles                                                              |
+| ------------------- | --------------------------------------------------------------------- |
+| ACM                 | Conference (`sigconf`), journal (`acmsmall`), anonymous review        |
+| IEEE                | Journal, conference                                                   |
+| APS / AIP           | APS Physical Review A preprint/reprint; AIP JCP numerical/author-year |
+| Elsevier            | Preprint, review, journal; each with numerical/author-year citations  |
+| Elsevier CAS        | Single column, double column                                          |
+| MNRAS               | Standard manuscript, referee                                          |
+| Springer LNCS       | Proceedings                                                           |
+| Research / preprint | Original Stratum single/double-column layouts                         |
 
 These are manuscript PDFs for the named profiles, not a guarantee of publisher
 acceptance. Journal-layout profiles do not invent publication identifiers, dates,
 or publisher copyright grants. They do not create source submission archives or
-submit papers. An unavailable family cannot produce a PDF; no substitute style is
-silently selected.
+submit papers. Deferred families are omitted from the template choices; no
+substitute style is silently selected.
+
+Developer note: Astronomy & Astrophysics is deferred pending official asset/access
+and distribution-permission verification. Official JMLR support is deferred pending
+redistribution permission for `jmlr2e.sty`; the distinct CTAN `jmlr` class is not a
+substitute. Neither family is offered in the UI.
 
 Use one leading `# Title` and one `## Abstract` section, followed by unnumbered
 section headings. Alternatively choose **Publishing settings → Title source →
