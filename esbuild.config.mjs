@@ -1,4 +1,5 @@
 import esbuild from "esbuild";
+import { scorecardBundlePlugin } from "./scripts/scorecard-bundle.mjs";
 import { generatePublicationAssets } from "./scripts/publication-assets.mjs";
 import { readFileSync } from "node:fs";
 import process from "process";
@@ -41,7 +42,7 @@ const context = await esbuild.context({
 	banner: {
 		js: banner,
 	},
-	plugins: [{
+	plugins: [scorecardBundlePlugin(), {
 		name: "publication-assets",
 		setup(build) {
 			build.onLoad({ filter: /publication-templates[\\/]aastex[\\/]files\.json$/ }, async () => {

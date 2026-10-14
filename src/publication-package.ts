@@ -180,7 +180,7 @@ export function loadPublicationPackage(
     !object(defaults) ||
     !Array.isArray(defaults.classOptions) ||
     !defaults.classOptions.every(
-      (option) =>
+      (option: unknown) =>
         typeof option === "string" && /^[a-zA-Z][a-zA-Z0-9]*$/.test(option),
     ) ||
     typeof defaults.printEmails !== "boolean" ||
