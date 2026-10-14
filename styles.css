@@ -1796,7 +1796,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   gap: var(--size-4-3);
 }
 .stratum-publishing-options .setting-item {
-  column-gap: var(--size-4-3);
+  gap: var(--size-4-3);
 }
 .stratum-control-disclosure-spaced {
   margin-block-start: var(--size-4-4);
@@ -1832,7 +1832,7 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip-path: inset(50%);
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
 }

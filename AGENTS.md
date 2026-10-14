@@ -51,8 +51,9 @@ exit status and a complete log; read that log if terminal diagnostics are
 truncated. Keep watch and data-producing commands visible.
 
 Run `pnpm --silent lint:scorecard` after CSS or decoding changes. Do not add
-`display: contents`, `!important`, or direct runtime base64 decoding to
-production code; embedded assets use bytes. Encoding is allowed.
+`display: contents`, `!important`, CSS multicolumn properties, `clip-path`, or runtime base64 encoding/decoding
+to production code or bundles; embedded assets use bytes. YAML binary tags
+remain encoded text.
 
 ## Compatibility
 

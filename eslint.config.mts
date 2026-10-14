@@ -48,6 +48,13 @@ export default tseslint.config(
       "obsidianmd/validate-license": "error",
     },
   },
+  {
+    files: ["src/**/*.ts"],
+    ignores: ["src/test/**"],
+    rules: {
+      "@typescript-eslint/no-unsafe-argument": "error",
+    },
+  },
   ...(process.env.OBSIDIAN_REVIEW === "1"
     ? [
         {

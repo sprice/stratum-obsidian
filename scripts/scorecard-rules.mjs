@@ -10,6 +10,15 @@ export async function cssFindings(text, file = "styles.css") {
   function visit(node) {
     if (node.type === "css-decl") {
       const location = { file, ...node.source.start };
+      const property = node.prop.toLowerCase().replace(/^-(webkit|moz)-/, "");
+      if (
+        /^(columns|column-(count|width|gap|fill|rule(?:-color|-style|-width)?|span)|(?:break-(before|after|inside)))$/.test(
+          property,
+        )
+      )
+        findings.push({ ...location, rule: "css-multicolumn" });
+      if (property === "clip-path")
+        findings.push({ ...location, rule: "css-clip-path" });
       if (node.important) findings.push({ ...location, rule: "css-important" });
       if (
         node.prop.toLowerCase() === "display" &&
@@ -50,7 +59,7 @@ function member(node) {
   }
   return null;
 }
-export function decodingFindings(text, file = "source.ts") {
+export function base64Findings(text, file = "source.ts") {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const findings = [];
   function visit(node) {
@@ -70,6 +79,12 @@ export function decodingFindings(text, file = "source.ts") {
         /^(base64|base64url)$/i.test(encoding.text);
       if (
         name === "atob" ||
+        name === "btoa" ||
+        name === "toBase64" ||
+        (name === "toString" &&
+          node.arguments?.[0] &&
+          ts.isStringLiteralLike(unwrap(node.arguments[0])) &&
+          /^(base64|base64url)$/i.test(unwrap(node.arguments[0]).text)) ||
         name === "fromBase64" ||
         name === "setFromBase64" ||
         bufferDecode
@@ -81,7 +96,7 @@ export function decodingFindings(text, file = "source.ts") {
           file,
           line: position.line + 1,
           column: position.character + 1,
-          rule: "base64-decoding",
+          rule: "base64-runtime",
         });
       }
     }
@@ -103,7 +118,7 @@ export async function scorecardFindings(root) {
       if (entry.isDirectory()) await visit(join(directory, entry.name), file);
       else if (entry.isFile() && entry.name.endsWith(".ts"))
         findings.push(
-          ...decodingFindings(
+          ...base64Findings(
             await readFile(join(directory, entry.name), "utf8"),
             file,
           ),
@@ -117,8 +132,12 @@ const messages = {
   "css-important": "Avoid !important; use scoped specificity or CSS variables.",
   "css-display-contents":
     "Avoid display: contents; use a supported layout or change the markup.",
-  "base64-decoding":
-    "Avoid runtime base64 decoding; store embedded assets as bytes.",
+  "base64-runtime":
+    "Avoid runtime base64 encoding or decoding; store embedded assets as bytes.",
+  "css-multicolumn":
+    "Avoid multicolumn properties, including column-gap; use gap for flex/grid layouts.",
+  "css-clip-path":
+    "Avoid clip-path; use supported clipping for visually hidden text.",
 };
 if (
   process.argv[1] &&
@@ -133,5 +152,5 @@ if (
       `${finding.file}:${finding.line}:${finding.column} ${finding.rule}: ${messages[finding.rule]}`,
     );
   if (findings.length) process.exitCode = 1;
-  else console.log("Scorecard CSS and decoding rules passed.");
+  else console.log("Scorecard CSS and base64 rules passed.");
 }
