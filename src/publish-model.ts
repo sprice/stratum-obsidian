@@ -5,11 +5,13 @@ import {
   type PublishOptions,
   type DocumentType,
 } from "./publish-options";
+import {
+  readAastexPdfOptions,
+  type AastexPdfOptions,
+} from "./publication-options";
 export const VIEW_TYPE_PUBLISH_PREVIEW = "stratum-publish-preview";
 
-export type PublishFormat = "pdf" | "docx";
-export const formatLabel = (format: PublishFormat): string =>
-  format === "pdf" ? "PDF" : "Word";
+export type PublishFormat = "pdf";
 export interface PublishedDocument {
   id: string;
   noteId: string;
@@ -19,6 +21,8 @@ export interface PublishedDocument {
   citationStyle: string;
   citationLanguage: string;
   publishing?: {
+    aastexPdfOptions?: AastexPdfOptions;
+    template?: { id: string; version: string; upstreamVersion: string };
     documentType: DocumentType;
     opening: "body" | "properties";
     layout: PublishOptions;
@@ -61,6 +65,11 @@ export function readCatalog(text: string): PublishCatalog {
     throw new Error(
       "The published document catalog could not be read. Restore it from a backup before publishing.",
     );
+  // Publishing creates PDF only. Drop other entries but leave their files in place.
+  const documents = value.documents.filter(
+    (d: unknown) =>
+      !record(d) || typeof d.format !== "string" || d.format === "pdf",
+  );
   if (
     !value.notes.every(
       (n: unknown) =>
@@ -70,16 +79,15 @@ export function readCatalog(text: string): PublishCatalog {
         typeof n.title === "string" &&
         typeof n.ctime === "number",
     ) ||
-    !value.documents.every(
+    !documents.every(
       (d: unknown) =>
         record(d) &&
+        d.format === "pdf" &&
         id(d.id) &&
         id(d.noteId) &&
-        (d.format === "pdf" || d.format === "docx") &&
         typeof d.filename === "string" &&
-        /^[^/\\]+\.(pdf|docx)$/.test(d.filename) &&
+        /^[^/\\]+\.pdf$/.test(d.filename) &&
         !Array.from(d.filename).some((c) => c.charCodeAt(0) < 32) &&
-        d.filename.endsWith(`.${d.format}`) &&
         typeof d.createdAt === "string" &&
         Number.isFinite(Date.parse(d.createdAt)) &&
         typeof d.citationStyle === "string" &&
@@ -89,7 +97,7 @@ export function readCatalog(text: string): PublishCatalog {
     throw new Error(
       "The published document catalog contains invalid entries. Restore it from a backup before publishing.",
     );
-  const catalog = value as unknown as PublishCatalog;
+  const catalog = { ...value, documents } as unknown as PublishCatalog;
   for (const note of catalog.notes)
     if (note.preferences)
       note.preferences = readNotePreferences(note.preferences);
@@ -100,6 +108,10 @@ export function readCatalog(text: string): PublishCatalog {
       document.publishing.layout = readPublishOptions(
         document.publishing.layout,
       );
+      if (document.publishing.aastexPdfOptions)
+        document.publishing.aastexPdfOptions = readAastexPdfOptions(
+          document.publishing.aastexPdfOptions,
+        );
     }
   if (
     new Set(catalog.notes.map((n) => n.id)).size !== catalog.notes.length ||

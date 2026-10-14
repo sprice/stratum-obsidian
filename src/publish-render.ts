@@ -35,11 +35,10 @@ export async function renderPublication(
   signal: AbortSignal,
   preferences?: NotePublishPreferences,
   definitions?: PublishingProperty[],
+  assetOffset = 0,
 ): Promise<{ html: string; assets: PublishAsset[] }> {
   const prepared = preparePublication(text, result);
-  const options = preferences
-    ? preferences[preferences.format || "docx"]
-    : DEFAULT_PUBLISH_OPTIONS;
+  const options = preferences ? preferences.pdf : DEFAULT_PUBLISH_OPTIONS;
   const design = definitions
     ? options
     : preferences?.documentType === "academic"
@@ -60,7 +59,7 @@ export async function renderPublication(
       publicationFrontmatter(text).properties,
       definitions,
     );
-    if (problem) throw new Error(problem);
+    if (problem) throw new Error(problem.message);
   }
   const metadata = academicMetadata(
     definitions
@@ -104,7 +103,7 @@ export async function renderPublication(
       file.extension.toLowerCase(),
       signal,
     );
-    const name = `asset-${assets.length}.${asset.extension}`;
+    const name = `asset-${assetOffset + assets.length}.${asset.extension}`;
     assets.push({ name, bytes: asset.bytes });
     imagePaths.set(file.path, name);
     return name;
@@ -140,11 +139,17 @@ export async function renderPublication(
       element.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
     ))
       checkbox.replaceWith(checkbox.checked ? "[x] " : "[ ] ");
+    // Export document content, not Reading-view controls. In particular, callout
+    // SVG icons must not enter Pandoc's SVG/Inkscape conversion path.
     element
       .querySelectorAll(
-        "button, input, .copy-code-button, .metadata-container, .frontmatter, .heading-collapse-indicator, .collapse-indicator, .footnote-backref",
+        "button, input, .copy-code-button, .metadata-container, .frontmatter, .heading-collapse-indicator, .collapse-indicator, .callout-icon, .callout-fold, .footnote-backref",
       )
       .forEach((node) => node.remove());
+    if (element.querySelector("svg"))
+      throw new Error(
+        "This note contains an inline SVG that publishing does not support. Save the figure as an SVG file in the vault and embed it as an image before publishing.",
+      );
     for (const placeholder of Array.from(
       element.querySelectorAll(".stratum-publish-image"),
     )) {
@@ -177,6 +182,13 @@ export async function renderPublication(
       if (!link.hasAttribute("epub:type"))
         link.replaceWith(...Array.from(link.childNodes));
     for (const node of Array.from(element.querySelectorAll("*"))) {
+      // Preserve table-cell alignment before removing presentation CSS. Pandoc
+      // understands the HTML align attribute; copying arbitrary styles is unsafe.
+      if (["TD", "TH"].includes(node.tagName)) {
+        const alignment = (node as HTMLElement).style.textAlign.toLowerCase();
+        if (["left", "center", "right"].includes(alignment))
+          node.setAttribute("align", alignment);
+      }
       for (const attr of Array.from(node.attributes))
         if (
           /^on/i.test(attr.name) ||

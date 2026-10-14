@@ -656,3 +656,14 @@ test("template management stays in its own screen, with academic properties in t
   assert.equal(academic().layout.bodySize, 10);
   assert.equal(academic().name, "My academic paper", "Reset keeps the name");
 });
+
+test("publishing settings omit vault AASTeX defaults", () => {
+  const f = fixture(true);
+  assert.ok(
+    !f.tab
+      .getSettingDefinitions()
+      .some((section) =>
+        section.items.some((setting) => setting.name.startsWith("AASTeX:")),
+      ),
+  );
+});

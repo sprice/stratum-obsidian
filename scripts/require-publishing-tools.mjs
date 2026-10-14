@@ -19,7 +19,6 @@ export function verifyPublishingTools(
     pandoc: [env.STRATUM_TEST_PANDOC || "pandoc", "--version"],
     tectonic: [env.STRATUM_TEST_TECTONIC || "tectonic", "--version"],
     pdftotext: [env.STRATUM_TEST_PDFTOTEXT || "pdftotext", "-v"],
-    python: ["python3", "--version"],
     chrome: [env.STRATUM_TEST_CHROME, "--version"],
     ...(platform === "linux"
       ? { fonts: ["fc-list", "--format=%{family}\n"] }

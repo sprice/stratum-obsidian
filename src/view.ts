@@ -1,12 +1,13 @@
 import {
-  createStratumAction,
   createStratumDisclosure,
   createStratumSummary,
   createStratumButton,
   createStratumSelect,
   createStratumSearch,
+  createStratumTabs,
+  type StratumTabs,
 } from "./ui-controls";
-import { PublishPanel } from "./view-publish";
+import { PublishPanel, type PublishViewState } from "./view-publish";
 import {
   getVisibleTabs,
   readEnabledTabs,
@@ -63,7 +64,7 @@ import {
   getSelectedSyncLibrary,
   isLocalSyncSupported,
 } from "./plugin-local-sync";
-import { getSettingsManager } from "./view-helpers";
+import { openStratumSettings } from "./view-helpers";
 import { LibraryPaperInputSuggest } from "./view-library-input-suggest";
 import {
   type BulkLibrarySyncState,
@@ -119,12 +120,17 @@ export class StratumView extends ItemView {
   private browseBrowser: CollectionBrowserView | null = null;
   private renderedTabsKey: string | null = null;
   private tabContent: HTMLElement | null = null;
+  private tabBar: StratumTabs<StratumTab> | null = null;
   private syncControls: {
     container: HTMLElement;
     key: string;
     refresh: () => void;
   } | null = null;
   private publishPanel: PublishPanel | null = null;
+  private publishState: PublishViewState = {
+    section: "publish",
+    documents: {},
+  };
   private sourcesPanel: SourcesPanel | null = null;
   private sourcesState: SourcesViewState = {
     ...readSourceTableState(undefined),
@@ -213,6 +219,7 @@ export class StratumView extends ItemView {
     this.browseBrowser = null;
     this.renderedTabsKey = null;
     this.tabContent = null;
+    this.tabBar = null;
     if (this.publishPanel) {
       this.removeChild(this.publishPanel);
       this.publishPanel = null;
@@ -336,9 +343,8 @@ export class StratumView extends ItemView {
   }
 
   private focusTab(tab: StratumTab): void {
-    const tabId = `${this.tabIdPrefix}-tab-${tab}`;
     window.requestAnimationFrame(() => {
-      this.contentEl.querySelector<HTMLElement>(`#${tabId}`)?.focus();
+      this.tabBar?.tab(tab)?.focus();
     });
   }
 
@@ -499,6 +505,7 @@ export class StratumView extends ItemView {
       const shell = contentEl.createDiv({ cls: "stratum-shell" });
       this.renderedTabsKey = tabsKey;
       this.tabContent = null;
+      this.tabBar = null;
       if (visibleTabs.length === 0) {
         const empty = shell.createDiv({ cls: "stratum-empty-state" });
         empty.createEl("h2", {
@@ -511,12 +518,20 @@ export class StratumView extends ItemView {
         this.renderSettingsButton(empty);
         return;
       }
-      this.renderTabBar(shell, visibleTabs);
+      this.tabBar = createStratumTabs(shell, {
+        idPrefix: this.tabIdPrefix,
+        label: `${PLUGIN_NAME} panels`,
+        tabs: visibleTabs,
+        selected: this.plugin.activeViewTab,
+        onSelect: (tab, fromKeyboard) => this.setActiveTab(tab, fromKeyboard),
+      });
       this.tabContent = shell.createDiv({ cls: "stratum-tab-content" });
     }
     const tabContent = this.tabContent!;
+    const tabBar = this.tabBar!;
+    tabBar.select(this.plugin.activeViewTab);
     for (const tab of visibleTabs) {
-      const panelId = `${this.tabIdPrefix}-panel-${tab.id}`;
+      const panelId = tabBar.panelId(tab.id);
       const panel =
         tabContent.querySelector<HTMLElement>(`#${panelId}`) ??
         tabContent.createDiv({
@@ -533,19 +548,9 @@ export class StratumView extends ItemView {
         });
       panel.id = panelId;
       panel.setAttr("role", "tabpanel");
-      panel.setAttr("aria-labelledby", `${this.tabIdPrefix}-tab-${tab.id}`);
+      panel.setAttr("aria-labelledby", tabBar.tabId(tab.id));
       panel.hidden = this.plugin.activeViewTab !== tab.id;
 
-      const button = contentEl.querySelector<HTMLElement>(
-        `#${this.tabIdPrefix}-tab-${tab.id}`,
-      );
-      if (button) {
-        button.className = panel.hidden
-          ? "stratum-control-button"
-          : "stratum-control-button is-active";
-        button.setAttr("aria-selected", String(!panel.hidden));
-        button.tabIndex = panel.hidden ? -1 : 0;
-      }
       // Keep Browse attached, merely hidden, so its controls never go through
       // another initial style/layout pass when returning from another tab.
       if (tab.id !== "sync" && (tab.id !== "browse" || !keepBrowse))
@@ -572,7 +577,7 @@ export class StratumView extends ItemView {
       } else if (tab.id === "publish" && this.plugin.publish) {
         panel.addClass("stratum-publish-tab");
         this.publishPanel = this.addChild(
-          new PublishPanel(panel, this.plugin.publish),
+          new PublishPanel(panel, this.plugin.publish, this.publishState),
         );
       } else {
         this.renderReaderTab(panel);
@@ -581,9 +586,9 @@ export class StratumView extends ItemView {
     if (focusedTabId) {
       const target =
         this.contentEl.querySelector<HTMLElement>(`#${focusedTabId}`) ??
-        this.contentEl.querySelector<HTMLElement>(
-          `#${this.tabIdPrefix}-tab-${this.plugin.activeViewTab}`,
-        );
+        (this.plugin.activeViewTab
+          ? tabBar.tab(this.plugin.activeViewTab)
+          : undefined);
       target?.focus();
     }
     if (browseSelection && this.plugin.activeViewTab === "browse") {
@@ -595,74 +600,13 @@ export class StratumView extends ItemView {
     }
   }
 
-  private renderTabBar(
-    container: HTMLElement,
-    tabs: Array<{
-      id: StratumTab;
-      label: string;
-    }>,
-  ): void {
-    const label = container.createSpan({ text: `${PLUGIN_NAME} panels` });
-    label.id = `${this.tabIdPrefix}-tablist-label`;
-    label.hidden = true;
-    const tabBar = container.createDiv({ cls: "stratum-tab-bar" });
-    tabBar.setCssProps({
-      "--stratum-tab-count": String(Math.min(3, tabs.length)),
-      "--stratum-compact-tab-count": String(Math.min(2, tabs.length)),
-    });
-    tabBar.setAttr("role", "tablist");
-    tabBar.setAttr("aria-labelledby", label.id);
-
-    tabs.forEach((tab, index) => {
-      const button = createStratumAction(tabBar, {
-        cls: this.plugin.activeViewTab === tab.id ? "is-active" : "",
-        text: tab.label,
-      });
-      button.type = "button";
-      button.id = `${this.tabIdPrefix}-tab-${tab.id}`;
-      button.setAttr("role", "tab");
-      button.setAttr("aria-controls", `${this.tabIdPrefix}-panel-${tab.id}`);
-      button.setAttr(
-        "aria-selected",
-        this.plugin.activeViewTab === tab.id ? "true" : "false",
-      );
-      button.tabIndex = this.plugin.activeViewTab === tab.id ? 0 : -1;
-      button.addEventListener("click", () => {
-        this.setActiveTab(tab.id);
-      });
-      button.addEventListener("keydown", (event) => {
-        if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
-          event.preventDefault();
-          const direction = event.key === "ArrowRight" ? 1 : -1;
-          const nextIndex = (index + direction + tabs.length) % tabs.length;
-          this.setActiveTab(tabs[nextIndex].id, true);
-          this.focusTab(tabs[nextIndex].id);
-          return;
-        }
-        if (event.key === "Home") {
-          event.preventDefault();
-          this.setActiveTab(tabs[0].id, true);
-          this.focusTab(tabs[0].id);
-          return;
-        }
-        if (event.key === "End") {
-          event.preventDefault();
-          this.setActiveTab(tabs[tabs.length - 1].id, true);
-          this.focusTab(tabs[tabs.length - 1].id);
-        }
-      });
-    });
-  }
-
   private renderSettingsButton(container: HTMLElement): void {
     const button = createStratumButton(container, {
       text: `Open ${PLUGIN_NAME} settings`,
     });
     button.type = "button";
     button.addEventListener("click", () => {
-      const settings = getSettingsManager(this.app);
-      settings?.open();
-      settings?.openTabById(this.plugin.manifest.id);
+      openStratumSettings(this.plugin);
     });
   }
 
@@ -674,9 +618,7 @@ export class StratumView extends ItemView {
     });
     button.type = "button";
     button.addEventListener("click", () => {
-      const settings = getSettingsManager(this.app);
-      settings?.open();
-      settings?.openTabById(this.plugin.manifest.id);
+      openStratumSettings(this.plugin);
       void this.plugin.settingTab?.openNoteTemplateEditor().catch(() => {
         new Notice("Could not open the template editor.");
       });

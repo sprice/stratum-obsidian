@@ -10,7 +10,6 @@ const detected = { path: "/synthetic/tool", version: "1.0" };
 const readiness: PublishReadiness = {
   pandoc: detected,
   tectonic: detected,
-  word: true,
   pdf: false,
 };
 

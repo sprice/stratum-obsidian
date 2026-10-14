@@ -7,7 +7,6 @@ test("CI preflight rejects missing tools instead of allowing conversion tests to
     "pandoc",
     "tectonic",
     "pdftotext",
-    "python3",
     "/synthetic/chrome",
     "fc-list",
   ]) {
@@ -52,7 +51,7 @@ test("CI preflight uses explicit paths and the correct Poppler version argument"
     },
     "linux",
   );
-  assert.equal(Object.keys(versions).length, 6);
+  assert.equal(Object.keys(versions).length, 5);
   assert(
     calls.some(
       ([executable, argument]) =>

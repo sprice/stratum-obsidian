@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting } from "obsidian";
+import { Modal, Notice, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
 import { renderPublishCustomization } from "./publish-customize";
 import { createPublicationSection } from "./publish-design-controls";
@@ -11,7 +11,8 @@ import {
   type PublishingTemplate,
   type PublishingTemplates,
 } from "./publish-templates";
-import { createStratumButton, styleStratumComponent } from "./ui-controls";
+import { styleStratumComponent } from "./ui-controls";
+import { ConfirmModal } from "./ui-modal";
 
 function publishingTemplatesFor(plugin: StratumPlugin): PublishingTemplates {
   return readPublishingTemplates(plugin.settings.publishingTemplates);
@@ -32,44 +33,6 @@ async function savePublishingTemplates(
   }
   plugin.refreshViews();
 }
-/** Deleting a custom template asks first; notes and published documents are kept. */
-class DeletePublishingTemplateModal extends Modal {
-  constructor(
-    app: App,
-    private name: string,
-    private confirm: () => Promise<void>,
-  ) {
-    super(app);
-    this.modalEl.addClass("stratum-modal");
-  }
-  onOpen(): void {
-    this.setTitle(`Delete “${this.name}” template?`);
-    this.contentEl.createEl("p", {
-      text: "Notes using this template will need another template selected. Your notes and published documents will be kept.",
-    });
-    const actions = this.contentEl.createDiv({
-      cls: "stratum-publish-actions",
-    });
-    const cancel = createStratumButton(actions, { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const remove = createStratumButton(actions, {
-      text: "Delete template",
-      className: "mod-warning",
-    });
-    remove.addEventListener("click", () => {
-      remove.disabled = true;
-      void this.confirm()
-        .then(() => this.close())
-        .catch(() => {
-          remove.disabled = false;
-        });
-    });
-    cancel.focus();
-  }
-  onClose(): void {
-    this.contentEl.empty();
-  }
-}
 const fail = (_error: unknown) =>
   new Notice("Could not save publishing templates. Try again.");
 
@@ -78,7 +41,6 @@ function renderPublishingTemplate(
   plugin: StratumPlugin,
   template: PublishingTemplate,
   refresh: () => void,
-  academicTarget: (properties: HTMLDetailsElement, row: HTMLElement) => void,
   rename: (name: string) => void,
   reopen: () => void,
 ): void {
@@ -117,8 +79,9 @@ function renderPublishingTemplate(
       if (current) await update({ layout: { ...current.layout, ...patch } });
     },
     fail,
+    "pdf",
   );
-  const { details: prefill, body: prefillBody } = createPublicationSection(
+  const { body: prefillBody } = createPublicationSection(
     details,
     "Prefill details",
   );
@@ -130,27 +93,26 @@ function renderPublishingTemplate(
     ["authors", "Authors"],
     ["affiliations", "Affiliations"],
   ] as const) {
-    const row = new Setting(prefillBody)
+    new Setting(prefillBody)
       .setName(name)
       .setDesc(
         "One entry per line. Leave blank to enter details separately in each note.",
+      )
+      .addTextArea((input) =>
+        styleStratumComponent(input)
+          .setValue(template.prefill[key].join("\n"))
+          .onChange(async (value) => {
+            const current = publishingTemplatesFor(plugin).templates.find(
+              (t) => t.id === template.id,
+            )!;
+            await update({
+              prefill: readAcademicDefaults({
+                ...current.prefill,
+                [key]: value.split(/\r?\n/),
+              }),
+            }).catch(fail);
+          }),
       );
-    if (key === "authors") academicTarget(prefill, row.settingEl);
-    row.addTextArea((input) =>
-      styleStratumComponent(input)
-        .setValue(template.prefill[key].join("\n"))
-        .onChange(async (value) => {
-          const current = publishingTemplatesFor(plugin).templates.find(
-            (t) => t.id === template.id,
-          )!;
-          await update({
-            prefill: readAcademicDefaults({
-              ...current.prefill,
-              [key]: value.split(/\r?\n/),
-            }),
-          }).catch(fail);
-        }),
-    );
   }
   new Setting(details)
     .setName("Duplicate template")
@@ -213,43 +175,39 @@ function renderPublishingTemplate(
         styleStratumComponent(button)
           .setButtonText("Delete template")
           .onClick(() => {
-            new DeletePublishingTemplateModal(
-              plugin.app,
-              template.name,
-              async () => {
-                try {
-                  await savePublishingTemplates(
-                    plugin,
-                    removePublishingTemplate(
-                      publishingTemplatesFor(plugin),
-                      template.id,
-                    ),
-                  );
-                  refresh();
-                } catch (error) {
-                  fail(error);
-                  throw error;
-                }
+            // Deleting asks first; notes and published documents are kept.
+            new ConfirmModal(plugin.app, {
+              title: `Delete “${template.name}” template?`,
+              message: [
+                "Notes using this template will need another template selected. Your notes and published documents will be kept.",
+              ],
+              confirmLabel: "Delete template",
+              warning: true,
+              confirm: async () => {
+                await savePublishingTemplates(
+                  plugin,
+                  removePublishingTemplate(
+                    publishingTemplatesFor(plugin),
+                    template.id,
+                  ),
+                );
+                refresh();
               },
-            ).open();
+              onError: fail,
+            }).open();
           }),
       );
 }
 
 /** Keeps template fields out of the main plugin settings page. */
 export class PublishingTemplatesModal extends Modal {
-  constructor(
-    private plugin: StratumPlugin,
-    private academicDefaults = false,
-  ) {
+  constructor(private plugin: StratumPlugin) {
     super(plugin.app);
     this.modalEl.addClass("stratum-modal");
   }
 
   onOpen(): void {
-    const id = this.plugin.publish?.notePreferences.templateId;
-    if (this.academicDefaults && id) this.editTemplate(id, true);
-    else this.renderList();
+    this.renderList();
   }
 
   private renderList(): void {
@@ -338,7 +296,7 @@ export class PublishingTemplatesModal extends Modal {
       );
   }
 
-  private editTemplate(id: string, focusProperties = false): void {
+  private editTemplate(id: string): void {
     const template = publishingTemplatesFor(this.plugin).templates.find(
       (candidate) => candidate.id === id,
     );
@@ -350,17 +308,6 @@ export class PublishingTemplatesModal extends Modal {
       this.plugin,
       template,
       () => this.renderList(),
-      (properties, row) => {
-        if (focusProperties) {
-          properties.open = true;
-          // Wait until the textarea has been added and the modal is laid out.
-          window.requestAnimationFrame(() => {
-            if (!row.isConnected) return;
-            row.scrollIntoView({ block: "center" });
-            row.querySelector<HTMLTextAreaElement>("textarea")?.focus();
-          });
-        }
-      },
       (name) => this.setTitle(`Edit ${name} template`),
       () => this.editTemplate(id),
     );

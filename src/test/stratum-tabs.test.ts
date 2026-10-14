@@ -55,7 +55,7 @@ test("missing and malformed preferences default on; explicit false survives", ()
   assert.equal(readEnabledTabs({ reader: false }).search, true);
 });
 
-test("platform filters Sync without changing saved preferences; all-off is valid", () => {
+test("platform filters Sync and Publish without changing saved preferences; all-off is valid", () => {
   const enabled = readEnabledTabs(undefined);
   assert.deepEqual(
     getVisibleTabs(enabled, true).map(({ id }) => id),
@@ -178,6 +178,12 @@ class Element {
   setAttr(key: string, value: string) {
     this.attrs[key] = value;
   }
+  toggleClass(cls: string, value: boolean) {
+    const classes = this.className
+      .split(" ")
+      .filter((name) => name && name !== cls);
+    this.className = (value ? [...classes, cls] : classes).join(" ");
+  }
   addClass(...classes: string[]) {
     this.className += " " + classes.join(" ");
   }
@@ -215,16 +221,17 @@ function viewFixture(desktop: boolean) {
   let settingsOpened = 0;
   let openedId = "";
   let localLoads = 0;
+  const app = {
+    setting: {
+      open: () => settingsOpened++,
+      openTabById: (id: string) => {
+        openedId = id;
+      },
+    },
+  };
   class Host {
     contentEl = new Element();
-    app = {
-      setting: {
-        open: () => settingsOpened++,
-        openTabById: (id: string) => {
-          openedId = id;
-        },
-      },
-    };
+    app = app;
     register() {}
   }
   const { StratumView } = loadRuntime<typeof import("../view")>(
@@ -249,6 +256,7 @@ function viewFixture(desktop: boolean) {
   const plugin = {
     saveSettings: () => Promise.resolve(),
     settings: { enabledTabs: readEnabledTabs(undefined), enabledLibraries: [] },
+    app,
     manifest: { id: "stratum" },
     activeViewTab: "sync" as string | null,
     backend: { hasSession: () => false },

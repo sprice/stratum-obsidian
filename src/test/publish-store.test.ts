@@ -45,7 +45,10 @@ function memory() {
     },
   };
 }
-const doc = (noteId: string, id = "doc"): PublishedDocument => ({
+const doc = (
+  noteId: string,
+  id = "doc",
+): PublishedDocument & { format: "pdf" } => ({
   id,
   noteId,
   filename: `${id}.pdf`,
@@ -233,13 +236,13 @@ test("numbering continues beyond 100 copies and is separate for each format", as
     "Example",
     new ArrayBuffer(2),
   );
-  const word = await store.create(
-    { ...doc(note.id, "two"), format: "docx" },
+  const second = await store.create(
+    { ...doc(note.id, "two"), format: "pdf" },
     "Example",
     new ArrayBuffer(3),
   );
   assert.equal(pdf.filename, "Example(101).pdf");
-  assert.equal(word.filename, "Example.docx");
+  assert.equal(second.filename, "Example(102).pdf");
   assert.equal((await store.list()).documents.length, 2);
 });
 
@@ -275,4 +278,53 @@ test("duplicate document identities fail without retrying filename allocation", 
     /already exists/,
   );
   assert.equal((await store.list()).documents.length, 1);
+});
+
+test("catalog saves drop non-PDF entries and leave their files in place", async () => {
+  const { adapter, files } = memory();
+  const store = new PublishStore(adapter, ".config");
+  const note = await store.note("Example.md", "Example", 1);
+  const pdf = doc(note.id);
+  const legacy = [
+    { ...doc(note.id, "legacy"), filename: "Legacy.docx", format: "docx" },
+    { ...doc(note.id, "removing"), filename: "Removing.docx", format: "docx" },
+  ];
+  const pdfBytes = new ArrayBuffer(4);
+  const legacyBytes = new ArrayBuffer(8);
+  files.set(`${store.directory}/${pdf.filename}`, pdfBytes);
+  files.set(`${store.directory}/Legacy.docx`, legacyBytes);
+  files.set(`${store.directory}/Removing.docx.deleting`, legacyBytes);
+  files.set(
+    `${store.directory}/catalog.json`,
+    JSON.stringify({
+      version: 1,
+      notes: [
+        { ...note, preferences: { format: "docx", docx: { bodyFont: "" } } },
+      ],
+      documents: [legacy[0], pdf, legacy[1]],
+    }),
+  );
+  const listed = await store.list();
+  assert.deepEqual(listed.documents, [pdf]);
+  const preferences = listed.notes[0].preferences!;
+  await store.setPreferences(note.id, {
+    ...preferences,
+    pdf: { ...preferences.pdf, bodyFont: "Georgia" },
+  });
+  const saved = JSON.parse(
+    files.get(`${store.directory}/catalog.json`) as string,
+  ) as {
+    documents: PublishedDocument[];
+    notes: { preferences: Record<string, unknown> }[];
+  };
+  assert.deepEqual(saved.documents, [pdf]);
+  assert.equal(Object.hasOwn(saved.notes[0].preferences, "format"), false);
+  assert.equal(Object.hasOwn(saved.notes[0].preferences, "docx"), false);
+  assert.equal(files.get(`${store.directory}/${pdf.filename}`), pdfBytes);
+  assert.equal(files.get(`${store.directory}/Legacy.docx`), legacyBytes);
+  assert.equal(
+    files.get(`${store.directory}/Removing.docx.deleting`),
+    legacyBytes,
+  );
+  assert.equal(files.has(`${store.directory}/Removing.docx`), false);
 });

@@ -7,8 +7,19 @@ import {
 } from "../publish-options";
 import { preparePublishMath, protectTexDelimiters } from "../publish-math";
 import { loadRuntime } from "./runtime-harness";
+import { publicationAuthors } from "../publication-metadata";
 
-test("publishing settings normalize malformed values and keep independent format choices", () => {
+function academicRuntime() {
+  return loadRuntime<typeof import("../publish-academic")>(
+    "publish-academic.ts",
+    { parseYaml: JSON.parse },
+    {},
+    "node",
+    { "./publication-metadata": { publicationAuthors } },
+  );
+}
+
+test("publishing settings normalize malformed values and drop legacy format preferences", () => {
   const options = readPublishOptions({
     bodyFont: "Bad\\command",
     titleSize: -1,
@@ -19,21 +30,18 @@ test("publishing settings normalize malformed values and keep independent format
   assert.equal(options.titleSize, 24);
   const note = readNotePreferences({
     documentType: "academic",
-    format: "pdf",
+    format: "docx",
     pdf: { bodyFont: "Georgia", bodySize: 11 },
     docx: { bodyFont: "Arial", lineSpacing: 2 },
   });
   assert.equal(note.pdf.bodyFont, "Georgia");
-  assert.equal(note.docx.bodyFont, "Arial");
+  assert.equal(Object.hasOwn(note, "docx"), false);
   assert.equal(note.pdf.lineSpacing, DEFAULT_ACADEMIC_OPTIONS.lineSpacing);
-  assert.equal(note.format, "pdf");
+  assert.equal(Object.hasOwn(note, "format"), false);
 });
 
 test("academic preparation preserves existing values, legacy author, and unrelated properties", () => {
-  const academic = loadRuntime<typeof import("../publish-academic")>(
-    "publish-academic.ts",
-    { parseYaml: JSON.parse },
-  );
+  const academic = academicRuntime();
   const properties: Record<string, unknown> = {
     author: "Existing Writer",
     tags: ["private"],
@@ -64,6 +72,45 @@ test("academic preparation preserves existing values, legacy author, and unrelat
     () => academic.academicOpening(academic.academicMetadata({ title: "" })),
     /nonempty title/,
   );
+});
+
+test("structured academic authors preserve affiliations and suppress legacy precedence notices", () => {
+  const academic = academicRuntime();
+  const properties = {
+    title: "Synthetic manuscript",
+    author: "Old singular author",
+    authors: ["Old list author"],
+    affiliations: ["Old global affiliation"],
+    stratum_publish: {
+      authors: [
+        {
+          name: "Alex Example",
+          email: "alex@example.org",
+          affiliations: ["University", "Observatory"],
+        },
+        {
+          name: "Morgan Sample",
+          email: "morgan@example.org",
+          affiliations: ["University"],
+        },
+      ],
+    },
+  };
+  const metadata = academic.academicMetadata(properties);
+  assert.equal(metadata.bothAuthors, false);
+  const opening = academic.academicOpening(metadata);
+  assert.match(opening, /Alex Example, Morgan Sample/);
+  assert.match(opening, /Alex Example: University; Observatory/);
+  assert.match(opening, /Morgan Sample: University/);
+  assert.doesNotMatch(opening, /Old |example\.org/);
+  const empty = academic.academicOpening(
+    academic.academicMetadata({
+      ...properties,
+      stratum_publish: { authors: [] },
+    }),
+  );
+  assert.doesNotMatch(empty, /Old |University|Example|Sample/);
+  assert.match(empty, /Synthetic manuscript/);
 });
 
 test("math preserves equations, ignores code and currency, and reports malformed display math", () => {
@@ -115,4 +162,44 @@ test("default fonts remain automatic while named fonts are honored", async () =>
     publicationHeader(readPublishOptions({ titleFont: "Arial" })),
     /stratumtitlefont\{Arial\}/,
   );
+});
+
+test("structured affiliations follow the General/Academic PDF inclusion option", async () => {
+  const { mappedPublishingProperties, publicationProperties } =
+    await import("../publish-properties");
+  const properties = {
+    stratum_publish: {
+      authors: [
+        {
+          name: "Alex",
+          email: "alex@example.org",
+          affiliations: ["Synthetic affiliation"],
+        },
+      ],
+    },
+  };
+  const before = JSON.stringify(properties);
+  const academic = academicRuntime();
+  for (const showAuthors of [false, true])
+    for (const showAffiliations of [false, true]) {
+      const mapped = mappedPublishingProperties(
+        properties,
+        publicationProperties({
+          ...DEFAULT_ACADEMIC_OPTIONS,
+          titleSource: "body",
+          showAuthors,
+          showAffiliations,
+        }),
+      );
+      const html = academic.academicOpening(
+        academic.academicMetadata(mapped),
+        false,
+      );
+      assert.equal(html.includes("Synthetic affiliation"), showAffiliations);
+      assert.equal(
+        html.includes('class="stratum-publish-authors"'),
+        showAuthors,
+      );
+    }
+  assert.equal(JSON.stringify(properties), before);
 });

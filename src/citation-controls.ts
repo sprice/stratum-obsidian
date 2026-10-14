@@ -300,7 +300,7 @@ export class CitationPreferences extends Modal {
         renderCsl(preview, example.bibliography);
       } catch {
         preview.createEl("p", {
-          text: "Apply language to load the resources needed for this preview.",
+          text: "Save changes to load the resources needed for this preview.",
         });
       }
     const actions = new Setting(el);
@@ -328,7 +328,7 @@ export class CitationPreferences extends Modal {
       );
     actions.addButton((button) =>
       styleStratumComponent(button)
-        .setButtonText("Apply language")
+        .setButtonText("Save changes")
         .setCta()
         .setDisabled(this.busy)
         .onClick(() => {

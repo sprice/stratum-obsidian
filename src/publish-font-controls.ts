@@ -65,7 +65,7 @@ export function renderPublishFontControls(
   options: PublishOptions,
   change: (patch: Partial<PublishOptions>) => Promise<void>,
   fail: (error: unknown) => void,
-  format?: "pdf" | "docx",
+  format?: "pdf",
 ): () => void {
   // This is only the rendered list; every reopening reads the shared discovery cache.
   let installed: string[] | undefined;
@@ -76,9 +76,7 @@ export function renderPublishFontControls(
         ? "Same as body"
         : format === "pdf"
           ? "Default typesetting font"
-          : format === "docx"
-            ? "Default (Times New Roman)"
-            : "Default font";
+          : "Default font";
     const select = createStratumSelect(fields, {
       label,
       ariaLabel: label,

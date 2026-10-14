@@ -59,7 +59,8 @@ body.theme-light {
 }
 button,
 select,
-input {
+input,
+textarea {
   font: inherit;
   color: var(--text-normal);
   background: var(--interactive-normal);
@@ -85,7 +86,8 @@ button.clickable-icon {
 select {
   appearance: auto;
 }
-input {
+input,
+textarea {
   width: 100%;
 }
 summary {
@@ -103,7 +105,20 @@ h4 {
   align-items: center;
   gap: 16px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-top: 1px solid var(--background-modifier-border);
+}
+.modal:not(.mod-settings)
+  .setting-item:not(.setting-item-heading):where(
+    :not(.setting-group *)
+  ):first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.modal:not(.mod-settings)
+  .setting-item:not(.setting-item-heading):where(
+    :not(.setting-group *)
+  ):last-child {
+  padding-bottom: 0;
 }
 .setting-item-info {
   flex: 1;
@@ -112,6 +127,84 @@ h4 {
   color: var(--text-muted);
   font-size: 13px;
 }
+/* Native controls sit at the row end, as in Obsidian's own settings. */
 .setting-item-control {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   max-width: 55%;
+}
+
+/* Obsidian's native ToggleComponent uses this switch container, not an input. */
+.checkbox-container {
+  display: inline-block;
+  position: relative;
+  flex-shrink: 0;
+  --toggle-width: 40px;
+  --toggle-thumb-height: 18px;
+  --toggle-border-width: 2px;
+  width: var(--toggle-width);
+  height: calc(var(--toggle-thumb-height) + var(--toggle-border-width) * 2);
+  padding: var(--toggle-border-width);
+  border-radius: 20px;
+  background: var(--background-modifier-border);
+  cursor: pointer;
+}
+.checkbox-container::after {
+  content: "";
+  display: block;
+  width: var(--toggle-thumb-height);
+  height: var(--toggle-thumb-height);
+  border-radius: 50%;
+  background: white;
+}
+.checkbox-container.is-enabled {
+  background: var(--interactive-accent);
+}
+.checkbox-container.is-enabled::after {
+  transform: translateX(
+    calc(
+      var(--toggle-width) - var(--toggle-thumb-height) -
+        var(--toggle-border-width) * 2
+    )
+  );
+}
+.checkbox-container.is-disabled {
+  opacity: 0.5;
+}
+
+.modal {
+  position: fixed;
+  inset: 24px 12px auto;
+  max-width: 560px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 16px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  z-index: 10;
+}
+
+/* Mirrors Obsidian's dialog footer, including the desktop leading group. */
+.modal-button-container {
+  margin-top: 1.5em;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--size-4-2);
+  flex-wrap: wrap;
+}
+body:not(.is-mobile) .modal-button-container .mod-secondary {
+  margin-inline-end: auto;
+}
+
+.checkbox-container input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
 }

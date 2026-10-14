@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   readPublishingTemplates,
+  publishingTemplateFamilies,
   removePublishingTemplate,
   selectedPublishingTemplate,
 } from "../publish-templates";
@@ -55,10 +56,14 @@ test("property preparation preserves values and only explicit mappings reach the
     string,
     unknown
   >;
-  assert.match(publishingPropertyProblem({}, fields), /paper_title/);
+  assert.deepEqual(publishingPropertyProblem({}, fields), {
+    target: "title",
+    message: "Add a value for the required “paper_title” property.",
+    blocking: true,
+  });
   addPublishingProperties(properties, "Note name", fields);
   assert.equal(properties.paper_title, "Existing title");
-  assert.equal(publishingPropertyProblem(properties, fields), "");
+  assert.equal(publishingPropertyProblem(properties, fields), undefined);
   assert.deepEqual(mappedPublishingProperties(properties, fields), {
     title: "Existing title",
     authors: ["Synthetic author", "Another author"],
@@ -75,14 +80,21 @@ test("properties validate types and dates and reject duplicate or unsafe definit
     { key: "date" },
   ]);
   assert.equal(fields.length, 1);
-  assert.match(
-    publishingPropertyProblem({ date: "2026-02-30" }, fields),
-    /valid date/,
+  assert.deepEqual(publishingPropertyProblem({ date: "2026-02-30" }, fields), {
+    target: "general",
+    message: "The “date” property must be a valid date.",
+    blocking: true,
+  });
+  assert.equal(
+    publishingPropertyProblem({ date: "2026-02-28" }, fields),
+    undefined,
   );
-  assert.equal(publishingPropertyProblem({ date: "2026-02-28" }, fields), "");
-  assert.equal(publishingPropertyProblem({}, []), "");
+  assert.equal(publishingPropertyProblem({}, []), undefined);
   const optional = fields.map((field) => ({ ...field, required: false }));
-  assert.equal(publishingPropertyProblem({ date: "not a date" }, optional), "");
+  assert.equal(
+    publishingPropertyProblem({ date: "not a date" }, optional),
+    undefined,
+  );
   assert.deepEqual(
     mappedPublishingProperties({ date: "not a date" }, optional),
     {},
@@ -129,4 +141,24 @@ test("bounded opening choices derive requirements and preserve prefill without a
   );
   assert.deepEqual(loaded.templates[1].prefill.authors, ["Synthetic author"]);
   assert.equal(loaded.templates[1].layout.titleSource, "body");
+});
+
+test("installed version descriptors group choices without changing stored template IDs", async () => {
+  const { AASTEX_TEMPLATE } = await import("../publication-package");
+  const templates = readPublishingTemplates(undefined).templates;
+  const families = publishingTemplateFamilies({
+    templates: [...templates, AASTEX_TEMPLATE],
+  });
+  assert.equal(families[0].versioned, false);
+  assert.deepEqual(families[2], {
+    id: "package:aastex",
+    name: "AASTeX",
+    versioned: true,
+    choices: [{ id: "package:aastex", label: "7.0.2" }],
+  });
+  const saved = readPublishingTemplates({ templates });
+  assert.deepEqual(
+    saved.templates.map((template) => template.id),
+    templates.map((template) => template.id),
+  );
 });

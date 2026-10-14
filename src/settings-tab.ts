@@ -4,7 +4,7 @@ import {
   SOURCE_SUMMARY_VARIABLES,
   validateSourceSummaryTemplate,
 } from "./source-summary-template";
-import { STRATUM_TABS, readEnabledTabs } from "./stratum-tabs";
+import { getVisibleTabs, readEnabledTabs } from "./stratum-tabs";
 import { openTabChooser } from "./settings-tab-chooser";
 import {
   Notice,
@@ -43,10 +43,6 @@ export class StratumSettingTab extends PluginSettingTab {
   plugin: StratumPlugin;
   private closeTabChooser?: () => void;
   private templateRow?: HTMLElement;
-  focusAcademicDefaults(): void {
-    new PublishingTemplatesModal(this.plugin, true).open();
-  }
-
   async openNoteTemplateEditor(): Promise<void> {
     const { NoteTemplateModal } = await import("./note-template-modal");
     if (this.plugin.isUnloaded) return;
@@ -687,9 +683,9 @@ export class StratumSettingTab extends PluginSettingTab {
 
     const tabsSection = this.createSection(sections, "Stratum tabs");
     this.defineSetting(tabsSection, "Visible tabs", (setting) => {
-      const tabs = STRATUM_TABS.filter(
-        ({ id }) =>
-          Platform.isDesktopApp || (id !== "sync" && id !== "publish"),
+      const tabs = getVisibleTabs(
+        readEnabledTabs(undefined),
+        Platform.isDesktopApp,
       );
       const updateSummary = () => {
         const enabled = readEnabledTabs(this.plugin.settings.enabledTabs);

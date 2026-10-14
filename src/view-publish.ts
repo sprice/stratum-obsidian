@@ -1,257 +1,181 @@
-import { publicationProperties } from "./publish-properties";
 import {
-  readPublishingTemplates,
   selectedPublishingTemplate,
+  publishingTemplateFamilies,
 } from "./publish-templates";
 import {
-  createStratumIconButton,
-  createStratumDisclosure,
-  createStratumSummary,
   createStratumSelect,
   createStratumButton,
+  createStratumTabs,
+  type StratumTabs,
 } from "./ui-controls";
-import { Component, Modal, type App } from "obsidian";
+import { Component, setIcon } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import {
-  formatLabel,
-  type PublishedDocument,
-  type PublishFormat,
-} from "./publish-model";
-import { getSettingsManager } from "./view-helpers";
-import { renderPublishCustomization } from "./publish-customize";
+  PublishedDocumentsPanel,
+  type PublishedDocumentsState,
+} from "./view-publish-documents";
+const settingsNotice = (message: string): string =>
+  `Settings: ${message.replace(/[.!]$/, "")}`;
 
-class DeletePublicationModal extends Modal {
-  constructor(
-    app: App,
-    private publish: PublishController,
-    private document: PublishedDocument,
-  ) {
-    super(app);
-    this.modalEl.addClass("stratum-modal");
-  }
-  onOpen(): void {
-    this.setTitle("Delete published document?");
-    this.contentEl.createEl("p", { text: this.document.filename });
-    this.contentEl.createEl("p", {
-      text: "This removes the stored document. Your source note and copies saved elsewhere are kept.",
-    });
-    const actions = this.contentEl.createDiv({
-      cls: "stratum-publish-actions",
-    });
-    const cancel = createStratumButton(actions, { text: "Cancel" });
-    cancel.addEventListener("click", () => this.close());
-    const remove = createStratumButton(actions, {
-      text: "Delete document",
-      className: "mod-warning",
-    });
-    remove.addEventListener("click", () => {
-      remove.disabled = true;
-      void this.publish.remove(this.document).then(() => this.close());
-    });
-    cancel.focus();
-  }
-  onClose(): void {
-    this.contentEl.empty();
-  }
+export interface PublishViewState {
+  section: "publish" | "documents";
+  documents: PublishedDocumentsState;
+  lastPublishedId?: string;
+  pendingPublishedId?: string;
 }
 export class PublishPanel extends Component {
   private body!: HTMLElement;
+  private successIcon!: HTMLElement;
+  private successAnnouncement!: HTMLElement;
+  private shell!: HTMLElement;
+  private documentsContainer!: HTMLElement;
+  private documentsPanel!: PublishedDocumentsPanel;
+  private tabs!: StratumTabs<"publish" | "documents">;
   private controls!: HTMLElement;
-  private scope!: HTMLSelectElement;
-  private setup!: HTMLButtonElement;
   private status!: HTMLElement;
-  private list!: HTMLElement;
-  private listContext = "";
+  private statusMessage!: HTMLElement;
+  private statusContent?: string;
+  private chooseFont!: HTMLButtonElement;
   private create!: HTMLButtonElement;
-  private type!: HTMLSelectElement;
+  private settings!: HTMLButtonElement;
   private cancel!: HTMLButtonElement;
-  private configuration!: HTMLElement;
   private template!: HTMLSelectElement;
-  private templateGear!: HTMLButtonElement;
-  private academic!: HTMLElement;
-  private prepare!: HTMLButtonElement;
-  private academicMessage!: HTMLElement;
-  private opening!: HTMLSelectElement;
-  private citations!: HTMLElement;
-  private citationRevision = 0;
-  private citationKey = "";
-  private customize!: HTMLDetailsElement;
-  private customizeRow!: HTMLElement;
-  private resetLayout!: HTMLButtonElement;
-  private focusControl?: (key: "bodyFont" | "titleFont" | "opening") => void;
-  private titleWarning!: HTMLElement;
-  private customization!: HTMLElement;
-  private customizationKey = "";
-  private alive = true;
+  private version!: HTMLSelectElement;
+  private versionField!: HTMLElement;
+  private templateOptions?: string;
+  private versionOptions?: string;
   constructor(
     private container: HTMLElement,
     private publish: PublishController,
+    private state: PublishViewState = { section: "publish", documents: {} },
   ) {
     super();
   }
   onload(): void {
-    this.body = this.container.createDiv({ cls: "stratum-publish-panel" });
+    this.state.lastPublishedId ??= this.publish.lastPublishedId;
+    this.shell = this.container.createDiv({ cls: "stratum-publish-shell" });
+    this.tabs = createStratumTabs(this.shell, {
+      idPrefix: `stratum-publish-${crypto.randomUUID()}`,
+      label: "Publishing",
+      tabs: [
+        { id: "publish", label: "Create" },
+        {
+          id: "documents",
+          label: "Documents",
+          className: "stratum-publish-documents-tab",
+        },
+      ],
+      selected: this.state.section,
+      onSelect: (section) => this.selectSection(section),
+    });
+    this.successIcon = this.tabs.tab("documents")!.createSpan({
+      cls: "stratum-publish-success-icon",
+      attr: { "aria-hidden": "true" },
+    });
+    setIcon(this.successIcon, "file-text");
+    this.successIcon.hidden = !this.state.pendingPublishedId;
+    this.successAnnouncement = this.shell.createDiv({
+      cls: "stratum-sr-only",
+      attr: { role: "status", "aria-live": "polite" },
+    });
+    this.body = this.shell.createDiv({
+      cls: "stratum-publish-panel",
+      attr: {
+        role: "tabpanel",
+        "aria-labelledby": this.tabs.tabId("publish"),
+      },
+    });
+    this.body.id = this.tabs.panelId("publish");
+    this.documentsContainer = this.shell.createDiv({
+      attr: {
+        role: "tabpanel",
+        "aria-labelledby": this.tabs.tabId("documents"),
+      },
+    });
+    this.documentsContainer.id = this.tabs.panelId("documents");
+    this.documentsPanel = this.addChild(
+      new PublishedDocumentsPanel(
+        this.documentsContainer,
+        this.publish,
+        this.state.documents,
+      ),
+    );
+    this.selectSection(this.state.section);
     this.body.createEl("h3", {
       cls: "stratum-section-heading",
       text: "Publish note",
     });
     this.body.createEl("p", {
       cls: "stratum-placeholder",
-      text: "Word or PDF documents created from your note",
+      text: "PDF documents created for your note",
     });
-    this.configuration = this.body.createDiv({
-      cls: "stratum-publish-configuration",
+    const selectors = this.body.createDiv({
+      cls: "stratum-publish-template-selectors",
     });
-    const templateRow = this.configuration.createDiv({
-      cls: "stratum-publish-template-row",
-    });
-    this.template = createStratumSelect(templateRow, {
+    this.template = createStratumSelect(selectors, {
       label: "Template",
       ariaLabel: "Choose template",
       value: "",
       choices: [],
     });
     this.template.addEventListener("change", () => {
+      this.publish.closeSettings();
+      const family = publishingTemplateFamilies(
+        this.publish.publishingTemplates,
+      ).find((family) => family.id === this.template.value);
       void this.publish
-        .updatePreferences({ templateId: this.template.value })
+        .updatePreferences({ templateId: family?.choices[0]?.id ?? "" })
         .catch(() => {});
     });
-
-    this.academic = this.configuration.createDiv({
-      cls: "stratum-publish-academic",
+    this.versionField = selectors.createDiv();
+    this.version = createStratumSelect(this.versionField, {
+      label: "Version",
+      ariaLabel: "Choose template version",
+      value: "",
+      choices: [],
     });
-    const preparation = this.academic.createDiv({
-      cls: "stratum-publish-actions",
-    });
-    this.prepare = createStratumButton(preparation, {
-      text: "Add publishing properties",
-      tooltip: "Add missing publishing properties to this note",
-    });
-    this.prepare.addEventListener("click", () => {
-      void this.publish.prepareAcademic();
-    });
-    const gear = createStratumIconButton(templateRow, {
-      icon: "settings",
-      ariaLabel: "Configure publishing template",
-    });
-    this.templateGear = gear;
-    gear.addEventListener("click", () => {
-      const settings = getSettingsManager(this.publish.plugin.app);
-      settings?.open();
-      settings?.openTabById(this.publish.plugin.manifest.id);
-      this.publish.plugin.settingTab?.focusAcademicDefaults();
-    });
-    this.academicMessage = this.academic.createEl("p", {
-      cls: "stratum-publish-meta",
-      attr: { role: "status" },
-    });
-    this.titleWarning = this.academic.createDiv({
-      cls: "stratum-publish-actions",
-      attr: { role: "status" },
-    });
-    this.titleWarning.createEl("p", {
-      text: "Title may appear twice.",
-      cls: "stratum-publish-meta",
-    });
-    const review = createStratumButton(this.titleWarning, {
-      text: "Review opening",
-      tooltip: "Show the title and opening choices",
-    });
-    review.addEventListener("click", () => this.reviewOpening());
-    this.opening = createStratumSelect(this.academic, {
-      label: "Title block",
-      ariaLabel: "Academic title block",
-      value: this.publish.notePreferences.opening,
-      choices: [
-        { value: "properties", label: "Generate from properties" },
-        { value: "body", label: "Use title from body" },
-      ],
-    });
-    this.opening.addEventListener("change", () => {
+    this.version.addEventListener("change", () => {
+      if (this.version.value === this.publish.notePreferences.templateId)
+        return;
+      this.publish.closeSettings();
       void this.publish
-        .updateLayout({
-          titleSource: this.opening.value as "properties" | "body",
-        })
+        .updatePreferences({ templateId: this.version.value })
         .catch(() => {});
     });
-    this.citations = this.configuration.createDiv({
-      cls: "stratum-publish-citations",
+    this.controls = this.body.createDiv({ cls: "stratum-publish-controls" });
+    this.settings = createStratumButton(this.controls, {
+      text: "Settings",
+      wrap: true,
+      tooltip: "Publishing settings for this note",
     });
-    const controls = this.body.createDiv({ cls: "stratum-publish-controls" });
-    this.controls = controls;
-    this.type = createStratumSelect(controls, {
-      ariaLabel: "Choose file type to publish",
-      value: this.publish.selectedFormat,
-      choices: [
-        { value: "", label: "Choose file type" },
-        { value: "pdf", label: "PDF" },
-        { value: "docx", label: "Word" },
-      ],
+    this.settings.addEventListener("click", () => {
+      void this.publish.openSettings(this.settings);
     });
-    this.type.addEventListener("change", () => {
-      void this.publish
-        .selectFormat(this.type.value as PublishFormat | "")
-        .catch(() => {});
-      this.update();
-    });
-    this.create = createStratumButton(controls, {
-      text: "Create document",
+    // Sidebar re-renders recreate this panel; an open window stays with the
+    // controller and returns focus to the new Settings button.
+    this.publish.adoptSettingsLauncher(this.settings);
+    this.create = createStratumButton(this.controls, {
+      text: "Create PDF document",
       primary: true,
+      wrap: true,
+      className: "stratum-publish-create",
     });
     this.create.addEventListener("click", () => {
       void this.publish.create();
     });
-    this.customizeRow = this.body.createDiv({
-      cls: "stratum-publish-customize-row",
-    });
-    this.customize = createStratumDisclosure(this.customizeRow, {
-      cls: "stratum-publish-customization",
-    });
-    createStratumSummary(this.customize, { text: "Customize…" });
-    this.customization = this.customize.createDiv();
-    this.customize.addEventListener("toggle", () => this.updateCustomization());
-    this.resetLayout = createStratumButton(this.customizeRow, {
-      text: "Reset defaults",
-      tooltip: "Restore template settings",
-      className: "stratum-publish-reset",
-    });
-    this.resetLayout.addEventListener("click", () => {
-      // Re-selecting the template copies its current layout into this note.
-      const templateId = this.publish.notePreferences.templateId;
-      if (templateId)
-        void this.publish.updatePreferences({ templateId }).catch(() => {});
-    });
-    this.status = this.body.createDiv({
-      cls: "stratum-publish-status",
+    this.status = this.body.createDiv({ cls: "stratum-publish-status" });
+    this.statusMessage = this.status.createDiv({
       attr: { role: "status", "aria-live": "polite" },
     });
-    this.setup = createStratumButton(this.body, { text: "Set up in settings" });
-    this.setup.addEventListener("click", () => {
-      const settings = getSettingsManager(this.publish.plugin.app);
-      settings?.open();
-      settings?.openTabById(this.publish.plugin.manifest.id);
+    // The settings window opens Advanced layout and focuses the missing font.
+    // Return to Choose font while the error remains, or Settings after repair.
+    this.chooseFont = createStratumButton(this.status, { text: "Choose font" });
+    this.chooseFont.hidden = true;
+    this.chooseFont.addEventListener("click", () => {
+      void this.publish.openSettings(this.chooseFont);
     });
     this.cancel = createStratumButton(this.body, { text: "Cancel" });
     this.cancel.addEventListener("click", () => this.publish.cancel());
-    const history = this.body.createDiv({ cls: "stratum-publish-history" });
-    history.createEl("h4", {
-      cls: "stratum-subheading",
-      text: "Published documents",
-    });
-    this.scope = createStratumSelect(history, {
-      label: "Show",
-      ariaLabel: "Choose which documents to view",
-      value: this.publish.historyScope,
-      choices: [
-        { value: "note", label: "Documents for this note" },
-        { value: "all", label: "All published documents" },
-      ],
-    });
-    this.scope.addEventListener("change", () => {
-      this.publish.historyScope = this.scope.value === "all" ? "all" : "note";
-      this.update();
-    });
-    this.list = this.body.createDiv({ cls: "stratum-publish-list" });
     this.register(this.publish.subscribe(() => this.update()));
     this.update();
     if (!this.publish.readiness && !this.publish.checking)
@@ -259,270 +183,146 @@ export class PublishPanel extends Component {
   }
   private update(): void {
     const publish = this.publish;
-    const hasNote = publish.document?.extension === "md";
-    this.configuration.hidden = !hasNote;
-    const preferences = publish.notePreferences;
-    const templates = readPublishingTemplates(
-      publish.plugin.settings?.publishingTemplates,
-    );
+    if (
+      publish.lastPublishedId &&
+      publish.lastPublishedId !== this.state.lastPublishedId
+    ) {
+      this.state.lastPublishedId = publish.lastPublishedId;
+      if (this.state.section === "publish") {
+        this.state.pendingPublishedId = publish.lastPublishedId;
+        this.successIcon.hidden = false;
+        this.successIcon
+          .getAnimations()
+          .forEach((animation) => animation.cancel());
+        if (
+          !this.container.win.matchMedia("(prefers-reduced-motion: reduce)")
+            .matches
+        )
+          this.successIcon.animate(
+            [
+              { opacity: 0, transform: "translateY(4px)" },
+              { opacity: 1, transform: "translateY(0)" },
+            ],
+            { duration: 180 },
+          );
+        this.successAnnouncement.setText(
+          "PDF created. Available in documents.",
+        );
+      }
+    }
+    const hasNote = !!publish.document && publish.document.extension === "md";
+    const templates = publish.publishingTemplates;
     const template = selectedPublishingTemplate(
       templates,
-      preferences.templateId,
+      publish.notePreferences.templateId,
     );
-    const definitions = publicationProperties(
-      publish.layout,
-      template?.prefill,
+    const families = publishingTemplateFamilies(templates);
+    // Rebuilding options on every update would reset an open dropdown.
+    const templateOptions = JSON.stringify(
+      families.map((family) => [family.id, family.name]),
     );
-    const academic = !!definitions.some((field) => field.use === "title");
-    this.academic.hidden = !template || !definitions.length;
-    let title = "",
-      duplicateTitle = false,
-      bothAuthors = false;
-    if (academic) {
-      try {
-        ({ title, duplicateTitle, bothAuthors } = publish.academicInfo);
-      } catch {
-        /* The actionable problem is displayed below. */
-      }
-    }
-    this.prepare.hidden = !publish.propertiesMissing;
-    this.prepare.disabled = publish.busy || publish.preferencesSaving;
-    this.opening.value = publish.layout.titleSource;
-    this.opening.hidden = !academic || !title;
-    this.opening.disabled = publish.busy || publish.preferencesSaving;
-    this.titleWarning.hidden = !publish.duplicateTitleWarning;
-    const academicMessage =
-      publish.academicProblem ||
-      (!academic
-        ? "Only properties with a published use appear in the document."
-        : publish.layout.titleSource === "body"
-          ? "The body supplies the opening. No title block will be generated."
-          : "The title block comes from the template’s mapped properties. Begin the body with an optional Abstract section or your introduction.") +
-        (bothAuthors
-          ? " Both author and authors exist; authors takes precedence."
-          : "") +
-        (duplicateTitle && publish.layout.titleSource === "body"
-          ? " The existing body title is retained."
-          : "");
-    this.academicMessage.setText(academicMessage);
-    this.academicMessage.hidden = !academicMessage;
-    this.templateGear.disabled =
-      !template || publish.busy || publish.preferencesSaving;
-    this.template.empty();
-    this.template.createEl("option", { value: "", text: "Choose template" });
-    for (const choice of templates.templates)
-      this.template.createEl("option", { value: choice.id, text: choice.name });
-    this.template.value = template?.id ?? "";
-    this.template.disabled = publish.busy || publish.preferencesSaving;
-    const prepared = !!template;
-    this.controls.hidden = !hasNote;
-    this.type.hidden = !prepared;
-    this.create.hidden = !prepared;
-    this.customize.hidden = !hasNote || !prepared || !publish.selectedFormat;
-    // Hide the row too, so an empty row does not add a gap to the panel.
-    this.customizeRow.hidden = this.resetLayout.hidden = this.customize.hidden;
-    this.resetLayout.disabled = publish.busy || publish.preferencesSaving;
-    this.updateCustomization();
-    void this.updateCitationStyle();
-    const showAll = publish.historyScope === "all";
-    this.scope.value = publish.historyScope;
-    this.list.hidden = !hasNote && !showAll;
-    this.type.value = publish.selectedFormat;
-    this.create.setText(
-      publish.selectedFormat
-        ? `Create ${formatLabel(publish.selectedFormat)} document`
-        : "Create document",
-    );
-    this.create.disabled = !publish.canCreate();
-    this.type.disabled = publish.busy || publish.preferencesSaving;
-    this.cancel.hidden = !publish.busy && !publish.checking;
-    const needsSetup = !publish.readiness?.word || !publish.readiness.pdf;
-    this.setup.hidden = !needsSetup || publish.checking || publish.busy;
-    this.status.empty();
-    const message =
-      publish.progress ||
-      (publish.checking
-        ? "Checking publishing tools…"
-        : needsSetup
-          ? publish.readiness?.word
-            ? "Finish PDF setup in Settings."
-            : "Set up publishing in Settings."
-          : !publish.document
-            ? "Open a Markdown note to publish it."
-            : "");
-    this.status.hidden = !message && !publish.error;
-    if (message) this.status.createEl("p", { text: message });
-    if (publish.error)
-      this.status.createEl("p", {
-        text: publish.fontError
-          ? publish.error
-          : `${publish.errorMessage}: ${publish.error}`,
-        cls: "stratum-publish-error",
-      });
-    if (publish.fontError && !this.customize.hidden) {
-      const choose = createStratumButton(this.status, { text: "Choose font" });
-      choose.disabled = publish.busy || publish.preferencesSaving;
-      choose.addEventListener("click", () => {
-        this.customize.open = true;
-        this.updateCustomization();
-        const bodyMissing = publish.fontError?.fonts.some(
-          (font) =>
-            font.toLowerCase() === publish.layout.bodyFont.toLowerCase(),
-        );
-        this.focusControl?.(bodyMissing ? "bodyFont" : "titleFont");
-      });
-    }
-    const listContext = showAll
-      ? "all"
-      : `note:${publish.document?.path ?? ""}`;
-    const scrollTop =
-      this.listContext === listContext ? this.list.scrollTop : 0;
-    this.listContext = listContext;
-    this.list.empty();
-    const documents = showAll ? publish.allDocuments : publish.documents;
-    if (!documents.length)
-      this.list.createEl("p", {
-        text: showAll
-          ? "No published documents"
-          : "No published documents for this note",
-        cls: "stratum-publish-meta",
-      });
-    for (const doc of documents) {
-      const row = this.list.createDiv({ cls: "stratum-publish-row" });
-      const details = row.createDiv({ cls: "stratum-publish-document" });
-      details.createDiv({
-        text: doc.filename,
-        cls: "stratum-publish-filename",
-      });
-      details.createDiv({
-        text: `${formatLabel(doc.format)} · ${new Date(doc.createdAt).toLocaleString()}`,
-        cls: "stratum-publish-meta",
-      });
-      const actions = row.createDiv({ cls: "stratum-publish-row-actions" });
-      if (doc.format === "pdf")
-        this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
-      const sourceAvailable = !!publish.sourceNote(doc);
-      this.icon(
-        actions,
-        "file-text",
-        sourceAvailable ? "Open source note" : "Source note unavailable",
-        doc,
-        () => publish.openSource(doc),
-        !sourceAvailable,
-      );
-      this.icon(actions, "download", "Save as", doc, () =>
-        publish.saveCopy(doc),
-      );
-      this.icon(actions, "trash-2", "Delete", doc, () =>
-        new DeletePublicationModal(publish.plugin.app, publish, doc).open(),
-      );
-    }
-    this.list.scrollTop = scrollTop;
-  }
-  /** Repeated titles are allowed; this shows where to change the opening. */
-  private reviewOpening(): void {
-    if (!this.customize.hidden) {
-      this.customize.open = true;
-      this.updateCustomization();
-      this.focusControl?.("opening");
-      return;
-    }
-    this.opening.scrollIntoView({ block: "center" });
-    this.opening.focus();
-  }
-  private updateCustomization(): void {
-    if (!this.customize?.open || this.customize.hidden) return;
-    const key = JSON.stringify({
-      path: this.publish.document?.path,
-      format: this.publish.selectedFormat,
-      layout: this.publish.layout,
-    });
-    if (key !== this.customizationKey) {
-      this.customizationKey = key;
-      this.customization.empty();
-      this.focusControl = renderPublishCustomization(
-        this.customization,
-        this.publish.layout,
-        (patch) => this.publish.updateLayout(patch),
-        (error) => this.publish.fail(error),
-        this.publish.selectedFormat || undefined,
-      );
-    }
-    for (const input of Array.from(
-      this.customization.querySelectorAll<
-        HTMLInputElement | HTMLSelectElement | HTMLButtonElement
-      >("input, select, button"),
-    ))
-      input.disabled = this.publish.busy || this.publish.preferencesSaving;
-  }
-  private async updateCitationStyle(): Promise<void> {
-    const revision = ++this.citationRevision;
-    if (!this.publish.document || this.publish.busy) return;
-    try {
-      const choices = await this.publish.citationStyleChoices();
-      if (!this.alive || revision !== this.citationRevision) return;
-      const key = JSON.stringify(choices);
-      if (key === this.citationKey) return;
-      this.citationKey = key;
-      this.citations.empty();
-      if (!choices) return;
-      const select = createStratumSelect(this.citations, {
-        label: "Citation style",
-        ariaLabel: "Citation style for this note",
-        value: choices.selected,
-        choices: choices.options.map((option) => ({
-          value: option.id,
-          label: option.title,
-        })),
-      });
-      select.addEventListener("change", () => {
-        select.disabled = true;
-        void this.publish
-          .changeCitationStyle(select.value)
-          .catch((error) => this.publish.fail(error))
-          .finally(() => {
-            select.disabled = false;
-            this.citationKey = "";
-            void this.updateCitationStyle();
-          });
-      });
-    } catch {
-      if (this.alive && revision === this.citationRevision) {
-        // Rebuild the selector once the note's properties can be read again.
-        this.citationKey = "";
-        this.citations.setText(
-          "Citation style could not be read. Check the note's properties.",
-        );
-      }
-    }
-  }
-  private icon(
-    container: HTMLElement,
-    icon: string,
-    label: string,
-    document: PublishedDocument,
-    action: () => void | Promise<void>,
-    disabled = false,
-  ): void {
-    const button = createStratumIconButton(container, {
-      icon,
-      ariaLabel: `${label}: ${document.filename}`,
-      tooltip: label,
-    });
-    button.disabled = disabled;
-    button.addEventListener("click", () => {
-      button.disabled = true;
-      void Promise.resolve()
-        .then(action)
-        .catch((error) => this.publish.fail(error))
-        .finally(() => {
-          button.disabled = false;
+    if (templateOptions !== this.templateOptions) {
+      this.templateOptions = templateOptions;
+      this.template.empty();
+      this.template.createEl("option", { value: "", text: "Choose template" });
+      for (const family of families)
+        this.template.createEl("option", {
+          value: family.id,
+          text: family.name,
         });
-    });
+    }
+    const selectedFamily = families.find((family) =>
+      family.choices.some((choice) => choice.id === template?.id),
+    );
+    this.template.value = selectedFamily?.id ?? "";
+    this.versionField.hidden = !selectedFamily?.versioned;
+    const choices = selectedFamily?.choices ?? [];
+    const versionOptions = JSON.stringify(
+      choices.map((choice) => [choice.id, choice.label]),
+    );
+    if (versionOptions !== this.versionOptions) {
+      this.versionOptions = versionOptions;
+      this.version.empty();
+      for (const choice of choices)
+        this.version.createEl("option", {
+          value: choice.id,
+          text: choice.label,
+        });
+    }
+    this.version.value = template?.id ?? "";
+    this.version.disabled =
+      !hasNote || publish.busy || publish.preferencesSaving;
+    this.template.disabled =
+      !hasNote || publish.busy || publish.preferencesSaving;
+    this.controls.hidden = !hasNote;
+    this.create.hidden = !template;
+    this.settings.disabled =
+      !template || publish.busy || publish.preferencesSaving;
+    this.create.disabled = !publish.canCreate();
+    this.cancel.hidden = !publish.busy && !publish.checking;
+    const fontResolved = !this.chooseFont.hidden && !publish.fontError;
+    this.chooseFont.hidden = !publish.fontError;
+    if (fontResolved) this.publish.adoptSettingsLauncher(this.settings);
+    this.chooseFont.disabled = this.settings.disabled;
+    const notices = publish.readinessNotices;
+    const problem = publish.error
+      ? publish.fontError
+        ? publish.error
+        : `${publish.errorMessage}: ${publish.error}`
+      : publish.progress ||
+        (publish.checking
+          ? "Checking publishing tools…"
+          : !hasNote
+            ? "Open a Markdown note to publish it."
+            : !template
+              ? "Choose a template before publishing."
+              : (notices?.length
+                  ? notices
+                      .map((notice) =>
+                        notice.settings
+                          ? settingsNotice(notice.text)
+                          : notice.text,
+                      )
+                      .join("\n")
+                  : publish.academicProblem) ||
+                (publish.document &&
+                publish.plugin.publicationEditor?.pending?.(
+                  publish.document.path,
+                )
+                  ? settingsNotice(
+                      "Finish or resolve the pending publication edit",
+                    )
+                  : "") ||
+                (!publish.readiness?.pdf
+                  ? settingsNotice("Review PDF tool setup")
+                  : ""));
+    this.status.hidden = !problem;
+    const cls = publish.error
+      ? "stratum-publish-error"
+      : publish.progress || publish.checking
+        ? ""
+        : "stratum-publish-notice";
+    const content = JSON.stringify([problem, cls]);
+    // Preserve diagnostic selection and scrolling across unrelated refreshes.
+    if (content !== this.statusContent) {
+      this.statusContent = content;
+      this.statusMessage.empty();
+      if (problem) this.statusMessage.createEl("p", { text: problem, cls });
+    }
+  }
+  private acknowledgePublication(): void {
+    this.state.pendingPublishedId = undefined;
+    this.successIcon.hidden = true;
+    this.successAnnouncement?.setText("");
+  }
+  private selectSection(section: "publish" | "documents"): void {
+    this.state.section = section;
+    if (section === "documents") this.acknowledgePublication();
+    this.body.hidden = section !== "publish";
+    this.documentsPanel.setVisible(section === "documents");
+    this.tabs.select(section);
   }
   onunload(): void {
-    this.alive = false;
-    this.citationRevision++;
-    this.body?.remove();
+    this.shell?.remove();
   }
 }

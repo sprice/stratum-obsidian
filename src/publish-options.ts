@@ -1,3 +1,7 @@
+import {
+  readAastexPreferences,
+  type AastexPreferences,
+} from "./publication-options";
 export type DocumentType = "general" | "academic";
 export interface PublishOptions {
   bodyFont: string;
@@ -24,14 +28,12 @@ export interface AcademicDefaults {
   keywords: string[];
 }
 export interface NotePublishPreferences {
+  aastex?: AastexPreferences;
   documentType: DocumentType;
   templateId?: string;
   opening: "properties" | "body";
-  format: "pdf" | "docx" | "";
   pdf: PublishOptions;
-  docx: PublishOptions;
 }
-export const DEFAULT_WORD_FONT = "Times New Roman";
 export const DEFAULT_PUBLISH_OPTIONS: PublishOptions = {
   bodyFont: "",
   titleFont: "",
@@ -162,10 +164,11 @@ export function readNotePreferences(
   const base = documentType === "academic" ? academic : defaults;
   return {
     documentType,
+    ...(v.templateId === "package:aastex" || v.aastex
+      ? { aastex: readAastexPreferences(v.aastex) }
+      : {}),
     ...(typeof v.templateId === "string" ? { templateId: v.templateId } : {}),
     opening: v.opening === "body" ? "body" : "properties",
-    format: v.format === "pdf" || v.format === "docx" ? v.format : "",
     pdf: readPublishOptions(v.pdf, base),
-    docx: readPublishOptions(v.docx, base),
   };
 }

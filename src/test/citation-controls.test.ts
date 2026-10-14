@@ -153,7 +153,7 @@ for (const style of [undefined, "ieee"]) {
   test(`applying a note language preserves its current style and inheritance: ${String(style)}`, async () => {
     const f = preferencesFixture(true);
     if (style) f.frontmatter.stratum_citation_style = style;
-    f.buttons.get("Apply language")!();
+    f.buttons.get("Save changes")!();
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(f.frontmatter.stratum_citation_style, style);
     assert.equal(f.frontmatter.stratum_citation_language, "en-US");

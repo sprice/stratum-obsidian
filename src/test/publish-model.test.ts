@@ -112,10 +112,10 @@ test("filenames are unique and safe on desktop platforms", () => {
   const first = publishFilename("CON", "pdf");
   assert.equal(first, "Document-CON.pdf");
   assert.notEqual(first, publishFilename("CON", "pdf", 2));
-  assert.doesNotMatch(publishFilename('A/B:C*D?"E', "docx", 2), /[<>:"/\\|?*]/);
+  assert.doesNotMatch(publishFilename('A/B:C*D?"E', "pdf", 2), /[<>:"/\\|?*]/);
 });
 
-test("catalog rejects traversal, unknown formats and conflicting identity", () => {
+test("catalog rejects traversal and conflicting identity", () => {
   assert.deepEqual(readCatalog(JSON.stringify(emptyCatalog())), emptyCatalog());
   const catalog = {
     version: 1,
@@ -137,6 +137,62 @@ test("catalog rejects traversal, unknown formats and conflicting identity", () =
   assert.equal(readCatalog(JSON.stringify(catalog)).documents.length, 1);
   catalog.documents.push(catalog.documents[0]);
   assert.throws(() => readCatalog(JSON.stringify(catalog)), /conflicting/);
+});
+
+test("catalog drops non-PDF entries before validating PDF entries", () => {
+  const pdf = {
+    id: "doc",
+    noteId: "note",
+    filename: "Example.pdf",
+    format: "pdf",
+    createdAt: "2026-10-11T12:00:00Z",
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+  };
+  const catalog = {
+    version: 1,
+    notes: [{ id: "note", path: "Example.md", title: "Example", ctime: 1 }],
+    documents: [
+      pdf,
+      // Dropped entries are not checked for identity, filenames or notes.
+      { ...pdf, filename: "Example.docx", format: "docx" },
+      { ...pdf, id: "other", noteId: "missing", format: "docx" },
+      { id: "../outside", filename: "../outside.odt", format: "odt" },
+    ],
+  };
+  assert.deepEqual(readCatalog(JSON.stringify(catalog)).documents, [pdf]);
+  for (const format of [undefined, null, 1, {}, []])
+    assert.throws(
+      () =>
+        readCatalog(
+          JSON.stringify({ ...catalog, documents: [{ ...pdf, format }] }),
+        ),
+      /invalid/,
+    );
+  const renamed = { ...pdf, id: "renamed", filename: "Example.docx" };
+  assert.throws(
+    () =>
+      readCatalog(JSON.stringify({ ...catalog, documents: [pdf, renamed] })),
+    /invalid/,
+  );
+  const unregistered = {
+    ...pdf,
+    id: "other",
+    filename: "Other.pdf",
+    noteId: "missing",
+  };
+  assert.throws(
+    () =>
+      readCatalog(
+        JSON.stringify({ ...catalog, documents: [pdf, unregistered] }),
+      ),
+    /conflicting/,
+  );
+  assert.throws(
+    () =>
+      readCatalog(JSON.stringify({ ...catalog, documents: [pdf, { ...pdf }] })),
+    /conflicting/,
+  );
 });
 
 test("folder moves update descendants and deletion detaches retained publications", () => {
@@ -164,6 +220,13 @@ test("publishing removes comments but preserves literal comment markers in code"
 });
 
 test("raw media checks distinguish HTML from code examples", () => {
+  assert.equal(hasUnsupportedHtmlMedia("Example `<svg></svg>`"), false);
+  assert.equal(
+    hasUnsupportedHtmlMedia(
+      '<svg><image href="https://example.com/image.png" /></svg>',
+    ),
+    true,
+  );
   assert.equal(
     hasUnsupportedHtmlMedia('Example `<img src="example.png">`'),
     false,
@@ -175,7 +238,7 @@ test("raw media checks distinguish HTML from code examples", () => {
 });
 
 test("publication filenames fit filesystem byte limits without splitting Unicode", () => {
-  const filename = publishFilename("研究😀".repeat(100), "docx", 2);
+  const filename = publishFilename("研究😀".repeat(100), "pdf", 2);
   assert.ok(new TextEncoder().encode(filename).length <= 255);
   assert.doesNotMatch(filename, /\uFFFD/);
 });
@@ -230,12 +293,8 @@ test("publication names use the title with numbered copies", () => {
     "Example document(2).pdf",
   );
   assert.equal(
-    publishFilename("Example document", "docx"),
-    "Example document.docx",
-  );
-  assert.equal(
-    publishFilename("Example document", "docx", 3),
-    "Example document(3).docx",
+    publishFilename("Example document", "pdf", 3),
+    "Example document(3).pdf",
   );
 });
 

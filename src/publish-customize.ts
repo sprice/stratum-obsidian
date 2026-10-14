@@ -15,8 +15,10 @@ export function renderPublishCustomization(
   options: PublishOptions,
   change: (patch: Partial<PublishOptions>) => Promise<void>,
   fail: (error: unknown) => void,
-  format?: "pdf" | "docx",
+  format?: "pdf",
+  metadataControls = true,
 ): (key: "bodyFont" | "titleFont" | "opening") => void {
+  container.addClass("stratum-publishing-options");
   const preview = container.createDiv();
   let current = { ...options };
   renderPublicationPreview(preview, current);
@@ -104,7 +106,13 @@ export function renderPublishCustomization(
   paper.addEventListener("change", () => {
     void change({ paperSize: paper.value as "letter" | "a4" }).catch(fail);
   });
-  const focusOpening = renderPublicationDesign(parent, options, change, fail);
+  const focusOpening = renderPublicationDesign(
+    parent,
+    options,
+    change,
+    fail,
+    metadataControls,
+  );
   return (key) => {
     if (key === "opening") return focusOpening();
     disclosure.open = true;

@@ -1,6 +1,7 @@
 import { buildSync } from "esbuild";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
+import { Buffer } from "node:buffer";
 
 // Exercise the shipped modules with only Obsidian's host APIs replaced.
 export function loadRuntime<T>(
@@ -33,6 +34,9 @@ export function loadRuntime<T>(
     exports: module.exports,
     require: (name: string) => {
       if (Object.hasOwn(dependencies, name)) return dependencies[name];
+      // yaml's Node entry reads debug flags; keep the host deterministic and private.
+      if (name === "process") return { env: {} };
+      if (name === "buffer") return { Buffer };
       if (name !== "obsidian") throw new Error(`Unexpected import: ${name}`);
       return obsidian;
     },

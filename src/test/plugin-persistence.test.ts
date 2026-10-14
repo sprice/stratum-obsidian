@@ -318,6 +318,34 @@ test("publishing preferences migrate with defaults and preserve explicit desktop
   assert.equal(configured.settings.tectonicPath, "/example/tectonic");
 });
 
+test("legacy vault AASTeX defaults load without error and are dropped on save", async () => {
+  let data: unknown = {
+    lastActiveTab: "publish",
+    pandocPath: "/example/pandoc",
+    aastexPdfDefaults: {
+      showLineNumbers: false,
+      showDraftDateHeader: false,
+      numberedHeadings: true,
+    },
+  };
+  const plugin = {
+    settings: {} as import("../settings-data").StratumSettings,
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.lastActiveTab, "publish");
+  assert.equal(plugin.settings.pandocPath, "/example/pandoc");
+  assert.ok(!("aastexPdfDefaults" in plugin.settings));
+  await savePluginSettings(plugin as never);
+  assert.ok(!("aastexPdfDefaults" in (data as Record<string, unknown>)));
+  assert.equal((data as Record<string, unknown>).pandocPath, "/example/pandoc");
+});
+
 test("Publish visibility migrates once and the shared tab preference wins on reload", async () => {
   let data: unknown = { publishEnabled: false, enabledTabs: { reader: false } };
   const plugin = {
@@ -348,7 +376,6 @@ test("publishing readiness survives reload and rejects malformed cache data", as
     pandocPath: "",
     tectonicPath: "",
     readiness: {
-      word: true,
       pdf: true,
       pandoc: { path: "/synthetic/pandoc", version: "3" },
       tectonic: { path: "/synthetic/tectonic", version: "0.17" },

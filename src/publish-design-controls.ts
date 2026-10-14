@@ -73,30 +73,32 @@ export function renderPublicationDesign(
   options: PublishOptions,
   change: (patch: Partial<PublishOptions>) => Promise<void>,
   fail: (error: unknown) => void,
+  metadataControls = true,
 ): () => void {
   const { details: openingSection, body: opening } = createPublicationSection(
     container,
     "Opening",
   );
   let titleSource: HTMLSelectElement | undefined;
-  new Setting(opening)
-    .setName("Title")
-    .setDesc(
-      "A generated title requires the note’s title property. An existing body title is preserved.",
-    )
-    .addDropdown((input) => {
-      titleSource = input.selectEl;
-      titleSource.setAttribute("aria-label", "Title source");
-      return styleStratumComponent(input)
-        .addOption("body", "Title already in document")
-        .addOption("properties", "Title from note properties · required")
-        .setValue(options.titleSource)
-        .onChange((value) =>
-          change({ titleSource: value as PublishOptions["titleSource"] }).catch(
-            fail,
-          ),
-        );
-    });
+  if (metadataControls)
+    new Setting(opening)
+      .setName("Title")
+      .setDesc(
+        "A generated title requires the note’s title property. An existing body title is preserved.",
+      )
+      .addDropdown((input) => {
+        titleSource = input.selectEl;
+        titleSource.setAttribute("aria-label", "Title source");
+        return styleStratumComponent(input)
+          .addOption("body", "Title already in document")
+          .addOption("properties", "Title from note properties · required")
+          .setValue(options.titleSource)
+          .onChange((value) =>
+            change({
+              titleSource: value as PublishOptions["titleSource"],
+            }).catch(fail),
+          );
+      });
   new Setting(opening).setName("Opening alignment").addDropdown((input) =>
     styleStratumComponent(input)
       .addOption("left", "Left")
@@ -108,24 +110,26 @@ export function renderPublicationDesign(
         }).catch(fail),
       ),
   );
-  for (const [key, name, description] of [
-    [
-      "showAuthors",
-      "Authors",
-      "Optional. Read from the authors note property.",
-    ],
-    [
-      "showAffiliations",
-      "Affiliations",
-      "Optional. Read from the affiliations note property.",
-    ],
-    ["showDate", "Date", "Optional. Read from the date note property."],
-    [
-      "showKeywords",
-      "Keywords",
-      "Optional. Read from the keywords note property and placed after the abstract.",
-    ],
-  ] as const)
+  for (const [key, name, description] of metadataControls
+    ? ([
+        [
+          "showAuthors",
+          "Authors",
+          "Optional. Read from the authors note property.",
+        ],
+        [
+          "showAffiliations",
+          "Affiliations",
+          "Optional. Read from the affiliations note property.",
+        ],
+        ["showDate", "Date", "Optional. Read from the date note property."],
+        [
+          "showKeywords",
+          "Keywords",
+          "Optional. Read from the keywords note property and placed after the abstract.",
+        ],
+      ] as const)
+    : [])
     new Setting(opening)
       .setName(name)
       .setDesc(description)

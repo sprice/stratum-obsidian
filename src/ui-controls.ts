@@ -2,6 +2,8 @@ import {
   ButtonComponent,
   DropdownComponent,
   SearchComponent,
+  Setting,
+  type ToggleComponent,
   setIcon,
   setTooltip,
 } from "obsidian";
@@ -11,6 +13,7 @@ export {
   createStratumInput,
   createStratumTextarea,
   createStratumSelectElement,
+  createStratumFieldset,
   createStratumDisclosure,
   createStratumSummary,
   styleStratumComponent,
@@ -25,6 +28,61 @@ export function createStratumField(
     text: label,
     cls: "stratum-control-field",
   });
+}
+
+/** Add or remove one description without disturbing a control's other help. */
+export function setStratumDescription(
+  control: HTMLElement,
+  id: string,
+  enabled: boolean,
+): void {
+  const ids = new Set(
+    (control.getAttribute("aria-describedby") ?? "")
+      .split(/\s+/)
+      .filter(Boolean),
+  );
+  if (enabled) ids.add(id);
+  else ids.delete(id);
+  if (ids.size) control.setAttribute("aria-describedby", [...ids].join(" "));
+  else control.removeAttribute("aria-describedby");
+}
+
+const fieldMessages = new WeakMap<HTMLElement, HTMLElement>();
+let fieldMessageCount = 0;
+/**
+ * Show or clear a validation message after a control's field. The message
+ * describes the control, which is marked invalid while `invalid` is set.
+ */
+export function setStratumFieldMessage(
+  control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  message: string,
+  invalid = !!message,
+): void {
+  let element = fieldMessages.get(control);
+  if (!message) {
+    if (element) {
+      setStratumDescription(control, element.id, false);
+      element.remove();
+    }
+    fieldMessages.delete(control);
+  } else {
+    if (!element) {
+      element = (
+        control.win as Window & { createEl: typeof createEl }
+      ).createEl("p");
+      element.className = "stratum-control-message";
+      element.id = `stratum-field-message-${++fieldMessageCount}`;
+      (control.closest("label") ?? control).insertAdjacentElement(
+        "afterend",
+        element,
+      );
+      fieldMessages.set(control, element);
+    }
+    if (element.textContent !== message) element.setText(message);
+    setStratumDescription(control, element.id, true);
+  }
+  if (invalid) control.setAttribute("aria-invalid", "true");
+  else control.removeAttribute("aria-invalid");
 }
 
 export function createStratumIconButton(
@@ -119,6 +177,7 @@ export function createStratumButton(
     text: string;
     tooltip?: string;
     primary?: boolean;
+    wrap?: boolean;
     className?: string;
   },
 ): HTMLButtonElement {
@@ -130,6 +189,124 @@ export function createStratumButton(
   const button = component.buttonEl;
   button.type = "button";
   if (options.primary) button.addClass("stratum-control-cta");
+  if (options.wrap) button.addClass("stratum-control-wrap");
   if (options.className) button.addClass(options.className);
   return button;
+}
+
+export interface StratumTabItem<T extends string> {
+  id: T;
+  label: string;
+  className?: string;
+}
+
+export interface StratumTabs<T extends string> {
+  tabId(id: T): string;
+  panelId(id: T): string;
+  /** The tab button, for feature content such as a status icon. */
+  tab(id: T): HTMLButtonElement | undefined;
+  /** Reflect the selected tab; selection changes go through `onSelect`. */
+  select(id: T | null): void;
+}
+
+/**
+ * Tab list in the main Stratum tab bar style, with stable ids and roving
+ * focus. The caller owns selection state and the tab panels.
+ */
+export function createStratumTabs<T extends string>(
+  container: HTMLElement,
+  options: {
+    idPrefix: string;
+    label: string;
+    tabs: readonly StratumTabItem<T>[];
+    selected: T | null;
+    onSelect: (id: T, fromKeyboard: boolean) => void;
+  },
+): StratumTabs<T> {
+  const tabId = (id: T) => `${options.idPrefix}-tab-${id}`;
+  const panelId = (id: T) => `${options.idPrefix}-panel-${id}`;
+  const ids = options.tabs.map((item) => item.id);
+  // A hidden label avoids the tooltip Obsidian shows for aria-label.
+  const label = container.createSpan({ text: options.label });
+  label.id = `${options.idPrefix}-tablist-label`;
+  label.hidden = true;
+  const tabList = container.createDiv({ cls: "stratum-tab-bar" });
+  tabList.setAttribute("role", "tablist");
+  tabList.setAttribute("aria-labelledby", label.id);
+  tabList.setCssProps({
+    "--stratum-tab-count": String(Math.min(3, ids.length)),
+    "--stratum-compact-tab-count": String(Math.min(2, ids.length)),
+  });
+  const buttons = new Map<T, HTMLButtonElement>();
+  options.tabs.forEach((item, index) => {
+    const button = createStratumAction(tabList, { text: item.label });
+    if (item.className) button.addClass(item.className);
+    button.id = tabId(item.id);
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-controls", panelId(item.id));
+    buttons.set(item.id, button);
+    button.addEventListener("click", () => options.onSelect(item.id, false));
+    button.addEventListener("keydown", (event) => {
+      const last = ids.length - 1;
+      const next =
+        event.key === "ArrowRight"
+          ? ids[index === last ? 0 : index + 1]
+          : event.key === "ArrowLeft"
+            ? ids[index === 0 ? last : index - 1]
+            : event.key === "Home"
+              ? ids[0]
+              : event.key === "End"
+                ? ids[last]
+                : undefined;
+      if (next === undefined) return;
+      event.preventDefault();
+      options.onSelect(next, true);
+      buttons.get(next)?.focus();
+    });
+  });
+  const select = (selected: T | null) => {
+    const focusable = selected !== null && buttons.has(selected);
+    for (const [id, button] of buttons) {
+      const active = id === selected;
+      button.toggleClass("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active || (!focusable && id === ids[0]) ? 0 : -1;
+    }
+  };
+  select(options.selected);
+  return { tabId, panelId, tab: (id) => buttons.get(id), select };
+}
+
+/**
+ * Native setting row with a switch, matching Obsidian's own toggle settings.
+ * The checkbox carries the accessible name; the switch container stays plain.
+ */
+export function createStratumToggle(
+  container: HTMLElement,
+  options: {
+    label: string;
+    value: boolean;
+    onChange: (value: boolean) => void;
+    className?: string;
+  },
+): ToggleComponent {
+  let component!: ToggleComponent;
+  const setting = new Setting(container)
+    .setName(options.label)
+    .addToggle((toggle) => {
+      component = styleStratumComponent(toggle).setValue(options.value);
+    });
+  if (options.className) setting.settingEl.addClass(options.className);
+  const input = component.toggleEl.querySelector<HTMLInputElement>(
+    'input[type="checkbox"]',
+  );
+  if (input) {
+    input.setAttribute("aria-label", options.label);
+    input.checked = options.value;
+  }
+  component.onChange((value) => {
+    if (input) input.checked = value;
+    options.onChange(value);
+  });
+  return component;
 }

@@ -3,6 +3,7 @@ import test from "node:test";
 import type * as Setup from "../publish-setup";
 import type { PublishReadiness } from "../publish-desktop";
 import { loadRuntime } from "./runtime-harness";
+import { ButtonComponentMock } from "./ui-component-mocks";
 
 class Element {
   text = "";
@@ -110,7 +111,6 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   const checks: boolean[] = [];
   const publish = {
     readiness: {
-      word: true,
       pdf: false,
       pandoc: { path: "/synthetic/pandoc", version: "3" },
       tectonic: { path: "", version: "" },
@@ -144,6 +144,7 @@ test("setup rechecks stale detection on every open and offers PDF verification w
         close() {}
       },
       Setting,
+      ButtonComponent: ButtonComponentMock,
     },
     {},
     "browser",
@@ -159,6 +160,11 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   modal.onOpen();
   assert.deepEqual(checks, [false]);
   const content = modal.contentEl as unknown as Element;
+  const toolLabels = (element: Element): string[] =>
+    element.tagName === "STRONG"
+      ? [element.text]
+      : element.children.flatMap(toolLabels);
+  assert.deepEqual(toolLabels(content), ["Pandoc", "Tectonic"]);
   assert.ok(content.find("Get Tectonic"));
   publish.readiness!.tectonic = {
     path: "/synthetic/tectonic",
