@@ -51,6 +51,24 @@ const pdftotext = installedTool("pdftotext", undefined, "-v");
 
 const sample = aastexPackage.files["examples/manuscript.md"];
 
+test("package input rejects malformed asset maps before reading files", () => {
+  for (const assets of [
+    null,
+    undefined,
+    "text",
+    [],
+    ["text"],
+    42,
+    { "manifest.json": 42 },
+    { ...aastexPackage.files, "unexpected.txt": null },
+  ])
+    assert.throws(() => loadPublicationPackage(assets), /object of text files/);
+  assert.equal(
+    loadPublicationPackage(aastexPackage.files).manifest.id,
+    "aastex",
+  );
+});
+
 test("bibliography stays external and requires an approved URL and checksum", () => {
   assert.equal(
     Object.keys(aastexPackage.files).some((path) => path.endsWith(".bst")),
