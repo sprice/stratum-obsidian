@@ -1,0 +1,53 @@
+Stratum journal adapters and original research presets: MIT, Stratum contributors.
+
+The journal assets are a PARTIAL DISTRIBUTION of their upstream works, assembled
+by Stratum. Selection and packaging differ from upstream complete distributions;
+upstream class, style and bibliography bytes have not been modified. Stratum
+provides the adapters and supports this packaging, not the upstream maintainers.
+Original notices remain in every upstream file. provenance.json records pinned
+file and distribution hashes. Generated acmart.cls is accompanied by its original
+acmart.dtx source in this same distribution.
+
+ACM acmart 2.20: Copyright 2016-2026 Association for Computing Machinery;
+maintainer Boris Veytsman. LPPL 1.3 or later.
+Complete original work: https://ctan.org/pkg/acmart
+Pinned source: https://github.com/borisveytsman/acmart/tree/v2.20
+
+IEEEtran 1.8b and bibliography styles: Copyright 1993-2000 original contributors
+and 2001-2015 Michael Shell; bibliography copyright 2003-2015 Michael Shell.
+LPPL 1.3. Complete original work: https://ctan.org/pkg/ieeetran
+
+REVTeX 4.2f: Copyright American Physical Society and named contributors.
+LPPL 1.3c; retain the embedded contribution and component notices.
+Complete original work: https://ctan.org/pkg/revtex
+https://journals.aps.org/revtex
+
+Elsarticle 3.5: Copyright 2007-2026 Elsevier Ltd. LPPL 1.3 or later.
+Complete original work: https://ctan.org/pkg/elsarticle
+https://github.com/STM-Document-Engineering/elsarticle
+
+Elsevier CAS 2.4: Copyright Elsevier Ltd and named contributors. The bundled
+classes declare LPPL 1.3c or later; retain each component's original notice.
+Complete original work: https://ctan.org/pkg/els-cas-templates
+
+MNRAS 3.2: Copyright Royal Astronomical Society, Blackwell Science,
+Cambridge University Press and named contributors. LPPL 1.3 or later.
+Complete original work: https://ctan.org/pkg/mnras
+
+Springer LNCS 2.26: Copyright 1996-2025 Springer. CC BY 4.0 or later,
+according to its bundled upstream README. splncs04.bst retains its separate
+Copyright 1994-2007 Patrick W. Daly and LPPL version 1 or later notice.
+Both notices and applicable license conditions are preserved. Changes: partial distribution and
+Stratum adapter; original class and bibliography bytes are unmodified.
+Original work: https://ctan.org/pkg/llncs
+License: https://creativecommons.org/licenses/by/4.0/
+
+LPPL permits partial/derived distributions under its conditions, including
+prominent change notices, preservation of upstream credits, distinction from
+upstream support, and sufficient information to obtain the complete original.
+See the bundled LPPL text and original component notices. Generated asset
+serialization does not change the license or the reconstructed upstream bytes.
+
+No Astronomy & Astrophysics or official JMLR assets are distributed. Their
+profiles remain unavailable pending upstream permission/access resolution.
+The different CTAN jmlr package is not substituted for the official author style.

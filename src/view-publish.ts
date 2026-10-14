@@ -129,7 +129,7 @@ export class PublishPanel extends Component {
     });
     this.versionField = selectors.createDiv();
     this.version = createStratumSelect(this.versionField, {
-      label: "Version",
+      label: "Profile / version",
       ariaLabel: "Choose template version",
       value: "",
       choices: [],

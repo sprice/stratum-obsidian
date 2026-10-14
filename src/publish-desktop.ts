@@ -23,6 +23,7 @@ interface PublishTools {
   tectonic: string;
 }
 interface AastexExportInput {
+  journal?: import("./journal-profiles").JournalProfile;
   manuscript: ReturnType<typeof aastexManuscript>;
   abstractHtml: string;
   references: import("./csl-data").CslItem[];
@@ -826,13 +827,19 @@ async function convertAastexPublication(
   try {
     const { aastexPackage: pkg, aastexLatex } =
       await import("./publication-package");
-    for (const relative of [pkg.manifest.class])
+    const journal = input.journal;
+    const journalAssets = journal
+      ? (await import("./journal-profiles")).journalFiles(journal)
+      : undefined;
+    for (const relative of journalAssets
+      ? Object.keys(journalAssets)
+      : [pkg.manifest.class])
       await fs.writeFile(
         path.join(directory, path.basename(relative)),
-        pkg.files[relative],
+        journalAssets ? journalAssets[relative] : pkg.files[relative],
         { mode: 0o600 },
       );
-    if (input.references.length) {
+    if (input.references.length && !journal) {
       const download = () =>
         downloadAastexBibliography(
           pkg.manifest.bibliographyDownload,
@@ -853,9 +860,15 @@ async function convertAastexPublication(
         { mode: 0o600 },
       );
     }
-    await fs.writeFile(path.join(directory, "aastex.lua"), aastexFilter, {
-      mode: 0o600,
-    });
+    await fs.writeFile(
+      path.join(directory, "aastex.lua"),
+      journal?.family === "mnras"
+        ? aastexFilter.replace("table}[ht]", "table}")
+        : aastexFilter,
+      {
+        mode: 0o600,
+      },
+    );
     await fs.writeFile(
       path.join(directory, "preamble.latex"),
       aastexPreambleTemplate,
@@ -955,32 +968,72 @@ async function convertAastexPublication(
     }
     const decode = async (name: string) =>
       new TextDecoder().decode(await fs.readFile(path.join(directory, name)));
-    const tex = aastexLatex(
-      input.manuscript,
-      await decode("body.tex"),
-      await decode("abstract.tex"),
-      !!input.references.length,
-      pkg,
-      await decode("preamble.tex"),
-      options,
-    );
+    const tex = journal
+      ? (await import("./journal-profiles")).journalLatex(
+          journal,
+          input.manuscript,
+          await decode("body.tex"),
+          await decode("abstract.tex"),
+          !!input.references.length,
+          await decode("preamble.tex"),
+        )
+      : aastexLatex(
+          input.manuscript,
+          await decode("body.tex"),
+          await decode("abstract.tex"),
+          !!input.references.length,
+          pkg,
+          await decode("preamble.tex"),
+          options,
+        );
     await fs.writeFile(path.join(directory, "document.tex"), tex, {
       mode: 0o600,
     });
-    await runPublishTool(tools.tectonic, ["--keep-logs", "document.tex"], {
-      cwd: directory,
-      signal,
-      timeout,
-    });
+    await runPublishTool(
+      tools.tectonic,
+      [
+        "--untrusted",
+        "--keep-logs",
+        ...(journal ? ["--keep-intermediates"] : []),
+        "document.tex",
+      ],
+      {
+        cwd: directory,
+        signal,
+        timeout,
+      },
+    );
     if (signal?.aborted) throw new Error("Publishing cancelled.");
-    const log = await decode("document.log");
+    let log = "";
+    try {
+      log = await decode("document.log");
+    } catch (error) {
+      if (
+        !journal ||
+        !(
+          error &&
+          typeof error === "object" &&
+          "code" in error &&
+          error.code === "ENOENT"
+        )
+      )
+        throw error;
+    }
+    if (journal && input.references.length) {
+      const aux = await decode("document.aux");
+      for (const reference of input.references)
+        if (!aux.includes(`\\bibcite{${reference.id}}`))
+          throw new Error(
+            "The journal bibliography has unresolved citations. Review Citations before publishing.",
+          );
+    }
     if (
       /Citation .* undefined|There were undefined (?:references|citations)|No file .*\.bbl/.test(
         log,
       )
     )
       throw new Error(
-        "AASTeX could not resolve the manuscript bibliography. Review citation data and try again.",
+        `${journal?.name ?? "AASTeX"} could not resolve the manuscript bibliography. Review citation data and try again.`,
       );
     const bytes = await fs.readFile(path.join(directory, "document.pdf"));
 

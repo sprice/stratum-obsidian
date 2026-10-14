@@ -1507,3 +1507,42 @@ test("pop-out notes can open Settings and remain selected through layout changes
   );
   f.controller.onunload();
 });
+
+test("journal profiles retain each layout across switching and record package provenance", async () => {
+  const { controller, leaf, release, calls } = setup();
+  const example = aastexPackage.files["examples/manuscript.md"];
+  const parsed = publicationYaml(example);
+  leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${"# Synthetic Stratum manuscript\n" + example.slice(parsed.end)}`;
+  await controller.updatePreferences({ templateId: "journal:ieee-journal" });
+  await controller.updateLayout({ titleSource: "properties" });
+  await controller.updatePreferences({ templateId: "journal:research-single" });
+  await controller.updatePreferences({ templateId: "journal:ieee-journal" });
+  assert.equal(controller.layout.titleSource, "properties");
+  assert.equal(controller.settingsResetChanges, true);
+  await controller.resetSettings();
+  assert.equal(
+    controller.settingsResetChanges,
+    false,
+    JSON.stringify([controller.layout, controller.selectedTemplate?.layout]),
+  );
+  assert.equal(controller.layout.titleSource, "body");
+  controller.readiness = structuredClone(readySupport);
+  release();
+  await controller.create();
+  assert.equal(controller.error, "");
+  assert.equal(calls.format, 0);
+  const documents = (await controller.store.list()).documents;
+  assert.equal(documents[0].publishing?.template?.id, "journal-ieee-journal");
+  assert.equal(documents[0].citationStyle, "IEEEtran");
+});
+
+test("unavailable journal assets block publication without touching history", async () => {
+  const { controller, release } = setup();
+  await controller.updatePreferences({ templateId: "journal:jmlr-journal" });
+  controller.readiness = structuredClone(readySupport);
+  release();
+  assert.match(controller.academicProblem, /redistribution permission/);
+  assert.equal(controller.canCreate(), false);
+  await controller.create();
+  assert.equal((await controller.store.list()).documents.length, 0);
+});

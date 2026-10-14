@@ -230,6 +230,11 @@ export class PublishingSettingsModal extends Modal {
         approve: compatibility.createDiv(),
         headings: compatibility.createDiv(),
       };
+    } else if (this.publish.journalProfile) {
+      options.createEl("p", {
+        text: "The selected journal profile controls layout and bibliography. Change the profile in the publishing panel. Anonymous review omits author fields and PDF author metadata; review identifying text, acknowledgments, figures and references yourself.",
+        cls: "stratum-publication-help",
+      });
     } else {
       const citations = options.createDiv();
       void this.publish

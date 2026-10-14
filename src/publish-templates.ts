@@ -18,7 +18,7 @@ export interface PublishingTemplate {
   layout: PublishOptions;
   properties: PublishingProperty[];
   prefill: AcademicDefaults;
-  renderer?: "aastex";
+  renderer?: "aastex" | "journal";
   // Runtime descriptors describe installed choices; saved templates keep existing IDs.
   version?: { familyId: string; label: string };
 }

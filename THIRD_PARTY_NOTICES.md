@@ -120,13 +120,13 @@ All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above copyright
+- Redistributions of source code must retain the above copyright
   notice, this list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above
+- Redistributions in binary form must reproduce the above
   copyright notice, this list of conditions and the following
   disclaimer in the documentation and/or other materials provided
   with the distribution.
-* Neither the name of John MacFarlane nor the names of other
+- Neither the name of John MacFarlane nor the names of other
   contributors may be used to endorse or promote products derived
   from this software without specific prior written permission.
 
@@ -154,3 +154,14 @@ For cited AASTeX PDF exports, Stratum downloads
 directly from the American Astronomical Society and caches it locally. Stratum
 does not include or redistribute this file in its plugin releases. The downloaded
 file retains its original copyright and usage notices.
+
+## Additional journal templates
+
+The bundled partial upstream distributions, original copyright notices, licenses,
+complete-work acquisition links, and packaging changes are documented in
+[src/publication-templates/journals/NOTICE.txt](src/publication-templates/journals/NOTICE.txt).
+LPPL and CC BY texts and original generated-class sources are included in the
+plugin bundle. Pinned file and Debian TeX Live distribution hashes are recorded
+in [provenance.json](src/publication-templates/journals/provenance.json).
+Upstream class/style bytes are preserved. Stratum's adapters are separate MIT code.
+No official JMLR or Astronomy & Astrophysics assets are redistributed.

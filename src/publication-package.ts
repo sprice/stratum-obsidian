@@ -1,3 +1,7 @@
+import {
+  publicationAssetMap,
+  publicationAssetPath as relativePath,
+} from "./publication-asset-map";
 import files from "./publication-templates/aastex/files.json";
 import {
   readAastexPdfOptions,
@@ -54,14 +58,7 @@ export interface PublicationPackage {
 }
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
-const assetMap = (value: unknown): value is Record<string, string> =>
-  object(value) &&
-  Object.values(value).every((asset) => typeof asset === "string");
 const output = (value: unknown): value is PublishFormat => value === "pdf";
-const relativePath = (path: string) =>
-  /^[a-zA-Z0-9_./-]+$/.test(path) &&
-  !path.startsWith("/") &&
-  !path.split("/").some((part) => part === ".." || part === "." || !part);
 function json(assets: Record<string, string>, path: string): unknown {
   try {
     return JSON.parse(assets[path]) as unknown;
@@ -70,14 +67,8 @@ function json(assets: Record<string, string>, path: string): unknown {
   }
 }
 /** Assets are package relative and bundled into main.js, never read from a checkout. */
-export function loadPublicationPackage(assets: unknown): PublicationPackage {
-  if (!assetMap(assets))
-    throw new Error(
-      "Publication package assets must be an object of text files.",
-    );
-  for (const path of Object.keys(assets))
-    if (!relativePath(path))
-      throw new Error("Invalid publication package asset path.");
+export function loadPublicationPackage(input: unknown): PublicationPackage {
+  const assets = publicationAssetMap(input);
   const manifest = json(assets, "manifest.json");
   if (
     !object(manifest) ||

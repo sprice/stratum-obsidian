@@ -415,6 +415,80 @@ Stratum stores PDFs under `<vault config>/stratum/published`. Back up this folde
 
 These templates provide specialized publication formats. Use the shared publishing workflow above and follow the requirements for your selected template.
 
+#### Journal and research profiles
+
+Choose a family in **Publish → Template**, then choose its **Profile / version**.
+The selected class controls page layout and bibliography. General and Academic
+layouts remain available when you want to customize fonts, margins, and CSL styles.
+
+| Family                   | Profiles                                                                    |
+| ------------------------ | --------------------------------------------------------------------------- |
+| ACM                      | Conference (`sigconf`), journal (`acmsmall`), anonymous review              |
+| IEEE                     | Journal, conference                                                         |
+| APS / AIP                | APS Physical Review A preprint/reprint; AIP JCP numerical/author-year       |
+| Elsevier                 | Preprint, review, journal; each with numerical/author-year citations        |
+| Elsevier CAS             | Single column, double column                                                |
+| MNRAS                    | Standard manuscript, referee                                                |
+| Springer LNCS            | Proceedings                                                                 |
+| Research / preprint      | Original Stratum single/double-column layouts                               |
+| Astronomy & Astrophysics | Unavailable pending official asset/access and permission verification       |
+| JMLR                     | Unavailable pending redistribution permission for the official author style |
+
+These are manuscript PDFs for the named profiles, not a guarantee of publisher
+acceptance. Journal-layout profiles do not invent publication identifiers, dates,
+or publisher copyright grants. They do not create source submission archives or
+submit papers. An unavailable family cannot produce a PDF; no substitute style is
+silently selected.
+
+Use one leading `# Title` and one `## Abstract` section, followed by unnumbered
+section headings. Alternatively choose **Publishing settings → Title source →
+Title property**. Add authors through **Publishing settings → Authors**; every
+identified author needs a name and assigned affiliation. Multiple affiliations
+remain attached to their authors. ACM also requires an institution, city and
+country for each author; additional affiliation text appears as an author note.
+The corresponding author email, when supplied, must match an author's email.
+
+For example:
+
+```yaml
+stratum_publish:
+  authors:
+    - name: Alex Example
+      email: alex@example.invalid
+      institution: Example Institute
+      city: Example City
+      country: Example Country
+      affiliations:
+        - Example Institute
+        - Second Institute
+stratum_corresponding_author: alex@example.invalid
+stratum_running_title: A short manuscript title
+stratum_running_authors: Example and colleagues
+keywords: [research, methods]
+```
+
+Edit running heads, corresponding-author email, and optional ACM conference,
+year, and DOI values in **Publishing settings → Document details**. Fields are
+shown only for applicable profiles. Turning keywords off preserves the note's
+value and omits it from the PDF. Title-source choices are retained separately for
+each profile. Review and reselect a profile when its installed package version
+changes; previous PDFs remain in Documents.
+
+Citations use the profile's native bibliography. Narrative/grouped citations and
+locators are supported; suppress-author citations require an author-year profile.
+Publisher styles can omit article titles or use superscript citations. This is
+independent of the note's Reading-view CSL style.
+
+Anonymous ACM review omits author front matter and PDF author metadata. Review
+identifying prose, acknowledgments, figures, and self-citations yourself; the
+plugin does not rewrite those parts of your manuscript.
+
+Journal classes and bibliography styles are pinned in the plugin. Tectonic may
+download their supporting packages and fonts; first use requires network access
+unless those dependencies are already cached. Offline exporting requires both
+the plugin assets and compiler dependencies. The existing separate AAS
+bibliography download remains specific to AASTeX.
+
 #### AASTeX
 
 The [AASTeX](https://journals.aas.org/aastex-package-for-manuscript-preparation/) template uses the American Astronomical Society’s document class and bibliography style.

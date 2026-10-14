@@ -1,9 +1,11 @@
+import { journalProblems, type JournalProfile } from "./journal-profiles";
 import type { App } from "obsidian";
 import { aastexProblems } from "./publication-package";
 import {
   aastexCitationKeys,
   aastexFormattedDocument,
   aastexReferences,
+  journalFormattedDocument,
 } from "./publication-citations";
 import { renderPublication } from "./publish-render";
 import type { CitationService } from "./citation-service";
@@ -18,12 +20,16 @@ export async function renderAastexPublication(
   title: string,
   preferences: NotePublishPreferences,
   signal: AbortSignal,
+  journal?: JournalProfile,
 ) {
-  const { manuscript, issues } = aastexProblems(
-    text,
-    preferences.pdf.titleSource,
-    "pdf",
-  );
+  const { manuscript, issues } = journal
+    ? journalProblems(
+        text,
+        preferences.pdf.titleSource,
+        journal,
+        preferences.pdf.showKeywords,
+      )
+    : aastexProblems(text, preferences.pdf.titleSource, "pdf");
   const errors = issues.filter((issue) => issue.blocking);
   if (errors.length)
     throw new Error(errors.map((issue) => issue.message).join("\n"));
@@ -50,7 +56,14 @@ export async function renderAastexPublication(
     manuscript.body,
     path,
     title,
-    aastexFormattedDocument(manuscript.body, ids),
+    journal
+      ? journalFormattedDocument(
+          manuscript.body,
+          ids,
+          references,
+          journal.citations === "numeric",
+        )
+      : aastexFormattedDocument(manuscript.body, ids),
     signal,
     bodyPreferences,
     [],
@@ -60,7 +73,14 @@ export async function renderAastexPublication(
     manuscript.abstract,
     path,
     title,
-    aastexFormattedDocument(manuscript.abstract, ids),
+    journal
+      ? journalFormattedDocument(
+          manuscript.abstract,
+          ids,
+          references,
+          journal.citations === "numeric",
+        )
+      : aastexFormattedDocument(manuscript.abstract, ids),
     signal,
     bodyPreferences,
     [],
@@ -79,6 +99,7 @@ export async function renderAastexPublication(
     assets: [...body.assets, ...abstract.assets],
     aastex: {
       manuscript,
+      journal,
       abstractHtml: abstract.html,
       references,
       options: readAastexPdfOptions(preferences.aastex?.options),

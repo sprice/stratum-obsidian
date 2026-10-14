@@ -446,3 +446,31 @@ test("filling a tagged empty author name preserves spacing and comments", () => 
     }
   }
 });
+
+test("journal institution edits retain comments, CRLF, affiliation assignments and unrelated author fields", () => {
+  const original = note(
+    "\r\n",
+    "stratum_publish:",
+    "  authors:",
+    "    - name: Example",
+    "      institution: Old # Preserve this comment",
+    "      city: {custom: retained}",
+    "      affiliations: [First, Second]",
+    "unrelated: unchanged",
+  );
+  const updated = edit(original, {
+    type: "field",
+    author: 0,
+    key: "institution",
+    value: "New Institute",
+  });
+  assert.ok(updated.includes("# Preserve this comment"));
+  assert.ok(updated.includes("city: {custom: retained}"));
+  assert.ok(updated.includes("affiliations: [First, Second]"));
+  assert.doesNotMatch(updated, bareLineFeed);
+  assert.equal(
+    publicationAuthors(publicationYaml(updated).properties).authors[0]
+      .institution,
+    "New Institute",
+  );
+});

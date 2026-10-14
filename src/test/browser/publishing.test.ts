@@ -2523,3 +2523,36 @@ test("Title validation merges its description and removes only its own help id",
     await page.keyPress("Escape");
   });
 });
+
+test("journal settings expose family metadata and block unavailable styles", async () => {
+  await scenario("journal-settings", async () => {
+    await page.evaluate(
+      `window.publicationFixture.reset({templateId:"journal:acm-conference", source:${JSON.stringify(`---\nstratum_publish:\n  authors:\n    - name: Example Author\n      email: author@example.invalid\n      affiliations: [Example Institute]\n---\n# Example manuscript\n## Abstract\nSynthetic abstract.\n## Introduction\nBody.`)}})`,
+    );
+    await page
+      .locator('button[aria-label="Publishing settings for this note"]')
+      .click();
+    await until("!!document.querySelector('.stratum-document-options-modal')");
+    assert.equal(
+      await page.locator('input[aria-label="Author 1 institution"]').count(),
+      1,
+    );
+    assert.equal(
+      await page.locator('input[aria-label="ACM conference name"]').count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .locator('select[aria-label="Citation style for this note"]')
+        .count(),
+      0,
+    );
+    await page.evaluate(
+      'window.publicationFixture.reset({templateId:"journal:jmlr-journal"})',
+    );
+    assert.equal(
+      await page.evaluate("window.publicationFixture.state().canCreate"),
+      false,
+    );
+  });
+});

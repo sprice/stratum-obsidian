@@ -780,11 +780,13 @@ export class PublicationForm {
           input.value =
             pending && "value" in pending.operation
               ? pending.operation.value
-              : field === "name"
-                ? author.name
-                : field === "email"
-                  ? author.email
-                  : author.affiliations[Number(affiliation)];
+              : ["institution", "city", "country"].includes(field)
+                ? (author[field as "institution" | "city" | "country"] ?? "")
+                : field === "name"
+                  ? author.name
+                  : field === "email"
+                    ? author.email
+                    : author.affiliations[Number(affiliation)];
         }
         this.updateValidation();
         return;
@@ -803,7 +805,11 @@ export class PublicationForm {
           text: "For PDF, each author needs a name, email and affiliation. Emails are supplied to the class without being printed.",
           cls: "stratum-publication-help",
         });
-      if (!aastex && publish?.selectedTemplate?.documentType === "academic")
+      if (
+        !aastex &&
+        !publish?.journalProfile &&
+        publish?.selectedTemplate?.documentType === "academic"
+      )
         this.element.createEl("p", {
           text: "Email and affiliations are optional for this template. Email is saved in the note and is not printed.",
           cls: "stratum-publication-help",
@@ -827,6 +833,11 @@ export class PublicationForm {
           this.operate({ type: "import" }),
         );
       }
+      if (publish?.journalProfile)
+        this.element.createEl("p", {
+          text: "This journal profile uses the authors and affiliations below. Complete any required institution, city and country fields. Set the corresponding author email in document details.",
+          cls: "stratum-publication-help",
+        });
       for (const [index, author] of (model.structured
         ? model.authors
         : []
@@ -848,6 +859,20 @@ export class PublicationForm {
           { type: "field", author: index, key: "email", value: author.email },
           `${index}:email`,
         );
+        if (publish?.journalProfile?.family === "acm")
+          for (const field of ["institution", "city", "country"] as const)
+            this.input(
+              card,
+              `Author ${index + 1} ${field}`,
+              author[field] ?? "",
+              {
+                type: "field",
+                author: index,
+                key: field,
+                value: author[field] ?? "",
+              },
+              `${index}:${field}`,
+            );
         card.createDiv({
           cls: "stratum-publication-validation",
           attr: {
