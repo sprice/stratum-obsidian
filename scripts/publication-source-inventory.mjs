@@ -212,6 +212,15 @@ async function main() {
     console.log(
       `${source.id}: ${result.status}${result.error ? ` (${result.error})` : ""}`,
     );
+    // Log factual runtime metadata too: reviewers can inspect it without downloading archive payloads.
+    console.log(
+      `TEMPLATE_SOURCE ${JSON.stringify({
+        ...result,
+        files: result.files
+          ?.filter((file) => /\.(cls|sty|rtx|bst)$/.test(file.path))
+          .slice(0, 100),
+      })}`,
+    );
   }
   const report = {
     formatVersion: 1,
