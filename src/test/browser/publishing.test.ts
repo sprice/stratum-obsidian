@@ -1608,7 +1608,7 @@ test("template and installed version selectors keep equal available columns and 
     await openSettings();
     assert.equal(
       await page.evaluate(
-        "document.querySelector('.stratum-document-options-modal').textContent.includes('Older package assets are not retained')",
+        "document.querySelector('.stratum-document-options-modal').textContent.includes('Cached files are retained; publishing uses the supported installed version')",
       ),
       true,
     );

@@ -825,7 +825,7 @@ test("AAS bibliography download bounds HTTPS redirects, bytes, hash and total ti
   );
   await assert.rejects(
     run([{ status: 302, location: "/next" }, { bytes: new Uint8Array([1]) }]),
-    /style changed/,
+    /template resource changed/,
   );
   await assert.rejects(
     run([{ status: 302, location: "/next", wait: 20 }, { wait: 60 }], 50),

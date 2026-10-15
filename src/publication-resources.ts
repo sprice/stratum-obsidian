@@ -86,7 +86,7 @@ export async function resolvePublicationResourcePack(
   const files = publicationArchive(archive, inflate);
   const result: Record<string, Uint8Array> = {};
   for (const [name, hash] of Object.entries(pack.entries)) {
-    if (!/^[a-zA-Z0-9_-]+\.(cls|sty|rtx|bst)$/.test(name))
+    if (!/^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(cls|sty|rtx|bst)$/.test(name))
       throw new Error("Invalid template resource name.");
     const entries = Object.entries(files).filter(
       ([path]) => path.split("/").at(-1) === name,
@@ -106,7 +106,7 @@ export async function resolvePublicationResourcePack(
   }
   for (const [name, resource] of Object.entries(pack.files)) {
     if (
-      !/^[a-zA-Z0-9_-]+\.(cls|sty|rtx|bst)$/.test(name) ||
+      !/^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(cls|sty|rtx|bst)$/.test(name) ||
       Object.hasOwn(result, name)
     )
       throw new Error("Invalid template resource name.");

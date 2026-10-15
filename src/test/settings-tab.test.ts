@@ -41,6 +41,7 @@ class Element {
 class Control {
   inputEl = new Element();
   buttonEl = new Element();
+  toggleEl = new Element();
   change?: (value: string | boolean) => Promise<void>;
   click?: () => Promise<void>;
   value?: string | boolean;
@@ -184,7 +185,7 @@ function fixture(desktop = false, modern = true) {
       Platform: platform,
       requireApiVersion: () => modern,
     },
-    { crypto: { randomUUID: () => "synthetic-template" } },
+    { AbortController, crypto: { randomUUID: () => "synthetic-template" } },
     "node",
     {
       "./publish-customize": {
@@ -571,7 +572,30 @@ test("template management stays in its own screen, with academic properties in t
   assert.equal(f.modals.length, 1);
   assert.deepEqual(
     rows.filter((row) => row.name).map((row) => row.name),
-    ["General documents", "Academic papers"],
+    [
+      "General documents",
+      "Academic papers",
+      "AASTeX",
+      "ACM",
+      "IEEE",
+      "APS / AIP",
+      "Elsevier",
+      "Elsevier CAS",
+      "MNRAS",
+      "Springer LNCS",
+      "Research / preprint",
+    ],
+  );
+  assert.ok(
+    rows
+      .filter((row) => row.name)
+      .every((row) => row.controls.at(-1)!.value === false),
+    "Every template toggle starts disabled",
+  );
+  assert.equal(
+    rows.filter((row) => row.controls.some((control) => control.click)).length,
+    3,
+    "Configure remains available for both built-ins alongside Add template",
   );
   Row.rendered = [];
   await rows.at(-1)!.control!.click!();
@@ -634,7 +658,8 @@ test("template management stays in its own screen, with academic properties in t
   );
   rows = Row.rendered;
   Row.rendered = [];
-  await rows.find((row) => row.name === "Academic papers")!.control!.click!();
+  await rows.find((row) => row.name === "Academic papers")!.controls[0]
+    .click!();
   assert.ok(Row.rendered.some((row) => row.name === "Authors"));
   assert.ok(!Row.rendered.some((row) => row.name === "Delete template"));
   await Row.rendered.find((row) => row.name === "Template name")!.control!

@@ -54,7 +54,7 @@ function setup() {
     { crypto: webcrypto, TextDecoder, Uint8Array },
   );
   const archive = zip([
-    { name: "official/class.cls", value: "Synthetic class" },
+    { name: "official/class-v1.2.cls", value: "Synthetic class" },
     { name: "official/source.dtx", value: "Required source" },
   ]);
   const style = new TextEncoder().encode("Synthetic bibliography");
@@ -65,10 +65,12 @@ function setup() {
       extension: "zip" as const,
       maxBytes: 10000,
     },
-    entries: { "class.cls": hash(new TextEncoder().encode("Synthetic class")) },
+    entries: {
+      "class-v1.2.cls": hash(new TextEncoder().encode("Synthetic class")),
+    },
     files: {
-      "style.bst": {
-        url: "https://example.invalid/style.bst",
+      "style-v7.1.bst": {
+        url: "https://example.invalid/style-v7.1.bst",
         sha256: hash(style),
       },
     },
@@ -98,7 +100,7 @@ test("shared installer retains full source archive, returns only pinned runtime 
     f.download,
     f.inflate,
   );
-  assert.deepEqual(Object.keys(result), ["class.cls", "style.bst"]);
+  assert.deepEqual(Object.keys(result), ["class-v1.2.cls", "style-v7.1.bst"]);
   assert.equal(f.requests(), 2);
   assert.equal(f.files.size, 2);
   await f.runtime.resolvePublicationResourcePack(
@@ -133,10 +135,34 @@ test("corrupt cached archives and changed file pins cannot be used offline", asy
   await assert.rejects(
     f.runtime.resolvePublicationResourcePack(
       f.cache,
-      { ...f.pack, entries: { "class.cls": "f".repeat(64) } },
+      { ...f.pack, entries: { "class-v1.2.cls": "f".repeat(64) } },
       f.download,
       f.inflate,
     ),
     /fingerprint/,
   );
+});
+
+test("versioned resource names still reject path traversal and directory separators", async () => {
+  for (const name of [
+    "../style-v7.1.bst",
+    "dir/style-v7.1.bst",
+    "dir\\style-v7.1.bst",
+  ]) {
+    const f = setup();
+    await assert.rejects(
+      f.runtime.resolvePublicationResourcePack(
+        f.cache,
+        { ...f.pack, files: { [name]: f.pack.files["style-v7.1.bst"] } },
+        f.download,
+        f.inflate,
+      ),
+      /Invalid template resource name/,
+    );
+    assert.equal(
+      f.requests(),
+      1,
+      "Only the pinned archive may be fetched before rejecting an invalid resource name",
+    );
+  }
 });
