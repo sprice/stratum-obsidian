@@ -133,6 +133,12 @@ export async function downloadArchive(url, fetcher = fetch) {
     return { bytes: Buffer.concat(chunks), finalUrl: url };
   }
 }
+export function reviewedClassPrefix(family, reference) {
+  const anchor = family === "acm" ? "%% \\CharacterTable" : "%%\n%%\n%%\n";
+  const start = reference.indexOf(anchor);
+  if (start < 0) throw new Error("Missing reviewed class preamble anchor.");
+  return reference.slice(0, start);
+}
 /** Bounded data filtering only: no TeX, installers, evaluation, or downloaded program is invoked. */
 export function extractClassData(bytes, name, prefix) {
   const lines = new TextDecoder("utf-8", { fatal: true })
@@ -355,16 +361,14 @@ async function main() {
         ),
         "utf8",
       );
-      const anchor = family === "acm" ? "%% \\CharacterTable" : "%%\n%%\n%%\n";
-      const start = reference.indexOf(anchor);
-      if (start < 0) throw new Error("Missing reviewed class preamble anchor.");
+      const prefix = reviewedClassPrefix(family, reference);
       candidate = {
         ...source,
         proof: {
           name: `${name}.cls`,
           source: `${name}.dtx`,
           sha256: provenance.files[`${family}/${name}.cls`],
-          prefix: reference.slice(0, start),
+          prefix,
         },
       };
     }

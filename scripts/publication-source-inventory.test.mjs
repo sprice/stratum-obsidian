@@ -6,6 +6,7 @@ import {
   inventorySource,
   inventoryPublisherPage,
   extractClassData,
+  reviewedClassPrefix,
   sources,
 } from "./publication-source-inventory.mjs";
 const bytes = Buffer.from("Synthetic archive");
@@ -158,5 +159,16 @@ test("data-only class extraction filters documented guards and refuses unknown o
   assert.throws(
     () => extractClassData(Buffer.from("%<*class>"), "example.cls", ""),
     /Unbalanced/,
+  );
+});
+
+test("reviewed class prefixes stop before source character tables or class bodies", () => {
+  assert.equal(
+    reviewedClassPrefix("acm", "Original notice\n%% \\CharacterTable\nBody"),
+    "Original notice\n",
+  );
+  assert.equal(
+    reviewedClassPrefix("elsevier", "Original notice\n%%\n%%\n%%\nBody"),
+    "Original notice\n",
   );
 });
