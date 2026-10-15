@@ -65,6 +65,33 @@ export const sources = [
     sha256: "008ed27b62a3b1689a256a53893df05080cd01b754b206f4833f864cb16fc25f",
   },
 ];
+// The canonical CTAN redirect can select an unavailable mirror; this fixed official mirror is independently inventoried.
+sources.push({
+  id: "elsevier-mit",
+  referenceFamily: "elsevier",
+  url: "https://mirrors.mit.edu/CTAN/macros/latex/contrib/elsarticle.zip",
+  required: [
+    "elsarticle.cls",
+    "elsarticle-harv.bst",
+    "elsarticle-num-names.bst",
+  ],
+});
+// Official TeX Live repository candidates provide generated classes without running docstrip.
+for (const [id, directory, name] of [
+  ["acm", "acmart", "acmart.cls"],
+  ["elsevier", "elsarticle", "elsarticle.cls"],
+])
+  sources.push({
+    id: `${id}-texlive`,
+    referenceFamily: id,
+    format: "file",
+    url: `https://tug.org/svn/texlive/trunk/Master/texmf-dist/tex/latex/${directory}/${name}?view=co`,
+    required: [name],
+  });
+const publisherPages = [
+  "https://authors.acm.org/proceedings/production-information/preparing-your-article-with-latex",
+  "https://www.acm.org/publications/proceedings-template",
+];
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function httpsUrl(value) {
   const url = new URL(value);
@@ -123,9 +150,19 @@ export async function inventorySource(
     });
     if (source.sha256 && result.sha256 !== source.sha256)
       throw new Error("Previously pinned archive fingerprint differs.");
-    const files = readArchive(bytes, (data, maxOutputLength) =>
-      inflateRawSync(data, { maxOutputLength }),
-    );
+    if (
+      source.format === "file" &&
+      !new TextDecoder()
+        .decode(bytes.subarray(0, 16000))
+        .includes("\\ProvidesClass")
+    )
+      throw new Error("Official file did not contain a class declaration.");
+    const files =
+      source.format === "file"
+        ? { [source.required[0]]: bytes }
+        : readArchive(bytes, (data, maxOutputLength) =>
+            inflateRawSync(data, { maxOutputLength }),
+          );
     const inventory = Object.entries(files).map(([path, data]) => ({
       path,
       bytes: data.length,
@@ -135,7 +172,8 @@ export async function inventorySource(
       const matches = inventory.filter(
         (file) => file.path.split("/").at(-1) === name,
       );
-      const reference = referenceFiles[`${source.id}/${name}`];
+      const reference =
+        referenceFiles[`${source.referenceFamily ?? source.id}/${name}`];
       return {
         name,
         matches: matches.map((file) => file.path),
@@ -189,6 +227,39 @@ export async function inventorySource(
     };
   }
 }
+export async function inventoryPublisherPage(url, download = downloadArchive) {
+  try {
+    const { bytes, finalUrl } = await download(url);
+    const html = new TextDecoder().decode(bytes);
+    const links = [...html.matchAll(/href\s*=\s*["']([^"']+)["']/gi)]
+      .map((match) => {
+        try {
+          return httpsUrl(
+            new URL(match[1].replaceAll("&amp;", "&"), finalUrl).href,
+          );
+        } catch {
+          return null;
+        }
+      })
+      .filter((link) => link && /\.(zip|cls)(?:[?#]|$)/i.test(link));
+    return {
+      requestedUrl: url,
+      finalUrl,
+      status: "page-read",
+      sha256: sha256(bytes),
+      candidateDownloads: [...new Set(links)].slice(0, 30),
+    };
+  } catch (error) {
+    return {
+      requestedUrl: url,
+      status: "error",
+      error:
+        error instanceof Error
+          ? error.message.slice(0, 1000)
+          : "Publisher page failed.",
+    };
+  }
+}
 async function main() {
   const { publicationArchive } =
     await import("../src/publication-resource-archive.ts");
@@ -222,6 +293,12 @@ async function main() {
       })}`,
     );
   }
+  const publisherPageResults = [];
+  for (const url of publisherPages) {
+    const result = await inventoryPublisherPage(url);
+    publisherPageResults.push(result);
+    console.log(`TEMPLATE_SOURCE_PAGE ${JSON.stringify(result)}`);
+  }
   const report = {
     formatVersion: 1,
     headSha: process.env.SOURCE_HEAD_SHA ?? null,
@@ -229,6 +306,7 @@ async function main() {
     purpose:
       "Source inventory only; hashes require review before catalog adoption. No archive contents were executed or published.",
     results,
+    publisherPageResults,
   };
   const target = new URL(
     "../.test-artifacts/publishing/template-sources.json",

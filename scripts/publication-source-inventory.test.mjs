@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import {
   downloadArchive,
   inventorySource,
+  inventoryPublisherPage,
   sources,
 } from "./publication-source-inventory.mjs";
 const bytes = Buffer.from("Synthetic archive");
@@ -92,4 +93,48 @@ test("downloader rejects insecure URLs, downgrades, excessive redirects and over
     /byte limit/,
   );
   assert.ok(sources.every((entry) => entry.url.startsWith("https://")));
+});
+
+test("publisher discovery reports HTTPS download links without following or executing them", async () => {
+  let calls = 0;
+  const result = await inventoryPublisherPage(
+    "https://publisher.invalid/page",
+    async () => {
+      calls++;
+      return {
+        bytes: Buffer.from(
+          '<a href="/official.zip">Download</a><a href="javascript:evil()">No</a><a href="http://unsafe.invalid/class.cls">No</a>',
+        ),
+        finalUrl: "https://publisher.invalid/page",
+      };
+    },
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(result.candidateDownloads, [
+    "https://publisher.invalid/official.zip",
+  ]);
+});
+
+test("official prebuilt class candidates require a declaration and compare exact bytes", async () => {
+  const text = Buffer.from("\\ProvidesClass{class}[2026/01/01 v1.0]");
+  const result = await inventorySource(
+    { ...source, format: "file" },
+    { "example/class.cls": digest(text) },
+    () => {
+      throw new Error("A class file is not a ZIP");
+    },
+    async () => ({ bytes: text, finalUrl: source.url }),
+  );
+  assert.equal(result.status, "runtime-present");
+  assert.equal(result.required[0].matchesReference, true);
+  const html = await inventorySource(
+    { ...source, format: "file" },
+    {},
+    () => ({}),
+    async () => ({
+      bytes: Buffer.from("<html>Login</html>"),
+      finalUrl: source.url,
+    }),
+  );
+  assert.equal(html.status, "error");
 });
