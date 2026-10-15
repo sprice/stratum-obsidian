@@ -74,7 +74,12 @@ remain encoded text.
 - Use sentence case and concise labels; show settings paths with `→`.
 - Keep vault access scoped to the feature. External services must have a disclosed
   purpose; do not transmit vault content without consent or add hidden telemetry.
-- Do not execute downloaded code or implement plugin auto-updates.
+- Do not execute downloaded code or implement plugin auto-updates. The narrow
+  exception is official LaTeX template resources pinned in the plugin catalog and
+  verified by SHA-256 before use. Compile those resources only with the existing
+  Tectonic untrusted/no-shell-escape protections. This exception does not permit
+  downloaded JavaScript, Lua filters, installers, binaries, rendering code, or
+  plugin/dependency executable updates.
 - Public PRs, comments, fixtures, and documentation must not contain private issue
   discussions or real user data. Read linked private context only with authorized
   access; ask if essential context is unavailable.

@@ -4,11 +4,13 @@ import {
 } from "./publish-templates";
 import {
   createStratumSelect,
+  createStratumIconButton,
   createStratumButton,
   createStratumTabs,
   type StratumTabs,
 } from "./ui-controls";
 import { Component, setIcon } from "obsidian";
+import { PublishingTemplatesModal } from "./publish-template-settings";
 import type { PublishController } from "./publish-controller";
 import {
   PublishedDocumentsPanel,
@@ -112,12 +114,22 @@ export class PublishPanel extends Component {
     const selectors = this.body.createDiv({
       cls: "stratum-publish-template-selectors",
     });
-    this.template = createStratumSelect(selectors, {
+    const templateColumn = selectors.createDiv();
+    const templateRow = templateColumn.createDiv({
+      cls: "stratum-publish-template-row",
+    });
+    this.template = createStratumSelect(templateRow, {
       label: "Template",
       ariaLabel: "Choose template",
       value: "",
       choices: [],
     });
+    createStratumIconButton(templateRow, {
+      icon: "settings",
+      ariaLabel: "Manage publishing templates",
+    }).addEventListener("click", () =>
+      new PublishingTemplatesModal(this.publish.plugin).open(),
+    );
     this.template.addEventListener("change", () => {
       this.publish.closeSettings();
       const family = publishingTemplateFamilies(
@@ -224,7 +236,10 @@ export class PublishPanel extends Component {
     if (templateOptions !== this.templateOptions) {
       this.templateOptions = templateOptions;
       this.template.empty();
-      this.template.createEl("option", { value: "", text: "Choose template" });
+      this.template.createEl("option", {
+        value: "",
+        text: families.length ? "Choose template" : "No templates enabled",
+      });
       for (const family of families)
         this.template.createEl("option", {
           value: family.id,
@@ -275,7 +290,7 @@ export class PublishPanel extends Component {
           : !hasNote
             ? "Open a Markdown note to publish it."
             : !template
-              ? "Choose a template before publishing."
+              ? publish.templateAvailabilityProblem
               : (notices?.length
                   ? notices
                       .map((notice) =>
@@ -302,12 +317,18 @@ export class PublishPanel extends Component {
       : publish.progress || publish.checking
         ? ""
         : "stratum-publish-notice";
-    const content = JSON.stringify([problem, cls]);
+    const content = JSON.stringify([problem, cls, hasNote && !template]);
     // Preserve diagnostic selection and scrolling across unrelated refreshes.
     if (content !== this.statusContent) {
       this.statusContent = content;
       this.statusMessage.empty();
       if (problem) this.statusMessage.createEl("p", { text: problem, cls });
+      if (hasNote && !template)
+        createStratumButton(this.statusMessage, {
+          text: "Manage templates",
+        }).addEventListener("click", () =>
+          new PublishingTemplatesModal(this.publish.plugin).open(),
+        );
     }
   }
   private acknowledgePublication(): void {

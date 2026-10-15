@@ -1,7 +1,4 @@
-import {
-  cachedAastexBibliography,
-  type BibliographyCache,
-} from "./publication-bibliography-cache";
+import { type BibliographyCache } from "./publication-bibliography-cache";
 /* Desktop host access is loaded only after Platform.isDesktopApp is checked. */
 import { Platform } from "obsidian";
 import { readPublishOptions, type PublishOptions } from "./publish-options";
@@ -671,8 +668,8 @@ interface BibliographyCrypto {
 }
 
 /** Download pinned public style bytes; caching is handled separately. */
-export async function downloadAastexBibliography(
-  specification: { url: string; sha256: string },
+export async function downloadPublicationResource(
+  specification: { url: string; sha256: string; maxBytes?: number },
   signal?: AbortSignal,
   timeout = 30_000,
 ): Promise<Uint8Array> {
@@ -697,9 +694,7 @@ export async function downloadAastexBibliography(
       else resolve(bytes!);
     };
     const timer = window.setTimeout(() => {
-      const error = new Error(
-        "Downloading the AAS bibliography style timed out.",
-      );
+      const error = new Error("Downloading the template resource timed out.");
       finish(error);
       active?.destroy(error);
     }, timeout);
@@ -707,14 +702,14 @@ export async function downloadAastexBibliography(
       if (settled) return;
       try {
         if (new URL(url).protocol !== "https:")
-          throw new Error("The AAS bibliography download requires HTTPS.");
+          throw new Error("The template resource download requires HTTPS.");
         const request = https.get(
           url,
           {
             signal,
             headers: {
               "Cache-Control": "no-store",
-              "User-Agent": "Stratum-Obsidian (AASTeX publishing)",
+              "User-Agent": "Stratum-Obsidian (publishing templates)",
             },
           },
           (response) => {
@@ -729,7 +724,7 @@ export async function downloadAastexBibliography(
               if (redirects === 3) {
                 finish(
                   new Error(
-                    "The AAS bibliography download redirected too many times.",
+                    "The template resource download redirected too many times.",
                   ),
                 );
                 return;
@@ -737,7 +732,7 @@ export async function downloadAastexBibliography(
               if (!location) {
                 finish(
                   new Error(
-                    "The AAS bibliography redirect has no Location header.",
+                    "The template resource redirect has no Location header.",
                   ),
                 );
                 return;
@@ -755,7 +750,7 @@ export async function downloadAastexBibliography(
               response.destroy();
               finish(
                 new Error(
-                  `AAS could not supply the bibliography style (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
+                  `The upstream server could not supply the template resource (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
                 ),
               );
               return;
@@ -765,9 +760,9 @@ export async function downloadAastexBibliography(
             response.on("data", (chunk: Uint8Array) => {
               if (settled) return;
               length += chunk.length;
-              if (length > 1_000_000) {
+              if (length > (specification.maxBytes ?? 1_000_000)) {
                 const error = new Error(
-                  "The AAS bibliography download is too large.",
+                  "The template resource download is too large.",
                 );
                 finish(error);
                 response.destroy();
@@ -787,7 +782,7 @@ export async function downloadAastexBibliography(
               ) {
                 finish(
                   new Error(
-                    "The AAS bibliography style changed. Update Stratum before publishing this PDF.",
+                    "The template resource changed. Update Stratum before publishing this PDF.",
                   ),
                 );
                 return;
@@ -802,7 +797,7 @@ export async function downloadAastexBibliography(
             new Error(
               signal?.aborted
                 ? "Publishing cancelled."
-                : `Could not download the AAS bibliography style. Check your internet connection and try again. ${error.message}`,
+                : `Could not download the template resource. Check your internet connection and try again. ${error.message}`,
             ),
           ),
         );
@@ -813,6 +808,7 @@ export async function downloadAastexBibliography(
     download(specification.url, 0);
   });
 }
+export const downloadAastexBibliography = downloadPublicationResource;
 async function convertAastexPublication(
   html: string,
   assets: PublishAsset[],
@@ -831,34 +827,21 @@ async function convertAastexPublication(
     const journalAssets = journal
       ? (await import("./journal-profiles")).journalFiles(journal)
       : undefined;
-    for (const relative of journalAssets
-      ? Object.keys(journalAssets)
-      : [pkg.manifest.class])
-      await fs.writeFile(
-        path.join(directory, path.basename(relative)),
-        journalAssets ? journalAssets[relative] : pkg.files[relative],
-        { mode: 0o600 },
-      );
-    if (input.references.length && !journal) {
-      const download = () =>
-        downloadAastexBibliography(
-          pkg.manifest.bibliographyDownload,
-          signal,
-          Math.min(timeout, 30_000),
-        );
-      const bibliography = tools.bibliographyCache
-        ? await cachedAastexBibliography(
-            tools.bibliographyCache,
-            pkg.manifest.bibliographyDownload,
-            download,
-            signal,
-          )
-        : await download();
-      await fs.writeFile(
-        path.join(directory, path.basename(pkg.manifest.bibliographyStyle)),
-        bibliography,
-        { mode: 0o600 },
-      );
+    if (journalAssets) {
+      for (const [name, content] of Object.entries(journalAssets))
+        await fs.writeFile(path.join(directory, name), content, {
+          mode: 0o600,
+        });
+    } else {
+      if (!tools.bibliographyCache)
+        throw new Error("Enable AASTeX in Manage templates before publishing.");
+      const resources = await (
+        await import("./publication-resources")
+      ).installedAastexResources(tools.bibliographyCache, signal, false);
+      for (const [name, content] of Object.entries(resources))
+        await fs.writeFile(path.join(directory, name), content, {
+          mode: 0o600,
+        });
     }
     await fs.writeFile(
       path.join(directory, "aastex.lua"),

@@ -24,6 +24,16 @@ export interface PublishingTemplate {
 }
 export interface PublishingTemplates {
   templates: PublishingTemplate[];
+  enabledIds?: string[];
+}
+export function publishingTemplateId(template: PublishingTemplate): string {
+  return template.version?.familyId ?? template.id;
+}
+export function publishingTemplateEnabled(
+  state: PublishingTemplates,
+  template: PublishingTemplate,
+): boolean {
+  return state.enabledIds?.includes(publishingTemplateId(template)) === true;
 }
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -87,7 +97,19 @@ export function readPublishingTemplates(value: unknown): PublishingTemplates {
     if (builtIn) Object.assign(builtIn, template);
     else templates.push(template);
   }
-  return { templates };
+  return {
+    templates,
+    enabledIds: Array.isArray(stored.enabledIds)
+      ? [
+          ...new Set(
+            stored.enabledIds.filter(
+              (id): id is string =>
+                typeof id === "string" && /^[a-zA-Z0-9:-]{1,120}$/.test(id),
+            ),
+          ),
+        ]
+      : [],
+  };
 }
 export function selectedPublishingTemplate(
   state: PublishingTemplates,

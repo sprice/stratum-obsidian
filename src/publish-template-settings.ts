@@ -8,11 +8,21 @@ import {
   isBuiltInTemplate,
   readPublishingTemplates,
   removePublishingTemplate,
+  publishingTemplateEnabled,
+  publishingTemplateId,
+  publishingTemplateFamilies,
   type PublishingTemplate,
   type PublishingTemplates,
 } from "./publish-templates";
 import { styleStratumComponent } from "./ui-controls";
 import { ConfirmModal } from "./ui-modal";
+import { AASTEX_TEMPLATE } from "./publication-package";
+import { JOURNAL_TEMPLATES } from "./journal-profiles";
+import {
+  installedAastexResources,
+  publicationResourceCache,
+} from "./publication-resources";
+import { setPublishingTemplateEnabled } from "./publishing-template-availability";
 
 function publishingTemplatesFor(plugin: StratumPlugin): PublishingTemplates {
   return readPublishingTemplates(plugin.settings.publishingTemplates);
@@ -22,7 +32,10 @@ async function savePublishingTemplates(
   state: PublishingTemplates,
 ): Promise<void> {
   const previous = plugin.settings.publishingTemplates;
-  const next = readPublishingTemplates(state);
+  const next = readPublishingTemplates({
+    ...readPublishingTemplates(previous),
+    ...state,
+  });
   plugin.settings.publishingTemplates = next;
   try {
     await plugin.saveSettings();
@@ -201,6 +214,7 @@ function renderPublishingTemplate(
 
 /** Keeps template fields out of the main plugin settings page. */
 export class PublishingTemplatesModal extends Modal {
+  private readonly installation = new AbortController();
   constructor(private plugin: StratumPlugin) {
     super(plugin.app);
     this.modalEl.addClass("stratum-modal");
@@ -213,17 +227,71 @@ export class PublishingTemplatesModal extends Modal {
   private renderList(): void {
     this.contentEl.empty();
     this.setTitle("Publishing templates");
-    for (const template of publishingTemplatesFor(this.plugin).templates) {
-      new Setting(this.contentEl)
+    const state = publishingTemplatesFor(this.plugin);
+    const all = {
+      ...state,
+      templates: [...state.templates, AASTEX_TEMPLATE, ...JOURNAL_TEMPLATES],
+    };
+    for (const family of publishingTemplateFamilies(all)) {
+      const template = all.templates.find(
+        (t) => publishingTemplateId(t) === family.id,
+      )!;
+      const row = new Setting(this.contentEl)
         .setName(template.name)
         .setDesc(
-          `${template.documentType === "academic" ? "Academic paper" : "General document"} · ${isBuiltInTemplate(template.id) ? "Built-in; editable and cannot be deleted." : "Custom template."}`,
-        )
-        .addButton((button) =>
+          template.renderer === "aastex"
+            ? "Official AAS resources. Enabling downloads and verifies missing files; disabling keeps them cached."
+            : template.renderer === "journal"
+              ? "Journal profiles. Resources currently included with the plugin."
+              : `${template.documentType === "academic" ? "Academic paper" : "General document"} · ${isBuiltInTemplate(template.id) ? "Built-in; editable and cannot be deleted." : "Custom template."}`,
+        );
+      if (!template.renderer)
+        row.addButton((button) =>
           styleStratumComponent(button)
             .setButtonText("Configure")
             .onClick(() => this.editTemplate(template.id)),
         );
+      row.addToggle((toggle) => {
+        toggle.toggleEl.setAttribute("aria-label", `Enable ${template.name}`);
+        const enabled = publishingTemplateEnabled(state, template);
+        let changing = false;
+        styleStratumComponent(toggle)
+          .setValue(enabled)
+          .onChange((value) => {
+            if (changing) return;
+            changing = true;
+            toggle.setDisabled(true);
+            if (value && template.renderer === "aastex")
+              row.setDesc("Installing and verifying template resources…");
+            void setPublishingTemplateEnabled(
+              this.plugin,
+              family.id,
+              value,
+              () =>
+                template.renderer === "aastex"
+                  ? installedAastexResources(
+                      publicationResourceCache(this.plugin),
+                      this.installation.signal,
+                    )
+                  : Promise.resolve(),
+              this.installation.signal,
+            ).then(
+              () => {
+                if (!this.installation.signal.aborted) this.renderList();
+              },
+              (error: unknown) => {
+                if (this.installation.signal.aborted) return;
+                toggle.setValue(enabled).setDisabled(false);
+                changing = false;
+                row.setDesc(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not enable this template. Try again.",
+                );
+              },
+            );
+          });
+      });
     }
     new Setting(this.contentEl).addButton((button) =>
       styleStratumComponent(button)
@@ -314,6 +382,7 @@ export class PublishingTemplatesModal extends Modal {
   }
 
   onClose(): void {
+    this.installation.abort();
     this.contentEl.empty();
   }
 }

@@ -411,6 +411,23 @@ Deleting a stored PDF does not delete the source note or copies saved elsewhere.
 
 Stratum stores PDFs under `<vault config>/stratum/published`. Back up this folder if you want to retain PDF history.
 
+### Template availability
+
+Open **Settings → Publishing → Manage templates**, or select the gear beside
+**Publish → Create → Template**. All templates start off, including General
+and Academic and after upgrading. Existing configuration and saved note choices
+are retained; enable a template before creating another PDF.
+
+The right-hand switch enables a template family and its profiles. Built-in and
+custom layouts enable without a download. Enabling AASTeX installs and verifies
+missing official resources; a failed installation leaves it off. Disabling hides
+its choices and keeps cached files. Re-enabling verifies and reuses them. A disabled
+saved template is never replaced automatically. With no templates enabled, use
+**Manage templates** from the empty state.
+
+**Configure** still edits reusable layouts; **Add template** creates a disabled
+custom layout. The note-specific **Settings** button edits only the current note.
+
 ### Supported templates
 
 These templates provide specialized publication formats. Use the shared publishing workflow above and follow the requirements for your selected template.
@@ -489,8 +506,8 @@ plugin does not rewrite those parts of your manuscript.
 Journal classes and bibliography styles are pinned in the plugin. Tectonic may
 download their supporting packages and fonts; first use requires network access
 unless those dependencies are already cached. Offline exporting requires both
-the plugin assets and compiler dependencies. The existing separate AAS
-bibliography download remains specific to AASTeX.
+the plugin assets and compiler dependencies. Journal assets remain bundled while
+their verified upstream-download migration is completed.
 
 #### AASTeX
 
@@ -516,9 +533,12 @@ Select the template version in **Publish → Create**. If the selected version i
 
 ##### Support files
 
-AASTeX is supplied with the plugin. For cited PDFs, Stratum downloads the required bibliography style from AAS when no verified local copy is available.
+Enable AASTeX in **Manage templates** to download its pinned official distribution
+and bibliography style. Both are verified before the template becomes available.
+Export uses installed resources and does not start a missing-resource download.
+If files are missing or damaged, disable and re-enable AASTeX to reinstall.
 
-Stratum checks the file before saving or using it. The cached file contains no manuscript or reference data.
+Stratum checks the file before saving or using it. The cached resources contain no content from your vault.
 
 ## Commands and hotkeys
 
@@ -563,14 +583,16 @@ Coverage varies by source. Stratum sends only the DOI to OpenAlex, not your draf
 - Cloud imports fetch Zotero metadata, notes, and annotations. The service can cache search metadata, abstracts, and enrichment responses.
 - Additional citation styles come from `www.zotero.org`.
 - Additional citation languages come from the Citation Style Language project on `raw.githubusercontent.com`.
-- AASTeX bibliography-style downloads contact `journals.aas.org`. Tectonic can download typesetting support files.
+- AASTeX template and bibliography downloads contact `journals.aas.org`. Tectonic can download typesetting support files.
 - Selecting an external source link opens its destination.
 
 Style and language requests identify resources. They do not contain your draft or reference data.
 
 ### AASTeX downloads and privacy
 
-When you create an AASTeX PDF with citations, Stratum downloads a file from the American Astronomical Society at `journals.aas.org`. This file controls how references appear in your PDF.
+When you enable AASTeX in **Manage templates**, Stratum downloads the official
+class distribution and bibliography style from the American Astronomical Society
+at `journals.aas.org`. No manuscript or reference data is sent.
 
 The download uses a secure connection. Stratum checks that it matches the expected file, then saves it in the plugin folder for reuse.
 

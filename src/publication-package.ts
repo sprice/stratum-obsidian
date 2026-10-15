@@ -66,7 +66,7 @@ function json(assets: Record<string, string>, path: string): unknown {
     throw new Error(`Invalid publication package JSON: ${path}.`);
   }
 }
-/** Assets are package relative and bundled into main.js, never read from a checkout. */
+/** Renderer configuration is bundled; official runtime resources resolve separately. */
 export function loadPublicationPackage(input: unknown): PublicationPackage {
   const assets = publicationAssetMap(input);
   const manifest = json(assets, "manifest.json");
@@ -90,7 +90,7 @@ export function loadPublicationPackage(input: unknown): PublicationPackage {
     !manifest.outputs.includes("pdf")
   )
     throw new Error("Unsupported publication package compiler or outputs.");
-  for (const key of ["entry", "schema", "defaults", "class"]) {
+  for (const key of ["entry", "schema", "defaults"]) {
     const path = manifest[key];
     if (
       typeof path !== "string" ||
@@ -103,7 +103,9 @@ export function loadPublicationPackage(input: unknown): PublicationPackage {
   }
   const parsedManifest = manifest as unknown as PublicationPackage["manifest"];
   if (
-    !parsedManifest.class.endsWith(".cls") ||
+    typeof parsedManifest.class !== "string" ||
+    !relativePath(parsedManifest.class) ||
+    parsedManifest.class !== "vendor/aastex702.cls" ||
     typeof parsedManifest.bibliographyStyle !== "string" ||
     !relativePath(parsedManifest.bibliographyStyle) ||
     !parsedManifest.bibliographyStyle.endsWith(".bst") ||

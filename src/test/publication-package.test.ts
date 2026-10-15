@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { webcrypto } from "node:crypto";
+import { installedTestResources } from "./publishing-resource-cache";
 import test from "node:test";
 import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -376,6 +378,7 @@ test(
         TextDecoder,
         TextEncoder,
         Uint8Array,
+        crypto: webcrypto,
         window: { require, setTimeout, clearTimeout },
       },
       "browser",
@@ -509,6 +512,7 @@ $$
         {
           pandoc,
           tectonic,
+          bibliographyCache: await installedTestResources(),
         },
         undefined,
         120_000,
@@ -661,6 +665,7 @@ test(
         TextDecoder,
         TextEncoder,
         Uint8Array,
+        crypto: webcrypto,
         window: { require, setTimeout, clearTimeout },
       },
       "browser",
@@ -676,7 +681,11 @@ test(
             html,
             [],
             "pdf",
-            { pandoc, tectonic },
+            {
+              pandoc,
+              tectonic,
+              bibliographyCache: await installedTestResources(),
+            },
             undefined,
             120_000,
             DEFAULT_ACADEMIC_OPTIONS,

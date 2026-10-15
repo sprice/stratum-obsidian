@@ -1,4 +1,8 @@
 AASTeX 7.0.2: Copyright 2025 American Astronomical Society.
-Unmodified aastex702.cls is distributed under the LaTeX Project Public License 1.3c or later.
+The official unmodified aastex702.cls is licensed under the LaTeX Project Public License 1.3c or later.
 https://www.latex-project.org/lppl/lppl-1-3c/
 The original class includes its complete distribution and warranty notices.
+
+Stratum downloads the pinned full official archive and bibliography directly from
+AAS when the user enables this template. The complete archive, including original
+notices and documentation, is retained in the local resource cache.

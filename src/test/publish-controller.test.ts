@@ -9,6 +9,7 @@ import {
 import { AASTEX_PACKAGE_REFERENCE } from "../publication-package";
 import * as publicationPackage from "../publication-package";
 import test from "node:test";
+import { JOURNAL_TEMPLATES } from "../journal-profiles";
 import assert from "node:assert/strict";
 import { setImmediate as settle } from "node:timers/promises";
 import type { PublishReadiness } from "../publish-desktop";
@@ -272,6 +273,15 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
   const plugin = {
     manifest: { id: "stratum" },
     settings: {
+      publishingTemplates: {
+        templates: [],
+        enabledIds: [
+          "general",
+          "academic",
+          "package:aastex",
+          ...JOURNAL_TEMPLATES.map((t) => t.version!.familyId),
+        ],
+      },
       citationStyle: "apa",
       citationLanguage: "en-US",
       pandocPath: "",
@@ -869,7 +879,10 @@ test("the packaged AASTeX choice preserves a custom template named aastex and it
   const state = readPublishingTemplates(undefined);
   const custom = { ...state.templates[0], id: "aastex", name: "My layout" };
   const { controller } = setup({
-    publishingTemplates: readPublishingTemplates({ templates: [custom] }),
+    publishingTemplates: readPublishingTemplates({
+      templates: [custom],
+      enabledIds: ["aastex", "general", "academic", "package:aastex"],
+    }),
   });
   const choices = controller.publishingTemplates.templates;
   assert.equal(
@@ -1048,6 +1061,7 @@ test("template selection copies layouts and retains them after template edits or
     {
       publishingTemplates: readPublishingTemplates({
         templates: [...state.templates, custom],
+        enabledIds: ["general", "academic", "package:aastex", custom.id],
       }),
     },
     false,
@@ -1060,6 +1074,7 @@ test("template selection copies layouts and retains them after template edits or
     custom.id,
   );
   const updated = readPublishingTemplates({
+    enabledIds: [custom.id],
     templates: [
       ...state.templates,
       { ...custom, layout: { ...custom.layout, bodyFont: "Arial" } },
@@ -1071,7 +1086,9 @@ test("template selection copies layouts and retains them after template edits or
     "Georgia",
     "template edits do not rewrite a note's saved layout",
   );
-  Object.assign(plugin.settings, { publishingTemplates: state });
+  Object.assign(plugin.settings, {
+    publishingTemplates: { ...state, enabledIds: ["general", "academic"] },
+  });
   assert.equal(
     controller.layout.bodyFont,
     "Georgia",
@@ -1099,7 +1116,9 @@ test("preparation and required fields follow a general template without changing
       },
     ],
   });
-  const { controller, leaf } = setup({ publishingTemplates: state });
+  const { controller, leaf } = setup({
+    publishingTemplates: { ...state, enabledIds: ["general", "academic"] },
+  });
   await controller.updatePreferences({ templateId: "general" });
   assert.match(controller.academicProblem, /title/);
   assert.equal(controller.canCreate(), false);
@@ -1222,11 +1241,13 @@ test("reset prediction and execution follow edited reusable template defaults", 
   const f = setup({
     publishingTemplates: readPublishingTemplates({
       templates: [...state.templates, custom],
+      enabledIds: ["general", "academic", "package:aastex", custom.id],
     }),
   });
   await f.controller.updatePreferences({ templateId: custom.id });
   assert.equal(f.controller.settingsResetChanges, false);
   f.plugin.settings.publishingTemplates = readPublishingTemplates({
+    enabledIds: [custom.id],
     templates: [
       ...state.templates,
       { ...custom, layout: { ...custom.layout, bodySize: 13 } },
@@ -1380,6 +1401,7 @@ test("problem checks follow text, preference and template changes", async () => 
   const { controller, leaf, plugin } = setup({
     publishingTemplates: readPublishingTemplates({
       templates: [...state.templates, custom],
+      enabledIds: ["general", "academic", "package:aastex", custom.id],
     }),
   });
   await controller.updatePreferences({ templateId: custom.id });
@@ -1404,10 +1426,12 @@ test("problem checks follow text, preference and template changes", async () => 
 
   plugin.settings.publishingTemplates = readPublishingTemplates({
     templates: [...state.templates, { ...custom, name: "Renamed" }],
+    enabledIds: [custom.id, "general"],
   });
   assert.equal(controller.selectedTemplate?.name, "Renamed");
   plugin.settings.publishingTemplates = readPublishingTemplates({
     templates: state.templates,
+    enabledIds: ["general"],
   });
   assert.equal(controller.selectedTemplate, undefined);
   assert.equal(
@@ -1559,4 +1583,25 @@ test("deferred journal choices are hidden and cannot be selected", async () => {
   assert.equal(controller.canCreate(), false);
   await controller.create();
   assert.equal((await controller.store.list()).documents.length, 0);
+});
+
+test("default-off migration and disabled selections retain saved note choices without creating PDFs", async () => {
+  const { controller, plugin, leaf, release } = setup();
+  await controller.updatePreferences({ templateId: "academic" });
+  const text = leaf.view.text;
+  const selected = controller.notePreferences.templateId;
+  plugin.settings.publishingTemplates = { templates: [] };
+  release();
+  assert.equal(controller.publishingTemplates.templates.length, 0);
+  assert.equal(controller.notePreferences.templateId, selected);
+  assert.match(controller.academicProblem, /disabled/);
+  assert.equal(controller.canCreate(), false);
+  await controller.create();
+  assert.equal((await controller.store.list()).documents.length, 0);
+  assert.equal(leaf.view.text, text);
+  plugin.settings.publishingTemplates = {
+    templates: [],
+    enabledIds: ["academic"],
+  };
+  assert.equal(controller.selectedTemplate?.id, "academic");
 });

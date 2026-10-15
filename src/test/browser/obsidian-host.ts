@@ -368,6 +368,10 @@ export class Setting {
     this.descEl.setText(text);
     return this;
   }
+  addButton(callback: (component: ButtonComponent) => void) {
+    callback(new ButtonComponent(this.controls));
+    return this;
+  }
   addDropdown(callback: (component: DropdownComponent) => void) {
     callback(new DropdownComponent(this.controls));
     return this;

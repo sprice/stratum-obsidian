@@ -10,6 +10,7 @@ import {
   PUBLISH_EDITOR_CHANGE_DELAY,
 } from "../../publish-controller";
 import { PublishPanel, type PublishViewState } from "../../view-publish";
+import { JOURNAL_TEMPLATES } from "../../journal-profiles";
 import { PublishFontError } from "../../publish-desktop";
 import type { PublishAdapter } from "../../publish-store";
 import type StratumPlugin from "../../plugin";
@@ -114,6 +115,15 @@ async function reset(options: FixtureOptions = {}) {
   adapter = new MemoryVault();
   const plugin = {
     settings: {
+      publishingTemplates: {
+        templates: [],
+        enabledIds: [
+          "general",
+          "academic",
+          "package:aastex",
+          ...JOURNAL_TEMPLATES.map((t) => t.version!.familyId),
+        ],
+      },
       publishPdfSetupComplete: true,
       pandocPath: "pandoc",
       tectonicPath: "tectonic",
@@ -125,6 +135,7 @@ async function reset(options: FixtureOptions = {}) {
     },
     manifest: { id: "stratum" },
     saveSettings: () => Promise.resolve(),
+    refreshViews: () => controller.emit(),
     app: {
       vault: {
         adapter,
@@ -305,6 +316,13 @@ async function reset(options: FixtureOptions = {}) {
   panel.onload();
 }
 export const publicationFixture = {
+  setEnabledTemplates(enabledIds: string[]) {
+    controller.plugin.settings.publishingTemplates = {
+      ...controller.plugin.settings.publishingTemplates!,
+      enabledIds,
+    };
+    controller.emit();
+  },
   setTitleSource(titleSource: "body" | "properties") {
     return controller.updateLayout({ titleSource });
   },

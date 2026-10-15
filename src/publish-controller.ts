@@ -14,6 +14,7 @@ import {
 } from "./publish-properties";
 import {
   readPublishingTemplates,
+  publishingTemplateEnabled,
   selectedPublishingTemplate,
   type PublishingTemplate,
 } from "./publish-templates";
@@ -403,10 +404,20 @@ export class PublishController extends Component {
     );
   }
   get publishingTemplates() {
+    const state = this.allPublishingTemplates;
+    return {
+      ...state,
+      templates: state.templates.filter((template) =>
+        publishingTemplateEnabled(state, template),
+      ),
+    };
+  }
+  get allPublishingTemplates() {
     const state = readPublishingTemplates(
       this.plugin.settings.publishingTemplates,
     );
     return {
+      ...state,
       templates: [...state.templates, AASTEX_TEMPLATE, ...JOURNAL_TEMPLATES],
     };
   }
@@ -460,7 +471,7 @@ export class PublishController extends Component {
     return this.selectedTemplate?.renderer === "aastex" &&
       saved &&
       !samePublicationPackage(saved, AASTEX_PACKAGE_REFERENCE)
-      ? `This note uses AASTeX ${saved.upstreamVersion}, Stratum adapter ${saved.version}. Installed: AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion}, adapter ${AASTEX_PACKAGE_REFERENCE.version}. Review the update before creating another PDF. Older package assets are not retained.`
+      ? `This note uses AASTeX ${saved.upstreamVersion}, Stratum adapter ${saved.version}. Installed: AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion}, adapter ${AASTEX_PACKAGE_REFERENCE.version}. Review the update before creating another PDF. Cached files are retained; publishing uses the supported installed version.`
       : "";
   }
   get aastexHeadingProblems(): string[] {
@@ -594,7 +605,7 @@ export class PublishController extends Component {
     });
   }
   get academicProblem(): string {
-    if (!this.selectedTemplate) return "Choose a template before publishing.";
+    if (!this.selectedTemplate) return this.templateAvailabilityProblem;
     return this.noteCheck("academicProblem", () => {
       if (this.journalProfile) {
         try {
@@ -633,6 +644,20 @@ export class PublishController extends Component {
         ? properties.error.message
         : "Check this note's publishing properties.";
     });
+  }
+  get templateAvailabilityProblem(): string {
+    const selected = selectedPublishingTemplate(
+      this.allPublishingTemplates,
+      this.notePreferences.templateId,
+    );
+    if (
+      selected &&
+      !publishingTemplateEnabled(this.allPublishingTemplates, selected)
+    )
+      return "This template is disabled. Enable it in Manage templates before publishing.";
+    return this.publishingTemplates.templates.length
+      ? "Choose a template before publishing."
+      : "No templates enabled. Open Manage templates to enable one.";
   }
   /**
    * The note's metadata issues for the selected template, placed for the

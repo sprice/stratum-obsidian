@@ -23,7 +23,7 @@ test(
       assert.equal(request.headers["cache-control"], "no-store");
       assert.equal(
         request.headers["user-agent"],
-        "Stratum-Obsidian (AASTeX publishing)",
+        "Stratum-Obsidian (publishing templates)",
       );
       assert.equal(request.method, "GET");
       if (mode === "stall") return;
@@ -93,7 +93,7 @@ test(
       mode = "mismatch";
       await assert.rejects(
         desktop.downloadAastexBibliography({ url, sha256 }),
-        /style changed/,
+        /changed/,
       );
       mode = "unavailable";
       await assert.rejects(
@@ -131,7 +131,7 @@ test(
             references: [{ id: "stratum0", type: "article-journal" }],
           },
         ),
-        /could not supply/,
+        /Enable AASTeX/,
       );
       assert.equal(paths.length, 1);
       await assert.rejects(access(paths[0]));
@@ -144,7 +144,7 @@ test(
   },
 );
 
-test("converter reuses verified cache offline and keeps it separate from failed-export cleanup", async () => {
+test("converter never downloads missing packs and preserves cached resources on failure", async () => {
   let requests = 0;
   let available = true;
   const server = createServer((_request, response) => {
@@ -271,23 +271,14 @@ test("converter reuses verified cache offline and keeps it separate from failed-
         undefined,
         input,
       );
-    await assert.rejects(convert(), /ENOENT|could not start/);
     const path = `${tools.bibliographyCache.directory}/${sha256}.bst`;
-    assert.equal(files.has(path), true);
-    assert.equal(requests, 1);
+    files.set(path, new TextEncoder().encode(body).buffer);
+    await assert.rejects(convert(), /missing or damaged/);
     available = false;
-    await assert.rejects(convert(), /ENOENT|could not start/);
-    assert.equal(
-      requests,
-      1,
-      "A later export reaches conversion offline using the cache",
-    );
+    await assert.rejects(convert(), /missing or damaged/);
     assert.equal(files.has(path), true);
-    files.set(path, new Uint8Array([0]).buffer);
-    await assert.rejects(convert(), /HTTP 503/);
-    assert.equal(files.size, 0);
-    assert.equal(requests, 2);
-    for (const directory of scratch) await assert.rejects(access(directory));
+    assert.equal(requests, 0);
+    for (const path of scratch) await assert.rejects(access(path));
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

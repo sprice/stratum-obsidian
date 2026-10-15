@@ -144,12 +144,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## AASTeX 7.0.2 — LPPL-1.3c-or-later
 
-Stratum bundles the unmodified `aastex702.cls` under LPPL 1.3c or later. See
+Stratum downloads the official AASTeX distribution when the user enables the
+template. The unmodified `aastex702.cls` is under LPPL 1.3c or later. The complete
+upstream archive, including documentation and original notices, is retained locally. See
 [src/publication-templates/aastex/licenses/NOTICE.txt](src/publication-templates/aastex/licenses/NOTICE.txt).
 
 ### Downloaded bibliography style
 
-For cited AASTeX PDF exports, Stratum downloads
+When enabling AASTeX, Stratum also downloads
 [`aasjournalv7.1.bst`](https://journals.aas.org/wp-content/uploads/2026/06/aasjournalv7.1.bst)
 directly from the American Astronomical Society and caches it locally. Stratum
 does not include or redistribute this file in its plugin releases. The downloaded

@@ -599,3 +599,30 @@ test("Documents keeps unchanged rows and rebuilds when visible document details 
     "a changed filename rebuilds the row",
   );
 });
+
+test("template manager gear shares only the Template column and leaves Version separate", () => {
+  const { root } = setup();
+  const selectors = root
+    .all()
+    .find((el) => el.cls === "stratum-publish-template-selectors")!;
+  assert.equal(selectors.children.length, 2);
+  const first = selectors.children[0].all();
+  assert.ok(
+    first.some((el) => el.attrs.get("aria-label") === "Choose template"),
+  );
+  assert.ok(
+    first.some(
+      (el) => el.attrs.get("aria-label") === "Manage publishing templates",
+    ),
+  );
+  assert.ok(
+    !first.some(
+      (el) => el.attrs.get("aria-label") === "Choose template version",
+    ),
+  );
+  assert.ok(
+    selectors.children[1]
+      .all()
+      .some((el) => el.attrs.get("aria-label") === "Choose template version"),
+  );
+});

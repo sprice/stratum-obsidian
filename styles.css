@@ -1098,6 +1098,19 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-controls {
   margin-block-end: var(--size-4-3);
 }
+.stratum-publish-template-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--size-4-1);
+}
+.stratum-publish-template-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.stratum-publish-template-row > .clickable-icon {
+  flex: none;
+  margin-block-end: var(--size-4-1);
+}
 .stratum-publish-controls > button,
 .stratum-publish-template-selectors > * {
   width: 100%;

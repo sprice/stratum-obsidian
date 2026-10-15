@@ -6,8 +6,14 @@ import { fileURLToPath } from "node:url";
 export const packageDirectory = fileURLToPath(
   new URL("../src/publication-templates/aastex/", import.meta.url),
 );
-export const publicationAssets = (directory = packageDirectory) =>
-  collectPublicationAssets(directory);
+export const publicationAssets = async (directory = packageDirectory) => {
+  const result = await collectPublicationAssets(directory);
+  if (resolve(directory) !== resolve(packageDirectory)) return result;
+  const assets = JSON.parse(result.contents);
+  for (const name of Object.keys(assets))
+    if (name.endsWith(".cls")) delete assets[name];
+  return { ...result, contents: `${JSON.stringify(assets, null, 2)}\n` };
+};
 export async function generatePublicationAssets(directory = packageDirectory) {
   const result = await publicationAssets(directory);
   const target = join(directory, "files.json");

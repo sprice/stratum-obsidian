@@ -38,6 +38,8 @@ Switch citation styles without rewriting your prose. Formatting works offline wh
 
 Create PDFs on your computer with **General documents** or **Academic papers**. Set document details, author information, citation style, and layout options. Preview your PDFs in Obsidian and save copies to share.
 
+Enable templates in **Settings → Publishing → Manage templates**, or use the gear beside **Publish → Create → Template**. All templates start disabled, including after upgrade; saved note choices are retained. Enabling **AASTeX** downloads pinned class and bibliography resources directly from `journals.aas.org`; no manuscript or reference data is sent. Installed files are verified and reused offline, provided the compiler’s supporting packages and fonts are also cached.
+
 Use **AASTeX** for an astronomy journal format. See [Supported templates](docs/user-guide.md#supported-templates) for its requirements and options.
 
 ## Get started

@@ -2559,3 +2559,58 @@ test("journal settings expose family metadata and omit deferred styles", async (
     );
   });
 });
+
+test("template manager gear preserves columns and all-off state can enable a built-in", async () => {
+  await scenario("template-availability", async () => {
+    await page.evaluate(
+      'window.publicationFixture.reset({templateId:"package:aastex"})',
+    );
+    assert.equal(
+      await page.evaluate(`(() => {
+      const select = document.querySelector('select[aria-label="Choose template"]').getBoundingClientRect();
+      const gear = document.querySelector('button[aria-label="Manage publishing templates"]').getBoundingClientRect();
+      const version = document.querySelector('select[aria-label="Choose template version"]').getBoundingClientRect();
+      return gear.left >= select.right && gear.right < version.left;
+    })()`),
+      true,
+    );
+    await page.evaluate("window.publicationFixture.setEnabledTemplates([])");
+    await page
+      .locator('button[aria-label="Manage publishing templates"]')
+      .click();
+    await until(
+      "!!document.querySelector('.modal[aria-label=\"Publishing templates\"]')",
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelectorAll('.modal .checkbox-container.is-enabled').length",
+      ),
+      0,
+    );
+    assert.equal(
+      await page.evaluate(
+        "Array.from(document.querySelectorAll('.modal button')).filter(button => button.textContent === 'Configure').length",
+      ),
+      2,
+    );
+    await page
+      .locator('.modal [aria-label="Enable General documents"]')
+      .click();
+    await until(
+      "!!document.querySelector('.modal [aria-label=\"Enable General documents\"].is-enabled')",
+    );
+    await page.keyPress("Escape");
+    assert.equal(
+      await page.evaluate(
+        "Array.from(document.querySelector('select[aria-label=\"Choose template\"]').options).some(option => option.textContent === 'General documents')",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('select[aria-label=\"Choose template\"]').value",
+      ),
+      "",
+    );
+  });
+});
