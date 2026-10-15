@@ -5,6 +5,7 @@ import {
   downloadArchive,
   inventorySource,
   inventoryPublisherPage,
+  extractClassData,
   sources,
 } from "./publication-source-inventory.mjs";
 const bytes = Buffer.from("Synthetic archive");
@@ -137,4 +138,25 @@ test("official prebuilt class candidates require a declaration and compare exact
     }),
   );
   assert.equal(html.status, "error");
+});
+
+test("data-only class extraction filters documented guards and refuses unknown or unbalanced guards", () => {
+  const input = Buffer.from(
+    "% Documentation\n%<*driver>\nNever execute this\n%</driver>\n%<class>\\NeedsTeXFormat{LaTeX2e}\n%<*class>\n\\ProvidesClass{example}  \n%</class>\n",
+  );
+  const output = extractClassData(
+    input,
+    "example.cls",
+    "%% Original notice\n",
+  ).toString();
+  assert.ok(!output.includes("Never execute"));
+  assert.ok(output.includes("\\ProvidesClass{example}\n"));
+  assert.throws(
+    () => extractClassData(Buffer.from("%<*unknown>"), "example.cls", ""),
+    /Unsupported/,
+  );
+  assert.throws(
+    () => extractClassData(Buffer.from("%<*class>"), "example.cls", ""),
+    /Unbalanced/,
+  );
 });

@@ -133,6 +133,55 @@ export async function downloadArchive(url, fetcher = fetch) {
     return { bytes: Buffer.concat(chunks), finalUrl: url };
   }
 }
+/** Bounded data filtering only: no TeX, installers, evaluation, or downloaded program is invoked. */
+export function extractClassData(bytes, name, prefix) {
+  const lines = new TextDecoder("utf-8", { fatal: true })
+    .decode(bytes)
+    .split(/\r?\n/);
+  const stack = [{ name: "", enabled: true }],
+    output = [];
+  const known = new Set([
+    "class",
+    "class&!tagged",
+    "tagged",
+    "gobble",
+    "driver",
+  ]);
+  for (let line of lines) {
+    line = line.trimEnd();
+    const match = /^%<([^>]+)>(.*)$/.exec(line);
+    if (match) {
+      const [guard, tail] = [match[1], match[2]];
+      const kind = guard[0],
+        tag = kind === "*" || kind === "/" ? guard.slice(1) : guard;
+      if (!known.has(tag)) throw new Error("Unsupported source guard.");
+      if (kind === "*") {
+        stack.push({
+          name: tag,
+          enabled: stack.at(-1).enabled && tag === "class",
+        });
+        continue;
+      }
+      if (kind === "/") {
+        if (stack.length === 1 || stack.pop().name !== tag)
+          throw new Error("Unbalanced source guard.");
+        continue;
+      }
+      if (stack.at(-1).enabled && (tag === "class" || tag === "class&!tagged"))
+        output.push(tail);
+    } else if (
+      stack.at(-1).enabled &&
+      (!line.startsWith("%") || line.startsWith("%%"))
+    )
+      output.push(line);
+  }
+  if (stack.length !== 1) throw new Error("Unbalanced source guard.");
+  while (output[0] === "") output.shift();
+  while (output.at(-1) === "") output.pop();
+  return Buffer.from(
+    prefix + output.join("\n") + "\n%%\n%% End of file `" + name + "'.\n",
+  );
+}
 /** Read metadata only; neither archive paths nor downloaded code are written/executed. */
 export async function inventorySource(
   source,
@@ -202,8 +251,29 @@ export async function inventorySource(
       if (declarations.length)
         versionDeclarations.push({ path: file.path, declarations });
     }
+    let dataExtractionProof;
+    if (source.proof) {
+      const paths = Object.keys(files).filter(
+        (path) => path.split("/").at(-1) === source.proof.source,
+      );
+      if (paths.length !== 1)
+        throw new Error("No unique source for data extraction proof.");
+      const extracted = extractClassData(
+        files[paths[0]],
+        source.proof.name,
+        source.proof.prefix,
+      );
+      dataExtractionProof = {
+        sourcePath: paths[0],
+        sourceSha256: sha256(files[paths[0]]),
+        expectedClassSha256: source.proof.sha256,
+        extractedClassSha256: sha256(extracted),
+        matchesExpected: sha256(extracted) === source.proof.sha256,
+      };
+    }
     return {
       ...result,
+      dataExtractionProof,
       status: required.every((file) => file.present)
         ? "runtime-present"
         : "missing-runtime",
@@ -274,8 +344,32 @@ async function main() {
   );
   const results = [];
   for (const source of sources) {
+    const family = source.referenceFamily ?? source.id;
+    let candidate = source;
+    if (source.format !== "file" && ["acm", "elsevier"].includes(family)) {
+      const name = family === "acm" ? "acmart" : "elsarticle";
+      const reference = await readFile(
+        new URL(
+          `../src/publication-templates/journals/${family}/${name}.cls`,
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      const anchor = family === "acm" ? "%% \\CharacterTable" : "%%\n%%\n%%\n";
+      const start = reference.indexOf(anchor);
+      if (start < 0) throw new Error("Missing reviewed class preamble anchor.");
+      candidate = {
+        ...source,
+        proof: {
+          name: `${name}.cls`,
+          source: `${name}.dtx`,
+          sha256: provenance.files[`${family}/${name}.cls`],
+          prefix: reference.slice(0, start),
+        },
+      };
+    }
     const result = await inventorySource(
-      source,
+      candidate,
       provenance.files,
       publicationArchive,
     );
@@ -288,7 +382,7 @@ async function main() {
       `TEMPLATE_SOURCE ${JSON.stringify({
         ...result,
         files: result.files
-          ?.filter((file) => /\.(cls|sty|rtx|bst)$/.test(file.path))
+          ?.filter((file) => /\.(cls|sty|rtx|bst|dtx)$/.test(file.path))
           .slice(0, 100),
       })}`,
     );
