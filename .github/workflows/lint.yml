@@ -41,6 +41,12 @@ jobs:
       - run: pnpm test:browser
         if: ${{ !cancelled() }}
         timeout-minutes: 3
+      - name: Inventory official template sources
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        env:
+          SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm exec node --import tsx scripts/publication-source-inventory.mjs
       - name: Upload publishing test artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
