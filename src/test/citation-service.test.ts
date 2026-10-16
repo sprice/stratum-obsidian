@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadRuntime } from "./runtime-harness";
 import type * as Service from "../citation-service";
+import * as referenceStore from "../citation-reference-store";
 
 class File {
   constructor(public path: string) {}
@@ -18,6 +19,79 @@ class View {
   }
 }
 
+test("hidden reference updates invalidate citation results and unload removes the subscription", async () => {
+  const cleanup: (() => void)[] = [];
+  const timers = new Map<number, () => void>();
+  let timerId = 0;
+  const { CitationService } = loadRuntime<typeof Service>(
+    "citation-service.ts",
+    {
+      Component: class {
+        register(callback: () => void) {
+          cleanup.push(callback);
+        }
+        registerEvent() {}
+      },
+      MarkdownView: View,
+      TFile: File,
+    },
+    {
+      document: { createElement: () => ({}) },
+      window: {
+        setTimeout: (callback: () => void) => {
+          timers.set(++timerId, callback);
+          return timerId;
+        },
+        clearTimeout: (id: number) => timers.delete(id),
+      },
+    },
+    "browser",
+    { "./citation-reference-store": referenceStore },
+  );
+  let content: string | undefined;
+  const app = {
+    metadataCache: { on: () => ({}) },
+    vault: {
+      configDir: ".custom",
+      on: () => ({}),
+      adapter: {
+        exists: (path: string) =>
+          Promise.resolve(!path.endsWith(".json") || content !== undefined),
+        write: (_path: string, text: string) => {
+          content = text;
+          return Promise.resolve();
+        },
+        read: () => Promise.resolve(content!),
+        process: (_path: string, update: (text: string) => string) => {
+          content = update(content!);
+          return Promise.resolve(content);
+        },
+      },
+    },
+  } as never;
+  const service = new CitationService({ app } as never);
+  let invalidations = 0;
+  service.onload();
+  service.subscribe(() => invalidations++);
+  const detail = (key: string) =>
+    ({
+      library: { type: "user", id: "1" },
+      item: {
+        key,
+        csl: { id: `user/1/${key}`, type: "book", title: "Synthetic" },
+      },
+    }) as never;
+  await referenceStore.saveReference(app, detail("A"), () => true);
+  assert.equal(timers.size, 1);
+  [...timers.values()].forEach((callback) => callback());
+  timers.clear();
+  assert.equal(invalidations, 1);
+  service.onunload();
+  cleanup.forEach((callback) => callback());
+  await referenceStore.saveReference(app, detail("B"), () => true);
+  assert.equal(timers.size, 0);
+});
+
 test("manuscript changes refresh reused Reading blocks and unload cancels pending work", () => {
   const events = new Map<string, (file: File) => void>();
   const timers = new Map<number, () => void>();
@@ -27,6 +101,7 @@ test("manuscript changes refresh reused Reading blocks and unload cancels pendin
     {
       Component: class {
         registerEvent() {}
+        register() {}
       },
       MarkdownView: View,
       TFile: File,
@@ -84,6 +159,7 @@ test("renaming reference files away invalidates previously cached citations", ()
     {
       Component: class {
         registerEvent() {}
+        register() {}
       },
       MarkdownView: View,
       TFile: File,
@@ -136,6 +212,26 @@ test("formatting and diagnostics share cached ownership even without literature 
     app: {
       metadataCache: { getFileCache: () => ({}) },
       vault: {
+        configDir: ".custom",
+        adapter: {
+          exists: () => Promise.resolve(true),
+          read: () =>
+            failRead
+              ? Promise.reject(new Error("Temporary read failure"))
+              : Promise.resolve(
+                  JSON.stringify({
+                    version: 1,
+                    items: [
+                      {
+                        id: "user/1/A",
+                        type: "book",
+                        title,
+                        author: [{ family: "Example" }],
+                      },
+                    ],
+                  }),
+                ),
+        },
         getMarkdownFiles: () => [],
         getAbstractFileByPath: (path: string) => new File(path),
         read: (file: File) =>
