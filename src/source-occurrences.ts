@@ -17,7 +17,10 @@ function escaped(text: string, offset: number): boolean {
 }
 
 /** Mask non-prose without changing UTF-16 offsets used by the editor. */
-export function sourceProse(text: string): string {
+export function sourceProse(
+  text: string,
+  options: { includeMath?: boolean } = {},
+): string {
   const chars = text.split("");
   const mask = (start: number, end: number) => {
     for (let i = start; i < end; i++) if (chars[i] !== "\n") chars[i] = " ";
@@ -96,6 +99,26 @@ export function sourceProse(text: string): string {
           close = visible.indexOf(ticks, close + ticks.length);
         if (close >= 0) end = close + ticks.length;
         else i = after - 1;
+      } else if (visible[i] === "$" && !options.includeMath) {
+        // MathJax diagram arrows use @ too; equations are not citation prose.
+        const delimiter = visible.startsWith("$$", i) ? "$$" : "$";
+        if (delimiter === "$$" || !/\s/.test(visible[i + 1] ?? " ")) {
+          let close = i + delimiter.length;
+          while (close < visible.length) {
+            if (delimiter === "$" && visible[close] === "\n") break;
+            if (
+              visible.startsWith(delimiter, close) &&
+              !escaped(visible, close) &&
+              (delimiter === "$$" ||
+                (!/\s/.test(visible[close - 1]) &&
+                  !/\d/.test(visible[close + 1] ?? "")))
+            ) {
+              end = close + delimiter.length;
+              break;
+            }
+            close++;
+          }
+        }
       } else if (visible[i] === "<") {
         const html =
           /^<(pre|code|script|style)\b[^>]*>[\s\S]*?(?:<\/\1>|$)/i.exec(

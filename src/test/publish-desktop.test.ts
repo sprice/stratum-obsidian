@@ -65,11 +65,19 @@ const hasPandoc = !!pandoc;
 const tectonic = installedTool("tectonic", process.env.STRATUM_TEST_TECTONIC);
 
 test(
-  "real PDF export accepts default fonts, academic opening and mathematical notation",
+  "real PDF export accepts default fonts, academic opening, math and chemistry",
   { skip: !pandoc || !tectonic },
   async () => {
     const math = preparePublishMath(
-      "$$\\int_0^1 x^2\\,\\mathrm{d}x = \\frac{1}{3}$$",
+      String.raw`$$\int_0^1 x^2\,\mathrm{d}x = \frac{1}{3}$$
+
+Inline water: $\ce{H2O}$.
+
+$$\ce{[AgCl2]-}$$
+
+$$\ce{$A$ ->[\ce{+H2O}] $B$}$$
+
+$$\ce{SO4^2- + Ba^2+ -> BaSO4 v}$$`,
     );
     const html = `<html><head><title>Unwanted metadata title</title></head><body><div class="stratum-publish-title"><p>Synthetic mathematical paper</p></div><div class="stratum-publish-abstract"><h2 class="unnumbered">Abstract</h2><p>A synthetic abstract.</p></div><h2>Introduction</h2><p>${math.restore(math.markdown)}</p></body></html>`;
     const bytes = await runtime().convertPublication(

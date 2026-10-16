@@ -1,9 +1,14 @@
 import type { PublishOptions } from "./publish-options";
+import {
+  publicationMathFilter,
+  publicationMathPreamble,
+} from "./publish-math-compat";
 export function publicationHeader(options: PublishOptions): string {
   const title = options.titleFont || options.bodyFont;
   return `\n${title ? `\\newfontfamily\\stratumtitlefont{${title}}` : "\\let\\stratumtitlefont\\rmfamily"}
 \\newcommand{\\stratumtitle}{\\stratumtitlefont\\fontsize{${options.titleSize}}{${options.titleSize * 1.2}}\\selectfont}
 \\usepackage{titlesec}
+${publicationMathPreamble}
 \\titleformat{\\section}{\\normalfont\\bfseries\\fontsize{${options.bodySize * 1.35}}{${options.bodySize * 1.6}}\\selectfont}{\\thesection}{1em}{}
 \\titleformat{\\subsection}{\\normalfont\\bfseries\\fontsize{${options.bodySize * 1.15}}{${options.bodySize * 1.4}}\\selectfont}{\\thesubsection}{1em}{}
 \\AtBeginDocument{\\fontsize{${options.bodySize}}{${options.bodySize * 1.2}}\\selectfont}
@@ -111,7 +116,7 @@ export function publicationFilter(options: PublishOptions): string {
   const sizes = `local STRATUM_TEXT_WIDTH = ${(page - 2 * options.margin) * 72}
 local STRATUM_CHAR_WIDTH = ${options.bodySize * 0.5}
 `;
-  return (sizes + PUBLICATION_FILTER)
+  return (sizes + PUBLICATION_FILTER + publicationMathFilter)
     .replaceAll(
       "begin{center}",
       `begin{${options.openingAlignment === "left" ? "flushleft" : "center"}}`,

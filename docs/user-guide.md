@@ -355,6 +355,8 @@ Each created PDF is a saved copy of the note at that time. Later note edits do n
 
 PDFs retain callout titles and text, but omit Obsidian's icons and folding controls. Both writing notes and literature notes can be published.
 
+PDF math supports chemistry, cancellation, bra-ket notation, matrices, aligned equations, proof trees, diagrams, and several other Reading-view features. Fonts and spacing can differ. Some browser-specific annotations and custom macros still need a vault image; see [Reading view and PDF math](math-publishing-compatibility.md) for verified examples and remaining differences.
+
 Embed figures as vault images using Markdown or Obsidian image embeds. PNG and JPEG images retain their original bytes; SVG, GIF, and WebP images are converted to PNG for PDF output. This also applies to figures in abstracts and callouts. Inline SVG markup and rendered diagrams are not supported; save them as vault images before publishing.
 
 ### Edit document details and authors

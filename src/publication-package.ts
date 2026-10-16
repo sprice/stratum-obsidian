@@ -1,4 +1,5 @@
 import files from "./publication-templates/aastex/files.json";
+import { publicationMathPreamble } from "./publish-math-compat";
 import {
   readAastexPdfOptions,
   type AastexPdfOptions,
@@ -390,7 +391,7 @@ export function aastexLatex(
     .join("\n");
   const values: Record<string, string> = {
     journalInfo: options.showDraftDateHeader ? "" : "\\journalinfo{}",
-    preamble,
+    preamble: `${publicationMathPreamble}\n${preamble}`,
     className: pkg.manifest.class
       .split("/")
       .at(-1)!
