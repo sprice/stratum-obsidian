@@ -541,18 +541,21 @@ test("identity lookup keeps a manually moved managed note outside the configured
 
 test("a corrupt citation cache cannot fail a completed literature-note sync", async () => {
   const fixture = vaultFixture();
-  const cache = new FakeFile();
-  cache.path = "stratum-references.json";
+  let cacheRead = false;
   const app = {
     ...fixture.app,
     vault: {
       ...fixture.app.vault,
-      getAbstractFileByPath: (path: string) =>
-        path === cache.path ? cache : null,
-      read: (file: TFile) =>
-        file === (cache as unknown)
-          ? Promise.resolve("{")
-          : fixture.app.vault.read(file),
+      getAbstractFileByPath: () => null,
+      configDir: ".custom",
+      adapter: {
+        exists: () => Promise.resolve(true),
+        read: (path: string) => {
+          assert.equal(path, ".custom/plugins/stratum/stratum-references.json");
+          cacheRead = true;
+          return Promise.resolve("{");
+        },
+      },
     },
   };
   let remembered = false;
@@ -600,6 +603,7 @@ test("a corrupt citation cache cannot fail a completed literature-note sync", as
     assert.equal(result.file, fixture.file);
     assert.equal(remembered, true);
     assert.equal(fixture.writes, 1);
+    assert.equal(cacheRead, true);
     assert.ok(
       errors.some((args) =>
         String(args[0]).includes("literature note sync succeeded"),

@@ -60,21 +60,21 @@ const doc = (
 
 test("publication survives reload and follows a rename, then a new note gets a new identity", async () => {
   const { adapter, files } = memory();
-  let store = new PublishStore(adapter, ".custom");
+  let store = new PublishStore(adapter, ".custom/plugins/stratum");
   const note = await store.note("Draft.md", "Draft", 1);
   await store.add(doc(note.id), new ArrayBuffer(5));
   await store.move("Draft.md", "Final.md");
-  store = new PublishStore(adapter, ".custom");
+  store = new PublishStore(adapter, ".custom/plugins/stratum");
   assert.equal((await store.note("Final.md", "Final", 1)).id, note.id);
   await store.move("Final.md", null);
   assert.notEqual((await store.note("Final.md", "Final", 2)).id, note.id);
   assert.equal((await store.list()).documents.length, 1);
-  assert.ok(files.has(".custom/stratum/published/doc.pdf"));
+  assert.ok(files.has(".custom/plugins/stratum/published/doc.pdf"));
 });
 
 test("failed catalog writes leave no final or partial document", async () => {
   const m = memory(),
-    store = new PublishStore(m.adapter, ".config");
+    store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   m.fail();
   await assert.rejects(
@@ -91,18 +91,18 @@ test("failed catalog writes leave no final or partial document", async () => {
 
 test("failed deletion restores the document and catalog entry", async () => {
   const m = memory(),
-    store = new PublishStore(m.adapter, ".config");
+    store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   await store.add(doc(note.id), new ArrayBuffer(5));
   m.fail();
   await assert.rejects(store.remove("doc"), /Disk full/);
-  assert.ok(m.files.has(".config/stratum/published/doc.pdf"));
+  assert.ok(m.files.has(".config/plugins/stratum/published/doc.pdf"));
   assert.equal((await store.list()).documents.length, 1);
 });
 
 test("serial publishing preserves both exports and rejects collisions", async () => {
   const m = memory(),
-    store = new PublishStore(m.adapter, ".config");
+    store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   await Promise.all([
     store.add(doc(note.id, "one"), new ArrayBuffer(1)),
@@ -115,26 +115,29 @@ test("serial publishing preserves both exports and rejects collisions", async ()
   );
   await store.remove("one");
   assert.equal((await store.list()).documents.length, 1);
-  assert.ok(!m.files.has(".config/stratum/published/one.pdf"));
+  assert.ok(!m.files.has(".config/plugins/stratum/published/one.pdf"));
 });
 
 test("corrupt catalogs block mutation instead of losing history", async () => {
   const m = memory(),
-    store = new PublishStore(m.adapter, ".config");
-  m.files.set(".config/stratum/published/catalog.json", "broken");
+    store = new PublishStore(m.adapter, ".config/plugins/stratum");
+  m.files.set(".config/plugins/stratum/published/catalog.json", "broken");
   await assert.rejects(store.note("Example.md", "Example", 1));
-  assert.equal(m.files.get(".config/stratum/published/catalog.json"), "broken");
+  assert.equal(
+    m.files.get(".config/plugins/stratum/published/catalog.json"),
+    "broken",
+  );
 });
 
 test("catalog recovery preserves history after an interrupted replacement", async () => {
   const m = memory();
-  let store = new PublishStore(m.adapter, ".config");
+  let store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   await store.add(doc(note.id), new ArrayBuffer(5));
   const catalog = `${store.directory}/catalog.json`;
   const backup = `${store.directory}/catalog.backup.json`;
   await m.adapter.rename(catalog, backup);
-  store = new PublishStore(m.adapter, ".config");
+  store = new PublishStore(m.adapter, ".config/plugins/stratum");
   assert.equal((await store.list()).documents.length, 1);
   assert.ok(m.files.has(catalog));
   assert.ok(!m.files.has(backup));
@@ -142,7 +145,7 @@ test("catalog recovery preserves history after an interrupted replacement", asyn
 
 test("backup cleanup failures cannot roll back a committed publication", async () => {
   const m = memory();
-  const store = new PublishStore(m.adapter, ".config");
+  const store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   const remove = m.adapter.remove.bind(m.adapter);
   m.adapter.remove = (path) =>
@@ -159,12 +162,12 @@ test("backup cleanup failures cannot roll back a committed publication", async (
 
 test("interrupted deletion restores documents still referenced by the catalog", async () => {
   const m = memory();
-  let store = new PublishStore(m.adapter, ".config");
+  let store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   await store.add(doc(note.id), new ArrayBuffer(5));
   const path = `${store.directory}/doc.pdf`;
   await m.adapter.rename(path, `${path}.deleting`);
-  store = new PublishStore(m.adapter, ".config");
+  store = new PublishStore(m.adapter, ".config/plugins/stratum");
   assert.equal((await store.list()).documents.length, 1);
   assert.ok(m.files.has(path));
   await store.remove("doc");
@@ -173,7 +176,7 @@ test("interrupted deletion restores documents still referenced by the catalog", 
 
 test("numbered names skip collisions in history and storage, including simultaneous publications", async () => {
   const m = memory();
-  const store = new PublishStore(m.adapter, ".config");
+  const store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   const first = await store.create(
     doc(note.id, "one"),
@@ -201,7 +204,7 @@ test("numbered names skip collisions in history and storage, including simultane
 
 test("a filename occupied during the final rename increments the number without overwriting", async () => {
   const m = memory();
-  const store = new PublishStore(m.adapter, ".config");
+  const store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   const rename = m.adapter.rename.bind(m.adapter);
   m.adapter.rename = async (from, to) => {
@@ -223,7 +226,7 @@ test("a filename occupied during the final rename increments the number without 
 
 test("numbering continues beyond 100 copies and is separate for each format", async () => {
   const m = memory();
-  const store = new PublishStore(m.adapter, ".config");
+  const store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   m.files.set(`${store.directory}/Example.pdf`, new ArrayBuffer(1));
   for (let number = 2; number <= 100; number++)
@@ -248,7 +251,7 @@ test("numbering continues beyond 100 copies and is separate for each format", as
 
 test("a filename occupied during the final existence check uses the next number", async () => {
   const m = memory();
-  const store = new PublishStore(m.adapter, ".config");
+  const store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   const exists = m.adapter.exists.bind(m.adapter);
   const path = `${store.directory}/Example.pdf`;
@@ -270,7 +273,7 @@ test("a filename occupied during the final existence check uses the next number"
 
 test("duplicate document identities fail without retrying filename allocation", async () => {
   const m = memory();
-  const store = new PublishStore(m.adapter, ".config");
+  const store = new PublishStore(m.adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   await store.create(doc(note.id), "Example", new ArrayBuffer(1));
   await assert.rejects(
@@ -282,7 +285,7 @@ test("duplicate document identities fail without retrying filename allocation", 
 
 test("catalog saves drop non-PDF entries and leave their files in place", async () => {
   const { adapter, files } = memory();
-  const store = new PublishStore(adapter, ".config");
+  const store = new PublishStore(adapter, ".config/plugins/stratum");
   const note = await store.note("Example.md", "Example", 1);
   const pdf = doc(note.id);
   const legacy = [

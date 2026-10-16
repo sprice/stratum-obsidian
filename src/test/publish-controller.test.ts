@@ -366,7 +366,10 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
       : [],
     documents: [],
   };
-  files.set(".config/stratum/published/catalog.json", JSON.stringify(catalog));
+  files.set(
+    ".config/plugins/stratum/published/catalog.json",
+    JSON.stringify(catalog),
+  );
   controller.catalog = catalog;
   controller.readiness ??= {
     pdf: true,

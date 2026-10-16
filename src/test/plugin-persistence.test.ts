@@ -3,6 +3,38 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadPluginSettings, savePluginSettings } from "../plugin-persistence";
 import { DEFAULT_SETTINGS } from "../settings-data";
+import {
+  AUTH_ACCESS_TOKEN_SECRET_ID,
+  AUTH_REFRESH_TOKEN_SECRET_ID,
+} from "../constants";
+
+test("removing settings starts onboarding and clears only orphaned Stratum auth secrets", async () => {
+  const secrets = new Map([
+    [AUTH_ACCESS_TOKEN_SECRET_ID, "synthetic-access"],
+    [AUTH_REFRESH_TOKEN_SECRET_ID, "synthetic-refresh"],
+    ["other-plugin-secret", "keep"],
+  ]);
+  const plugin = {
+    settings: { ...DEFAULT_SETTINGS },
+    loadData: () => Promise.resolve(null),
+    saveData: () => Promise.resolve(),
+    app: {
+      secretStorage: {
+        getSecret: (id: string) => secrets.get(id),
+        setSecret: (id: string, value: string) => {
+          secrets.set(id, value);
+        },
+      },
+    },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.accountEmail, null);
+  assert.equal(plugin.settings.authSessionExpiresAt, null);
+  assert.deepEqual(plugin.settings.enabledLibraries, []);
+  assert.equal(secrets.get(AUTH_ACCESS_TOKEN_SECRET_ID), "");
+  assert.equal(secrets.get(AUTH_REFRESH_TOKEN_SECRET_ID), "");
+  assert.equal(secrets.get("other-plugin-secret"), "keep");
+});
 
 test("last selected tab survives reload and invalid stored tabs fall back to Search", async () => {
   let data: unknown = {};

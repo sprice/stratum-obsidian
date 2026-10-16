@@ -4,12 +4,7 @@ import type * as Store from "../citation-reference-store";
 import { loadRuntime } from "./runtime-harness";
 import { normalizeZoteroItemDetail } from "../zotero-item-detail-normalizer";
 
-class File {
-  constructor(public path: string) {}
-}
-const store = loadRuntime<typeof Store>("citation-reference-store.ts", {
-  TFile: File,
-});
+const store = loadRuntime<typeof Store>("citation-reference-store.ts", {});
 function detail(key: string, title = "Synthetic reference") {
   return normalizeZoteroItemDetail({
     zoteroUserId: "1",
@@ -41,24 +36,29 @@ function fixture(initial?: string) {
   let writes = 0;
   const app = {
     vault: {
-      getAbstractFileByPath: () =>
-        text === undefined ? null : new File(store.REFERENCE_FILE),
-      read: () => Promise.resolve(text!),
-      create: async (_path: string, value: string) => {
-        await Promise.resolve();
-        assert.equal(text, undefined);
-        text = value;
-        writes++;
-      },
-      process: async (_file: File, update: (value: string) => string) => {
-        await Promise.resolve();
-        text = update(text!);
-        writes++;
+      configDir: ".custom",
+      adapter: {
+        exists: (path: string) =>
+          Promise.resolve(path.endsWith(".json") ? text !== undefined : true),
+        read: () => Promise.resolve(text!),
+        mkdir: () => Promise.resolve(),
+        process: (_path: string, update: (value: string) => string) => {
+          text = update(text!);
+          writes++;
+          return Promise.resolve(text);
+        },
+        write: async (path: string, value: string) => {
+          assert.equal(path, ".custom/plugins/stratum/stratum-references.json");
+          await Promise.resolve();
+          text = value;
+          writes++;
+        },
       },
     },
   };
   return {
     app: app as never,
+    adapter: app.vault.adapter,
     get writes() {
       return writes;
     },
@@ -86,6 +86,37 @@ test("Zotero CSL is retained independently of generated literature notes", async
     () => true,
   );
   assert.equal((await store.loadReferenceStore(f.app)).length, 1);
+});
+
+test("a cache restored while creating its parent folders is merged instead of replaced", async () => {
+  const f = fixture();
+  const exists = f.adapter.exists;
+  let reads = 0;
+  f.adapter.exists = (path) => {
+    if (path.endsWith(".json") && ++reads === 2)
+      f.text = JSON.stringify({ version: 1, items: [detail("B").item.csl] });
+    return exists(path);
+  };
+  await store.saveReference(f.app, detail("A"), () => true);
+  assert.deepEqual(
+    [...(await store.loadReferenceStore(f.app))].map((item) => item.id).sort(),
+    ["user/1/A", "user/1/B"],
+  );
+});
+
+test("hidden reference writes notify citation listeners only on changes and subscriptions can be removed", async () => {
+  const f = fixture();
+  let notifications = 0;
+  const remove = store.onReferenceStoreChange(f.app, () => notifications++);
+  await store.saveReference(f.app, detail("A"), () => true);
+  assert.equal(notifications, 1);
+  await store.saveReference(f.app, detail("A"), () => true);
+  assert.equal(notifications, 1);
+  await store.saveReference(f.app, detail("A", "Revised"), () => true);
+  assert.equal(notifications, 2);
+  remove();
+  await store.saveReference(f.app, detail("B"), () => true);
+  assert.equal(notifications, 2);
 });
 test("concurrent source saves preserve both entries and update existing identities", async () => {
   const f = fixture();

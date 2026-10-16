@@ -38,3 +38,8 @@ citation-resources.json
 
 # Runtime bibliography cache when the development plugin points at this checkout.
 /cache/bibliography/
+
+# Vault state when the development plugin directory points at this checkout.
+/stratum-references.json
+/stratum-references.json.migration.tmp
+/published/

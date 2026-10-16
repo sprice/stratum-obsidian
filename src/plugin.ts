@@ -1,3 +1,4 @@
+import { migratePluginStorage } from "./plugin-storage-migration";
 import type { SourceSummaries } from "./source-summary";
 import { readAvailableCitationStyles } from "./citation-style-defaults";
 import type { PublishController } from "./publish-controller";
@@ -296,6 +297,18 @@ export default class StratumPlugin extends Plugin {
         document.body.removeClass("stratum-full-callout-colors"),
       );
     }
+    try {
+      await migratePluginStorage(this.app, this.manifest.dir);
+    } catch {
+      new Notice(
+        "Stratum could not migrate its saved data. Saved data was preserved. Check the old and new storage locations for conflicts or storage errors, then reload the plugin.",
+        0,
+      );
+      throw new Error(
+        "Stratum storage migration did not finish. Saved data was preserved.",
+      );
+    }
+    if (this.isUnloaded) return;
     await loadPluginSettings(this);
     this.activeViewTab = resolveActiveTab(
       this.settings.lastActiveTab,

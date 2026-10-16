@@ -17,7 +17,11 @@ import {
 } from "./library-search-modal";
 import { citationAuthoringDocument } from "./citation-document";
 import { readBibliographyBindings } from "./document-sources";
-import { loadReferenceStore, REFERENCE_FILE } from "./citation-reference-store";
+import {
+  loadReferenceStore,
+  REFERENCE_FILE,
+  onReferenceStoreChange,
+} from "./citation-reference-store";
 import { cachedLocales, cachedStyle } from "./citation-styles";
 import type { FormattedDocument } from "./citation-format";
 import type { CslItem } from "./csl-data";
@@ -42,6 +46,11 @@ export class CitationService extends Component {
     super();
   }
   onload(): void {
+    this.register(
+      onReferenceStoreChange(this.plugin.app, () =>
+        this.scheduleInvalidation(),
+      ),
+    );
     this.registerEvent(
       this.plugin.app.metadataCache.on("changed", (file) => changed(file)),
     );
