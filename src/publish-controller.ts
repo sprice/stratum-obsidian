@@ -1,3 +1,4 @@
+import { pluginStorageDirectory } from "./plugin-storage-paths";
 import {
   JOURNAL_TEMPLATES,
   journalProfile,
@@ -142,7 +143,7 @@ export class PublishController extends Component {
     super();
     this.store = new PublishStore(
       plugin.app.vault.adapter,
-      plugin.app.vault.configDir,
+      pluginStorageDirectory(plugin.app),
     );
     const settings = plugin.settings;
     const cache = readPublishReadinessCache(settings.publishReadinessCache);

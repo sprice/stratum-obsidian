@@ -306,7 +306,7 @@ Formatting works offline when the reference data, style, and language are availa
 
 Normal sync updates cached reference data. Run **Stratum: Refresh citation data** to fetch missing data for imported notes.
 
-Back up `stratum.bib` and `stratum-references.json` at the vault root. Also back up the plugin directory to retain downloaded styles and languages.
+Back up `stratum.bib` at the vault root and the Stratum plugin directory to retain citation references, settings, downloaded resources, and published PDFs.
 
 Citation formatting does not require Pandoc. PDF publishing requires separate tools.
 
@@ -411,7 +411,9 @@ Each entry has these actions:
 
 Deleting a stored PDF does not delete the source note or copies saved elsewhere.
 
-Stratum stores PDFs under `<vault config>/stratum/published`. Back up this folder if you want to retain PDF history.
+Stratum stores PDFs and publication history under `<vault config>/plugins/stratum/published`, alongside its private citation data at `<vault config>/plugins/stratum/stratum-references.json`. These files are managed through Stratum’s UI. Back up the plugin directory to retain them; removing that directory also removes its saved data.
+
+On upgrade, Stratum automatically moves the previous `<vault config>/stratum/published` storage and vault-root `stratum-references.json` into the plugin directory. It verifies copies before removing the old files. Notes, citation identities, PDF filenames, and saved publication choices stay unchanged. Empty legacy folders may remain if Obsidian cannot remove them; this does not prevent the plugin from loading. If both locations contain conflicting data or data migration fails, Stratum stops loading and displays a notice; saved data is retained. Resolve the storage conflict or restore from backup before reloading.
 
 ### Template availability
 

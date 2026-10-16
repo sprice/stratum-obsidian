@@ -26,9 +26,9 @@ export class PublishStore {
   private queue: Promise<unknown> = Promise.resolve();
   constructor(
     private adapter: PublishAdapter,
-    configDir: string,
+    pluginDirectory: string,
   ) {
-    this.directory = `${configDir}/stratum/published`;
+    this.directory = `${pluginDirectory}/published`;
   }
   private serial<T>(work: () => Promise<T>): Promise<T> {
     const next = this.queue.then(work);

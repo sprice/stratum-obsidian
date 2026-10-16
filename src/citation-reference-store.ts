@@ -1,4 +1,5 @@
-import { TFile, type App } from "obsidian";
+import type { App } from "obsidian";
+import { referenceStorePath } from "./plugin-storage-paths";
 import { readCslItem, type CslItem } from "./csl-data";
 import type { ZoteroItemDetail } from "./backend-client";
 export const REFERENCE_FILE = "stratum-references.json";
@@ -39,12 +40,22 @@ function cachedStore(app: App, text: string): ReferenceStore {
   snapshots.set(app, { text, store });
   return store;
 }
+const listeners = new WeakMap<App, Set<() => void>>();
+export function onReferenceStoreChange(
+  app: App,
+  listener: () => void,
+): () => void {
+  const entries = listeners.get(app) ?? new Set<() => void>();
+  listeners.set(app, entries);
+  entries.add(listener);
+  return () => {
+    entries.delete(listener);
+  };
+}
 export async function loadReferenceStore(app: App): Promise<CslItem[]> {
-  const file = app.vault.getAbstractFileByPath(REFERENCE_FILE);
-  if (!file) return [];
-  if (!(file instanceof TFile))
-    throw new Error("The citation data path is not a file.");
-  return cachedStore(app, await app.vault.read(file)).items;
+  const path = referenceStorePath(app);
+  if (!(await app.vault.adapter.exists(path))) return [];
+  return cachedStore(app, await app.vault.adapter.read(path)).items;
 }
 const pending = new WeakMap<App, Promise<unknown>>();
 const batches = new WeakMap<
@@ -69,9 +80,9 @@ async function writeReferences(
   const next = (pending.get(app) ?? Promise.resolve())
     .catch(() => {})
     .then(async () => {
-      const file = app.vault.getAbstractFileByPath(REFERENCE_FILE);
-      if (file && !(file instanceof TFile))
-        throw new Error("The citation data path is not a file.");
+      const path = referenceStorePath(app);
+      const adapter = app.vault.adapter;
+      const exists = await adapter.exists(path);
       const merge = (text: string, creating = false) => {
         const active = updates.filter((update) => update.active());
         if (!active.length) return text;
@@ -90,13 +101,24 @@ async function writeReferences(
           ? JSON.stringify({ version: 1, items: [...index.values()] }) + "\n"
           : text;
       };
-      if (file instanceof TFile) {
-        const original = await app.vault.read(file);
-        if (merge(original) !== original) await app.vault.process(file, merge);
-      } else {
-        const content = merge("", true);
-        if (content) await app.vault.create(REFERENCE_FILE, content);
+      const original = exists ? await adapter.read(path) : "";
+      const content = merge(original, !exists);
+      if (content === original) return;
+      const parts = path.split("/").slice(0, -1);
+      for (let i = 1; i <= parts.length; i++) {
+        const directory = parts.slice(0, i).join("/");
+        if (!(await adapter.exists(directory))) await adapter.mkdir(directory);
       }
+      if (!updates.some((update) => update.active())) return;
+      // A vault sync can restore this file while its parent directories are being created.
+      if (await adapter.exists(path))
+        await adapter.process(path, (text) => merge(text));
+      else {
+        const latest = merge("", true);
+        if (!latest) return;
+        await adapter.write(path, latest);
+      }
+      for (const listener of listeners.get(app) ?? []) listener();
     });
   pending.set(app, next);
   await next;
