@@ -31,7 +31,8 @@ export function citationFooter(text: string, result: FormattedDocument) {
 }
 
 export function readingFooterLine(text: string): number {
-  const prose = sourceProse(text);
+  // Equations are visible document blocks even though they contain no citations.
+  const prose = sourceProse(text, { includeMath: true });
   const blocks = parser.parse(text).children.filter((node) => {
     if (node.type === "footnoteDefinition" || node.type === "definition")
       return false;

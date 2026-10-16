@@ -6,6 +6,10 @@ import {
 import { Platform } from "obsidian";
 import { readPublishOptions, type PublishOptions } from "./publish-options";
 import { publicationFilter, publicationHeader } from "./publish-layout";
+import {
+  publicationMathFilter,
+  publicationMathPreamble,
+} from "./publish-math-compat";
 import type { PublishFormat } from "./publish-model";
 import type { aastexManuscript } from "./publication-package";
 import {
@@ -497,25 +501,24 @@ export async function convertPublication(
       output,
     ];
     args.push("--log=diagnostics.json");
-    if (options) {
-      await fs.writeFile(
-        path.join(directory, "layout.lua"),
-        publicationFilter(options),
-        { mode: 0o600 },
-      );
-      args.push("--lua-filter=layout.lua");
-      if (options.numberSections) args.push("--number-sections");
-    }
+    await fs.writeFile(
+      path.join(directory, "layout.lua"),
+      options ? publicationFilter(options) : publicationMathFilter,
+      { mode: 0o600 },
+    );
+    args.push("--lua-filter=layout.lua");
+    if (options?.numberSections) args.push("--number-sections");
     args.push(
       `--pdf-engine=${tools.tectonic}`,
       `--variable=geometry:margin=${options?.margin ?? 1}in`,
     );
+    await fs.writeFile(
+      path.join(directory, "layout.tex"),
+      options ? publicationHeader(options) : publicationMathPreamble,
+      { mode: 0o600 },
+    );
+    args.push("--include-in-header=layout.tex");
     if (options) {
-      await fs.writeFile(
-        path.join(directory, "layout.tex"),
-        publicationHeader(options),
-        { mode: 0o600 },
-      );
       // Tectonic uses XeTeX/fontspec; choose fonts explicitly for text, not math.
       args.push(
         ...(options.bodyFont
@@ -527,7 +530,6 @@ export async function convertPublication(
         "--variable=fontsize:12pt",
         `--variable=papersize:${options.paperSize}`,
         `--variable=linestretch:${options.lineSpacing}`,
-        "--include-in-header=layout.tex",
       );
     }
     args.push("document.html");
@@ -580,7 +582,9 @@ export async function convertPublication(
   }
 }
 
-export const aastexFilter = `
+export const aastexFilter =
+  publicationMathFilter +
+  `
 function Span(el)
   -- The HTML reader removes the data- prefix from custom attributes.
   if el.classes:includes('stratum-aastex-citation') then

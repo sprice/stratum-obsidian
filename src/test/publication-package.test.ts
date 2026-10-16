@@ -362,7 +362,7 @@ test("structured citation tokens preserve groups, narrative form, locators and s
   );
 });
 test(
-  "real packaged PDF compiles code formatting, AMS math and native bibliography",
+  "real packaged PDF compiles code formatting, AMS math, chemistry and native bibliography",
   { timeout: 120_000 },
   async () => {
     assert.ok(
@@ -391,6 +391,10 @@ test(
       page: "1-4",
     };
     const equations = preparePublishMath(String.raw`
+Inline water: $\ce{H2O}$.
+$$\ce{[AgCl2]-}$$
+$$\ce{$A$ ->[\ce{+H2O}] $B$}$$
+$$\ce{SO4^2- + Ba^2+ -> BaSO4 v}$$
 $$
 \text{Aligned equation}\quad\begin{aligned}
 a &= b \\
