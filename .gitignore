@@ -22,6 +22,11 @@ src/publication-templates/aastex/files.json
 data.json
 citation-resources.json
 
+# Runtime storage when the vault's plugin directory is symlinked to this checkout.
+/published/
+/stratum-references.json
+/stratum-references.json.migration.tmp
+
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
 
