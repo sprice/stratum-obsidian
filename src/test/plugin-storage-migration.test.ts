@@ -88,7 +88,7 @@ async function fixture(t: test.TestContext) {
     "User writing with [[Literature Notes/Example]]",
   );
   await put("Literature Notes/Example.md", "User notes and source metadata");
-  return { app, adapter, put, exists, refs, catalog };
+  return { app, adapter, put, exists, refs, catalog, path };
 }
 
 test("migration preserves exact references, PDFs, history and note choices under a custom config directory", async (t) => {
@@ -154,6 +154,34 @@ test("a conflicting destination blocks all migration before either store is chan
   assert.equal(
     await f.adapter.read(".custom/plugins/stratum/published/Example.pdf"),
     "Different saved PDF",
+  );
+});
+
+test("desktop adapter empty-directory removal failures do not block migration or subsequent startup", async (t) => {
+  const f = await fixture(t);
+  // Match Obsidian's desktop adapter, which uses fs.rm rather than fs.rmdir.
+  f.adapter.rmdir = (name, recursive) => {
+    assert.equal(recursive, false);
+    return fs.rm(f.path(name), { recursive, maxRetries: 5 });
+  };
+  await migratePluginStorage(f.app);
+  assert.equal((await loadReferenceStore(f.app))[0].id, "user/1/A");
+  assert.equal(
+    (
+      await new PublishStore(
+        f.adapter as never,
+        ".custom/plugins/stratum",
+      ).list()
+    ).documents[0].id,
+    "pdf",
+  );
+  assert.equal(await f.exists("stratum-references.json"), false);
+  const legacy = await f.adapter.list(".custom/stratum/published");
+  assert.deepEqual(legacy, { files: [], folders: [] });
+  await migratePluginStorage(f.app);
+  assert.equal(
+    await f.adapter.read("Literature Notes/Example.md"),
+    "User notes and source metadata",
   );
 });
 

@@ -143,15 +143,19 @@ export async function migratePluginStorage(
     await verify(copy);
     await adapter.remove(copy.source);
   }
-  for (const folder of folders) {
-    const entries = await adapter.list(folder);
-    if (!entries.files.length && !entries.folders.length)
-      await adapter.rmdir(folder, false);
-  }
+  const removeEmptyDirectory = async (directory: string): Promise<void> => {
+    try {
+      const entries = await adapter.list(directory);
+      if (!entries.files.length && !entries.folders.length)
+        await adapter.rmdir(directory, false);
+    } catch {
+      // Some desktop adapters reject even empty non-recursive removals.
+      // Verified data is already migrated; leftover empty folders must not block startup.
+      // Never switch to recursive deletion: unlisted or newly added files must survive.
+    }
+  };
+  for (const folder of folders) await removeEmptyDirectory(folder);
   const legacyDirectory = `${app.vault.configDir}/stratum`;
-  if (await adapter.exists(legacyDirectory)) {
-    const entries = await adapter.list(legacyDirectory);
-    if (!entries.files.length && !entries.folders.length)
-      await adapter.rmdir(legacyDirectory, false);
-  }
+  if (await adapter.exists(legacyDirectory))
+    await removeEmptyDirectory(legacyDirectory);
 }

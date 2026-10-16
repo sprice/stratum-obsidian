@@ -413,7 +413,7 @@ Deleting a stored PDF does not delete the source note or copies saved elsewhere.
 
 Stratum stores PDFs and publication history under `<vault config>/plugins/stratum/published`, alongside its private citation data at `<vault config>/plugins/stratum/stratum-references.json`. These files are managed through Stratum’s UI. Back up the plugin directory to retain them; removing that directory also removes its saved data.
 
-On upgrade, Stratum automatically moves the previous `<vault config>/stratum/published` storage and vault-root `stratum-references.json` into the plugin directory. It verifies copies before removing the old files. Notes, citation identities, PDF filenames, and saved publication choices stay unchanged. If both locations contain conflicting data or migration fails, Stratum stops loading and displays a notice; the original data is retained. Resolve the storage conflict or restore from backup before reloading.
+On upgrade, Stratum automatically moves the previous `<vault config>/stratum/published` storage and vault-root `stratum-references.json` into the plugin directory. It verifies copies before removing the old files. Notes, citation identities, PDF filenames, and saved publication choices stay unchanged. Empty legacy folders may remain if Obsidian cannot remove them; this does not prevent the plugin from loading. If both locations contain conflicting data or data migration fails, Stratum stops loading and displays a notice; saved data is retained. Resolve the storage conflict or restore from backup before reloading.
 
 ### Supported templates
 
