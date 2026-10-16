@@ -10,7 +10,8 @@ import { aastexPackage, aastexManuscript } from "../publication-package";
 const require = createRequire(import.meta.url);
 const body = "Synthetic bibliography download\n";
 const sha256 = createHash("sha256").update(body).digest("hex");
-const url = aastexPackage.manifest.bibliographyDownload.url;
+const url =
+  "https://templates.stratumnotes.com/api/templates/v1/aastex/versions/7.0.2-r1/download";
 
 test(
   "direct downloads retain security checks and export cleanup on failure",
@@ -27,6 +28,12 @@ test(
       );
       assert.equal(request.method, "GET");
       if (mode === "stall") return;
+      if (mode === "interrupted") {
+        response.writeHead(200, { "Content-Length": body.length + 100 });
+        response.write(body);
+        setImmediate(() => response.destroy());
+        return;
+      }
       response.writeHead(mode === "unavailable" ? 503 : 200);
       response.end(mode === "mismatch" ? "Changed style" : body);
     });
@@ -81,7 +88,7 @@ test(
       for (let index = 0; index < 2; index++)
         assert.equal(
           new TextDecoder().decode(
-            await desktop.downloadAastexBibliography({ url, sha256 }),
+            await desktop.downloadPublicationResource({ url, sha256 }),
           ),
           body,
         );
@@ -92,21 +99,26 @@ test(
       );
       mode = "mismatch";
       await assert.rejects(
-        desktop.downloadAastexBibliography({ url, sha256 }),
+        desktop.downloadPublicationResource({ url, sha256 }),
         /changed/,
       );
       mode = "unavailable";
       await assert.rejects(
-        desktop.downloadAastexBibliography({ url, sha256 }),
+        desktop.downloadPublicationResource({ url, sha256 }),
         /could not supply.*HTTP 503/,
+      );
+      mode = "interrupted";
+      await assert.rejects(
+        desktop.downloadPublicationResource({ url, sha256 }),
+        /interrupted.*retry/,
       );
       mode = "stall";
       await assert.rejects(
-        desktop.downloadAastexBibliography({ url, sha256 }, undefined, 30),
+        desktop.downloadPublicationResource({ url, sha256 }, undefined, 30),
         /timed out/,
       );
       const aborter = new AbortController();
-      const cancelled = desktop.downloadAastexBibliography(
+      const cancelled = desktop.downloadPublicationResource(
         { url, sha256 },
         aborter.signal,
       );
@@ -131,7 +143,7 @@ test(
             references: [{ id: "stratum0", type: "article-journal" }],
           },
         ),
-        /Enable AASTeX/,
+        /Enable this template/,
       );
       assert.equal(paths.length, 1);
       await assert.rejects(access(paths[0]));
@@ -231,17 +243,6 @@ test("converter never downloads missing packs and preserves cached resources on 
       },
     },
     "browser",
-    {
-      "./publication-package": {
-        aastexPackage: {
-          ...aastexPackage,
-          manifest: {
-            ...aastexPackage.manifest,
-            bibliographyDownload: { url, sha256 },
-          },
-        },
-      },
-    },
   );
   const tools = {
     pandoc: "stratum-missing-cache-test-tool",
@@ -285,4 +286,32 @@ test("converter never downloads missing packs and preserves cached resources on 
     for (const directory of scratch)
       await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("development registry requests use only the configured app origin", async () => {
+  const origin = "https://dev.example.test";
+  const dev = loadRuntime<typeof import("../publication-registry")>(
+    "publication-registry.ts",
+    {},
+    { __STRATUM_TEMPLATE_REGISTRY_ORIGIN__: origin },
+    "browser",
+  );
+  const path = "/api/templates/v1/aastex/versions/7.0.2-r1/download";
+  assert.equal(dev.registryUrl(path), origin + path);
+  const desktop = loadRuntime<typeof import("../publish-desktop")>(
+    "publish-desktop.ts",
+    { Platform: { isDesktopApp: true, isDesktop: true } },
+    {
+      __STRATUM_TEMPLATE_REGISTRY_ORIGIN__: origin,
+      TextDecoder,
+      TextEncoder,
+      Uint8Array,
+      window: { require, setTimeout, clearTimeout },
+    },
+    "browser",
+  );
+  await assert.rejects(
+    desktop.downloadPublicationResource({ url, sha256 }),
+    /requires HTTPS from Stratum/,
+  );
 });

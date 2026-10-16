@@ -1,3 +1,4 @@
+import { publicationCrc32 } from "../publication-resource-archive";
 import { deflateRawSync } from "node:zlib";
 export function zip(
   entries: { name: string; value?: string; mode?: number; deflate?: boolean }[],
@@ -13,11 +14,13 @@ export function zip(
       b = Buffer.alloc(46);
     a.writeUInt32LE(0x04034b50);
     a.writeUInt16LE(entry.deflate ? 8 : 0, 8);
+    a.writeUInt32LE(publicationCrc32(value), 14);
     a.writeUInt32LE(data.length, 18);
     a.writeUInt32LE(value.length, 22);
     a.writeUInt16LE(name.length, 26);
     b.writeUInt32LE(0x02014b50);
     b.writeUInt16LE(entry.deflate ? 8 : 0, 10);
+    b.writeUInt32LE(publicationCrc32(value), 16);
     b.writeUInt32LE(data.length, 20);
     b.writeUInt32LE(value.length, 24);
     b.writeUInt16LE(name.length, 28);

@@ -16,7 +16,7 @@ export interface BibliographyCache {
 interface Specification {
   sha256: string;
   maxBytes?: number;
-  extension?: "bst" | "zip";
+  extension?: "bst" | "zip" | "json" | "bin";
 }
 const queues = new WeakMap<
   BibliographyCache["adapter"],
@@ -55,9 +55,10 @@ async function cached(
   return undefined;
 }
 async function ensureDirectory(cache: BibliographyCache): Promise<void> {
-  let path = "";
+  let path = cache.directory.startsWith("/") ? "/" : "";
   for (const part of cache.directory.split("/")) {
-    path = path ? `${path}/${part}` : part;
+    if (!part) continue;
+    path = path === "/" ? `/${part}` : path ? `${path}/${part}` : part;
     if (!(await cache.adapter.exists(path))) {
       try {
         await cache.adapter.mkdir(path);
@@ -78,10 +79,14 @@ export async function cachedPublicationResource(
   if (!/^[a-f0-9]{64}$/.test(specification.sha256))
     throw new Error("Invalid resource fingerprint.");
   const maxBytes = specification.maxBytes ?? 1_000_000;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 25_000_000)
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > 32 * 1024 * 1024
+  )
     throw new Error("Invalid resource size limit.");
   const extension = specification.extension ?? "bst";
-  if (extension !== "bst" && extension !== "zip")
+  if (!["bst", "zip", "json", "bin"].includes(extension))
     throw new Error("Invalid resource extension.");
   const path = `${cache.directory}/${specification.sha256}.${extension}`;
   let queue = queues.get(cache.adapter);
@@ -119,7 +124,20 @@ export async function cachedPublicationResource(
         );
         cancelled(signal);
         await cache.adapter.rename(temporary, path);
-        return bytes;
+        cancelled(signal);
+        const persisted = await cached(
+          cache,
+          path,
+          specification.sha256,
+          maxBytes,
+        );
+        if (!persisted) {
+          await cache.adapter.remove(path);
+          throw new Error(
+            "The template cache could not be verified after writing. Check disk space and enable the template again.",
+          );
+        }
+        return persisted;
       } finally {
         if (await cache.adapter.exists(temporary))
           await cache.adapter.remove(temporary);
@@ -143,5 +161,3 @@ export async function cachedPublicationResource(
     signal.removeEventListener("abort", abort);
   }
 }
-
-export const cachedAastexBibliography = cachedPublicationResource;

@@ -38,5 +38,3 @@ citation-resources.json
 
 # Runtime template-resource cache when the development plugin points at this checkout.
 /cache/bibliography/
-
-/src/publication-templates/journals/files.json

@@ -1,19 +1,39 @@
-import { publicationAssets as collectPublicationAssets } from "./publication-asset-files.mjs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const packageDirectory = fileURLToPath(
   new URL("../src/publication-templates/aastex/", import.meta.url),
 );
-export const publicationAssets = async (directory = packageDirectory) => {
-  const result = await collectPublicationAssets(directory);
-  if (resolve(directory) !== resolve(packageDirectory)) return result;
-  const assets = JSON.parse(result.contents);
-  for (const name of Object.keys(assets))
-    if (name.endsWith(".cls")) delete assets[name];
-  return { ...result, contents: `${JSON.stringify(assets, null, 2)}\n` };
-};
+export async function publicationAssets(directory = packageDirectory) {
+  const assets = {};
+  const paths = [];
+  const directories = [];
+  async function collect(relative = "") {
+    directories.push(join(directory, relative));
+    const entries = await readdir(join(directory, relative), {
+      withFileTypes: true,
+    });
+    for (const entry of entries.sort((a, b) =>
+      a.name.localeCompare(b.name, "en"),
+    )) {
+      const name = relative ? `${relative}/${entry.name}` : entry.name;
+      if (entry.isSymbolicLink())
+        throw new Error("Publication assets cannot contain symlinks.");
+      if (entry.isDirectory()) await collect(name);
+      else if (entry.isFile() && name !== "files.json") {
+        paths.push(join(directory, name));
+        assets[name] = await readFile(join(directory, name), "utf8");
+      }
+    }
+  }
+  await collect();
+  return {
+    contents: `${JSON.stringify(assets, null, 2)}\n`,
+    paths,
+    directories,
+  };
+}
 export async function generatePublicationAssets(directory = packageDirectory) {
   const result = await publicationAssets(directory);
   const target = join(directory, "files.json");
@@ -32,6 +52,4 @@ if (
   fileURLToPath(import.meta.url) === resolve(process.argv[1])
 ) {
   await generatePublicationAssets(process.argv[2]);
-  if (!process.argv[2])
-    await (await import("./journal-assets.mjs")).generateJournalAssets();
 }

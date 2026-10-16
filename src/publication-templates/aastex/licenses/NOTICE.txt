@@ -3,6 +3,9 @@ The official unmodified aastex702.cls is licensed under the LaTeX Project Public
 https://www.latex-project.org/lppl/lppl-1-3c/
 The original class includes its complete distribution and warranty notices.
 
-Stratum downloads the pinned full official archive and bibliography directly from
-AAS when the user enables this template. The complete archive, including original
-notices and documentation, is retained in the local resource cache.
+Stratum downloads the pinned reduced distribution from its public mirror when
+this template is enabled. The unchanged class and bibliography, original embedded
+notices and STRATUM-BUNDLE.txt are retained in the verified cache. The packaging
+notice identifies included/omitted files and the complete original work.
+The bibliography permits nonprofit use and no-money-except-distribution-costs
+redistribution. CC0 applies only to Stratum's packaging notice.

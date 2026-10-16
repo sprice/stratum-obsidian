@@ -2,6 +2,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import { escapeHtml } from "./citation-display";
+import { compatibleMathTex } from "./publish-math-compat";
 interface Node {
   type: string;
   children?: Node[];
@@ -88,7 +89,7 @@ export function preparePublishMath(text: string): {
     math.push({
       from: i,
       to: end + close.length,
-      tex,
+      tex: compatibleMathTex(tex, text.slice(0, i).split("\n").length),
       display: open === "$$",
     });
     i = end + close.length - 1;

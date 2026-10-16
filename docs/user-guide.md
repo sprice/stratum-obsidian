@@ -355,6 +355,8 @@ Each created PDF is a saved copy of the note at that time. Later note edits do n
 
 PDFs retain callout titles and text, but omit Obsidian's icons and folding controls. Both writing notes and literature notes can be published.
 
+PDF math supports chemistry, cancellation, bra-ket notation, matrices, aligned equations, proof trees, diagrams, and several other Reading-view features. Fonts and spacing can differ. Some browser-specific annotations and custom macros still need a vault image; see [Reading view and PDF math](math-publishing-compatibility.md) for verified examples and remaining differences.
+
 Embed figures as vault images using Markdown or Obsidian image embeds. PNG and JPEG images retain their original bytes; SVG, GIF, and WebP images are converted to PNG for PDF output. This also applies to figures in abstracts and callouts. Inline SVG markup and rendered diagrams are not supported; save them as vault images before publishing.
 
 ### Edit document details and authors
@@ -414,13 +416,13 @@ Stratum stores PDFs under `<vault config>/stratum/published`. Back up this folde
 ### Template availability
 
 Open **Settings → Publishing → Manage templates**, or select the gear beside
-**Publish → Create → Template**. All templates start off, including General
-and Academic and after upgrading. Existing configuration and saved note choices
-are retained; enable a template before creating another PDF.
+**Publish → Create → Template**. General documents and Academic papers are enabled
+by default. Other templates start off. Existing configuration, saved toggle choices,
+and saved note choices are retained when upgrading.
 
 The right-hand switch enables a template family and its profiles. Built-in and
-custom layouts enable without a download. Enabling AASTeX installs and verifies
-missing official resources; a failed installation leaves it off. Disabling hides
+custom layouts enable without a download. Enabling a journal family or AASTeX installs and verifies
+its compatible mirrored release; a failed installation leaves it off. Disabling hides
 its choices and keeps cached files. Re-enabling verifies and reuses them. A disabled
 saved template is never replaced automatically. With no templates enabled, use
 **Manage templates** from the empty state.
@@ -444,7 +446,7 @@ layouts remain available when you want to customize fonts, margins, and CSL styl
 | IEEE                | Journal, conference                                                   |
 | APS / AIP           | APS Physical Review A preprint/reprint; AIP JCP numerical/author-year |
 | Elsevier            | Preprint, review, journal; each with numerical/author-year citations  |
-| Elsevier CAS        | Single column, double column                                          |
+| Elsevier CAS        | Single column                                                         |
 | MNRAS               | Standard manuscript, referee                                          |
 | Springer LNCS       | Proceedings                                                           |
 | Research / preprint | Original Stratum single/double-column layouts                         |
@@ -503,11 +505,13 @@ Anonymous ACM review omits author front matter and PDF author metadata. Review
 identifying prose, acknowledgments, figures, and self-citations yourself; the
 plugin does not rewrite those parts of your manuscript.
 
-Journal classes and bibliography styles are pinned in the plugin. Tectonic may
-download their supporting packages and fonts; first use requires network access
-unless those dependencies are already cached. Offline exporting requires both
-the plugin assets and compiler dependencies. Journal assets remain bundled while
-their verified upstream-download migration is completed.
+Each adapter pins an exact release from Stratum’s public mirror, including runtime
+hashes and validation evidence. Registry presence alone does not establish renderer
+support. CAS currently supports single-column publishing only; existing double-column
+selections are retained with an explanation. Tectonic may download supporting
+packages and fonts; offline exporting requires both installed mirror resources
+and cached compiler dependencies. Sources, provenance and required notices remain
+in the plugin cache. Do not redistribute them without their license conditions.
 
 #### AASTeX
 
@@ -533,8 +537,8 @@ Select the template version in **Publish → Create**. If the selected version i
 
 ##### Support files
 
-Enable AASTeX in **Manage templates** to download its pinned official distribution
-and bibliography style. Both are verified before the template becomes available.
+Enable AASTeX in **Manage templates** to download its compatible mirrored class
+and bibliography release. Both are verified before the template becomes available.
 Export uses installed resources and does not start a missing-resource download.
 If files are missing or damaged, disable and re-enable AASTeX to reinstall.
 
@@ -583,20 +587,25 @@ Coverage varies by source. Stratum sends only the DOI to OpenAlex, not your draf
 - Cloud imports fetch Zotero metadata, notes, and annotations. The service can cache search metadata, abstracts, and enrichment responses.
 - Additional citation styles come from `www.zotero.org`.
 - Additional citation languages come from the Citation Style Language project on `raw.githubusercontent.com`.
-- AASTeX template and bibliography downloads contact `journals.aas.org`. Tectonic can download typesetting support files.
+- Publishing template downloads contact Stratum’s public API at `templates.stratumnotes.com`. Tectonic can download typesetting support files.
 - Selecting an external source link opens its destination.
 
 Style and language requests identify resources. They do not contain your draft or reference data.
 
-### AASTeX downloads and privacy
+### Publishing template downloads and privacy
 
-When you enable AASTeX in **Manage templates**, Stratum downloads the official
-class distribution and bibliography style from the American Astronomical Society
-at `journals.aas.org`. No manuscript or reference data is sent.
+When you enable a supported journal family or AASTeX in **Manage templates**,
+Stratum downloads only public release metadata, validation evidence and resources
+from `templates.stratumnotes.com/api/templates/v1`. No account or bucket credentials are
+needed, and no manuscript or reference data is sent. AASTeX bibliography use is
+restricted to nonprofit purposes; its original notices and mirror packaging notice
+are retained. Other releases retain their own component license conditions.
 
 The download uses a secure connection. Stratum checks that it matches the expected file, then saves it in the plugin folder for reuse.
 
-**Your manuscript and reference data are not sent to AAS.**
+If the mirror is unavailable, retry enablement later. Verified installed versions
+remain usable offline. Missing or damaged caches require explicit reinstallation
+in Manage templates; publishing never silently downloads or upgrades resources.
 
 ### Your writing and credentials
 

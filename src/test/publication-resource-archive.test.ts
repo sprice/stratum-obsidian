@@ -48,3 +48,27 @@ test("archive reader rejects malformed offsets, size bombs and unsupported compr
     assert.throws(() => publicationArchive(bytes, inflate));
   }
 });
+
+test("archive limits accept registry-sized entries and reject CRC damage and entry bombs", () => {
+  const value = "x".repeat(26 * 1024 * 1024);
+  const large = publicationArchive(
+    zip([{ name: "source.dtx", value, deflate: true }]),
+    inflate,
+  );
+  assert.equal(large["source.dtx"].length, value.length);
+  const damaged = zip([{ name: "class.cls" }]);
+  damaged[30 + "class.cls".length] ^= 1;
+  assert.throws(() => publicationArchive(damaged, inflate), /CRC/);
+  assert.throws(
+    () =>
+      publicationArchive(
+        zip(Array.from({ length: 5001 }, (_, i) => ({ name: `file${i}` }))),
+        inflate,
+      ),
+    /Unsupported|limit/,
+  );
+  assert.throws(
+    () => publicationArchive(new Uint8Array(32 * 1024 * 1024 + 1), inflate),
+    /too large/,
+  );
+});

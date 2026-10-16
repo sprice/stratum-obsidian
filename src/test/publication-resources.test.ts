@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createHash, webcrypto } from "node:crypto";
+import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
 import { zip } from "./publication-resource-fixture";
-import { loadRuntime } from "./runtime-harness";
+import {
+  resolveRegistryResources,
+  verifyRegistryMetadata,
+  registryJson,
+  registryUrl,
+  type RegistryPin,
+} from "../publication-registry";
+import { extractPublicationClass } from "../publication-source-class";
 import type { BibliographyCache } from "../publication-bibliography-cache";
 const hash = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 function setup() {
@@ -48,121 +55,200 @@ function setup() {
       },
     },
   };
-  const runtime = loadRuntime<typeof import("../publication-resources")>(
-    "publication-resources.ts",
-    { Platform: { isDesktop: true } },
-    { crypto: webcrypto, TextDecoder, Uint8Array },
-  );
+  return { cache, files };
+}
+function fixture() {
+  const { cache, files } = setup();
   const archive = zip([
-    { name: "official/class-v1.2.cls", value: "Synthetic class" },
-    { name: "official/source.dtx", value: "Required source" },
+    { name: "official/class.cls", value: "Synthetic class" },
+    { name: "official/LICENSE", value: "Synthetic notice" },
   ]);
-  const style = new TextEncoder().encode("Synthetic bibliography");
-  const pack = {
-    archive: {
-      url: "https://example.invalid/archive.zip",
+  const dependency = new TextEncoder().encode("Synthetic style and notice");
+  const base = "/api/templates/v1/example/versions/1.0-r1";
+  const pin: RegistryPin = {
+    metadata: {
+      schemaVersion: 1,
+      templateId: "example",
+      version: "1.0-r1",
       sha256: hash(archive),
-      extension: "zip" as const,
-      maxBytes: 10000,
+      bytes: archive.length,
+      download: `${base}/download`,
+      validation: `${base}/validation`,
+      requiredFiles: ["official/LICENSE", "official/class.cls"],
+      dependencies: [
+        {
+          id: "style",
+          targetPath: "official/style.bst",
+          sha256: hash(dependency),
+          bytes: dependency.length,
+          requiredFiles: ["official/style.bst"],
+          download: `${base}/dependencies/style/download`,
+        },
+      ],
+      compilation: "not-tested",
+      compilationNotes: "Synthetic fixture",
     },
-    entries: {
-      "class-v1.2.cls": hash(new TextEncoder().encode("Synthetic class")),
-    },
-    files: {
-      "style-v7.1.bst": {
-        url: "https://example.invalid/style-v7.1.bst",
-        sha256: hash(style),
+    validation: { schemaVersion: 1, dimensions: { compilation: "passed" } },
+    runtime: {
+      "class.cls": {
+        path: "official/class.cls",
+        sha256: hash(new TextEncoder().encode("Synthetic class")),
       },
+      "style.bst": { path: "official/style.bst", sha256: hash(dependency) },
     },
   };
-  let requests = 0;
-  const download = (resource: { url: string }) => {
-    requests++;
-    return Promise.resolve(resource.url.endsWith("zip") ? archive : style);
+  let count = 0;
+  let mode = "success";
+  const download = (spec: { url: string; maxBytes: number }) => {
+    count++;
+    if (mode === "offline") return Promise.reject(new Error("Offline"));
+    if (spec.url.endsWith("/validation"))
+      return Promise.resolve(registryJson(pin.validation));
+    if (spec.url.endsWith("/style/download"))
+      return Promise.resolve(
+        mode === "damaged-dependency" ? new Uint8Array([0]) : dependency,
+      );
+    if (spec.url.endsWith("/download"))
+      return Promise.resolve(
+        mode === "damaged" ? new Uint8Array([0]) : archive,
+      );
+    return Promise.resolve(
+      registryJson({
+        ...pin.metadata,
+        available: mode !== "unpublished",
+        publication: mode === "unpublished" ? "not-synced" : "published",
+        compilation: "tested",
+      }),
+    );
   };
-  const inflate = (bytes: Uint8Array, maxOutputLength: number) =>
-    inflateRawSync(bytes, { maxOutputLength });
+  const run = (allowDownload = true, signal?: AbortSignal) =>
+    resolveRegistryResources(
+      cache,
+      pin,
+      download,
+      (b, l) => inflateRawSync(b, { maxOutputLength: l }),
+      signal,
+      allowDownload,
+    );
   return {
     cache,
     files,
-    runtime,
-    pack,
-    download,
-    inflate,
-    requests: () => requests,
+    pin,
+    run,
+    get count() {
+      return count;
+    },
+    set mode(value: string) {
+      mode = value;
+    },
   };
 }
-test("shared installer retains full source archive, returns only pinned runtime files, and reuses verified cache offline", async () => {
-  const f = setup();
-  const result = await f.runtime.resolvePublicationResourcePack(
-    f.cache,
-    f.pack,
-    f.download,
-    f.inflate,
-  );
-  assert.deepEqual(Object.keys(result), ["class-v1.2.cls", "style-v7.1.bst"]);
-  assert.equal(f.requests(), 2);
-  assert.equal(f.files.size, 2);
-  await f.runtime.resolvePublicationResourcePack(
-    f.cache,
-    f.pack,
-    () => Promise.reject(new Error("Offline")),
-    f.inflate,
-  );
-  assert.equal(f.requests(), 2);
+test("exact registry release installs once, retains sources and dependencies, and works offline", async () => {
+  const f = fixture();
+  const [a, b] = await Promise.all([f.run(), f.run()]);
+  assert.deepEqual(a, b);
+  assert.equal(f.count, 4);
+  assert.equal(f.files.size, 3);
+  f.mode = "offline";
+  assert.deepEqual(await f.run(false), a);
+  assert.deepEqual(await f.run(), a);
+  assert.equal(f.count, 4);
 });
-test("corrupt cached archives and changed file pins cannot be used offline", async () => {
-  const f = setup();
-  await f.runtime.resolvePublicationResourcePack(
-    f.cache,
-    f.pack,
-    f.download,
-    f.inflate,
+test("unpublished or incompatible metadata never activates an installation", async () => {
+  const f = fixture();
+  f.mode = "unpublished";
+  await assert.rejects(f.run(), /not published/);
+  assert.equal(f.files.size, 0);
+  for (const patch of [
+    { version: "2.0-r1" },
+    { download: "https://evil.invalid/file" },
+    { dependencies: [] },
+    { requiredFiles: ["../file"] },
+    { schemaVersion: 2 },
+    { sha256: "0".repeat(64) },
+  ])
+    assert.throws(
+      () =>
+        verifyRegistryMetadata(
+          {
+            ...f.pin.metadata,
+            ...patch,
+            available: true,
+            publication: "published",
+            compilation: "tested",
+          },
+          f.pin,
+        ),
+      /incompatible/,
+    );
+  for (const path of [
+    "//evil.invalid/api/templates/v1/file",
+    "/api/templates/v1/../file",
+    "/api/templates/v1/a?redirect=1",
+    "https://evil.invalid/file",
+  ])
+    assert.throws(() => registryUrl(path), /Invalid/);
+});
+test("damaged caches fail offline and explicit reinstall repairs only the affected fingerprint", async () => {
+  const f = fixture();
+  await f.run();
+  const archivePath = `${f.cache.directory}/${f.pin.metadata.sha256}.zip`;
+  f.files.set(archivePath, new Uint8Array([1]).buffer);
+  f.mode = "offline";
+  await assert.rejects(f.run(false), /missing or damaged/);
+  f.mode = "damaged";
+  await assert.rejects(f.run(), /changed/);
+  assert.equal(
+    [...f.files.keys()].some((p) => p.endsWith(".tmp")),
+    false,
   );
-  f.files.set(
-    `${f.cache.directory}/${f.pack.archive.sha256}.zip`,
-    new ArrayBuffer(1),
+  f.mode = "success";
+  await f.run();
+  assert.equal(f.files.size, 3);
+});
+test("interrupted installs, dependencies, and missing runtime files fail closed", async () => {
+  const f = fixture();
+  const aborter = new AbortController();
+  aborter.abort();
+  await assert.rejects(f.run(true, aborter.signal), /cancelled/);
+  assert.equal(f.count, 0);
+  f.mode = "damaged-dependency";
+  await assert.rejects(f.run(), /changed/);
+  f.mode = "success";
+  await f.run();
+  f.pin.runtime["class.cls"].path = "missing.cls";
+  await assert.rejects(f.run(), /missing or damaged/);
+});
+test("class preparation is bounded data filtering with explicit guards", () => {
+  const source = new TextEncoder().encode(
+    "%<*class>\n\\ProvidesClass{synthetic}\n%</class>\n",
   );
-  await assert.rejects(
-    f.runtime.resolvePublicationResourcePack(
-      f.cache,
-      f.pack,
-      () => Promise.reject(new Error("Offline")),
-      f.inflate,
+  assert.match(
+    new TextDecoder().decode(
+      extractPublicationClass(source, "synthetic.cls", "Notice\n"),
     ),
-    /Offline/,
+    /^Notice\n\\ProvidesClass/,
   );
-  await assert.rejects(
-    f.runtime.resolvePublicationResourcePack(
-      f.cache,
-      { ...f.pack, entries: { "class-v1.2.cls": "f".repeat(64) } },
-      f.download,
-      f.inflate,
-    ),
-    /fingerprint/,
-  );
+  for (const text of ["%<*unknown>", "%<*class>", "%</class>"])
+    assert.throws(
+      () =>
+        extractPublicationClass(
+          new TextEncoder().encode(text),
+          "synthetic.cls",
+          "",
+        ),
+      /guard/,
+    );
 });
 
-test("versioned resource names still reject path traversal and directory separators", async () => {
-  for (const name of [
-    "../style-v7.1.bst",
-    "dir/style-v7.1.bst",
-    "dir\\style-v7.1.bst",
-  ]) {
-    const f = setup();
-    await assert.rejects(
-      f.runtime.resolvePublicationResourcePack(
-        f.cache,
-        { ...f.pack, files: { [name]: f.pack.files["style-v7.1.bst"] } },
-        f.download,
-        f.inflate,
-      ),
-      /Invalid template resource name/,
-    );
-    assert.equal(
-      f.requests(),
-      1,
-      "Only the pinned archive may be fetched before rejecting an invalid resource name",
-    );
-  }
+test("cache write damage and missing declared dependency files prevent enablement", async () => {
+  const f = fixture();
+  const write = f.cache.adapter.writeBinary;
+  f.cache.adapter.writeBinary = (path, bytes) =>
+    write(path, new Uint8Array([0]).buffer);
+  await assert.rejects(f.run(), /cache could not be verified/);
+  assert.equal(f.files.size, 0);
+  f.cache.adapter.writeBinary = write;
+  f.pin.metadata.dependencies[0].requiredFiles.push("official/missing-notice");
+  await assert.rejects(f.run(), /missing a required/);
 });

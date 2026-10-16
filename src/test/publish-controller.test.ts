@@ -1585,12 +1585,12 @@ test("deferred journal choices are hidden and cannot be selected", async () => {
   assert.equal((await controller.store.list()).documents.length, 0);
 });
 
-test("default-off migration and disabled selections retain saved note choices without creating PDFs", async () => {
+test("disabled selections retain saved note choices without creating PDFs", async () => {
   const { controller, plugin, leaf, release } = setup();
   await controller.updatePreferences({ templateId: "academic" });
   const text = leaf.view.text;
   const selected = controller.notePreferences.templateId;
-  plugin.settings.publishingTemplates = { templates: [] };
+  plugin.settings.publishingTemplates = { templates: [], enabledIds: [] };
   release();
   assert.equal(controller.publishingTemplates.templates.length, 0);
   assert.equal(controller.notePreferences.templateId, selected);
@@ -1604,4 +1604,18 @@ test("default-off migration and disabled selections retain saved note choices wi
     enabledIds: ["academic"],
   };
   assert.equal(controller.selectedTemplate?.id, "academic");
+});
+
+test("a saved unsupported journal profile explains recovery without replacing the choice", async () => {
+  const { controller, leaf } = setup();
+  const preferences = readNotePreferences({ templateId: "journal:cas-double" });
+  controller.catalog!.notes[0].preferences = preferences;
+  const text = leaf.view.text;
+  assert.equal(controller.selectedTemplate, undefined);
+  assert.match(controller.academicProblem, /Double-column CAS is unavailable/);
+  assert.equal(controller.canCreate(), false);
+  await controller.create();
+  assert.equal(controller.notePreferences.templateId, "journal:cas-double");
+  assert.equal((await controller.store.list()).documents.length, 0);
+  assert.equal(leaf.view.text, text);
 });

@@ -108,7 +108,7 @@ export function readPublishingTemplates(value: unknown): PublishingTemplates {
             ),
           ),
         ]
-      : [],
+      : ["general", "academic"],
   };
 }
 export function selectedPublishingTemplate(

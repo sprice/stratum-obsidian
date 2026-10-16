@@ -1,0 +1,1309 @@
+{
+  "aastex": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "aastex",
+      "version": "7.0.2-r1",
+      "upstreamVersion": "7.0.2",
+      "revision": 1,
+      "upstreamUrl": "https://journals.aas.org/wp-content/uploads/2026/06/aastex702.zip",
+      "packaging": {
+        "kind": "runtime-bundle-v1",
+        "sourceSha256": "008ed27b62a3b1689a256a53893df05080cd01b754b206f4833f864cb16fc25f",
+        "sourceBytes": 1393358,
+        "files": ["aasjournalv7.1.bst", "aastex702.cls"],
+        "noticePath": "STRATUM-BUNDLE.txt"
+      },
+      "license": "LPPL-1.3c-or-later AND LicenseRef-AAS-BST-Nonprofit AND CC0-1.0",
+      "licenseUrl": "https://journals.aas.org/wp-content/uploads/2026/06/aastex702.zip",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": ["aastex702.cls"],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://journals.aas.org/wp-content/uploads/2026/06/aastex702.zip",
+            "path": "aastex702.cls",
+            "sha256": "0ee51ff72a4d0b608a1885e87cddad4bcb41efacb852889de97637671c74d8ad",
+            "lineStart": 14,
+            "lineEnd": 30
+          },
+          "conditions": [
+            "Preserve unchanged class bytes, embedded copyright, LPPL, maintenance and identity notices.",
+            "LPPL clause 6: identify the reduced distribution, omissions and packaging responsibility and provide sufficient information to obtain the complete original work; no upstream endorsement or support is implied."
+          ],
+          "notes": "The original publisher class contains explicit LPPL 1.3c-or-later permission. Only selected runtime files are redistributed with an accurate Stratum packaging notice."
+        },
+        {
+          "paths": ["aasjournalv7.1.bst"],
+          "license": "LicenseRef-AAS-BST-Nonprofit",
+          "evidence": {
+            "url": "https://journals.aas.org/wp-content/uploads/2026/06/aastex702.zip",
+            "path": "aasjournalv7.1.bst",
+            "sha256": "7e4375aff3c06a4702f9272821e70a444ea9ed4b4db51b34933fa3ee44f2a385",
+            "lineStart": 141,
+            "lineEnd": 149
+          },
+          "conditions": [
+            "Use for nonprofit purposes.",
+            "Do not distribute in exchange for money other than distribution costs.",
+            "Preserve the complete original bibliography file and notices."
+          ],
+          "notes": "The embedded original bibliography notice permits nonprofit use and no-money-except-distribution-costs distribution. This free keyless public-good registry preserves the restriction for downstream users."
+        },
+        {
+          "paths": ["STRATUM-BUNDLE.txt"],
+          "license": "CC0-1.0",
+          "evidence": {
+            "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "path": "STRATUM-BUNDLE.txt",
+            "sha256": "5d3b514484de52781dfa097260da10b3fefda7f85b7110843b24057e4d2f6f7d",
+            "lineStart": 1,
+            "lineEnd": 28
+          },
+          "conditions": [
+            "CC0 applies only to the Stratum-authored packaging notice, not upstream components."
+          ],
+          "notes": "Stratum-authored notice records original source location/hash/size, selected and omitted paths and packaging responsibility."
+        }
+      ],
+      "reviewNotes": "Reduced runtime distribution from the original publisher ZIP recovered through the browser. Original class and bibliography files, including embedded copyright and license notices, remain unchanged. Examples, documentation and optional images are omitted. LPPL clauses 2 and 6 are addressed by the Stratum packaging notice with complete original source information. Bibliography use remains restricted to nonprofit purposes and distribution cannot be in exchange for money except distribution costs. The optional ORCID icon is omitted; the original class retains ORCID links and gracefully skips the absent icon. The original class identifies Version 7.0.2 dated 2025/05/09 despite the publisher download URL dated June 2026.",
+      "requiredFiles": [
+        "aasjournalv7.1.bst",
+        "aastex702.cls",
+        "STRATUM-BUNDLE.txt"
+      ],
+      "layout": "upstream-zip",
+      "sha256": "27a2c019c0cd5890340e0df297b2245d1abfbc9416b53efa134c808f7bcbba7c",
+      "bytes": 97148,
+      "validationRecipeSha256": "35b69d695c0f972d1d4d673b96edccb03b52c41ea818aa84e6b50d5ad77f0978",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/aastex/versions/7.0.2-r1/validation",
+      "download": "/api/templates/v1/aastex/versions/7.0.2-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "aastex",
+      "version": "7.0.2-r1",
+      "sourceSha256": "27a2c019c0cd5890340e0df297b2245d1abfbc9416b53efa134c808f7bcbba7c",
+      "recipeSha256": "35b69d695c0f972d1d4d673b96edccb03b52c41ea818aa84e6b50d5ad77f0978",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "aasjournalv7.1.bst": {
+        "path": "aasjournalv7.1.bst",
+        "sha256": "7e4375aff3c06a4702f9272821e70a444ea9ed4b4db51b34933fa3ee44f2a385"
+      },
+      "aastex702.cls": {
+        "path": "aastex702.cls",
+        "sha256": "0ee51ff72a4d0b608a1885e87cddad4bcb41efacb852889de97637671c74d8ad"
+      }
+    }
+  },
+  "acm": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "acmart",
+      "version": "2.20-r1",
+      "upstreamVersion": "2.20",
+      "revision": 1,
+      "upstreamUrl": "https://github.com/borisveytsman/acmart/archive/10d6d082e522c4034022f38437019ba75589456b.zip",
+      "license": "LPPL-1.3-or-later AND LicenseRef-Upstream-Public-Domain",
+      "licenseUrl": "https://github.com/borisveytsman/acmart/blob/10d6d082e522c4034022f38437019ba75589456b/acmart.dtx",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": [
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/ACM-Reference-Format.bst"
+          ],
+          "license": "LicenseRef-Upstream-Public-Domain",
+          "evidence": {
+            "url": "https://github.com/borisveytsman/acmart/blob/10d6d082e522c4034022f38437019ba75589456b/ACM-Reference-Format.bst",
+            "path": "acmart-10d6d082e522c4034022f38437019ba75589456b/ACM-Reference-Format.bst",
+            "sha256": "4342d27456645567ef1a027f6474e894715bc31d468f040142fa54540440ad04",
+            "lineStart": 10,
+            "lineEnd": 13
+          },
+          "conditions": [
+            "Preserve upstream attribution and public-domain declaration."
+          ],
+          "notes": "Upstream explicitly declares this component public domain. It is kept unchanged, separately from the class LPPL terms."
+        },
+        {
+          "paths": [
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.ins"
+          ],
+          "license": "LicenseRef-Upstream-Public-Domain",
+          "evidence": {
+            "url": "https://github.com/borisveytsman/acmart/blob/10d6d082e522c4034022f38437019ba75589456b/acmart.ins",
+            "path": "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.ins",
+            "sha256": "fa7daaa9375775ce699f33f909667bdb83c0408fd8d67606926df86c346c4044",
+            "lineStart": 1,
+            "lineEnd": 4
+          },
+          "conditions": [
+            "Preserve upstream attribution and public-domain declaration."
+          ],
+          "notes": "Upstream explicitly declares this component public domain. It is kept unchanged, separately from the class LPPL terms."
+        },
+        {
+          "paths": [
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/.gitconfig",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/.gitignore",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/LICENSE",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/Makefile",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/README",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acm-jdslogo.png",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.bib",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.dtx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmauthoryear.bbx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmauthoryear.cbx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmdatamodel.dbx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmnumeric.bbx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/acmnumeric.cbx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/Makefile",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/abbrev.bib",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/acmengage.dtx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/sample-base.bib",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/sample-franklin.png",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/samples.dtx",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/samples.ins",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/sampleteaser.pdf",
+            "acmart-10d6d082e522c4034022f38437019ba75589456b/samples/software.bib"
+          ],
+          "license": "LPPL-1.3-or-later",
+          "evidence": {
+            "url": "https://github.com/borisveytsman/acmart/blob/10d6d082e522c4034022f38437019ba75589456b/acmart.dtx",
+            "path": "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.dtx",
+            "sha256": "e29efd327f5c759f3d1f2e99dc8588c6a05b734c142f89c3e348161b893e44ff",
+            "lineStart": 1,
+            "lineEnd": 17
+          },
+          "conditions": [
+            "Preserve the complete unchanged source snapshot, copyright and maintenance notices.",
+            "Distribute original .dtx and .ins sources; generate acmart.cls using the unmodified upstream docstrip installer.",
+            "Follow LPPL conditions for any modifications; no class source is modified here."
+          ],
+          "notes": "Maintainer tag snapshot with complete original source; GitHub README calls repository versions development/experimental, distinct from CTAN production distributions. Included sample illustrations remain unchanged; the Franklin example is attributed as public domain in samples source."
+        }
+      ],
+      "reviewNotes": "Complete unchanged maintainer tag/source snapshot, preserved for free public-good redistribution under per-component terms; not a claim of publisher production-release equivalence. README changelog date says 2028-08-16; the tagged .dtx/class declares 2026/08/16 v2.20. The date discrepancy is preserved, not normalized into a publisher release claim.",
+      "requiredFiles": [
+        "acmart-10d6d082e522c4034022f38437019ba75589456b/LICENSE",
+        "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.dtx",
+        "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.ins",
+        "acmart-10d6d082e522c4034022f38437019ba75589456b/README",
+        "acmart-10d6d082e522c4034022f38437019ba75589456b/ACM-Reference-Format.bst"
+      ],
+      "layout": "upstream-zip",
+      "sha256": "6bc31b20f689ee670dc4b67c234b247fad984a11267ff78f82b31a39fc59a7b5",
+      "bytes": 686550,
+      "preparation": {
+        "kind": "latex-docstrip",
+        "workingDirectory": "acmart-10d6d082e522c4034022f38437019ba75589456b",
+        "entrypoint": "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.ins",
+        "outputs": [
+          "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.cls"
+        ]
+      },
+      "validationRecipeSha256": "76e82e593e349d7b514c85869959427d540938747ae3685da83013d0c6c70e4c",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/acmart/versions/2.20-r1/validation",
+      "download": "/api/templates/v1/acmart/versions/2.20-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "acmart",
+      "version": "2.20-r1",
+      "sourceSha256": "6bc31b20f689ee670dc4b67c234b247fad984a11267ff78f82b31a39fc59a7b5",
+      "recipeSha256": "76e82e593e349d7b514c85869959427d540938747ae3685da83013d0c6c70e4c",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "ACM-Reference-Format.bst": {
+        "path": "acmart-10d6d082e522c4034022f38437019ba75589456b/ACM-Reference-Format.bst",
+        "sha256": "4342d27456645567ef1a027f6474e894715bc31d468f040142fa54540440ad04"
+      }
+    },
+    "derived": {
+      "source": "acmart-10d6d082e522c4034022f38437019ba75589456b/acmart.dtx",
+      "target": "acmart.cls",
+      "prefix": "%%\n%% This is file `acmart.cls',\n%% generated with the docstrip utility.\n%%\n%% The original source files were:\n%%\n%% acmart.dtx  (with options: `class')\n%% \n%% IMPORTANT NOTICE:\n%% \n%% For the copyright see the source file.\n%% \n%% Any modified versions of this file must be renamed\n%% with new filenames distinct from acmart.cls.\n%% \n%% For distribution of the original source see the terms\n%% for copying and modification in the file acmart.dtx.\n%% \n%% This generated file may be distributed as long as the\n%% original source files, as listed above, are part of the\n%% same distribution. (The sources need not necessarily be\n%% in the same archive or directory.)\n\n",
+      "sha256": "784c4f2fb07a70d8a797ee9d1c63f441c10fbd2f915c9c615d28cda35c0b742a"
+    }
+  },
+  "ieee": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "ieeetran",
+      "version": "1.8b-r1",
+      "upstreamVersion": "1.8b",
+      "revision": 1,
+      "upstreamUrl": "https://mirror.csclub.uwaterloo.ca/CTAN/macros/latex/contrib/IEEEtran.zip",
+      "license": "LPPL-1.3",
+      "licenseUrl": "https://ctan.org/pkg/ieeetran",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": [
+            "IEEEtran/IEEEtran.cls",
+            "IEEEtran/IEEEtran_HOWTO.pdf",
+            "IEEEtran/README",
+            "IEEEtran/bare_adv.tex",
+            "IEEEtran/bare_conf.tex",
+            "IEEEtran/bare_conf_compsoc.tex",
+            "IEEEtran/bare_jrnl.tex",
+            "IEEEtran/bare_jrnl_compsoc.tex",
+            "IEEEtran/bare_jrnl_comsoc.tex",
+            "IEEEtran/bare_jrnl_transmag.tex",
+            "IEEEtran/changelog.txt"
+          ],
+          "license": "LPPL-1.3",
+          "evidence": {
+            "url": "https://mirror.csclub.uwaterloo.ca/CTAN/macros/latex/contrib/IEEEtran.zip",
+            "path": "IEEEtran/README",
+            "sha256": "cc2de809d6e86ab95cd4e88d97b41cb81dd96cf224e6445474aeb7419f4a0462",
+            "lineStart": 127,
+            "lineEnd": 139
+          },
+          "conditions": [
+            "Preserve all contribution notices, credits and original files.",
+            "Follow LPPL 1.3 conditions; modified files require clear identification, renaming and updated support contacts. No files are modified here."
+          ],
+          "notes": "Component-specific work-level notice covers the listed files and accompanying README/changelog. All original archive entries are preserved unchanged, including the separately listed example artwork."
+        },
+        {
+          "paths": [
+            "IEEEtran/bibtex/IEEEabrv.bib",
+            "IEEEtran/bibtex/IEEEexample.bib",
+            "IEEEtran/bibtex/IEEEfull.bib",
+            "IEEEtran/bibtex/IEEEtran.bst",
+            "IEEEtran/bibtex/IEEEtranN.bst",
+            "IEEEtran/bibtex/IEEEtranS.bst",
+            "IEEEtran/bibtex/IEEEtranSA.bst",
+            "IEEEtran/bibtex/IEEEtranSN.bst",
+            "IEEEtran/bibtex/IEEEtran_bst_HOWTO.pdf",
+            "IEEEtran/bibtex/README",
+            "IEEEtran/bibtex/changelog.txt"
+          ],
+          "license": "LPPL-1.3",
+          "evidence": {
+            "url": "https://mirror.csclub.uwaterloo.ca/CTAN/macros/latex/contrib/IEEEtran.zip",
+            "path": "IEEEtran/bibtex/README",
+            "sha256": "797417f3c4f37349f24869ceaf015fac36d4d147262d17b2ce50b36f32e806a7",
+            "lineStart": 125,
+            "lineEnd": 136
+          },
+          "conditions": [
+            "Preserve all contribution notices, credits and original files.",
+            "Follow LPPL 1.3 conditions; modified files require clear identification, renaming and updated support contacts. No files are modified here."
+          ],
+          "notes": "Component-specific work-level notice covers the listed files and accompanying README/changelog. All original archive entries are preserved unchanged, including the separately listed example artwork."
+        },
+        {
+          "paths": [
+            "IEEEtran/extras/README",
+            "IEEEtran/extras/tux.eps",
+            "IEEEtran/extras/tux.pdf"
+          ],
+          "license": "LPPL-1.3",
+          "evidence": {
+            "url": "https://mirror.csclub.uwaterloo.ca/CTAN/macros/latex/contrib/IEEEtran.zip",
+            "path": "IEEEtran/extras/README",
+            "sha256": "f8b1f079e0f64e11462404476b50c61675d5e6f171a027dd7db61a554b1230aa",
+            "lineStart": 42,
+            "lineEnd": 51
+          },
+          "conditions": [
+            "Preserve all contribution notices, credits and original files.",
+            "Follow LPPL 1.3 conditions; modified files require clear identification, renaming and updated support contacts. No files are modified here."
+          ],
+          "notes": "Component-specific work-level notice covers the listed files and accompanying README/changelog. All original archive entries are preserved unchanged, including the separately listed example artwork."
+        },
+        {
+          "paths": [
+            "IEEEtran/tools/IEEEtrantools.sty",
+            "IEEEtran/tools/IEEEtrantools_doc.txt",
+            "IEEEtran/tools/README",
+            "IEEEtran/tools/changelog.txt"
+          ],
+          "license": "LPPL-1.3",
+          "evidence": {
+            "url": "https://mirror.csclub.uwaterloo.ca/CTAN/macros/latex/contrib/IEEEtran.zip",
+            "path": "IEEEtran/tools/README",
+            "sha256": "2d196667f202eccca065e257af66ec806ec57f1c1c3f2d1073ed654ff1603e02",
+            "lineStart": 110,
+            "lineEnd": 119
+          },
+          "conditions": [
+            "Preserve all contribution notices, credits and original files.",
+            "Follow LPPL 1.3 conditions; modified files require clear identification, renaming and updated support contacts. No files are modified here."
+          ],
+          "notes": "Component-specific work-level notice covers the listed files and accompanying README/changelog. All original archive entries are preserved unchanged, including the separately listed example artwork."
+        },
+        {
+          "paths": [
+            "IEEEtran/testflow/README",
+            "IEEEtran/testflow/testflow.tex",
+            "IEEEtran/testflow/testflow_ctl_A4.pdf",
+            "IEEEtran/testflow/testflow_ctl_A4.ps",
+            "IEEEtran/testflow/testflow_ctl_LTR.pdf",
+            "IEEEtran/testflow/testflow_ctl_LTR.ps",
+            "IEEEtran/testflow/testflow_doc.pdf"
+          ],
+          "license": "LPPL-1.3",
+          "evidence": {
+            "url": "https://mirror.csclub.uwaterloo.ca/CTAN/macros/latex/contrib/IEEEtran.zip",
+            "path": "IEEEtran/testflow/README",
+            "sha256": "4fa3292debcfd735d3382bf16276f8971441775953274c7768615157de4cffc7",
+            "lineStart": 69,
+            "lineEnd": 81
+          },
+          "conditions": [
+            "Preserve all contribution notices, credits and original files.",
+            "Follow LPPL 1.3 conditions; modified files require clear identification, renaming and updated support contacts. No files are modified here."
+          ],
+          "notes": "Component-specific work-level notice covers the listed files and accompanying README/changelog. All original archive entries are preserved unchanged, including the separately listed example artwork."
+        }
+      ],
+      "reviewNotes": "Complete unchanged official CTAN archive with five separate work-level notices reviewed: class/manual, BibTeX package, tools, diagnostic suite, and example artwork. Each component retains its own explicit LPPL 1.3 notice and file list.",
+      "requiredFiles": [
+        "IEEEtran/IEEEtran.cls",
+        "IEEEtran/README",
+        "IEEEtran/bibtex/README",
+        "IEEEtran/extras/README",
+        "IEEEtran/tools/README",
+        "IEEEtran/testflow/README"
+      ],
+      "layout": "upstream-zip",
+      "sha256": "e0cd4f5afbd42c8076092280e72b3e0a5111efe501d35de9f715cfb8da313cb4",
+      "bytes": 1727001,
+      "validationRecipeSha256": "82729b68a5c49f95e88a8343a88f8cbfc6dc151f15bc90cb3023abcc5c3938d4",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/ieeetran/versions/1.8b-r1/validation",
+      "download": "/api/templates/v1/ieeetran/versions/1.8b-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "ieeetran",
+      "version": "1.8b-r1",
+      "sourceSha256": "e0cd4f5afbd42c8076092280e72b3e0a5111efe501d35de9f715cfb8da313cb4",
+      "recipeSha256": "82729b68a5c49f95e88a8343a88f8cbfc6dc151f15bc90cb3023abcc5c3938d4",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "IEEEtran.bst": {
+        "path": "IEEEtran/bibtex/IEEEtran.bst",
+        "sha256": "314f0ece704568faf827011bac498650691b2b5ee06320720830e782416d5a5f"
+      },
+      "IEEEtranSN.bst": {
+        "path": "IEEEtran/bibtex/IEEEtranSN.bst",
+        "sha256": "568f5ecee1bba358851d5aaa83adff758402bad0cfdc9ab4cb7f9b546083bf4d"
+      },
+      "IEEEtranS.bst": {
+        "path": "IEEEtran/bibtex/IEEEtranS.bst",
+        "sha256": "810fa241745fc0e2956099c1fe8f5fa9c66930f9857980715ac07ace2f0318b6"
+      },
+      "IEEEtranN.bst": {
+        "path": "IEEEtran/bibtex/IEEEtranN.bst",
+        "sha256": "cd37a56e325947955b5ecc64d66c9699f3b633d0bb06e3ef8e4acaf3602a96fe"
+      },
+      "IEEEtranSA.bst": {
+        "path": "IEEEtran/bibtex/IEEEtranSA.bst",
+        "sha256": "d4cac8926ca8d193d3f2eda3af25d65d9dda571f0803e8c5832588e0ff7a4635"
+      },
+      "IEEEtran.cls": {
+        "path": "IEEEtran/IEEEtran.cls",
+        "sha256": "da751920a317ed318b7b5cd7fa585a6cc7d28502d457856382e9be24b10a3bd7"
+      }
+    }
+  },
+  "revtex": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "revtex",
+      "version": "4.2f-r1",
+      "upstreamVersion": "4.2f",
+      "revision": 1,
+      "upstreamUrl": "https://mirror.quantum5.ca/CTAN/install/macros/latex/contrib/revtex.tds.zip",
+      "license": "LPPL-1.3c-or-later AND LPPL-1.3c",
+      "licenseUrl": "https://ctan.org/ctan-ann/id/mailman.50.1685784523.3764.ctan-ann@ctan.org",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": [
+            "doc/latex/revtex/ltxfront.pdf",
+            "source/latex/revtex/ltxfront.dtx",
+            "tex/latex/revtex/ltxfront.sty"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://ctan.org/tex-archive/macros/latex/contrib/revtex/ltxfront.dtx",
+            "path": "source/latex/revtex/ltxfront.dtx",
+            "sha256": "c3d5bb86d520bdc28e0567990cf2fbca3febe8a553347a4971593f11514bbf63",
+            "lineStart": 1,
+            "lineEnd": 45
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "Original subpackage source explicitly licenses its source and derived style/documentation; all original files retained, including any attribution for licensed portions."
+        },
+        {
+          "paths": [
+            "doc/latex/revtex/ltxgrid.pdf",
+            "source/latex/revtex/ltxgrid.dtx",
+            "tex/latex/revtex/ltxgrid.sty"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://ctan.org/tex-archive/macros/latex/contrib/revtex/ltxgrid.dtx",
+            "path": "source/latex/revtex/ltxgrid.dtx",
+            "sha256": "9b54b52a02c534cd56e58d98a8450a00e96612a12c06427d714781cbf02d16a3",
+            "lineStart": 1,
+            "lineEnd": 45
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "Original subpackage source explicitly licenses its source and derived style/documentation; all original files retained, including any attribution for licensed portions."
+        },
+        {
+          "paths": [
+            "doc/latex/revtex/ltxutil.pdf",
+            "source/latex/revtex/ltxutil.dtx",
+            "tex/latex/revtex/ltxutil.sty"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://ctan.org/tex-archive/macros/latex/contrib/revtex/ltxutil.dtx",
+            "path": "source/latex/revtex/ltxutil.dtx",
+            "sha256": "b5ac7a4dd94a23079f6a6659927e39b4638a8854e9ac3d8af5f99e63b6c1834a",
+            "lineStart": 1,
+            "lineEnd": 45
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "Original subpackage source explicitly licenses its source and derived style/documentation; all original files retained, including any attribution for licensed portions."
+        },
+        {
+          "paths": [
+            "doc/latex/revtex/ltxdocext.pdf",
+            "source/latex/revtex/ltxdocext.dtx",
+            "tex/latex/revtex/ltxdocext.sty"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://ctan.org/tex-archive/macros/latex/contrib/revtex/ltxdocext.dtx",
+            "path": "source/latex/revtex/ltxdocext.dtx",
+            "sha256": "18c213551a20e419ad3efc993e73977308128fefe1c40af9fab7fc9da2676c7d",
+            "lineStart": 1,
+            "lineEnd": 45
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "Original subpackage source explicitly licenses its source and derived style/documentation; all original files retained, including any attribution for licensed portions."
+        },
+        {
+          "paths": [
+            "bibtex/bst/revtex/aapmrev4-2.bst",
+            "bibtex/bst/revtex/aipauth4-2.bst",
+            "bibtex/bst/revtex/aipnum4-2.bst",
+            "bibtex/bst/revtex/apsrev4-2.bst",
+            "bibtex/bst/revtex/apsrmp4-2.bst",
+            "source/latex/revtex/revtex-bst.dtx"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://ctan.org/tex-archive/macros/latex/contrib/revtex/revtex-bst.dtx",
+            "path": "source/latex/revtex/revtex-bst.dtx",
+            "sha256": "66377d2606c0fb6f45106b5edc5f6cf648b654fa5c3b213e6f310385ee4257ca",
+            "lineStart": 1,
+            "lineEnd": 26
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "Original APS bibliography source and all five derived styles retained. Embedded custom-bib authorship and LPPL notices remain unchanged."
+        },
+        {
+          "paths": [
+            "doc/latex/revtex/aip/aipguide4-2.pdf",
+            "doc/latex/revtex/aip/aipguide4-2.tex",
+            "doc/latex/revtex/aip4-2.pdf",
+            "doc/latex/revtex/sample/aapm/aapmsamp.bib",
+            "doc/latex/revtex/sample/aapm/aapmsamp.pdf",
+            "doc/latex/revtex/sample/aapm/aapmsamp.tex",
+            "doc/latex/revtex/sample/aapm/aapmtemplate.tex",
+            "doc/latex/revtex/sample/aapm/fig_1.eps",
+            "doc/latex/revtex/sample/aapm/fig_2.eps",
+            "doc/latex/revtex/sample/aip/aipsamp.bib",
+            "doc/latex/revtex/sample/aip/aipsamp.pdf",
+            "doc/latex/revtex/sample/aip/aipsamp.tex",
+            "doc/latex/revtex/sample/aip/aiptemplate.tex",
+            "doc/latex/revtex/sample/aip/fig_1.eps",
+            "doc/latex/revtex/sample/aip/fig_2.eps",
+            "doc/latex/revtex/sample/sor/fig_1.eps",
+            "doc/latex/revtex/sample/sor/fig_2.eps",
+            "doc/latex/revtex/sample/sor/sorsamp.bib",
+            "doc/latex/revtex/sample/sor/sorsamp.pdf",
+            "doc/latex/revtex/sample/sor/sorsamp.tex",
+            "doc/latex/revtex/sample/sor/sortemplate.tex",
+            "source/latex/revtex/aip4-2.dtx",
+            "tex/latex/revtex/aapm4-2.rtx",
+            "tex/latex/revtex/aip4-2.rtx",
+            "tex/latex/revtex/sor4-2.rtx"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://ctan.org/tex-archive/macros/latex/contrib/revtex/aip4-2.dtx",
+            "path": "source/latex/revtex/aip4-2.dtx",
+            "sha256": "f4b679e2de0959d4a2f0e8376a1e197ace280593b04102f94b822b1ecdf805d9",
+            "lineStart": 358,
+            "lineEnd": 373
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "The original AIP source identifies the archive as including ready-to-install files, documentation and full source, then explicitly licenses the package under LPPL. Individual substyle headers independently specify LPPL 1.3c or later. Original sample figures contain simple PostScript rectangles/text without conflicting third-party notices."
+        },
+        {
+          "paths": [
+            "doc/latex/revtex/revtex4-2.pdf",
+            "source/latex/revtex/revtex4-2.dtx",
+            "tex/latex/revtex/aps10pt4-2.rtx",
+            "tex/latex/revtex/aps11pt4-2.rtx",
+            "tex/latex/revtex/aps12pt4-2.rtx",
+            "tex/latex/revtex/aps4-2.rtx",
+            "tex/latex/revtex/apsrmp4-2.rtx",
+            "tex/latex/revtex/revsymb4-2.sty",
+            "tex/latex/revtex/revtex4-2.cls"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://ctan.org/tex-archive/macros/latex/contrib/revtex/revtex4-2.dtx",
+            "path": "source/latex/revtex/revtex4-2.dtx",
+            "sha256": "6575bfb049e828aee4c672462e0bfd795df1b485e9d731c04cd1862069f56254",
+            "lineStart": 1,
+            "lineEnd": 26
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "Original class source explicitly licenses its source and derived files. Generated APS options, symbols and original implementation documentation remain with the source."
+        },
+        {
+          "paths": [
+            "doc/latex/revtex/README",
+            "doc/latex/revtex/aps/apsguide4-2.pdf",
+            "doc/latex/revtex/aps/apsguide4-2.tex",
+            "doc/latex/revtex/auguide/auguide4-2.pdf",
+            "doc/latex/revtex/auguide/auguide4-2.tex",
+            "doc/latex/revtex/auguide/docs.sty",
+            "doc/latex/revtex/auguide/summary4-2.pdf",
+            "doc/latex/revtex/auguide/summary4-2.tex",
+            "doc/latex/revtex/sample/aps/apssamp.bib",
+            "doc/latex/revtex/sample/aps/apssamp.pdf",
+            "doc/latex/revtex/sample/aps/apssamp.tex",
+            "doc/latex/revtex/sample/aps/apstemplate.tex",
+            "doc/latex/revtex/sample/aps/fig_1.eps",
+            "doc/latex/revtex/sample/aps/fig_2.eps",
+            "doc/latex/revtex/sample/aps/vid_1a.eps",
+            "doc/latex/revtex/sample/aps/vid_1b.eps"
+          ],
+          "license": "LPPL-1.3c",
+          "evidence": {
+            "url": "https://ctan.org/ctan-ann/id/mailman.50.1685784523.3764.ctan-ann@ctan.org",
+            "path": "doc/latex/revtex/README",
+            "sha256": "b047d33f9a7c79d990bcc9627baff23e2aa154fc57b2b129b7d593c8cb9c12c0",
+            "lineStart": 1,
+            "lineEnd": 28
+          },
+          "conditions": [
+            "Preserve the complete unchanged official distribution, original source files, attribution and license notices.",
+            "Retain original documentation and sample assets with the work; no journal endorsement or article publication rights are claimed."
+          ],
+          "notes": "The maintainer-submitted 4.2f CTAN announcement expressly identifies the package license as LPPL 1.3c. This evidence file is the original version-specific distribution manifest, not an invented inline license grant: it identifies the complete TDS work, documentation and samples. Cross-checked against the official package listing and inspected all remaining sample assets for conflicting third-party notices; none found. The explicit package declaration governs this complete original distribution."
+        }
+      ],
+      "reviewNotes": "Complete unchanged official CTAN TDS 4.2f distribution. Review combines the version-specific maintainer-submitted package license announcement, original manifest and separate source/runtime notices. The AIP source explicitly includes documentation in its licensed package. Complete source, documentation and original sample assets remain together; no file is removed or relicensed and no publisher article rights are inferred.",
+      "requiredFiles": [
+        "tex/latex/revtex/revtex4-2.cls",
+        "doc/latex/revtex/README",
+        "source/latex/revtex/ltxfront.dtx",
+        "source/latex/revtex/aip4-2.dtx",
+        "source/latex/revtex/revtex-bst.dtx",
+        "source/latex/revtex/ltxgrid.dtx",
+        "source/latex/revtex/ltxutil.dtx",
+        "source/latex/revtex/ltxdocext.dtx",
+        "source/latex/revtex/revtex4-2.dtx",
+        "bibtex/bst/revtex/aipnum4-2.bst",
+        "bibtex/bst/revtex/aipauth4-2.bst",
+        "bibtex/bst/revtex/apsrev4-2.bst",
+        "bibtex/bst/revtex/apsrmp4-2.bst",
+        "bibtex/bst/revtex/aapmrev4-2.bst"
+      ],
+      "layout": "tds-zip",
+      "sha256": "594346d851a4a8f73de31235b83cbb105bf7730cc4b8eca23c3c87f159a48400",
+      "bytes": 6711510,
+      "validationRecipeSha256": "ae9f40df3360e9727a8b2f73bc6392bdf6ed895c85b2100736ecd0199d96e70a",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/revtex/versions/4.2f-r1/validation",
+      "download": "/api/templates/v1/revtex/versions/4.2f-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "revtex",
+      "version": "4.2f-r1",
+      "sourceSha256": "594346d851a4a8f73de31235b83cbb105bf7730cc4b8eca23c3c87f159a48400",
+      "recipeSha256": "ae9f40df3360e9727a8b2f73bc6392bdf6ed895c85b2100736ecd0199d96e70a",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "sor4-2.rtx": {
+        "path": "tex/latex/revtex/sor4-2.rtx",
+        "sha256": "8cb5df1cf2acbd88b062cca8178d4c9f17bbcecdf8478ca385dc702c56349a5a"
+      },
+      "aapm4-2.rtx": {
+        "path": "tex/latex/revtex/aapm4-2.rtx",
+        "sha256": "fbc3d8ff0fb508fd024a678be32249ea904688a1fee0a2665b88ef2afdf788cc"
+      },
+      "ltxutil.sty": {
+        "path": "tex/latex/revtex/ltxutil.sty",
+        "sha256": "847d54f1b7a5cab3edccdb0ae2efd2d03f49c18f7b0e0cef8eff1f34ef63d63f"
+      },
+      "aps12pt4-2.rtx": {
+        "path": "tex/latex/revtex/aps12pt4-2.rtx",
+        "sha256": "ed800427c862eee9fec9c705ca7fb1d82dc1f6abee5598257653e89d875e94bd"
+      },
+      "revtex4-2.cls": {
+        "path": "tex/latex/revtex/revtex4-2.cls",
+        "sha256": "58727044fa47fff2663615774f8f24baab978944bbc55f84f8dc08ef91f67358"
+      },
+      "aip4-2.rtx": {
+        "path": "tex/latex/revtex/aip4-2.rtx",
+        "sha256": "c9be497e89fcdc0a27174351d8ee5c94a2ed9a6057acfd5e62795e6a544b00de"
+      },
+      "aps10pt4-2.rtx": {
+        "path": "tex/latex/revtex/aps10pt4-2.rtx",
+        "sha256": "0cc5d7fab6ffd59ba5779f9ddfad990cb8a71438ea390277bafff1824bbcb8e4"
+      },
+      "ltxgrid.sty": {
+        "path": "tex/latex/revtex/ltxgrid.sty",
+        "sha256": "18c9dc3288f8eebbb9401eab5deb6f378954da29b4176a12be3ae3567b5dae7f"
+      },
+      "revsymb4-2.sty": {
+        "path": "tex/latex/revtex/revsymb4-2.sty",
+        "sha256": "7614d7446d929f49917e54c8590d7ff7408572a9d2d293d209ea718540947d3e"
+      },
+      "ltxdocext.sty": {
+        "path": "tex/latex/revtex/ltxdocext.sty",
+        "sha256": "0d6c5b939cb9421ab807432ed38b157c7819fb22890ead33ed0150c1f1093a57"
+      },
+      "aps4-2.rtx": {
+        "path": "tex/latex/revtex/aps4-2.rtx",
+        "sha256": "52d33501cae6dfdf339efeb2a79fda0a2780d1d39d96b61a1c6a6311da6ca05e"
+      },
+      "ltxfront.sty": {
+        "path": "tex/latex/revtex/ltxfront.sty",
+        "sha256": "99e79d9d491f87c7ecf59eede97dd2a91c210519e57da1144ad618766c774ee2"
+      },
+      "apsrmp4-2.rtx": {
+        "path": "tex/latex/revtex/apsrmp4-2.rtx",
+        "sha256": "d467dd7ef50ce824be8034c503a11a5b4552d7f71d7272c71f590f31a9612549"
+      },
+      "aps11pt4-2.rtx": {
+        "path": "tex/latex/revtex/aps11pt4-2.rtx",
+        "sha256": "f0ad65dcca6ed1352c3edda5b086b678301bce743a6ac44e69d4dc34a114a6de"
+      },
+      "aipnum4-2.bst": {
+        "path": "bibtex/bst/revtex/aipnum4-2.bst",
+        "sha256": "e69b7e6656784ef660ea243d9417fce5fc72742b084dc9775943c9dcfa714598"
+      },
+      "aipauth4-2.bst": {
+        "path": "bibtex/bst/revtex/aipauth4-2.bst",
+        "sha256": "8683493417cb86a0e6fb7f8cd4fd7087b1a653eeaeab34ab347f6f7da6528d81"
+      },
+      "apsrev4-2.bst": {
+        "path": "bibtex/bst/revtex/apsrev4-2.bst",
+        "sha256": "68e8c6680907dfe0c5a0126eb5eb917952150feca2eb6c56042fdd7f7e79aa97"
+      },
+      "apsrmp4-2.bst": {
+        "path": "bibtex/bst/revtex/apsrmp4-2.bst",
+        "sha256": "39cdccedb1b2716c1df2b5da403ab9e7cb29aa67957bf73160ab52b798835fa4"
+      },
+      "aapmrev4-2.bst": {
+        "path": "bibtex/bst/revtex/aapmrev4-2.bst",
+        "sha256": "e2a5ba3a29860e15cfd601b989886d2331019ff55e057ae72340774eec031c33"
+      }
+    }
+  },
+  "elsevier": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "elsarticle",
+      "version": "3.5-r1",
+      "upstreamVersion": "3.5",
+      "revision": 1,
+      "upstreamUrl": "https://mirror.quantum5.ca/CTAN/macros/latex/contrib/elsarticle.zip",
+      "license": "LPPL-1.3-or-later AND LPPL-1.0-or-later",
+      "licenseUrl": "https://ctan.org/pkg/elsarticle",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": [
+            "elsarticle/README",
+            "elsarticle/changelog.txt",
+            "elsarticle/doc/1pseperateaug.pdf",
+            "elsarticle/doc/1psingleauthorgroup.pdf",
+            "elsarticle/doc/elsdoc.pdf",
+            "elsarticle/doc/elsdoc.tex",
+            "elsarticle/doc/elstest-1p.pdf",
+            "elsarticle/doc/elstest-1pdoubleblind.pdf",
+            "elsarticle/doc/elstest-3p.pdf",
+            "elsarticle/doc/elstest-3pd.pdf",
+            "elsarticle/doc/elstest-5p.pdf",
+            "elsarticle/doc/jfigs.pdf",
+            "elsarticle/doc/makefile",
+            "elsarticle/elsarticle-harv.bst",
+            "elsarticle/elsarticle-num-names.bst",
+            "elsarticle/elsarticle-num.bst",
+            "elsarticle/elsarticle-template-harv.tex",
+            "elsarticle/elsarticle-template-num-names.tex",
+            "elsarticle/elsarticle-template-num.tex",
+            "elsarticle/elsarticle.dtx",
+            "elsarticle/elsarticle.ins",
+            "elsarticle/manifest.txt"
+          ],
+          "license": "LPPL-1.3-or-later",
+          "evidence": {
+            "url": "https://mirror.quantum5.ca/CTAN/macros/latex/contrib/elsarticle.zip",
+            "path": "elsarticle/README",
+            "sha256": "c6eb2fcd2741bf2836ca40c8e8d7f5ff2cc49e52d92b0d96051385299e021233",
+            "lineStart": 43,
+            "lineEnd": 48
+          },
+          "conditions": [
+            "Preserve the complete unchanged archive, copyright, attribution and license notices.",
+            "Follow the original license redistribution and modification conditions; no publisher endorsement is implied."
+          ],
+          "notes": "Elsevier work-level grant explicitly includes related documentation and supporting packages; manifest identifies the bundle. All original sources, styles, templates and document figures are preserved."
+        },
+        {
+          "paths": ["elsarticle/doc/rvdtx.sty"],
+          "license": "LPPL-1.3-or-later",
+          "evidence": {
+            "url": "https://mirror.quantum5.ca/CTAN/macros/latex/contrib/elsarticle.zip",
+            "path": "elsarticle/doc/rvdtx.sty",
+            "sha256": "71a2f7bd8e2ead1803149a184f264e61c454f1de439301e3932ab34f5a343ae7",
+            "lineStart": 3,
+            "lineEnd": 17
+          },
+          "conditions": [
+            "Preserve the complete unchanged archive, copyright, attribution and license notices.",
+            "Follow the original license redistribution and modification conditions; no publisher endorsement is implied."
+          ],
+          "notes": "Separate CV Radhakrishnan copyright and LPPL notice retained."
+        },
+        {
+          "paths": ["elsarticle/doc/pdfwidgets.sty"],
+          "license": "LPPL-1.0-or-later",
+          "evidence": {
+            "url": "https://mirror.quantum5.ca/CTAN/macros/latex/contrib/elsarticle.zip",
+            "path": "elsarticle/doc/pdfwidgets.sty",
+            "sha256": "66cd205e53d9dd28960c820108d4bd8eab86e25cf626ec65ec413367fce75086",
+            "lineStart": 2,
+            "lineEnd": 11
+          },
+          "conditions": [
+            "Preserve the complete unchanged archive, copyright, attribution and license notices.",
+            "Follow the original license redistribution and modification conditions; no publisher endorsement is implied."
+          ],
+          "notes": "Separate CV Radhakrishnan copyright and LPPL 1.0-or-later notice retained."
+        }
+      ],
+      "reviewNotes": "Complete unchanged CTAN distribution reviewed file by file against the bundled work-level and separate component notices. Original sources, documentation, examples and notices are retained. Actual offline PDF and BibTeX validation is required before local discovery; no publication is implied.",
+      "requiredFiles": [
+        "elsarticle/README",
+        "elsarticle/manifest.txt",
+        "elsarticle/elsarticle.ins",
+        "elsarticle/elsarticle.dtx",
+        "elsarticle/doc/rvdtx.sty",
+        "elsarticle/doc/pdfwidgets.sty"
+      ],
+      "layout": "upstream-zip",
+      "sha256": "f25a3e1b006e0f86abb091a02f3afa7c6d60491665c7aa89f70cc5609e14d9dc",
+      "bytes": 1681673,
+      "preparation": {
+        "kind": "latex-docstrip",
+        "workingDirectory": "elsarticle",
+        "entrypoint": "elsarticle/elsarticle.ins",
+        "outputs": ["elsarticle/elsarticle.cls"]
+      },
+      "validationRecipeSha256": "0f89f837b30d55f4ed6d18afb5c6e3a035ef43980f4eb27922d1c00e5e6e8719",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/elsarticle/versions/3.5-r1/validation",
+      "download": "/api/templates/v1/elsarticle/versions/3.5-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "elsarticle",
+      "version": "3.5-r1",
+      "sourceSha256": "f25a3e1b006e0f86abb091a02f3afa7c6d60491665c7aa89f70cc5609e14d9dc",
+      "recipeSha256": "0f89f837b30d55f4ed6d18afb5c6e3a035ef43980f4eb27922d1c00e5e6e8719",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "elsarticle-num-names.bst": {
+        "path": "elsarticle/elsarticle-num-names.bst",
+        "sha256": "c6c0d83707463ac6ebed7f43a754e38b7a38b17a8e58897e8057f8af0dc35024"
+      },
+      "elsarticle-num.bst": {
+        "path": "elsarticle/elsarticle-num.bst",
+        "sha256": "f04dfa2f78d0198ab8e4055b609dc0b91bdb730743cbbd549d84270f20d11394"
+      },
+      "elsarticle-harv.bst": {
+        "path": "elsarticle/elsarticle-harv.bst",
+        "sha256": "d85a928515628a9526d1d02f076f723a4da25387286a4f656d8943600880a436"
+      }
+    },
+    "derived": {
+      "source": "elsarticle/elsarticle.dtx",
+      "target": "elsarticle.cls",
+      "prefix": "%%\n%% This is file `elsarticle.cls',\n%% generated with the docstrip utility.\n%%\n%% The original source files were:\n%%\n%% elsarticle.dtx  (with options: `class')\n%% \n%% Copyright 2007-2026 Elsevier Ltd\n%% \n%% This file is part of the 'Elsarticle Bundle'.\n%% -------------------------------------------\n%% \n%% It may be distributed under the conditions of the LaTeX Project Public\n%% License, either version 1.3 of this license or (at your option) any\n%% later version.  The latest version of this license is in\n%%    http://www.latex-project.org/lppl.txt\n%% and version 1.3 or later is part of all distributions of LaTeX\n%% version 1999/12/01 or later.\n%% \n%% The list of all files belonging to the 'Elsarticle Bundle' is\n%% given in the file `manifest.txt'.\n%% \n\n",
+      "sha256": "b3cb8a49dfc2bcaaaf89ac8e0c82e65635f7c425546055a8cdf17c4757a3c854"
+    }
+  },
+  "cas": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "cas",
+      "version": "2.4-r1",
+      "upstreamVersion": "2.4",
+      "revision": 1,
+      "upstreamUrl": "https://github.com/STM-Document-Engineering/elscastemplates/archive/f6dcf3fad50ad443c64b357533b9df9c20c76f52.zip",
+      "packaging": {
+        "kind": "runtime-bundle-v1",
+        "sourceSha256": "4df06a9a1a73781cf1271723f3b5e52a514feb38a94693f6f198eed954a94162",
+        "sourceBytes": 3980282,
+        "files": [
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/LICENSE",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-common.sty",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-email.jpeg",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-facebook.jpeg",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-gplus.jpeg",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-linkedin.jpeg",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-model2-names.bst",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-sc.cls",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-twitter.jpeg",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-url.jpeg",
+          "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/manifest.txt"
+        ],
+        "noticePath": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/STRATUM-BUNDLE.txt"
+      },
+      "license": "LPPL-1.3c-or-later AND CC0-1.0",
+      "licenseUrl": "https://github.com/STM-Document-Engineering/elscastemplates/archive/f6dcf3fad50ad443c64b357533b9df9c20c76f52.zip",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": [
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/LICENSE",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-common.sty",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-email.jpeg",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-facebook.jpeg",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-gplus.jpeg",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-linkedin.jpeg",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-model2-names.bst",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-sc.cls",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-twitter.jpeg",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-url.jpeg",
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/manifest.txt"
+          ],
+          "license": "LPPL-1.3c-or-later",
+          "evidence": {
+            "url": "https://github.com/STM-Document-Engineering/elscastemplates/blob/f6dcf3fad50ad443c64b357533b9df9c20c76f52/manifest.txt",
+            "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/manifest.txt",
+            "sha256": "93f5fc064282213932e5f672849c1086ead1abd88010a8fc5975d5cc7f64cac2",
+            "lineStart": 1,
+            "lineEnd": 57
+          },
+          "conditions": [
+            "Preserve original selected component bytes, copyright and license notices and complete original manifest.",
+            "LPPL clauses 2 and 6: identify this reduced distribution and omissions, packaging responsibility and sufficient information to obtain the complete original work. No upstream support or endorsement is implied.",
+            "Runtime icons are retained unchanged as manifest-listed package components; no permission for unrelated artwork or documentation is inferred."
+          ],
+          "notes": "The original maintainer manifest grants LPPL 1.3c-or-later to the named CAS Bundle and lists the selected class, bibliography and six runtime JPEG assets. cas-common.sty carries the same package-level LPPL header and original frontmatter attribution. The LICENSE text is reproduced verbatim."
+        },
+        {
+          "paths": [
+            "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/STRATUM-BUNDLE.txt"
+          ],
+          "license": "CC0-1.0",
+          "evidence": {
+            "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/STRATUM-BUNDLE.txt",
+            "sha256": "46fe7bb7bbc9db990d1d21ecf584b009941cb59080b4e1dcef7844b40007b1b4",
+            "lineStart": 1,
+            "lineEnd": 57
+          },
+          "conditions": [
+            "CC0 applies only to the Stratum-authored packaging notice. Original upstream licenses remain applicable."
+          ],
+          "notes": "Stratum-authored deterministic notice identifies packaging changes, omissions, original source and responsibility."
+        }
+      ],
+      "reviewNotes": "Reduced single-column CAS runtime distribution. Original cas-sc class, shared style, bibliography style and all six runtime contact/social icons remain unchanged with the original LICENSE and manifest. The package manifest explicitly includes those icons in its LPPL work. Optional demonstration images, double-column files and all doc/ files, including the unrelated glyph mapping, are omitted. STRATUM-BUNDLE.txt marks the reduced distribution and provides the complete original source location under LPPL clause 6. Real validation covers cas-sc; no double-column claim is made.",
+      "requiredFiles": [
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/LICENSE",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-common.sty",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-email.jpeg",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-facebook.jpeg",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-gplus.jpeg",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-linkedin.jpeg",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-model2-names.bst",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-sc.cls",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-twitter.jpeg",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-url.jpeg",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/manifest.txt",
+        "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/STRATUM-BUNDLE.txt"
+      ],
+      "layout": "upstream-zip",
+      "sha256": "5d0c5d9e5fe793f3c84cab63fbda3be838e436235e6faeda6f6dec919b33f647",
+      "bytes": 69051,
+      "preamble": {
+        "documentClass": "cas-sc",
+        "classOptions": ["a4paper", "fleqn"],
+        "packages": [
+          {
+            "name": "natbib",
+            "options": ["numbers"]
+          }
+        ],
+        "date": ""
+      },
+      "validationRecipeSha256": "8f0f5b5d30adf6b7107e87cb24f6c4a8d17581fff2df0b8c056e54197e33f41f",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/cas/versions/2.4-r1/validation",
+      "download": "/api/templates/v1/cas/versions/2.4-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "cas",
+      "version": "2.4-r1",
+      "sourceSha256": "5d0c5d9e5fe793f3c84cab63fbda3be838e436235e6faeda6f6dec919b33f647",
+      "recipeSha256": "8f0f5b5d30adf6b7107e87cb24f6c4a8d17581fff2df0b8c056e54197e33f41f",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "cas-common.sty": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-common.sty",
+        "sha256": "bde1edb49ddb38e65d1a8e7dcfbf09fb6999b2b484a6c76a09173b97ca10379a"
+      },
+      "cas-email.jpeg": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-email.jpeg",
+        "sha256": "51cadbff5919f51f76f6f9238b18c9b5d512ea9234cb6d7fef7b53d9767fa845"
+      },
+      "cas-facebook.jpeg": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-facebook.jpeg",
+        "sha256": "ee892a2efc41325af58c7aa5c9356249d68524e796ed2e2da391652a9d2e4294"
+      },
+      "cas-gplus.jpeg": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-gplus.jpeg",
+        "sha256": "7a903863812ac3b33d64c5f774ea549793d2657880874ca6e7d4243f5a51516b"
+      },
+      "cas-linkedin.jpeg": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-linkedin.jpeg",
+        "sha256": "3fa7b9ead03ed5d1976316aa1d69157eeeaefae04fab568a4d704185755f7f9f"
+      },
+      "cas-model2-names.bst": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-model2-names.bst",
+        "sha256": "6f6204eb7670d762042ab363c2d05cf87196052bfbdf6dbee51a1327a8ce479a"
+      },
+      "cas-sc.cls": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-sc.cls",
+        "sha256": "801f7badf78b347baec96e73e15d2cab9a3b0946f35f3c3a1f222b32d0affc12"
+      },
+      "cas-twitter.jpeg": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-twitter.jpeg",
+        "sha256": "bf2765da8cc4cc58fef109fd0f864b4fc39d7ba8e8040c8633542076ccdc91ef"
+      },
+      "cas-url.jpeg": {
+        "path": "elscastemplates-f6dcf3fad50ad443c64b357533b9df9c20c76f52/cas-url.jpeg",
+        "sha256": "66e3c16ef98e082d61397c9644ccae92c227bae49fd7eba5bcad4a6623fd67d5"
+      }
+    }
+  },
+  "mnras": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "mnras",
+      "version": "3.2-r1",
+      "upstreamVersion": "3.2",
+      "revision": 1,
+      "upstreamUrl": "https://ctan.mirror.globo.tech/macros/latex/contrib/mnras.zip",
+      "license": "LPPL-1.3-or-later",
+      "licenseUrl": "https://ctan.org/pkg/mnras",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": [
+            "mnras/LEGACY/legacy.txt",
+            "mnras/LEGACY/mn2e.bst",
+            "mnras/LEGACY/mn2e.cls",
+            "mnras/README.txt",
+            "mnras/example.bib",
+            "mnras/example.eps",
+            "mnras/example.png",
+            "mnras/example.ps",
+            "mnras/mnras.bst",
+            "mnras/mnras.cls",
+            "mnras/mnras_guide.pdf",
+            "mnras/mnras_guide.tex",
+            "mnras/mnras_template.tex"
+          ],
+          "license": "LPPL-1.3-or-later",
+          "evidence": {
+            "url": "https://ctan.mirror.globo.tech/macros/latex/contrib/mnras.zip",
+            "path": "mnras/README.txt",
+            "sha256": "d193e0136d771958b30562f27f3250ba7bda13417b07e5bfeeee90108e19ba5f",
+            "lineStart": 7,
+            "lineEnd": 47
+          },
+          "conditions": [
+            "Preserve the complete unchanged archive, copyright, attribution and license notices.",
+            "Follow the original license redistribution and modification conditions; no publisher endorsement is implied."
+          ],
+          "notes": "The work-level LPPL grant and exhaustive file list include the documentation, example graphics and legacy files. README.txt is the listed readme.txt with upstream casing preserved; example.bib is the bibliography supporting the bundled guide. All upstream files are retained."
+        }
+      ],
+      "reviewNotes": "Complete unchanged CTAN distribution reviewed file by file against the bundled work-level and separate component notices. Original sources, documentation, examples and notices are retained. Actual offline PDF and BibTeX validation is required before local discovery; no publication is implied.",
+      "requiredFiles": [
+        "mnras/README.txt",
+        "mnras/mnras.cls",
+        "mnras/mnras.bst"
+      ],
+      "layout": "upstream-zip",
+      "sha256": "9d453e272a47648b4418b76577c82c331c0a1499a2a620676d3997f5104adf82",
+      "bytes": 402664,
+      "validationRecipeSha256": "c092e6813b62d934452948e815136efaf0e52a357806aee946fa871dc55f6e05",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/mnras/versions/3.2-r1/validation",
+      "download": "/api/templates/v1/mnras/versions/3.2-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "mnras",
+      "version": "3.2-r1",
+      "sourceSha256": "9d453e272a47648b4418b76577c82c331c0a1499a2a620676d3997f5104adf82",
+      "recipeSha256": "c092e6813b62d934452948e815136efaf0e52a357806aee946fa871dc55f6e05",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "mnras.cls": {
+        "path": "mnras/mnras.cls",
+        "sha256": "43403d42440caa704a0b6631acd5ae01524869e124450a0449646fc07f4c1152"
+      },
+      "mnras.bst": {
+        "path": "mnras/mnras.bst",
+        "sha256": "8dd7405398edf44e97c055b1e5b9b5ba1420102f1315dbf22d23c06f0d56f314"
+      },
+      "mn2e.cls": {
+        "path": "mnras/LEGACY/mn2e.cls",
+        "sha256": "7b0125626650b1786826c2ba949be5bc2790b7e1831cc286a7040abe9feec659"
+      },
+      "mn2e.bst": {
+        "path": "mnras/LEGACY/mn2e.bst",
+        "sha256": "5387cdde2f223ff9f16a0d694fc7ab6fae4030e0b8c4bd869fa9760683de997d"
+      }
+    }
+  },
+  "lncs": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "llncs",
+      "version": "2.26-r1",
+      "upstreamVersion": "2.26",
+      "revision": 1,
+      "upstreamUrl": "https://ctan.mirror.globo.tech/macros/latex/contrib/llncs.zip",
+      "license": "CC-BY-4.0 AND LPPL-1.0-or-later",
+      "licenseUrl": "https://ctan.org/pkg/llncs",
+      "redistribution": "reviewed",
+      "licenseComponents": [
+        {
+          "paths": [
+            "llncs/README.md",
+            "llncs/history.txt",
+            "llncs/llncs.cls",
+            "llncs/llncsdoc.pdf",
+            "llncs/llncsdoc.tex"
+          ],
+          "license": "CC-BY-4.0",
+          "evidence": {
+            "url": "https://ctan.mirror.globo.tech/macros/latex/contrib/llncs.zip",
+            "path": "llncs/README.md",
+            "sha256": "4ddfb992750fabd13aff0ba0b253edddede537ab06029e5e4678715b52735495",
+            "lineStart": 3,
+            "lineEnd": 40
+          },
+          "conditions": [
+            "Preserve the complete unchanged archive, copyright, attribution and license notices.",
+            "Attribute Springer (1996–2025), identify the unchanged work, and provide the license link https://creativecommons.org/licenses/by/4.0/ with redistribution."
+          ],
+          "notes": "Springer grants CC BY 4.0 or later for the listed work. Preserve Springer attribution and identify the license in accompanying registry metadata; unchanged archive, no modifications."
+        },
+        {
+          "paths": ["llncs/splncs04.bst"],
+          "license": "LPPL-1.0-or-later",
+          "evidence": {
+            "url": "https://ctan.mirror.globo.tech/macros/latex/contrib/llncs.zip",
+            "path": "llncs/splncs04.bst",
+            "sha256": "f36c3a17e5304a692706359aafa9de709395a085e579eb47c027095aeaa35174",
+            "lineStart": 36,
+            "lineEnd": 57
+          },
+          "conditions": [
+            "Preserve the complete unchanged archive, copyright, attribution and license notices.",
+            "Follow the original license redistribution and modification conditions; no publisher endorsement is implied."
+          ],
+          "notes": "The bibliography style retains its separate Patrick W Daly generated-style LPPL grant, including its original source identification and subsequent edit history."
+        }
+      ],
+      "reviewNotes": "Complete unchanged CTAN distribution reviewed file by file against the bundled work-level and separate component notices. Original sources, documentation, examples and notices are retained. Actual offline PDF and BibTeX validation is required before local discovery; no publication is implied.",
+      "requiredFiles": [
+        "llncs/README.md",
+        "llncs/llncs.cls",
+        "llncs/splncs04.bst"
+      ],
+      "layout": "upstream-zip",
+      "sha256": "932940fb23574fbc8c61afe6094e2debe0955e1bc6f971f734f3cb4de5d1167a",
+      "bytes": 231178,
+      "validationRecipeSha256": "263f64a71f847a0f9e4a74327d81f5a8896cbaf6b8437439a743bd5ee9134478",
+      "dependencies": [],
+      "compilation": "not-tested",
+      "compilationNotes": "Only a verified publication proof establishes successful compilation and bibliography tests.",
+      "validation": "/api/templates/v1/llncs/versions/2.26-r1/validation",
+      "download": "/api/templates/v1/llncs/versions/2.26-r1/download"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "llncs",
+      "version": "2.26-r1",
+      "sourceSha256": "932940fb23574fbc8c61afe6094e2debe0955e1bc6f971f734f3cb4de5d1167a",
+      "recipeSha256": "263f64a71f847a0f9e4a74327d81f5a8896cbaf6b8437439a743bd5ee9134478",
+      "toolchainImage": "ghcr.io/xu-cheng/texlive-full@sha256:0768bec1654eb3692aace2faca186d190f86d5f510ae20d71a5145d67aff081c",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "splncs04.bst": {
+        "path": "llncs/splncs04.bst",
+        "sha256": "f36c3a17e5304a692706359aafa9de709395a085e579eb47c027095aeaa35174"
+      },
+      "llncs.cls": {
+        "path": "llncs/llncs.cls",
+        "sha256": "e9894c92191fcd195eef3120a36d2f75b52030eadcbdc3ce1463179746526e6a"
+      }
+    }
+  }
+}

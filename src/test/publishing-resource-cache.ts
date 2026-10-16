@@ -1,15 +1,25 @@
 import * as fs from "node:fs/promises";
-import { createRequire } from "node:module";
-import { webcrypto } from "node:crypto";
+import { inflateRawSync } from "node:zlib";
 import type { BibliographyCache } from "../publication-bibliography-cache";
-import { loadRuntime } from "./runtime-harness";
-const require = createRequire(import.meta.url);
-let installation: Promise<BibliographyCache> | undefined;
-/** Real-PDF tests install the same official, pinned resources as the manager. */
-export function installedTestResources(): Promise<BibliographyCache> {
+import {
+  resolveRegistryResources,
+  TEMPLATE_RESOURCE_PINS,
+} from "../publication-registry";
+
+export const templateCacheSkip = process.env.STRATUM_TEST_TEMPLATE_CACHE
+  ? false
+  : "Set STRATUM_TEST_TEMPLATE_CACHE to a verified local template cache for real-template PDF integration.";
+const installations = new Map<string, Promise<BibliographyCache>>();
+/** Real-PDF integration verifies local pinned resources; tests never contact the mirror. */
+export function installedTestResources(
+  family = "aastex",
+): Promise<BibliographyCache> {
+  const directory = process.env.STRATUM_TEST_TEMPLATE_CACHE;
+  if (!directory) return Promise.reject(new Error(String(templateCacheSkip)));
+  let installation = installations.get(family);
   installation ??= (async () => {
     const cache: BibliographyCache = {
-      directory: ".test-artifacts/publishing-resources",
+      directory,
       adapter: {
         exists: (path) =>
           fs.access(path).then(
@@ -41,19 +51,19 @@ export function installedTestResources(): Promise<BibliographyCache> {
         remove: (path) => fs.rm(path),
       },
     };
-    const runtime = loadRuntime<typeof import("../publication-resources")>(
-      "publication-resources.ts",
-      { Platform: { isDesktop: true, isDesktopApp: true } },
-      {
-        TextDecoder,
-        TextEncoder,
-        Uint8Array,
-        crypto: webcrypto,
-        window: { require, setTimeout, clearTimeout },
-      },
+    await resolveRegistryResources(
+      cache,
+      TEMPLATE_RESOURCE_PINS[family],
+      () =>
+        Promise.reject(
+          new Error("Tests must not request template mirror resources."),
+        ),
+      (bytes, limit) => inflateRawSync(bytes, { maxOutputLength: limit }),
+      undefined,
+      false,
     );
-    await runtime.installedAastexResources(cache);
     return cache;
   })();
+  installations.set(family, installation);
   return installation;
 }

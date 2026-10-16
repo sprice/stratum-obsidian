@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import {
-  cachedAastexBibliography,
+  cachedPublicationResource,
   type BibliographyCache,
 } from "../publication-bibliography-cache";
 
@@ -84,14 +84,14 @@ function setup() {
 test("first download is cached and verified on repeat and offline reuse", async () => {
   const s = setup();
   assert.deepEqual(
-    await cachedAastexBibliography(s.cache, { sha256 }, s.download),
+    await cachedPublicationResource(s.cache, { sha256 }, s.download),
     bytes,
   );
   assert.ok(s.files.has(s.path));
-  await cachedAastexBibliography(s.cache, { sha256 }, s.download);
+  await cachedPublicationResource(s.cache, { sha256 }, s.download);
   s.offline();
   assert.deepEqual(
-    await cachedAastexBibliography(s.cache, { sha256 }, s.download),
+    await cachedPublicationResource(s.cache, { sha256 }, s.download),
     bytes,
   );
   assert.equal(s.downloads(), 1);
@@ -99,37 +99,37 @@ test("first download is cached and verified on repeat and offline reuse", async 
 });
 test("corrupt or missing cache entries download again; corrupt bytes cannot be reused offline", async () => {
   const s = setup();
-  await cachedAastexBibliography(s.cache, { sha256 }, s.download);
+  await cachedPublicationResource(s.cache, { sha256 }, s.download);
   s.files.set(s.path, new TextEncoder().encode("Corrupted").buffer);
-  await cachedAastexBibliography(s.cache, { sha256 }, s.download);
+  await cachedPublicationResource(s.cache, { sha256 }, s.download);
   assert.equal(s.downloads(), 2);
   s.files.delete(s.path);
-  await cachedAastexBibliography(s.cache, { sha256 }, s.download);
+  await cachedPublicationResource(s.cache, { sha256 }, s.download);
   assert.equal(s.downloads(), 3);
   s.files.set(s.path, new TextEncoder().encode("Corrupted again").buffer);
   s.offline();
   await assert.rejects(
-    cachedAastexBibliography(s.cache, { sha256 }, s.download),
+    cachedPublicationResource(s.cache, { sha256 }, s.download),
     /offline/,
   );
   assert.equal(s.files.size, 0);
 });
 test("changed required fingerprint never falls back to an older cached style", async () => {
   const s = setup();
-  await cachedAastexBibliography(s.cache, { sha256 }, s.download);
+  await cachedPublicationResource(s.cache, { sha256 }, s.download);
   const newer = new TextEncoder().encode("New synthetic style version");
   const fingerprint = createHash("sha256").update(newer).digest("hex");
   s.offline();
   await assert.rejects(
-    cachedAastexBibliography(s.cache, { sha256: fingerprint }, s.download),
+    cachedPublicationResource(s.cache, { sha256: fingerprint }, s.download),
     /offline/,
   );
-  await cachedAastexBibliography(s.cache, { sha256: fingerprint }, () =>
+  await cachedPublicationResource(s.cache, { sha256: fingerprint }, () =>
     Promise.resolve(newer),
   );
   assert.equal(s.files.size, 2);
   assert.deepEqual(
-    await cachedAastexBibliography(
+    await cachedPublicationResource(
       s.cache,
       { sha256: fingerprint },
       s.download,
@@ -144,7 +144,7 @@ test("hash mismatch, failed download and partial cache writes leave no trusted e
     if (mode === "write") s.writeFails();
     if (mode === "rename") s.renameFails();
     await assert.rejects(
-      cachedAastexBibliography(
+      cachedPublicationResource(
         s.cache,
         { sha256 },
         mode === "mismatch"
@@ -161,18 +161,18 @@ test("concurrent exports serialize one download and independent cancellation can
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const first = cachedAastexBibliography(s.cache, { sha256 }, async () => {
+  const first = cachedPublicationResource(s.cache, { sha256 }, async () => {
     await gate;
     return s.download();
   });
   const aborter = new AbortController();
-  const cancelled = cachedAastexBibliography(
+  const cancelled = cachedPublicationResource(
     s.cache,
     { sha256 },
     s.download,
     aborter.signal,
   );
-  const third = cachedAastexBibliography(s.cache, { sha256 }, s.download);
+  const third = cachedPublicationResource(s.cache, { sha256 }, s.download);
   aborter.abort();
   await assert.rejects(cancelled, /cancelled/);
   release();
@@ -189,10 +189,10 @@ test("cancellation before publication cleans partial files and permits a later r
     aborter.abort();
   };
   await assert.rejects(
-    cachedAastexBibliography(s.cache, { sha256 }, s.download, aborter.signal),
+    cachedPublicationResource(s.cache, { sha256 }, s.download, aborter.signal),
     /cancelled/,
   );
   // The request may reject immediately; let the queued cleanup finish.
-  await cachedAastexBibliography(s.cache, { sha256 }, s.download);
+  await cachedPublicationResource(s.cache, { sha256 }, s.download);
   assert.deepEqual([...s.files.keys()], [s.path]);
 });

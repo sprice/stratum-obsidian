@@ -142,28 +142,24 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-## AASTeX 7.0.2 — LPPL-1.3c-or-later
+## Downloaded LaTeX templates
 
-Stratum downloads the official AASTeX distribution when the user enables the
-template. The unmodified `aastex702.cls` is under LPPL 1.3c or later. The complete
-upstream archive, including documentation and original notices, is retained locally. See
-[src/publication-templates/aastex/licenses/NOTICE.txt](src/publication-templates/aastex/licenses/NOTICE.txt).
+Plugin releases contain Stratum's MIT rendering adapters and compatibility pins,
+not upstream journal resource bundles. Enabling a supported template downloads an
+exact release from Stratum's keyless public mirror. Full mirrored ZIPs, required
+dependencies, original notices, and any reduced-distribution STRATUM-BUNDLE.txt
+remain in the local verified resource cache. The compatibility pins retain public
+source URLs, hashes, component licenses and conditions in
+[src/publication-registry-pins.json](src/publication-registry-pins.json).
 
-### Downloaded bibliography style
+AASTeX 7.0.2 retains the American Astronomical Society's unchanged class under
+LPPL 1.3c or later. Its aasjournalv7.1.bst permits nonprofit use and distribution
+only without payment beyond distribution costs. The Stratum reduced-bundle notice
+identifies omitted files and the complete original work. Its CC0 dedication applies
+only to that packaging notice. Preserve all upstream attribution and conditions.
 
-When enabling AASTeX, Stratum also downloads
-[`aasjournalv7.1.bst`](https://journals.aas.org/wp-content/uploads/2026/06/aasjournalv7.1.bst)
-directly from the American Astronomical Society and caches it locally. Stratum
-does not include or redistribute this file in its plugin releases. The downloaded
-file retains its original copyright and usage notices.
-
-## Additional journal templates
-
-The bundled partial upstream distributions, original copyright notices, licenses,
-complete-work acquisition links, and packaging changes are documented in
-[src/publication-templates/journals/NOTICE.txt](src/publication-templates/journals/NOTICE.txt).
-LPPL and CC BY texts and original generated-class sources are included in the
-plugin bundle. Pinned file and Debian TeX Live distribution hashes are recorded
-in [provenance.json](src/publication-templates/journals/provenance.json).
-Upstream class/style bytes are preserved. Stratum's adapters are separate MIT code.
-No official JMLR or Astronomy & Astrophysics assets are redistributed.
+Other journal releases retain their declared component terms, including sources
+and notices for generated ACM and Elsevier classes. Downloading does not waive
+redistribution obligations or imply publisher support. See the retained release
+metadata and archive before redistributing resources. No official JMLR or
+Astronomy & Astrophysics resources are installed by this plugin.

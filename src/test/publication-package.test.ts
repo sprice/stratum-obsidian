@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
-import { installedTestResources } from "./publishing-resource-cache";
+import {
+  installedTestResources,
+  templateCacheSkip,
+} from "./publishing-resource-cache";
 import test from "node:test";
 import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -71,27 +74,11 @@ test("package input rejects malformed asset maps before reading files", () => {
   );
 });
 
-test("bibliography stays external and requires an approved URL and checksum", () => {
+test("bibliography stays external to the renderer package", () => {
   assert.equal(
     Object.keys(aastexPackage.files).some((path) => path.endsWith(".bst")),
     false,
   );
-  const altered = (bibliographyDownload: unknown) => ({
-    ...aastexPackage.files,
-    "manifest.json": JSON.stringify({
-      ...aastexPackage.manifest,
-      bibliographyDownload,
-    }),
-  });
-  for (const declaration of [
-    undefined,
-    { url: "https://example.com/style.bst", sha256: "a".repeat(64) },
-    { ...aastexPackage.manifest.bibliographyDownload, sha256: "invalid" },
-  ])
-    assert.throws(
-      () => loadPublicationPackage(altered(declaration)),
-      /bibliography download/,
-    );
   assert.throws(
     () =>
       loadPublicationPackage({
@@ -364,8 +351,8 @@ test("structured citation tokens preserve groups, narrative form, locators and s
   );
 });
 test(
-  "real packaged PDF compiles code formatting, AMS math and native bibliography",
-  { timeout: 120_000 },
+  "real packaged PDF compiles code formatting, AMS math, chemistry and native bibliography",
+  { skip: templateCacheSkip, timeout: 120_000 },
   async () => {
     assert.ok(
       pandoc && tectonic,
@@ -394,6 +381,10 @@ test(
       page: "1-4",
     };
     const equations = preparePublishMath(String.raw`
+Inline water: $\ce{H2O}$.
+$$\ce{[AgCl2]-}$$
+$$\ce{$A$ ->[\ce{+H2O}] $B$}$$
+$$\ce{SO4^2- + Ba^2+ -> BaSO4 v}$$
 $$
 \text{Aligned equation}\quad\begin{aligned}
 a &= b \\
@@ -651,7 +642,7 @@ test("package declarations drive requirements and class rendering; inconsistent 
 
 test(
   "real AASTeX PDFs cover all line/date options and nonblocking heading fallback",
-  { timeout: 120_000 },
+  { skip: templateCacheSkip, timeout: 120_000 },
   async () => {
     assert.ok(
       pandoc && tectonic,

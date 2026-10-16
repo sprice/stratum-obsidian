@@ -1,6 +1,6 @@
 {
   "name": "stratum-obsidian",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Create enriched structured literature notes from your Zotero library.",
   "packageManager": "pnpm@10.12.4",
   "engines": {
@@ -34,7 +34,7 @@
     "format": "node scripts/run-quiet.mjs pnpm run format:verbose",
     "format:verbose": "prettier --write src/",
     "test:tooling": "node scripts/run-quiet.mjs pnpm run test:tooling:verbose",
-    "test:tooling:verbose": "node --test scripts/publication-source-inventory.test.mjs scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs scripts/journal-assets.test.mjs",
+    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs",
     "quiet": "node scripts/run-quiet.mjs",
     "test:publishing:preflight": "node scripts/require-publishing-tools.mjs",
     "lint:scorecard:rules": "node scripts/run-quiet.mjs node scripts/scorecard-rules.mjs"

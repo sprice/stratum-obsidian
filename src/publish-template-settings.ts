@@ -17,9 +17,9 @@ import {
 import { styleStratumComponent } from "./ui-controls";
 import { ConfirmModal } from "./ui-modal";
 import { AASTEX_TEMPLATE } from "./publication-package";
-import { JOURNAL_TEMPLATES } from "./journal-profiles";
+import { JOURNAL_TEMPLATES, journalProfile } from "./journal-profiles";
 import {
-  installedAastexResources,
+  installedTemplateResources,
   publicationResourceCache,
 } from "./publication-resources";
 import { setPublishingTemplateEnabled } from "./publishing-template-availability";
@@ -240,10 +240,13 @@ export class PublishingTemplatesModal extends Modal {
         .setName(template.name)
         .setDesc(
           template.renderer === "aastex"
-            ? "Official AAS resources. Enabling downloads and verifies missing files; disabling keeps them cached."
-            : template.renderer === "journal"
-              ? "Journal profiles. Resources currently included with the plugin."
-              : `${template.documentType === "academic" ? "Academic paper" : "General document"} · ${isBuiltInTemplate(template.id) ? "Built-in; editable and cannot be deleted." : "Custom template."}`,
+            ? "AASTeX from the Stratum mirror. Enabling verifies this exact release; disabling keeps it cached. AAS bibliography use is restricted to nonprofit purposes."
+            : template.renderer === "journal" &&
+                journalProfile(template.id)?.family === "research"
+              ? "Built-in research layout; no external template download."
+              : template.renderer === "journal"
+                ? "Enabling installs and verifies the compatible release from the Stratum mirror; disabling keeps it cached. Sources, notices and license terms are retained."
+                : `${template.documentType === "academic" ? "Academic paper" : "General document"} · ${isBuiltInTemplate(template.id) ? "Built-in; editable and cannot be deleted." : "Custom template."}`,
         );
       if (!template.renderer)
         row.addButton((button) =>
@@ -261,16 +264,19 @@ export class PublishingTemplatesModal extends Modal {
             if (changing) return;
             changing = true;
             toggle.setDisabled(true);
-            if (value && template.renderer === "aastex")
+            if (value && template.renderer)
               row.setDesc("Installing and verifying template resources…");
             void setPublishingTemplateEnabled(
               this.plugin,
               family.id,
               value,
               () =>
-                template.renderer === "aastex"
-                  ? installedAastexResources(
+                template.renderer
+                  ? installedTemplateResources(
                       publicationResourceCache(this.plugin),
+                      template.renderer === "aastex"
+                        ? "aastex"
+                        : journalProfile(template.id)!.family,
                       this.installation.signal,
                     )
                   : Promise.resolve(),

@@ -65,11 +65,19 @@ const hasPandoc = !!pandoc;
 const tectonic = installedTool("tectonic", process.env.STRATUM_TEST_TECTONIC);
 
 test(
-  "real PDF export accepts default fonts, academic opening and mathematical notation",
+  "real PDF export accepts default fonts, academic opening, math and chemistry",
   { skip: !pandoc || !tectonic },
   async () => {
     const math = preparePublishMath(
-      "$$\\int_0^1 x^2\\,\\mathrm{d}x = \\frac{1}{3}$$",
+      String.raw`$$\int_0^1 x^2\,\mathrm{d}x = \frac{1}{3}$$
+
+Inline water: $\ce{H2O}$.
+
+$$\ce{[AgCl2]-}$$
+
+$$\ce{$A$ ->[\ce{+H2O}] $B$}$$
+
+$$\ce{SO4^2- + Ba^2+ -> BaSO4 v}$$`,
     );
     const html = `<html><head><title>Unwanted metadata title</title></head><body><div class="stratum-publish-title"><p>Synthetic mathematical paper</p></div><div class="stratum-publish-abstract"><h2 class="unnumbered">Abstract</h2><p>A synthetic abstract.</p></div><h2>Introduction</h2><p>${math.restore(math.markdown)}</p></body></html>`;
     const bytes = await runtime().convertPublication(
@@ -712,7 +720,7 @@ test(
   },
 );
 
-test("AAS bibliography download bounds HTTPS redirects, bytes, hash and total time", async () => {
+test("mirror download bounds HTTPS redirects, bytes, hash and total time", async () => {
   const bytes = new TextEncoder().encode("Synthetic bibliography style");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   type Hop = {
@@ -720,6 +728,7 @@ test("AAS bibliography download bounds HTTPS redirects, bytes, hash and total ti
     location?: string;
     bytes?: Uint8Array;
     wait?: number;
+    length?: string;
   };
   let hops: Hop[] = [];
   let urls: string[] = [];
@@ -744,11 +753,14 @@ test("AAS bibliography download bounds HTTPS redirects, bytes, hash and total ti
       schedule(() => {
         const response = new EventEmitter() as EventEmitter & {
           statusCode: number;
-          headers: { location?: string };
+          headers: { location?: string; "content-length"?: string };
           destroy(): void;
         };
         response.statusCode = hop.status ?? 200;
-        response.headers = { location: hop.location };
+        response.headers = {
+          location: hop.location,
+          "content-length": hop.length,
+        };
         response.destroy = () => {
           destroyed++;
         };
@@ -762,13 +774,13 @@ test("AAS bibliography download bounds HTTPS redirects, bytes, hash and total ti
       return request;
     },
   };
-  const { downloadAastexBibliography: download } = runtime(true, undefined, {
+  const { downloadPublicationResource: download } = runtime(true, undefined, {
     "node:https": https,
   });
   const run = (
     next: Hop[],
     timeout = 1000,
-    url = "https://aas.test/style.bst",
+    url = "https://templates.stratumnotes.com/api/templates/v1/test/download",
   ) => {
     hops = [...next];
     urls = [];
@@ -777,67 +789,33 @@ test("AAS bibliography download bounds HTTPS redirects, bytes, hash and total ti
   };
   assert.deepEqual(Array.from(await run([{}])), Array.from(bytes));
   for (const status of [301, 302, 303, 307, 308]) {
-    assert.deepEqual(
-      Array.from(
-        await run([
-          { status, location: "../next.bst" },
-          { status, location: "https://cdn.test/style.bst" },
-          {},
-        ]),
-      ),
-      Array.from(bytes),
+    await assert.rejects(
+      run([{ status, location: "https://cdn.test/style" }]),
+      /redirected/,
     );
-    assert.deepEqual(urls, [
-      "https://aas.test/style.bst",
-      "https://aas.test/next.bst",
-      "https://cdn.test/style.bst",
-    ]);
-    assert.equal(destroyed, 2);
+    assert.equal(urls.length, 1);
+    assert.equal(destroyed, 1);
   }
+  await assert.rejects(run([{ length: "1000001" }]), /too large/);
+  await assert.rejects(run([{ length: "999" }]), /interrupted/);
+  await assert.rejects(run([{ length: "invalid" }]), /invalid/);
   await assert.rejects(
-    run([{ status: 302, location: "http://unsafe.test/style" }]),
-    /requires HTTPS/,
-  );
-  assert.equal(urls.length, 1);
-  await assert.rejects(
-    run(Array.from({ length: 4 }, () => ({ status: 302, location: "/next" }))),
-    /too many times/,
-  );
-  assert.equal(destroyed, 4);
-  assert.deepEqual(
-    Array.from(
-      await run([
-        ...Array.from({ length: 3 }, () => ({
-          status: 302,
-          location: "/next",
-        })),
-        {},
-      ]),
-    ),
-    Array.from(bytes),
-  );
-  await assert.rejects(
-    run([
-      { status: 302, location: "/next" },
-      { bytes: new Uint8Array(1_000_001) },
-    ]),
+    run([{ bytes: new Uint8Array(1_000_001) }]),
     /too large/,
   );
   await assert.rejects(
-    run([{ status: 302, location: "/next" }, { bytes: new Uint8Array([1]) }]),
+    run([{ bytes: new Uint8Array([1]) }]),
     /template resource changed/,
   );
-  await assert.rejects(
-    run([{ status: 302, location: "/next", wait: 20 }, { wait: 60 }], 50),
-    /timed out/,
-  );
-  // Allow the late response to arrive; it must be destroyed and never resolve the timed-out operation.
-  await delay(70);
-  assert.equal(destroyed, 2);
-  await assert.rejects(
-    run([], 1000, "http://unsafe.test/style"),
-    /requires HTTPS/,
-  );
-  assert.equal(urls.length, 0);
-  await assert.rejects(run([{ status: 302 }]), /no Location/);
+  await assert.rejects(run([{ wait: 80 }], 20), /timed out/);
+  await delay(100);
+  assert.equal(destroyed, 1);
+  for (const url of [
+    "http://unsafe.test/style",
+    "https://upstream.test/style",
+    "https://user:secret@templates.stratumnotes.com/style",
+  ]) {
+    await assert.rejects(run([], 1000, url), /requires HTTPS/);
+    assert.equal(urls.length, 0);
+  }
 });

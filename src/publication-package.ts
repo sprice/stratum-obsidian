@@ -1,3 +1,4 @@
+import { publicationMathPreamble } from "./publish-math-compat";
 import {
   publicationAssetMap,
   publicationAssetPath as relativePath,
@@ -43,7 +44,6 @@ export interface PublicationPackage {
     compiler: "tectonic";
     class: string;
     bibliographyStyle: string;
-    bibliographyDownload: { url: string; sha256: string };
   };
   schema: {
     fields: PackageField[];
@@ -114,15 +114,6 @@ export function loadPublicationPackage(input: unknown): PublicationPackage {
     throw new Error(
       "Invalid publication package class or external bibliography declaration.",
     );
-  const download = manifest.bibliographyDownload;
-  if (
-    !object(download) ||
-    download.url !==
-      "https://journals.aas.org/wp-content/uploads/2026/06/aasjournalv7.1.bst" ||
-    typeof download.sha256 !== "string" ||
-    !/^[a-f0-9]{64}$/.test(download.sha256)
-  )
-    throw new Error("Invalid publication package bibliography download.");
   const schema = json(assets, parsedManifest.schema);
   if (!object(schema) || !object(schema.rules) || !Array.isArray(schema.fields))
     throw new Error("Invalid publication package metadata schema.");
@@ -383,7 +374,7 @@ export function aastexLatex(
     .join("\n");
   const values: Record<string, string> = {
     journalInfo: options.showDraftDateHeader ? "" : "\\journalinfo{}",
-    preamble,
+    preamble: `${publicationMathPreamble}\n${preamble}`,
     className: pkg.manifest.class
       .split("/")
       .at(-1)!

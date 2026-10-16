@@ -24,31 +24,49 @@ function setup() {
   };
   return { plugin, host: plugin as unknown as StratumPlugin };
 }
-test("new and legacy configurations default off while retaining configured templates", () => {
+test("new and legacy configurations enable only built-ins by default", () => {
   for (const value of [
     undefined,
     { templates: [{ id: "custom", name: "My template" }] },
   ]) {
     const state = readPublishingTemplates(value);
     assert.equal(
-      state.templates.every((t) => !publishingTemplateEnabled(state, t)),
+      state.templates.every(
+        (t) =>
+          publishingTemplateEnabled(state, t) ===
+          ["general", "academic"].includes(t.id),
+      ),
       true,
     );
     assert.equal(state.templates[0].id, "general");
+  }
+  for (const enabledIds of [[], ["general"], ["academic"]]) {
+    const state = readPublishingTemplates({ enabledIds });
+    assert.deepEqual(state.enabledIds, enabledIds);
+    assert.deepEqual(
+      readPublishingTemplates(JSON.parse(JSON.stringify(state))).enabledIds,
+      enabledIds,
+    );
   }
 });
 test("successful enablement follows installation; disabling preserves configuration", async () => {
   const { plugin, host } = setup();
   let installs = 0;
   await setPublishingTemplateEnabled(host, "package:aastex", true, () => {
-    assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, []);
+    assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [
+      "general",
+      "academic",
+    ]);
     installs++;
     return Promise.resolve();
   });
   await setPublishingTemplateEnabled(host, "package:aastex", false, () => {
     throw new Error("Disable must not install");
   });
-  assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, []);
+  assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [
+    "general",
+    "academic",
+  ]);
   assert.equal(installs, 1);
   assert.equal(plugin.settings.publishingTemplates.templates.length, 2);
   assert.equal(plugin.refreshes, 2);
@@ -75,11 +93,17 @@ test("failed or cancelled installation leaves enablement untouched", async () =>
     ),
     /cancelled/,
   );
-  assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, []);
+  assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [
+    "general",
+    "academic",
+  ]);
   assert.equal(plugin.saves, 0);
 });
 test("concurrent enablement retains both choices and failed settings writes roll back", async () => {
   const { plugin, host } = setup();
+  plugin.settings.publishingTemplates = readPublishingTemplates({
+    enabledIds: [],
+  });
   await Promise.all([
     setPublishingTemplateEnabled(host, "general", true),
     setPublishingTemplateEnabled(host, "academic", true),
@@ -113,5 +137,8 @@ test("a later disable cannot be undone by an earlier slow installation", async (
   await setPublishingTemplateEnabled(host, "package:aastex", false);
   release();
   await installing;
-  assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, []);
+  assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [
+    "general",
+    "academic",
+  ]);
 });

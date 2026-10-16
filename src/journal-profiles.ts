@@ -1,5 +1,4 @@
-import { publicationAssetMap } from "./publication-asset-map";
-import assets from "./publication-templates/journals/files.json";
+import { publicationMathPreamble } from "./publish-math-compat";
 import { aastexManuscript, escapeLatex } from "./publication-package";
 import { DEFAULT_ACADEMIC_OPTIONS } from "./publish-options";
 import type { PublishingTemplate } from "./publish-templates";
@@ -66,7 +65,7 @@ function add(
       provenance:
         family === "research"
           ? "Original Stratum preset"
-          : "publication-templates/journals/provenance.json",
+          : "publication-registry-pins.json",
       class: cls,
       bibliography,
       classOptions,
@@ -153,6 +152,9 @@ for (const p of profiles) {
   if (p.family === "cas" && p.id.endsWith("double")) p.class = "cas-dc";
   if (p.id.endsWith("aip-numeric")) p.bibliography = "aipnum4-2";
   if (p.id.endsWith("aip-author-year")) p.bibliography = "aipauth4-2";
+  if (p.family === "cas" && p.id.endsWith("double"))
+    p.blocker =
+      "Double-column CAS is unavailable: the mirrored release supports single-column publishing only. Your saved choice is kept; choose a supported template or wait for a compatible mirror release.";
   if (p.family === "aa")
     p.blocker =
       "Astronomy & Astrophysics is unavailable until the official assets and their distribution permissions are verified.";
@@ -177,30 +179,6 @@ export function journalReference(p: JournalProfile) {
     version: p.version,
     upstreamVersion: p.upstreamVersion,
   };
-}
-export function journalFiles(
-  profile: JournalProfile,
-  value: unknown = assets,
-): Record<string, string> {
-  const files: Record<string, string> = {};
-  for (const [path, contents] of Object.entries(publicationAssetMap(value))) {
-    if (
-      !path.startsWith(`${profile.family}/`) ||
-      !/\.(cls|sty|rtx|bst)$/.test(path)
-    )
-      continue;
-    const name = path.split("/").at(-1)!;
-    if (Object.hasOwn(files, name))
-      throw new Error("Journal asset names collide.");
-    files[name] = contents;
-  }
-  if (
-    !profile.blocker &&
-    profile.family !== "research" &&
-    (!files[`${profile.class}.cls`] || !files[`${profile.bibliography}.bst`])
-  )
-    throw new Error(`Required ${profile.name} assets are missing.`);
-  return files;
 }
 export const JOURNAL_TEMPLATES: PublishingTemplate[] = profiles
   .filter((p) => !p.blocker)
@@ -328,6 +306,7 @@ export function journalLatex(
   bibliography: boolean,
   preamble = "",
 ): string {
+  preamble = `${publicationMathPreamble}\n${preamble}`;
   if (profile.blocker) throw new Error(profile.blocker);
   if (
     !JOURNAL_PROFILES.some(
@@ -508,5 +487,5 @@ export function journalLatex(
   if (profile.family === "ieee")
     packages += "\\usepackage[numbers,sort&compress]{natbib}\n";
   const identity = profile.anonymous ? "" : names.join(", ");
-  return `\\documentclass[${profile.classOptions.concat(profile.family === "revtex" && keywords ? ["showkeys"] : []).join(",")}]{${profile.class}}\n${packages}${preamble}\n\\typeout{Stratum journal adapter: partial upstream distribution; see bundled notices for complete sources.}\n\\providecommand{\\tightlist}{}\n\\newsavebox{\\stratumimagebox}\n\\providecommand{\\pandocbounded}[1]{\\sbox{\\stratumimagebox}{#1}\\ifdim\\wd\\stratumimagebox>\\linewidth\\resizebox{\\linewidth}{!}{\\usebox{\\stratumimagebox}}\\else\\usebox{\\stratumimagebox}\\fi}\n${extra}${profile.family === "revtex" ? "" : metadata}\n\\hypersetup{hidelinks,pdftitle={${title}},pdfauthor={${identity}}}\n\\begin{document}\n${profile.family === "revtex" ? metadata : ""}${opening}${abstractTex}${body}\n${bibliography ? `\\bibliographystyle{${profile.bibliography}}\n\\bibliography{references}` : ""}\n\\end{document}\n`;
+  return `\\documentclass[${profile.classOptions.concat(profile.family === "revtex" && keywords ? ["showkeys"] : []).join(",")}]{${profile.class}}\n${packages}${preamble}\n\\typeout{Stratum journal adapter: mirrored resources; complete sources and notices retained in the verified cache.}\n\\providecommand{\\tightlist}{}\n\\newsavebox{\\stratumimagebox}\n\\providecommand{\\pandocbounded}[1]{\\sbox{\\stratumimagebox}{#1}\\ifdim\\wd\\stratumimagebox>\\linewidth\\resizebox{\\linewidth}{!}{\\usebox{\\stratumimagebox}}\\else\\usebox{\\stratumimagebox}\\fi}\n${extra}${profile.family === "revtex" ? "" : metadata}\n\\hypersetup{hidelinks,pdftitle={${title}},pdfauthor={${identity}}}\n\\begin{document}\n${profile.family === "revtex" ? metadata : ""}${opening}${abstractTex}${body}\n${bibliography ? `\\bibliographystyle{${profile.bibliography}}\n\\bibliography{references}` : ""}\n\\end{document}\n`;
 }

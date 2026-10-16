@@ -1,8 +1,16 @@
+import {
+  TEMPLATE_REGISTRY_ORIGIN,
+  MAX_TEMPLATE_BYTES,
+} from "./publication-registry";
 import { type BibliographyCache } from "./publication-bibliography-cache";
 /* Desktop host access is loaded only after Platform.isDesktopApp is checked. */
 import { Platform } from "obsidian";
 import { readPublishOptions, type PublishOptions } from "./publish-options";
 import { publicationFilter, publicationHeader } from "./publish-layout";
+import {
+  publicationMathFilter,
+  publicationMathPreamble,
+} from "./publish-math-compat";
 import type { PublishFormat } from "./publish-model";
 import type { aastexManuscript } from "./publication-package";
 import {
@@ -495,25 +503,24 @@ export async function convertPublication(
       output,
     ];
     args.push("--log=diagnostics.json");
-    if (options) {
-      await fs.writeFile(
-        path.join(directory, "layout.lua"),
-        publicationFilter(options),
-        { mode: 0o600 },
-      );
-      args.push("--lua-filter=layout.lua");
-      if (options.numberSections) args.push("--number-sections");
-    }
+    await fs.writeFile(
+      path.join(directory, "layout.lua"),
+      options ? publicationFilter(options) : publicationMathFilter,
+      { mode: 0o600 },
+    );
+    args.push("--lua-filter=layout.lua");
+    if (options?.numberSections) args.push("--number-sections");
     args.push(
       `--pdf-engine=${tools.tectonic}`,
       `--variable=geometry:margin=${options?.margin ?? 1}in`,
     );
+    await fs.writeFile(
+      path.join(directory, "layout.tex"),
+      options ? publicationHeader(options) : publicationMathPreamble,
+      { mode: 0o600 },
+    );
+    args.push("--include-in-header=layout.tex");
     if (options) {
-      await fs.writeFile(
-        path.join(directory, "layout.tex"),
-        publicationHeader(options),
-        { mode: 0o600 },
-      );
       // Tectonic uses XeTeX/fontspec; choose fonts explicitly for text, not math.
       args.push(
         ...(options.bodyFont
@@ -525,7 +532,6 @@ export async function convertPublication(
         "--variable=fontsize:12pt",
         `--variable=papersize:${options.paperSize}`,
         `--variable=linestretch:${options.lineSpacing}`,
-        "--include-in-header=layout.tex",
       );
     }
     args.push("document.html");
@@ -578,7 +584,9 @@ export async function convertPublication(
   }
 }
 
-export const aastexFilter = `
+export const aastexFilter =
+  publicationMathFilter +
+  `
 function Span(el)
   -- The HTML reader removes the data- prefix from custom attributes.
   if el.classes:includes('stratum-aastex-citation') then
@@ -643,10 +651,11 @@ $endif$
 
 interface BibliographyResponse {
   statusCode?: number;
-  headers: { location?: string };
+  headers: { location?: string; "content-length"?: string };
   destroy(): void;
   on(event: "data", listener: (bytes: Uint8Array) => void): void;
   on(event: "error", listener: (error: Error) => void): void;
+  on(event: "aborted", listener: () => void): void;
   on(event: "end", listener: () => void): void;
 }
 interface BibliographyRequest {
@@ -669,7 +678,7 @@ interface BibliographyCrypto {
 
 /** Download pinned public style bytes; caching is handled separately. */
 export async function downloadPublicationResource(
-  specification: { url: string; sha256: string; maxBytes?: number },
+  specification: { url: string; sha256?: string; maxBytes?: number },
   signal?: AbortSignal,
   timeout = 30_000,
 ): Promise<Uint8Array> {
@@ -677,6 +686,13 @@ export async function downloadPublicationResource(
     throw new Error("PDF publishing requires desktop Obsidian.");
   const require = host().require;
   if (!require) throw new Error("Desktop network access is unavailable.");
+  const maxBytes = specification.maxBytes ?? 1_000_000;
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > MAX_TEMPLATE_BYTES
+  )
+    throw new Error("Invalid template download size limit.");
   const https = require("node:https") as BibliographyHttps;
   const crypto = require("node:crypto") as BibliographyCrypto;
   const { Buffer } = require("node:buffer") as {
@@ -698,11 +714,18 @@ export async function downloadPublicationResource(
       finish(error);
       active?.destroy(error);
     }, timeout);
-    const download = (url: string, redirects: number) => {
+    const download = (url: string) => {
       if (settled) return;
       try {
-        if (new URL(url).protocol !== "https:")
-          throw new Error("The template resource download requires HTTPS.");
+        if (
+          new URL(url).protocol !== "https:" ||
+          new URL(url).origin !== TEMPLATE_REGISTRY_ORIGIN ||
+          new URL(url).username ||
+          new URL(url).password
+        )
+          throw new Error(
+            "The template resource download requires HTTPS from Stratum’s mirror.",
+          );
         const request = https.get(
           url,
           {
@@ -717,42 +740,45 @@ export async function downloadPublicationResource(
               response.destroy();
               return;
             }
-            response.on("error", (error) => finish(error));
+            const interrupted = () =>
+              finish(
+                new Error(
+                  signal?.aborted
+                    ? "Publishing cancelled."
+                    : "The template resource download was interrupted. Enable the template again to retry.",
+                ),
+              );
+            response.on("aborted", interrupted);
+            response.on("error", interrupted);
             if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0)) {
-              const location = response.headers.location;
+              finish(
+                new Error(
+                  "The template mirror redirected. Update Stratum or try again later.",
+                ),
+              );
               response.destroy();
-              if (redirects === 3) {
-                finish(
-                  new Error(
-                    "The template resource download redirected too many times.",
-                  ),
-                );
-                return;
-              }
-              if (!location) {
-                finish(
-                  new Error(
-                    "The template resource redirect has no Location header.",
-                  ),
-                );
-                return;
-              }
-              try {
-                download(new URL(location, url).href, redirects + 1);
-              } catch (error) {
-                finish(
-                  error instanceof Error ? error : new Error(String(error)),
-                );
-              }
               return;
             }
             if (response.statusCode !== 200) {
-              response.destroy();
               finish(
                 new Error(
-                  `The upstream server could not supply the template resource (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
+                  `The Stratum mirror could not supply the template resource (HTTP ${response.statusCode ?? "unknown"}). Try enabling the template again later.`,
                 ),
               );
+              response.destroy();
+              return;
+            }
+            const advertised = response.headers["content-length"];
+            if (
+              advertised &&
+              (!/^\d+$/.test(advertised) || Number(advertised) > maxBytes)
+            ) {
+              finish(
+                new Error(
+                  "The template resource download is too large or has an invalid size.",
+                ),
+              );
+              response.destroy();
               return;
             }
             const chunks: Uint8Array[] = [];
@@ -760,7 +786,7 @@ export async function downloadPublicationResource(
             response.on("data", (chunk: Uint8Array) => {
               if (settled) return;
               length += chunk.length;
-              if (length > (specification.maxBytes ?? 1_000_000)) {
+              if (length > maxBytes) {
                 const error = new Error(
                   "The template resource download is too large.",
                 );
@@ -775,10 +801,19 @@ export async function downloadPublicationResource(
                 finish(new Error("Publishing cancelled."));
                 return;
               }
+              if (advertised && Number(advertised) !== length) {
+                finish(
+                  new Error(
+                    "The template resource download was interrupted. Enable the template again to retry.",
+                  ),
+                );
+                return;
+              }
               const bytes = Buffer.concat(chunks);
               if (
+                specification.sha256 &&
                 crypto.createHash("sha256").update(bytes).digest("hex") !==
-                specification.sha256
+                  specification.sha256
               ) {
                 finish(
                   new Error(
@@ -805,10 +840,9 @@ export async function downloadPublicationResource(
         finish(error instanceof Error ? error : new Error(String(error)));
       }
     };
-    download(specification.url, 0);
+    download(specification.url);
   });
 }
-export const downloadAastexBibliography = downloadPublicationResource;
 async function convertAastexPublication(
   html: string,
   assets: PublishAsset[],
@@ -824,20 +858,19 @@ async function convertAastexPublication(
     const { aastexPackage: pkg, aastexLatex } =
       await import("./publication-package");
     const journal = input.journal;
-    const journalAssets = journal
-      ? (await import("./journal-profiles")).journalFiles(journal)
-      : undefined;
-    if (journalAssets) {
-      for (const [name, content] of Object.entries(journalAssets))
-        await fs.writeFile(path.join(directory, name), content, {
-          mode: 0o600,
-        });
-    } else {
+    if (!journal || journal.family !== "research") {
       if (!tools.bibliographyCache)
-        throw new Error("Enable AASTeX in Manage templates before publishing.");
+        throw new Error(
+          "Enable this template in Manage templates before publishing.",
+        );
       const resources = await (
         await import("./publication-resources")
-      ).installedAastexResources(tools.bibliographyCache, signal, false);
+      ).installedTemplateResources(
+        tools.bibliographyCache,
+        journal?.family ?? "aastex",
+        signal,
+        false,
+      );
       for (const [name, content] of Object.entries(resources))
         await fs.writeFile(path.join(directory, name), content, {
           mode: 0o600,

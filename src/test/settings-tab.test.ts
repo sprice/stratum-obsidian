@@ -589,8 +589,12 @@ test("template management stays in its own screen, with academic properties in t
   assert.ok(
     rows
       .filter((row) => row.name)
-      .every((row) => row.controls.at(-1)!.value === false),
-    "Every template toggle starts disabled",
+      .every(
+        (row) =>
+          row.controls.at(-1)!.value ===
+          ["General documents", "Academic papers"].includes(row.name),
+      ),
+    "Only the built-in template toggles start enabled",
   );
   assert.equal(
     rows.filter((row) => row.controls.some((control) => control.click)).length,

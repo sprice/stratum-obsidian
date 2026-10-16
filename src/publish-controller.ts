@@ -646,6 +646,8 @@ export class PublishController extends Component {
     });
   }
   get templateAvailabilityProblem(): string {
+    const blocker = journalProfile(this.notePreferences.templateId)?.blocker;
+    if (blocker) return blocker;
     const selected = selectedPublishingTemplate(
       this.allPublishingTemplates,
       this.notePreferences.templateId,

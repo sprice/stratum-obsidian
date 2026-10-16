@@ -1,7 +1,6 @@
 import esbuild from "esbuild";
 import { scorecardBundlePlugin } from "./scripts/scorecard-bundle.mjs";
 import { generatePublicationAssets } from "./scripts/publication-assets.mjs";
-import { generateJournalAssets } from "./scripts/journal-assets.mjs";
 import { readFileSync } from "node:fs";
 import process from "process";
 import { builtinModules } from "node:module";
@@ -16,9 +15,6 @@ const notices = [
   "./THIRD_PARTY_NOTICES.md",
   "./licenses/citeproc.txt",
   "./licenses/yaml.txt",
-  "./src/publication-templates/journals/NOTICE.txt",
-  "./src/publication-templates/journals/LPPL.txt",
-  "./src/publication-templates/journals/CC-BY-4.0.txt",
   "./src/publication-templates/aastex/licenses/NOTICE.txt",
 ]
   .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
@@ -37,6 +33,22 @@ const pluginConfig = JSON.parse(
   readFileSync(new URL("./plugin.config.json", import.meta.url), "utf8"),
 );
 const webAppUrl = process.env.STRATUM_WEB_APP_URL ?? pluginConfig.webAppUrl;
+const templateRegistryUrl = new URL(
+  process.env.STRATUM_TEMPLATE_REGISTRY_ORIGIN ??
+    "https://templates.stratumnotes.com",
+);
+if (
+  !["https:", "http:"].includes(templateRegistryUrl.protocol) ||
+  templateRegistryUrl.username ||
+  templateRegistryUrl.password ||
+  templateRegistryUrl.pathname !== "/" ||
+  templateRegistryUrl.search ||
+  templateRegistryUrl.hash
+)
+  throw new Error(
+    "Template registry requires an origin without credentials or paths.",
+  );
+const templateRegistryOrigin = templateRegistryUrl.origin;
 const supabaseUrl =
   process.env.STRATUM_SUPABASE_URL ??
   `${webAppUrl.replace(/\/$/, "")}/api/stratum`;
@@ -48,7 +60,6 @@ const debugLogging = process.env.STRATUM_DEBUG === "true";
 
 // Create the import target before esbuild resolves it in a clean checkout.
 await generatePublicationAssets();
-await generateJournalAssets();
 
 const context = await esbuild.context({
   banner: {
@@ -59,18 +70,6 @@ const context = await esbuild.context({
     {
       name: "publication-assets",
       setup(build) {
-        build.onLoad(
-          { filter: /publication-templates[\\/]journals[\\/]files\.json$/ },
-          async () => {
-            const result = await generateJournalAssets();
-            return {
-              contents: result.contents,
-              loader: "json",
-              watchFiles: result.paths,
-              watchDirs: result.directories,
-            };
-          },
-        );
         build.onLoad(
           { filter: /publication-templates[\\/]aastex[\\/]files\.json$/ },
           async () => {
@@ -116,6 +115,9 @@ const context = await esbuild.context({
   minify: prod,
   define: {
     __STRATUM_WEB_APP_URL__: JSON.stringify(webAppUrl),
+    __STRATUM_TEMPLATE_REGISTRY_ORIGIN__: JSON.stringify(
+      templateRegistryOrigin,
+    ),
     __STRATUM_SUPABASE_URL__: JSON.stringify(supabaseUrl),
     __STRATUM_SUPABASE_PUBLISHABLE_KEY__: JSON.stringify(
       supabasePublishableKey,
