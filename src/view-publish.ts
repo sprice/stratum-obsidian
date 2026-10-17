@@ -35,6 +35,7 @@ export class PublishPanel extends Component {
   private documentsPanel!: PublishedDocumentsPanel;
   private tabs!: StratumTabs<"publish" | "documents">;
   private dependencies!: HTMLElement;
+  private selectors!: HTMLElement;
   private controls!: HTMLElement;
   private status!: HTMLElement;
   private statusMessage!: HTMLElement;
@@ -114,21 +115,21 @@ export class PublishPanel extends Component {
       text: "PDF documents created for your note",
     });
     this.dependencies = this.body.createDiv({
-      cls: "stratum-publish-notice",
+      cls: "stratum-publish-notice stratum-publish-dependencies",
       attr: { role: "status", "aria-live": "polite" },
     });
     this.dependencies.createEl("p", {
       text: "Missing publishing dependencies",
     });
     createStratumButton(this.dependencies, {
-      text: "Open publishing tools",
+      text: "Set up tools",
       wrap: true,
     }).addEventListener("click", () => {
       new PublishSetupModal(this.publish.plugin).open();
     });
-    const selectors = this.body.createDiv({
+    const selectors = (this.selectors = this.body.createDiv({
       cls: "stratum-publish-template-selectors",
-    });
+    }));
     const templateColumn = selectors.createDiv();
     const templateRow = templateColumn.createDiv({
       cls: "stratum-publish-template-row",
@@ -210,7 +211,9 @@ export class PublishPanel extends Component {
   }
   private update(): void {
     const publish = this.publish;
-    this.dependencies.hidden = publish.checking || !!publish.readiness?.pdf;
+    const toolsReady = !!publish.readiness?.pdf;
+    this.dependencies.hidden = publish.checking || toolsReady;
+    this.selectors.hidden = !toolsReady;
     if (
       publish.lastPublishedId &&
       publish.lastPublishedId !== this.state.lastPublishedId
@@ -285,7 +288,7 @@ export class PublishPanel extends Component {
       !hasNote || publish.busy || publish.preferencesSaving;
     this.template.disabled =
       !hasNote || publish.busy || publish.preferencesSaving;
-    this.controls.hidden = !hasNote;
+    this.controls.hidden = !toolsReady || !hasNote;
     this.create.hidden = !template;
     this.settings.disabled =
       !template || publish.busy || publish.preferencesSaving;
@@ -324,19 +327,21 @@ export class PublishPanel extends Component {
                       "Finish or resolve the pending publication edit",
                     )
                   : ""));
-    this.status.hidden = !problem;
+    this.status.hidden = !problem || (!toolsReady && !publish.checking);
     const cls = publish.error
       ? "stratum-publish-error"
       : publish.progress || publish.checking
         ? ""
         : "stratum-publish-notice";
-    const content = JSON.stringify([problem, cls, hasNote && !template]);
+    const showTemplateAction =
+      toolsReady && !publish.checking && hasNote && !template;
+    const content = JSON.stringify([problem, cls, showTemplateAction]);
     // Preserve diagnostic selection and scrolling across unrelated refreshes.
     if (content !== this.statusContent) {
       this.statusContent = content;
       this.statusMessage.empty();
       if (problem) this.statusMessage.createEl("p", { text: problem, cls });
-      if (hasNote && !template)
+      if (showTemplateAction)
         createStratumButton(this.statusMessage, {
           text: "Manage templates",
         }).addEventListener("click", () =>

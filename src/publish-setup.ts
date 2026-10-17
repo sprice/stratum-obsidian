@@ -6,7 +6,8 @@ import {
 } from "./ui-controls";
 import { Modal, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
-import { choosePublishExecutable, publishPlatform } from "./publish-desktop";
+import { choosePublishExecutable } from "./publish-desktop";
+import { PLUGIN_WEB_APP_URL } from "./build-config";
 import {
   publishingSetupAction,
   publishingToolState,
@@ -138,7 +139,7 @@ export class PublishSetupModal extends Modal {
     });
     this.downloadNote = contentEl.createEl("p", {
       cls: "stratum-publish-meta",
-      text: "The first PDF check may download typesetting files and take a few minutes. Your notes stay on this computer.",
+      text: "First-time setup may download files needed to publish PDFs.",
     });
     this.status = contentEl.createDiv({
       cls: "stratum-publish-status",
@@ -211,26 +212,13 @@ export class PublishSetupModal extends Modal {
     this.help.empty();
     this.help.hidden = !missing.length;
     if (missing.length) {
-      this.help.createEl("p", {
-        text: "Install the missing tools, then check again.",
+      createStratumButton(this.help, {
+        text: "View installation guide",
+        wrap: true,
+      }).addEventListener("click", () => {
+        const url = new URL("/install-dependencies", PLUGIN_WEB_APP_URL);
+        window.open(url.toString(), "_blank", "noopener,noreferrer");
       });
-      for (const tool of missing) {
-        const link = this.help.createEl("a", {
-          text: tool === "pandoc" ? "Get Pandoc" : "Get Tectonic",
-          href:
-            tool === "pandoc"
-              ? "https://pandoc.org/installing.html"
-              : "https://tectonic-typesetting.github.io/book/latest/installation/",
-        });
-        link.setAttr("target", "_blank");
-        link.setAttr("rel", "noopener noreferrer");
-      }
-      if (publishPlatform().platform === "darwin") {
-        const brew = createStratumDisclosure(this.help);
-        createStratumSummary(brew, { text: "Homebrew installation" });
-        const command = `brew install ${missing.join(" ")}`;
-        brew.createEl("code", { text: command });
-      }
     }
     this.syncReset();
     this.downloadNote.hidden = !!ready?.pdf;
