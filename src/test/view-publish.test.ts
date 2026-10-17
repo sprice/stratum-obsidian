@@ -170,6 +170,18 @@ function setup(state?: import("../view-publish").PublishViewState) {
     },
     { crypto },
     "browser",
+    {
+      "./publish-setup": {
+        PublishSetupModal: class {
+          constructor(plugin: unknown) {
+            assert.equal(plugin, publish.plugin);
+          }
+          open() {
+            settingsCalls.push("tools");
+          }
+        },
+      },
+    },
   );
   const panel = new PublishPanel(root as never, publish as never, state);
   panel.onload();
@@ -413,7 +425,7 @@ test("the controller owns the settings window across template changes and panel 
 });
 
 test("Create status is hidden when ready and exposes only actionable requirements or failures", () => {
-  const { root, publish, update } = setup();
+  const { root, publish, update, settingsCalls } = setup();
   const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
   assert.equal(status.hidden, true);
   publish.academicProblem =
@@ -428,10 +440,74 @@ test("Create status is hidden when ready and exposes only actionable requirement
   publish.readiness.pdf = false;
   update();
   assert.ok(
-    status
-      .all()
-      .some((el) => el.text.includes("Settings: Review PDF tool setup")),
+    root.all().some((el) => el.text === "Missing publishing dependencies"),
   );
+  const notice = root
+    .all()
+    .find((el) =>
+      el.children.some(
+        (child) => child.text === "Missing publishing dependencies",
+      ),
+    )!;
+  assert.equal(notice.hidden, false);
+  const selectors = root
+    .all()
+    .find((el) => el.cls === "stratum-publish-template-selectors")!;
+  const controls = root
+    .all()
+    .find((el) => el.cls === "stratum-publish-controls")!;
+  assert.equal(selectors.hidden, true);
+  assert.equal(controls.hidden, true);
+  assert.equal(
+    status.hidden,
+    true,
+    "note requirements do not compete with dependency setup",
+  );
+  const selectedTemplate = publish.notePreferences.templateId;
+  const note = publish.document;
+  const tools = notice.all().find((el) => el.text === "Set up tools")!;
+  tools.listeners.get("click")!();
+  assert.equal(settingsCalls.at(-1), "tools");
+  publish.document = null;
+  update();
+  assert.equal(notice.hidden, false, "setup remains available without a note");
+  publish.checking = true;
+  update();
+  assert.equal(notice.hidden, true);
+  assert.equal(selectors.hidden, true);
+  assert.equal(controls.hidden, true);
+  assert.equal(status.hidden, false, "checking progress remains visible");
+  publish.checking = false;
+  publish.readiness.pdf = true;
+  publish.document = note;
+  update();
+  assert.equal(notice.hidden, true);
+  assert.equal(selectors.hidden, false);
+  assert.equal(controls.hidden, false);
+  assert.equal(publish.notePreferences.templateId, selectedTemplate);
+});
+
+test("template recovery waits until dependency verification finishes", () => {
+  const { root, publish, update } = setup();
+  publish.notePreferences.templateId = "";
+  publish.readiness.pdf = false;
+  publish.checking = true;
+  update();
+  const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
+  assert.equal(status.hidden, false);
+  assert.equal(
+    status.all().some((el) => el.text === "Manage templates"),
+    false,
+  );
+  publish.readiness.pdf = true;
+  update();
+  assert.equal(
+    status.all().some((el) => el.text === "Manage templates"),
+    false,
+  );
+  publish.checking = false;
+  update();
+  assert.ok(status.all().some((el) => el.text === "Manage templates"));
 });
 
 test("unchanged publishing errors retain their element and scroll position across updates", () => {

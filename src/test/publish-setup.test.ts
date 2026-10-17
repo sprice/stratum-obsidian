@@ -106,131 +106,194 @@ class Setting {
   }
 }
 
-test("setup rechecks stale detection on every open and offers PDF verification without installation help", () => {
-  const callbacks = new Set<() => void>();
-  const checks: boolean[] = [];
-  const publish = {
-    readiness: {
-      pdf: false,
-      pandoc: { path: "/synthetic/pandoc", version: "3" },
-      tectonic: { path: "", version: "" },
-    } as PublishReadiness | null,
-    busy: false,
-    checking: false,
-    progress: "",
-    error: "",
-    subscribe: (callback: () => void) => {
-      callbacks.add(callback);
-      return () => callbacks.delete(callback);
-    },
-    emit: () => callbacks.forEach((callback) => callback()),
-    invalidateSupport: () => {
-      publish.readiness = null;
-      publish.emit();
-    },
-    check: (pdf = false) => {
-      checks.push(pdf);
-      return Promise.resolve();
-    },
-    cancel: () => {},
-  };
-  const { PublishSetupModal } = loadRuntime<typeof Setup>(
-    "publish-setup.ts",
-    {
-      Modal: class {
-        contentEl = new Element();
-        modalEl = { addClass() {} };
-        setTitle() {}
-        close() {}
+for (const webAppUrl of ["https://stratumnotes.com", "http://localhost:3000/"])
+  test(`setup verifies tools and links to the installation guide at ${webAppUrl}`, () => {
+    const opened: unknown[][] = [];
+    const callbacks = new Set<() => void>();
+    const checks: boolean[] = [];
+    const publish = {
+      readiness: {
+        pdf: false,
+        pandoc: { path: "/synthetic/pandoc", version: "3" },
+        tectonic: { path: "", version: "" },
+      } as PublishReadiness | null,
+      busy: false,
+      checking: false,
+      progress: "",
+      error: "",
+      subscribe: (callback: () => void) => {
+        callbacks.add(callback);
+        return () => callbacks.delete(callback);
       },
-      Setting,
-      ButtonComponent: ButtonComponentMock,
-    },
-    {},
-    "browser",
-    {
-      "./publish-desktop": { publishPlatform: () => ({ platform: "darwin" }) },
-    },
-  );
-  const modal = new PublishSetupModal({
-    app: {},
-    publish,
-    settings: { pandocPath: "", tectonicPath: "" },
-  } as never);
-  modal.onOpen();
-  assert.deepEqual(checks, [false]);
-  const content = modal.contentEl as unknown as Element;
-  const toolLabels = (element: Element): string[] =>
-    element.tagName === "STRONG"
-      ? [element.text]
-      : element.children.flatMap(toolLabels);
-  assert.deepEqual(toolLabels(content), ["Pandoc", "Tectonic"]);
-  assert.ok(content.find("Get Tectonic"));
-  publish.readiness!.tectonic = {
-    path: "/synthetic/tectonic",
-    version: "0.17",
-  };
-  callbacks.forEach((callback) => callback());
-  assert.equal(content.find("Get Tectonic"), undefined);
-  assert.ok(content.find("Detected"));
-  assert.ok(content.find("Found automatically"));
-  const pathDescription = content.find("/synthetic/tectonic")!;
-  function parentOf(root: Element, target: Element): Element | undefined {
-    if (root.children.includes(target)) return root;
-    return root.children.map((child) => parentOf(child, target)).find(Boolean);
-  }
-  const description = parentOf(content, pathDescription)!;
-  const row = parentOf(content, description)!;
-  assert.ok(
-    row.children.indexOf(description) >
-      row.children.findIndex((child) => child.tagName === "INPUT"),
-    "Detected path follows the tool input in DOM order",
-  );
-  assert.ok(content.find("/synthetic/tectonic"));
-  assert.equal(content.find("Use automatic detection")!.hidden, true);
-  assert.equal(content.find("Check again")!.hidden, true);
-  content.find("Enable PDF")!.click();
-  assert.deepEqual(checks, [false, true]);
-  publish.checking = true;
-  callbacks.forEach((callback) => callback());
-  assert.equal(content.find("Cancel check")!.hidden, false);
-  assert.equal(content.find("Checking…")!.disabled, true);
-  publish.checking = false;
-  publish.readiness!.pdf = true;
-  callbacks.forEach((callback) => callback());
-  assert.ok(content.find("Done"));
-  assert.equal(content.find("Check again")!.hidden, false);
-  modal.onClose();
-  modal.onOpen();
-  assert.deepEqual(
-    checks,
-    [false, true],
-    "reopening verified setup does not rerun conversion",
-  );
-  let sidebarReadiness = publish.readiness;
-  const updateSidebar = () => {
-    sidebarReadiness = publish.readiness;
-  };
-  callbacks.add(updateSidebar);
-  const advanced = content.children.find(
-    (child) => child.tagName === "DETAILS",
-  )!;
-  const pathInput = advanced.children.find(
-    (child) => child.tagName === "INPUT",
-  )!;
-  pathInput.value = "/different/pandoc";
-  pathInput.listeners.get("change")!();
-  assert.equal(publish.readiness, null);
-  assert.equal(content.find("Use automatic detection")!.hidden, false);
-  assert.equal(
-    sidebarReadiness,
-    null,
-    "the sidebar must stop offering creation after a tool path changes",
-  );
-  callbacks.delete(updateSidebar);
-  modal.onClose();
-  assert.equal(callbacks.size, 0);
-  modal.onOpen();
-  assert.deepEqual(checks, [false, true, false]);
-  modal.onClose();
-});
+      emit: () => callbacks.forEach((callback) => callback()),
+      invalidateSupport: () => {
+        publish.readiness = null;
+        publish.emit();
+      },
+      check: (pdf = false) => {
+        checks.push(pdf);
+        return Promise.resolve();
+      },
+      cancel: () => {},
+    };
+    const { PublishSetupModal } = loadRuntime<typeof Setup>(
+      "publish-setup.ts",
+      {
+        Modal: class {
+          contentEl = new Element();
+          modalEl = { addClass() {} };
+          setTitle() {}
+          close() {}
+        },
+        Setting,
+        ButtonComponent: ButtonComponentMock,
+      },
+      { window: { open: (...args: unknown[]) => opened.push(args) } },
+      "browser",
+      {
+        "./publish-desktop": {},
+        "./build-config": { PLUGIN_WEB_APP_URL: webAppUrl },
+      },
+    );
+    const modal = new PublishSetupModal({
+      app: {},
+      publish,
+      settings: { pandocPath: "", tectonicPath: "" },
+    } as never);
+    modal.onOpen();
+    assert.deepEqual(checks, [true]);
+    const content = modal.contentEl as unknown as Element;
+    const toolLabels = (element: Element): string[] =>
+      element.tagName === "STRONG"
+        ? [element.text]
+        : element.children.flatMap(toolLabels);
+    assert.deepEqual(toolLabels(content), ["Pandoc", "Tectonic"]);
+    const guide = content.find("View installation guide")!;
+    assert.ok(guide);
+    guide.click();
+    assert.deepEqual(opened, [
+      [
+        new URL("/install-dependencies", webAppUrl).toString(),
+        "_blank",
+        "noopener,noreferrer",
+      ],
+    ]);
+    for (const removed of [
+      "Get Pandoc",
+      "Get Tectonic",
+      "Homebrew installation",
+      "Install the missing tools, then check again.",
+    ])
+      assert.equal(content.find(removed), undefined);
+    publish.readiness!.pandoc = { path: "", version: "" };
+    callbacks.forEach((callback) => callback());
+    const countGuides = (element: Element): number =>
+      Number(element.text === "View installation guide") +
+      element.children.reduce((sum, child) => sum + countGuides(child), 0);
+    assert.equal(countGuides(content), 1, "both missing tools share one guide");
+    publish.readiness!.pandoc = { path: "/synthetic/pandoc", version: "3" };
+    publish.readiness!.tectonic = {
+      path: "/synthetic/tectonic",
+      version: "0.17",
+    };
+    callbacks.forEach((callback) => callback());
+    assert.equal(content.find("View installation guide"), undefined);
+    assert.ok(content.find("Found"));
+    assert.ok(content.find("Found automatically"));
+    const pathDescription = content.find("/synthetic/tectonic")!;
+    function parentOf(root: Element, target: Element): Element | undefined {
+      if (root.children.includes(target)) return root;
+      return root.children
+        .map((child) => parentOf(child, target))
+        .find(Boolean);
+    }
+    const description = parentOf(content, pathDescription)!;
+    const row = parentOf(content, description)!;
+    assert.ok(
+      row.children.indexOf(description) >
+        row.children.findIndex((child) => child.tagName === "INPUT"),
+      "Detected path follows the tool input in DOM order",
+    );
+    assert.ok(content.find("/synthetic/tectonic"));
+    assert.equal(content.find("Use automatic detection")!.hidden, true);
+    assert.equal(content.find("Check again")!.hidden, true);
+    assert.equal(content.find("Enable PDF"), undefined);
+    const retry = (element: Element): Element | undefined =>
+      element.text === "Check again" && !element.hidden
+        ? element
+        : element.children.map(retry).find(Boolean);
+    retry(content)!.click();
+    assert.deepEqual(checks, [true, true]);
+    publish.checking = true;
+    callbacks.forEach((callback) => callback());
+    assert.equal(content.find("Cancel check")!.hidden, false);
+    const checkingButton = (element: Element): Element | undefined =>
+      element.tagName === "BUTTON" && element.text === "Checking…"
+        ? element
+        : element.children.map(checkingButton).find(Boolean);
+    assert.equal(checkingButton(content)!.disabled, true);
+    publish.checking = false;
+    publish.readiness!.pdf = true;
+    callbacks.forEach((callback) => callback());
+    assert.ok(content.find("Done"));
+    assert.equal(content.find("Check again")!.hidden, false);
+    modal.onClose();
+    modal.onOpen();
+    assert.deepEqual(
+      checks,
+      [true, true],
+      "reopening verified setup does not rerun conversion",
+    );
+    let sidebarReadiness = publish.readiness;
+    const updateSidebar = () => {
+      sidebarReadiness = publish.readiness;
+    };
+    callbacks.add(updateSidebar);
+    const advanced = content.children.find(
+      (child) => child.tagName === "DETAILS",
+    )!;
+    const pathInput = advanced.children.find(
+      (child) => child.tagName === "INPUT",
+    )!;
+    pathInput.value = "/different/pandoc";
+    pathInput.listeners.get("change")!();
+    assert.equal(publish.readiness, null);
+    assert.equal(content.find("Use automatic detection")!.hidden, false);
+    assert.equal(
+      sidebarReadiness,
+      null,
+      "the sidebar must stop offering creation after a tool path changes",
+    );
+    callbacks.delete(updateSidebar);
+    modal.onClose();
+    assert.equal(callbacks.size, 0);
+    modal.onOpen();
+    assert.deepEqual(checks, [true, true, true]);
+    modal.onClose();
+    publish.checking = true;
+    modal.onOpen();
+    assert.equal(checks.length, 3, "wait for the existing detection check");
+    publish.checking = false;
+    callbacks.forEach((callback) => callback());
+    assert.deepEqual(checks, [true, true, true, true]);
+    callbacks.forEach((callback) => callback());
+    assert.equal(checks.length, 4, "verify only once per opening");
+    modal.onClose();
+    publish.checking = true;
+    modal.onOpen();
+    content.find("Cancel check")!.click();
+    publish.checking = false;
+    callbacks.forEach((callback) => callback());
+    assert.equal(
+      checks.length,
+      4,
+      "cancelling also clears queued verification",
+    );
+    retry(content)!.click();
+    assert.equal(
+      checks.length,
+      5,
+      "an explicit retry still verifies PDF support",
+    );
+    modal.onClose();
+  });

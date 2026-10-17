@@ -15,9 +15,9 @@ const readiness: PublishReadiness = {
 
 test("installed Tectonic awaiting verification never asks the user to install it", () => {
   const state = publishingToolState(detected, false, undefined, false);
-  assert.equal(state.label, "Detected");
+  assert.equal(state.label, "Found");
   assert.equal(state.missing, false);
-  assert.equal(publishingSetupAction(readiness, false), "Enable PDF");
+  assert.equal(publishingSetupAction(readiness, false), "Check again");
 });
 
 test("missing, blocked, and failed conversion states have distinct recovery paths", () => {

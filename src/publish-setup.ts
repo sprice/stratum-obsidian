@@ -6,7 +6,8 @@ import {
 } from "./ui-controls";
 import { Modal, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
-import { choosePublishExecutable, publishPlatform } from "./publish-desktop";
+import { choosePublishExecutable } from "./publish-desktop";
+import { PLUGIN_WEB_APP_URL } from "./build-config";
 import {
   publishingSetupAction,
   publishingToolState,
@@ -106,7 +107,7 @@ export class PublishSetupModal extends Modal {
                 inputEl.value = selected;
                 this.syncReset();
                 await this.plugin.saveSettings();
-                await publish.check();
+                await publish.check(true);
               } catch (error) {
                 publish.fail(error);
               }
@@ -133,22 +134,25 @@ export class PublishSetupModal extends Modal {
       this.controls.find((control) => control.tagName === "INPUT")?.focus();
       void this.plugin
         .saveSettings()
-        .then(() => publish.check())
+        .then(() => publish.check(true))
         .catch((error) => publish.fail(error));
     });
     this.downloadNote = contentEl.createEl("p", {
       cls: "stratum-publish-meta",
-      text: "The first PDF check may download typesetting files and take a few minutes. Your notes stay on this computer.",
+      text: "First-time setup may download files needed to publish PDFs.",
     });
     this.status = contentEl.createDiv({
       cls: "stratum-publish-status",
       attr: { role: "status", "aria-live": "polite" },
     });
+    let checkOnIdle = !publish.readiness?.pdf;
     const actions = contentEl.createDiv({ cls: "modal-button-container" });
     this.secondary = createStratumButton(actions, { text: "Check again" });
     this.secondary.addEventListener("click", () => {
-      if (publish.checking) publish.cancel();
-      else void publish.check(true);
+      if (publish.checking) {
+        checkOnIdle = false;
+        publish.cancel();
+      } else void publish.check(true);
     });
     this.primary = createStratumButton(actions, {
       text: "Check again",
@@ -158,11 +162,19 @@ export class PublishSetupModal extends Modal {
       if (publish.readiness?.pdf) this.close();
       else void publish.check(true);
     });
-    this.unsubscribe = publish.subscribe(() => this.updateStatus());
+    // A lightweight check may still be running when opened from Publish.
+    // Finish verification once it settles, without repeating successful setup.
+    const checkWhenIdle = () => {
+      if (!checkOnIdle || publish.checking || publish.busy) return;
+      checkOnIdle = false;
+      if (!publish.readiness?.pdf) void publish.check(true);
+    };
+    this.unsubscribe = publish.subscribe(() => {
+      this.updateStatus();
+      checkWhenIdle();
+    });
     this.updateStatus();
-    // Successful setup is cached. Failed or incomplete setup can be retried here.
-    if (!publish.readiness?.pdf && !publish.checking && !publish.busy)
-      void publish.check();
+    checkWhenIdle();
   }
   private updateStatus(): void {
     const publish = this.plugin.publish!;
@@ -200,26 +212,13 @@ export class PublishSetupModal extends Modal {
     this.help.empty();
     this.help.hidden = !missing.length;
     if (missing.length) {
-      this.help.createEl("p", {
-        text: "Install the missing tools, then check again.",
+      createStratumButton(this.help, {
+        text: "View installation guide",
+        wrap: true,
+      }).addEventListener("click", () => {
+        const url = new URL("/install-dependencies", PLUGIN_WEB_APP_URL);
+        window.open(url.toString(), "_blank", "noopener,noreferrer");
       });
-      for (const tool of missing) {
-        const link = this.help.createEl("a", {
-          text: tool === "pandoc" ? "Get Pandoc" : "Get Tectonic",
-          href:
-            tool === "pandoc"
-              ? "https://pandoc.org/installing.html"
-              : "https://tectonic-typesetting.github.io/book/latest/installation/",
-        });
-        link.setAttr("target", "_blank");
-        link.setAttr("rel", "noopener noreferrer");
-      }
-      if (publishPlatform().platform === "darwin") {
-        const brew = createStratumDisclosure(this.help);
-        createStratumSummary(brew, { text: "Homebrew installation" });
-        const command = `brew install ${missing.join(" ")}`;
-        brew.createEl("code", { text: command });
-      }
     }
     this.syncReset();
     this.downloadNote.hidden = !!ready?.pdf;

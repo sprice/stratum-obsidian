@@ -32,6 +32,14 @@ async function startBrowserFixture() {
     platform: "browser",
     format: "esm",
     target: "chrome120",
+    define: Object.fromEntries(
+      [
+        "__STRATUM_WEB_APP_URL__",
+        "__STRATUM_SUPABASE_URL__",
+        "__STRATUM_API_BASE_URL__",
+        "__STRATUM_SUPABASE_PUBLISHABLE_KEY__",
+      ].map((key) => [key, JSON.stringify("https://example.test")]),
+    ),
     alias: { obsidian: join(directory, "src/test/browser/obsidian-host.ts") },
   });
   timings.bundleMs = Math.round(performance.now() - start);
@@ -1652,11 +1660,11 @@ test("Settings readiness notices inherit warning color while failures remain err
   await scenario("settings-readiness-notice", async () => {
     await reset({ aastex: true, source: "---\ntitle: Paper\n---\nBody" });
     await until(
-      "document.querySelector('.stratum-publish-notice')?.textContent.includes('Settings: Add at least one author')",
+      "document.querySelector('.stratum-publish-status .stratum-publish-notice')?.textContent.includes('Settings: Add at least one author')",
     );
     assert.equal(
       await page.evaluate(
-        "(() => {document.body.style.setProperty('--text-warning', 'rgb(240, 140, 30)');return getComputedStyle(document.querySelector('.stratum-publish-notice')).color;})()",
+        "(() => {document.body.style.setProperty('--text-warning', 'rgb(240, 140, 30)');return getComputedStyle(document.querySelector('.stratum-publish-status .stratum-publish-notice')).color;})()",
       ),
       "rgb(240, 140, 30)",
     );
@@ -1676,11 +1684,11 @@ test("Settings readiness notices inherit warning color while failures remain err
     });
     await page.evaluate("window.publicationFixture.setTitleSource('body')");
     await until(
-      "document.querySelector('.stratum-publish-notice')?.textContent.includes('Add a manuscript title using the selected title source.')",
+      "document.querySelector('.stratum-publish-status .stratum-publish-notice')?.textContent.includes('Add a manuscript title using the selected title source.')",
     );
     assert.equal(
       await page.evaluate(
-        "document.querySelector('.stratum-publish-notice').textContent.split('\\n')[0].includes('Settings: ')",
+        "document.querySelector('.stratum-publish-status .stratum-publish-notice').textContent.split('\\n')[0].includes('Settings: ')",
       ),
       false,
     );
