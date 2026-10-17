@@ -53,6 +53,8 @@ export default tseslint.config(
     ignores: ["src/test/**"],
     rules: {
       "@typescript-eslint/no-unsafe-argument": "error",
+      // The built-in acronym list recognizes PDF but not its plural.
+      "obsidianmd/ui/sentence-case": ["warn", { ignoreWords: ["PDFs"] }],
     },
   },
   ...(process.env.OBSIDIAN_REVIEW === "1"
