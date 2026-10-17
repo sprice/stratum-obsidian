@@ -420,7 +420,9 @@ On upgrade, Stratum automatically moves the previous `<vault config>/stratum/pub
 Open **Settings → Publishing → Manage templates**, or select the gear beside
 **Publish → Create → Template**. General documents and Academic papers are enabled
 by default. Other templates start off. Existing configuration, saved toggle choices,
-and saved note choices are retained when upgrading.
+and saved note choices are retained when upgrading. Custom templates saved before
+this setting existed also start off; enable them under **Your templates** before
+publishing notes that use them.
 
 Choose a registry template, select its versions, and click **Install**. Each
 version is verified before it is enabled. The switches under **Your templates**
@@ -428,6 +430,12 @@ enable individual installed versions. Built-in and custom layouts enable without
 a download. Disabling keeps cached files; re-enabling verifies and reuses them. A disabled
 saved template is never replaced automatically. With no templates enabled, use
 **Manage templates** from the empty state.
+
+**Details** beside an installed version shows its exact release and license.
+**Repair** verifies its cached files and downloads any that are missing or damaged.
+**Remove** deletes the installation record but keeps notes, publication history
+and cached files. If the mirror reports that it is busy, wait one minute, then
+install only the versions that failed.
 
 **Configure** edits reusable layouts; **Create custom template** creates a disabled
 custom layout. The note-specific **Settings** button edits only the current note.

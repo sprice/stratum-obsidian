@@ -85,11 +85,14 @@ export function installationFixture(id = "example", upstreamVersion = "1.0") {
     [
       base,
       encoder.encode(
+        // Mirror the served release view: status fields are added and the notes differ.
         JSON.stringify({
           ...manifest.pin.metadata,
           available: true,
+          localValidation: "passed",
           publication: "published",
           compilation: "tested",
+          compilationNotes: "Synthetic served compilation notes",
         }),
       ),
     ],

@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { installationFixture } from "./publication-installation-fixture";
-import { qualificationCache } from "./qualify-template";
+import staticInstallation from "./fixtures/installation.json";
+import {
+  qualificationCache,
+  qualifyTemplateInstallation,
+} from "./qualify-template";
 import {
   readTemplateInstallation,
   installationId,
@@ -78,6 +82,11 @@ test("strict contract rejects executable choices, foreign origins, unsafe paths 
     mutate(manifest);
     assert.throws(() => readTemplateInstallation(manifest), /Invalid template/);
   }
+});
+test("static installation fixture matches the generated contract fixture", () => {
+  // Browser and view fixtures load the JSON copy; keep it on the same contract.
+  assert.deepEqual(staticInstallation, installationFixture().manifest);
+  assert(readTemplateInstallation(staticInstallation));
 });
 test("dependency count and combined size are bounded without excluding notice dependencies", () => {
   const { manifest } = installationFixture();
@@ -292,4 +301,41 @@ test("installed versions group in the publisher and retain independent enablemen
   assert.equal(publishingTemplateFamilies(state, true).length, 2);
   assert(publishingTemplateEnabled(state, templates[0]));
   assert(!publishingTemplateEnabled(state, templates[1]));
+});
+
+test("qualification checks fresh metadata despite a warm persistent cache and cleans up failure", async () => {
+  const directory = await mkdtemp(
+    path.join(tmpdir(), "qualification-fresh-test-"),
+  );
+  try {
+    const { manifest, artifacts } = installationFixture();
+    const cachePath = path.join(directory, "cache");
+    await resolveInstallationResources(
+      qualificationCache(cachePath),
+      manifest,
+      ({ url }) => Promise.resolve(artifacts.get(new URL(url).pathname)!),
+      inflate,
+    );
+    const cachedFiles = await readdir(cachePath);
+    artifacts.set(
+      manifest.pin.metadata.download.replace(/\/download$/, ""),
+      new TextEncoder().encode('{"invalid":true}'),
+    );
+    await assert.rejects(
+      qualifyTemplateInstallation(manifest, artifacts, cachePath),
+      /incompatible/,
+    );
+    assert.deepEqual(
+      await readdir(directory),
+      ["cache"],
+      "Fresh scratch must be removed on failure",
+    );
+    assert.deepEqual(
+      await readdir(cachePath),
+      cachedFiles,
+      "Existing cache must be preserved",
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

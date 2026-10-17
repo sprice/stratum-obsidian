@@ -722,7 +722,7 @@ test(
   },
 );
 
-test("mirror download bounds HTTPS redirects, bytes, hash and total time", async () => {
+test("mirror download bounds HTTPS redirects, busy responses, bytes, hash and total time", async () => {
   const bytes = new TextEncoder().encode("Synthetic bibliography style");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   type Hop = {
@@ -796,6 +796,14 @@ test("mirror download bounds HTTPS redirects, bytes, hash and total time", async
       /redirected/,
     );
     assert.equal(urls.length, 1);
+    assert.equal(destroyed, 1);
+  }
+  for (const status of [429, 503]) {
+    await assert.rejects(
+      run([{ status }]),
+      status === 429 ? /mirror is busy.*one minute/ : /HTTP 503/,
+    );
+    assert.equal(urls.length, 1, "Busy responses are not retried");
     assert.equal(destroyed, 1);
   }
   await assert.rejects(run([{ length: "1000001" }]), /too large/);

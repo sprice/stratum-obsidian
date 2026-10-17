@@ -37,8 +37,12 @@ const templateRegistryUrl = new URL(
   process.env.STRATUM_TEMPLATE_REGISTRY_ORIGIN ??
     "https://templates.stratumnotes.com",
 );
+// Match the runtime download check: plain HTTP is accepted only for loopback.
+const loopbackRegistry =
+  templateRegistryUrl.protocol === "http:" &&
+  ["localhost", "127.0.0.1", "[::1]"].includes(templateRegistryUrl.hostname);
 if (
-  !["https:", "http:"].includes(templateRegistryUrl.protocol) ||
+  (templateRegistryUrl.protocol !== "https:" && !loopbackRegistry) ||
   templateRegistryUrl.username ||
   templateRegistryUrl.password ||
   templateRegistryUrl.pathname !== "/" ||
@@ -46,7 +50,7 @@ if (
   templateRegistryUrl.hash
 )
   throw new Error(
-    "Template registry requires an origin without credentials or paths.",
+    "Template registry requires an HTTPS origin (HTTP only for localhost) without credentials or paths.",
   );
 const templateRegistryOrigin = templateRegistryUrl.origin;
 const supabaseUrl =
