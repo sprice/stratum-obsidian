@@ -1,10 +1,8 @@
+import pins from "./fixtures/registry-resources.json";
 import * as fs from "node:fs/promises";
 import { inflateRawSync } from "node:zlib";
 import type { BibliographyCache } from "../publication-bibliography-cache";
-import {
-  resolveRegistryResources,
-  TEMPLATE_RESOURCE_PINS,
-} from "../publication-registry";
+import { resolveRegistryResources } from "../publication-registry";
 
 export const templateCacheSkip = process.env.STRATUM_TEST_TEMPLATE_CACHE
   ? false
@@ -53,7 +51,9 @@ export function installedTestResources(
     };
     await resolveRegistryResources(
       cache,
-      TEMPLATE_RESOURCE_PINS[family],
+      (pins as Record<string, import("../publication-registry").RegistryPin>)[
+        family
+      ],
       () =>
         Promise.reject(
           new Error("Tests must not request template mirror resources."),

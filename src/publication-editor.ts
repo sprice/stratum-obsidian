@@ -859,7 +859,10 @@ export class PublicationForm {
           { type: "field", author: index, key: "email", value: author.email },
           `${index}:email`,
         );
-        if (publish?.journalProfile?.family === "acm")
+        if (
+          publish?.journalProfile?.installation?.adapter.frontMatter ===
+          "acmart"
+        )
           for (const field of ["institution", "city", "country"] as const)
             this.input(
               card,

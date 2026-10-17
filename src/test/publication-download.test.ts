@@ -6,6 +6,8 @@ import { createRequire } from "node:module";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { loadRuntime } from "./runtime-harness";
 import { aastexPackage, aastexManuscript } from "../publication-package";
+import { installedJournalProfile } from "../publication-installed-templates";
+import { installationFixture } from "./publication-installation-fixture";
 
 const require = createRequire(import.meta.url);
 const body = "Synthetic bibliography download\n";
@@ -135,6 +137,7 @@ test(
           1000,
           undefined,
           {
+            journal: installedJournalProfile(installationFixture().manifest),
             manuscript: aastexManuscript(
               aastexPackage.files["examples/manuscript.md"],
               "properties",
@@ -253,6 +256,7 @@ test("converter never downloads missing packs and preserves cached resources on 
     },
   };
   const input = {
+    journal: installedJournalProfile(installationFixture().manifest),
     manuscript: aastexManuscript(
       aastexPackage.files["examples/manuscript.md"],
       "properties",

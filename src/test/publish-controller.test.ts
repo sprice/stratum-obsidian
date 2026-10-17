@@ -1,15 +1,11 @@
+import { installationFixture } from "./publication-installation-fixture";
 import { aastexHeadingIssues } from "../publication-heading-preview";
 import { readNotePreferences } from "../publish-options";
 import { aastexManuscript, aastexPackage } from "../publication-package";
 import { publicationYaml } from "../publication-metadata";
-import {
-  DEFAULT_AASTEX_PDF_OPTIONS,
-  readAastexPdfOptions,
-} from "../publication-options";
-import { AASTEX_PACKAGE_REFERENCE } from "../publication-package";
+import { readAastexPdfOptions } from "../publication-options";
 import * as publicationPackage from "../publication-package";
 import test from "node:test";
-import { JOURNAL_TEMPLATES } from "../journal-profiles";
 import assert from "node:assert/strict";
 import { setImmediate as settle } from "node:timers/promises";
 import type { PublishReadiness } from "../publish-desktop";
@@ -275,12 +271,8 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     settings: {
       publishingTemplates: {
         templates: [],
-        enabledIds: [
-          "general",
-          "academic",
-          "package:aastex",
-          ...JOURNAL_TEMPLATES.map((t) => t.version!.familyId),
-        ],
+        installations: [installationFixture().manifest],
+        enabledIds: ["general", "academic", "registry:example:1.0-r1"],
       },
       citationStyle: "apa",
       citationLanguage: "en-US",
@@ -653,47 +645,6 @@ test("a PDF preview follows its source note and keeps the open source editor", (
   assert.equal(controller.leaf, null);
 });
 
-test("AASTeX preview readiness reloads the source after its editor closes and metadata changes", async () => {
-  const { controller, plugin, leaf, roots, events } = setup();
-  let saved = aastexPackage.files["examples/manuscript.md"];
-  leaf.view.text = saved;
-  plugin.app.vault.read = () => Promise.resolve(saved);
-  controller.catalog!.notes[0].preferences = readNotePreferences({
-    templateId: "package:aastex",
-    pdf: { titleSource: "properties" },
-  });
-  controller.catalog!.documents.push({
-    id: "pdf",
-    noteId: "synthetic-note",
-    filename: "First.pdf",
-    format: "pdf",
-    createdAt: new Date().toISOString(),
-    citationStyle: "aastex",
-    citationLanguage: "en-US",
-  });
-  assert.equal(controller.academicProblem, "");
-  const preview = {
-    view: {
-      getViewType: () => "stratum-publish-preview",
-      getState: () => ({ documentId: "pdf" }),
-    },
-  };
-  roots.push(preview as never);
-  events.get("active-leaf-change")!(preview as never);
-  roots.splice(0, 1);
-  events.get("active-leaf-change")!(preview as never);
-  await settle();
-  assert.equal(controller.leaf, null);
-  assert.equal(controller.academicProblem, "");
-  assert.equal(controller.canCreate(), true);
-
-  saved = saved.replace(/title: [^\n]+/, 'title: ""');
-  events.get("metadata:changed")!(leaf.view.file as never);
-  await settle();
-  assert.match(controller.academicProblem, /manuscript title/);
-  assert.equal(controller.canCreate(), false);
-});
-
 test("cancelled PDF publishing keeps the source for retry", async () => {
   const { controller, release } = setup();
   const pending = controller.create();
@@ -877,180 +828,6 @@ test("font errors persist and clear only after a successful font change", async 
   assert.equal(controller.layout.bodyFont, "Arial");
 });
 
-test("the packaged AASTeX choice preserves a custom template named aastex and its saved selection", async () => {
-  const { readPublishingTemplates } = await import("../publish-templates");
-  const state = readPublishingTemplates(undefined);
-  const custom = { ...state.templates[0], id: "aastex", name: "My layout" };
-  const { controller } = setup({
-    publishingTemplates: readPublishingTemplates({
-      templates: [custom],
-      enabledIds: ["aastex", "general", "academic", "package:aastex"],
-    }),
-  });
-  const choices = controller.publishingTemplates.templates;
-  assert.equal(
-    new Set(choices.map((template) => template.id)).size,
-    choices.length,
-  );
-  assert.equal(
-    choices.find((template) => template.id === "aastex")?.name,
-    "My layout",
-  );
-  const packaged = choices.find((template) => template.renderer === "aastex");
-  assert.ok(packaged);
-  assert.equal(packaged.id, "package:aastex");
-  await controller.updatePreferences({ templateId: custom.id });
-  assert.equal(controller.selectedTemplate?.renderer, undefined);
-  assert.equal(
-    (await controller.store.list()).notes[0].preferences?.templateId,
-    "aastex",
-  );
-  await controller.updatePreferences({ templateId: packaged.id });
-  assert.equal(controller.selectedTemplate?.renderer, "aastex");
-  assert.equal(
-    (await controller.store.list()).notes[0].preferences?.templateId,
-    packaged.id,
-  );
-});
-
-for (const directory of [undefined, ".config/custom-plugins/stratum"])
-  test(`AASTeX PDF bypasses CSL formatting and uses ${directory ? "manifest" : "fallback"} cache directory`, async () => {
-    const {
-      controller,
-      leaf,
-      plugin,
-      calls,
-      payloads,
-      release,
-      conversionTools,
-    } = setup();
-    if (directory) Object.assign(plugin.manifest, { dir: directory });
-    const example = aastexPackage.files["examples/manuscript.md"];
-    const parsed = publicationYaml(example);
-    // The controller host uses JSON as its YAML subset; preserve the real example's data.
-    leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
-    plugin.citations.formatForPublication = () => {
-      calls.format++;
-      return Promise.reject(new Error("CSL style is unavailable"));
-    };
-    await controller.updatePreferences({ templateId: "package:aastex" });
-    controller.readiness = structuredClone(readySupport);
-    release();
-    await controller.create();
-    assert.equal(
-      conversionTools[0].bibliographyCache?.directory,
-      `${directory ?? ".config/plugins/stratum"}/cache/bibliography`,
-    );
-    assert.equal(
-      conversionTools[0].bibliographyCache?.adapter,
-      plugin.app.vault.adapter,
-    );
-    assert.equal(controller.error, "");
-    assert.equal(calls.format, 0);
-    assert.equal(calls.aastex, 1);
-    assert.equal(payloads.length, 1);
-    assert.ok(payloads[0]);
-    const documents = (await controller.store.list()).documents;
-    assert.equal(documents.length, 1);
-    assert.equal(
-      documents[0].citationStyle,
-      aastexPackage.manifest.bibliographyStyle,
-    );
-    assert.equal(documents[0].publishing?.template?.upstreamVersion, "7.0.2");
-    assert.equal(
-      documents[0].publishing?.template?.version,
-      AASTEX_PACKAGE_REFERENCE.version,
-    );
-    assert.deepEqual(
-      JSON.parse(JSON.stringify(documents[0].publishing?.aastexPdfOptions)),
-      DEFAULT_AASTEX_PDF_OPTIONS,
-    );
-  });
-
-test("AASTeX starts from defaults, serializes per-note changes and resets explicitly", async () => {
-  const { controller } = setup();
-  await controller.updatePreferences({ templateId: "package:aastex" });
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(controller.aastexPdfOptions)),
-    DEFAULT_AASTEX_PDF_OPTIONS,
-  );
-  await controller.reload();
-  assert.equal(controller.aastexPdfOptions.showLineNumbers, true);
-  await Promise.all([
-    controller.updateAastexPdfOptions({ showLineNumbers: true }),
-    controller.updateAastexPdfOptions({ numberedHeadings: false }),
-  ]);
-  assert.deepEqual(JSON.parse(JSON.stringify(controller.aastexPdfOptions)), {
-    showLineNumbers: true,
-    showDraftDateHeader: true,
-    numberedHeadings: false,
-  });
-  await controller.updatePreferences({ templateId: "general" });
-  await controller.updatePreferences({ templateId: "package:aastex" });
-  assert.equal(controller.aastexPdfOptions.showDraftDateHeader, true);
-  await controller.resetAastexPdfOptions();
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(controller.aastexPdfOptions)),
-    DEFAULT_AASTEX_PDF_OPTIONS,
-  );
-});
-
-test("version changes require explicit acceptance while heading mismatch warnings allow export", async () => {
-  const { controller, leaf, release } = setup();
-  const example = aastexPackage.files["examples/manuscript.md"];
-  const parsed = publicationYaml(example);
-  leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n## 1. First\n\nText.\n\n## 3. Next\n\nText.`;
-  const source = leaf.view.text;
-  await controller.updatePreferences({ templateId: "package:aastex" });
-  controller.readiness = structuredClone(readySupport);
-  await controller.updatePreferences({
-    aastex: {
-      options: { ...DEFAULT_AASTEX_PDF_OPTIONS, numberedHeadings: true },
-      package: { ...AASTEX_PACKAGE_REFERENCE, version: "1.0.0" },
-    },
-  });
-  assert.match(controller.aastexPackageProblem, /Review the update/);
-  assert.equal(controller.canCreate(), false);
-  await controller.acceptAastexPackage();
-  assert.equal(controller.aastexPackageProblem, "");
-  assert.ok(controller.aastexHeadingProblems.length);
-  assert.equal(controller.canCreate(), true);
-  release();
-  await controller.create();
-  assert.equal(controller.error, "");
-  assert.equal((await controller.store.list()).documents.length, 1);
-  assert.equal(leaf.view.text, source);
-});
-
-test("AASTeX conversion failures detect missing shared tools without probing generic PDF support", async () => {
-  for (const missing of ["", "pandoc", "tectonic"]) {
-    const { controller, leaf, plugin, behavior, calls, release } = setup();
-    const example = aastexPackage.files["examples/manuscript.md"];
-    const parsed = publicationYaml(example);
-    leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
-    await controller.updatePreferences({ templateId: "package:aastex" });
-    controller.readiness = structuredClone(readySupport);
-    behavior.missing = missing;
-    behavior.conversionError = missing
-      ? `${missing} could not start`
-      : "AASTeX dependency is unavailable";
-    release();
-    await controller.create();
-    assert.equal(calls.detect, 2);
-    assert.deepEqual(calls.probe, []);
-    assert.equal(controller.readiness?.pdf, !missing);
-    assert.equal(
-      plugin.settings.publishReadinessCache?.readiness.pdf,
-      !missing,
-    );
-    assert.equal(controller.error, behavior.conversionError);
-    assert.equal((await controller.store.list()).documents.length, 0);
-    assert.equal(controller.busy, false);
-    assert.equal(controller.selectedTemplate?.renderer, "aastex");
-    assert.equal(leaf.view.text.includes("stratum_publish"), true);
-  }
-});
-
 test("template selection copies layouts and retains them after template edits or deletion", async () => {
   const { readPublishingTemplates } = await import("../publish-templates");
   const state = readPublishingTemplates(undefined);
@@ -1064,7 +841,13 @@ test("template selection copies layouts and retains them after template edits or
     {
       publishingTemplates: readPublishingTemplates({
         templates: [...state.templates, custom],
-        enabledIds: ["general", "academic", "package:aastex", custom.id],
+        installations: [installationFixture().manifest],
+        enabledIds: [
+          "general",
+          "academic",
+          "registry:example:1.0-r1",
+          custom.id,
+        ],
       }),
     },
     false,
@@ -1214,24 +997,6 @@ test("the controller keeps at most one settings window across repeated opens and
   );
 });
 
-test("reset availability follows the exact selected template target and AASTeX option scope", async () => {
-  const f = setup();
-  await f.controller.updatePreferences({ templateId: "academic" });
-  assert.equal(f.controller.settingsResetChanges, false);
-  await f.controller.updateLayout({ margin: 1.4 });
-  assert.equal(f.controller.settingsResetChanges, true);
-  await f.controller.resetSettings();
-  assert.equal(f.controller.settingsResetChanges, false);
-  await f.controller.updatePreferences({ templateId: "package:aastex" });
-  await f.controller.updateLayout({ titleSource: "body" });
-  assert.equal(f.controller.settingsResetChanges, false);
-  await f.controller.updateAastexPdfOptions({ showLineNumbers: false });
-  assert.equal(f.controller.settingsResetChanges, true);
-  await f.controller.resetSettings();
-  assert.equal(f.controller.settingsResetChanges, false);
-  assert.equal(f.controller.layout.titleSource, "body");
-});
-
 test("reset prediction and execution follow edited reusable template defaults", async () => {
   const { readPublishingTemplates } = await import("../publish-templates");
   const state = readPublishingTemplates(undefined);
@@ -1244,7 +1009,8 @@ test("reset prediction and execution follow edited reusable template defaults", 
   const f = setup({
     publishingTemplates: readPublishingTemplates({
       templates: [...state.templates, custom],
-      enabledIds: ["general", "academic", "package:aastex", custom.id],
+      installations: [installationFixture().manifest],
+      enabledIds: ["general", "academic", "registry:example:1.0-r1", custom.id],
     }),
   });
   await f.controller.updatePreferences({ templateId: custom.id });
@@ -1286,8 +1052,15 @@ test("publish success IDs are emitted only after persistence, never for failed o
 });
 test("readiness notices direct author fields to Settings and body title repair to the note", async () => {
   const f = setup();
-  await f.controller.updatePreferences({ templateId: "package:aastex" });
-  f.leaf.view.text = "---\ntitle: Paper\n---\nBody";
+  await f.controller.updatePreferences({
+    templateId: "registry:example:1.0-r1",
+  });
+  f.leaf.view.text =
+    "---\ntitle: Paper\n---\n## Abstract\nSynthetic abstract.\n## Body\nText.";
+  await f.controller.updateLayout({
+    titleSource: "properties",
+    showAbstract: false,
+  });
   assert.equal(f.controller.readinessNotices.length, 1);
   assert.equal(
     f.controller.readinessNotices[0].text,
@@ -1301,7 +1074,9 @@ test("readiness notices direct author fields to Settings and body title repair t
 });
 test("Settings issues keep their messages and target the field that resolves them", async () => {
   const f = setup();
-  await f.controller.updatePreferences({ templateId: "package:aastex" });
+  await f.controller.updatePreferences({
+    templateId: "registry:example:1.0-r1",
+  });
   await f.controller.updateLayout({ titleSource: "properties" });
   f.leaf.view.text =
     "---\nstratum_publish:\n  authors:\n    - name: Alex\n      affiliations: [Example University]\n---\nBody";
@@ -1318,16 +1093,15 @@ test("Settings issues keep their messages and target the field that resolves the
     ]);
   assert.deepEqual(placed(), [
     ["title", true, "Add a manuscript title using the selected title source."],
-    [0, true, "Author 1 needs an email address."],
     [
       "general",
-      false,
-      "No Abstract section was found. Check the journal's submission requirements.",
+      true,
+      "Add one Abstract section before publishing this manuscript.",
     ],
   ]);
   assert.equal(
     f.controller.academicProblem,
-    "Add a manuscript title using the selected title source.\nAuthor 1 needs an email address.",
+    "Add a manuscript title using the selected title source.\nAdd one Abstract section before publishing this manuscript.",
   );
   // A missing body title cannot be fixed in the Title field.
   await f.controller.updateLayout({ titleSource: "body" });
@@ -1367,9 +1141,9 @@ test("Settings issues keep their messages and target the field that resolves the
 
 test("problem checks parse the manuscript once per text revision", async () => {
   const { controller, leaf, calls } = setup();
-  await controller.updatePreferences({ templateId: "package:aastex" });
-  await controller.updateAastexPdfOptions({ numberedHeadings: true });
-  leaf.view.text = aastexPackage.files["examples/manuscript.md"];
+  await controller.updatePreferences({ templateId: "registry:example:1.0-r1" });
+  leaf.view.text =
+    "---\nstratum_publish:\n  authors:\n    - name: Synthetic Author\n      affiliations: [Synthetic Institute]\n---\n# Synthetic title\n## Abstract\nSynthetic abstract.\n## Body\nText.";
   const read = () => {
     for (let i = 0; i < 3; i++) {
       void controller.academicProblem;
@@ -1389,7 +1163,7 @@ test("problem checks parse the manuscript once per text revision", async () => {
   leaf.view.text += "\n\n## 3. Synthetic section\n\nSynthetic text.";
   read();
   assert.equal(calls.parse, 2);
-  assert.ok(controller.aastexHeadingProblems.length);
+  assert.equal(controller.aastexHeadingProblems.length, 0);
 });
 
 test("problem checks follow text, preference and template changes", async () => {
@@ -1404,7 +1178,8 @@ test("problem checks follow text, preference and template changes", async () => 
   const { controller, leaf, plugin } = setup({
     publishingTemplates: readPublishingTemplates({
       templates: [...state.templates, custom],
-      enabledIds: ["general", "academic", "package:aastex", custom.id],
+      installations: [installationFixture().manifest],
+      enabledIds: ["general", "academic", "registry:example:1.0-r1", custom.id],
     }),
   });
   await controller.updatePreferences({ templateId: custom.id });
@@ -1422,8 +1197,8 @@ test("problem checks follow text, preference and template changes", async () => 
   await controller.updateLayout({ titleSource: "body" });
   assert.equal(controller.layout.titleSource, "body");
   assert.equal(controller.duplicateTitleWarning, false);
-  await controller.updatePreferences({ templateId: "package:aastex" });
-  assert.equal(controller.selectedTemplate?.renderer, "aastex");
+  await controller.updatePreferences({ templateId: "registry:example:1.0-r1" });
+  assert.equal(controller.selectedTemplate?.renderer, "journal");
   assert.match(controller.academicProblem, /author/);
   await controller.updatePreferences({ templateId: custom.id });
 
@@ -1462,30 +1237,6 @@ test("empty editor checks refresh after metadataCache frontmatter changes", asyn
   (f.events.get("metadata:changed") as (file: File) => void)(f.leaf.view.file);
   assert.match(f.controller.academicProblem, /required.*title/);
   assert.equal(f.controller.readinessNotices.length, 1);
-});
-
-test("exported heading issues invalidate the cached source preview", async () => {
-  const f = setup();
-  await f.controller.updatePreferences({ templateId: "package:aastex" });
-  await f.controller.updateAastexPdfOptions({ numberedHeadings: true });
-  const example = aastexPackage.files["examples/manuscript.md"];
-  const parsed = publicationYaml(example);
-  f.leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${example.slice(parsed.end)}`;
-  assert.equal(f.controller.aastexHeadingProblems.length, 0);
-  f.behavior.headingIssues = ["Synthetic rendered heading warning"];
-  f.release();
-  await f.controller.create();
-  assert.equal(f.controller.error, "");
-  assert.deepEqual(
-    Array.from(f.controller.aastexHeadingProblems),
-    f.behavior.headingIssues,
-  );
-  f.leaf.view.text += "\n\n## New section\n\nSynthetic body.";
-  assert.equal(
-    f.controller.aastexHeadingProblems.length,
-    0,
-    "changed source drops exported issues",
-  );
 });
 
 test("loading Settings adopts a replacement launcher before the modal exists", async () => {
@@ -1540,10 +1291,10 @@ test("journal profiles retain each layout across switching and record package pr
   const example = aastexPackage.files["examples/manuscript.md"];
   const parsed = publicationYaml(example);
   leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${"# Synthetic Stratum manuscript\n" + example.slice(parsed.end)}`;
-  await controller.updatePreferences({ templateId: "journal:ieee-journal" });
+  await controller.updatePreferences({ templateId: "registry:example:1.0-r1" });
   await controller.updateLayout({ titleSource: "properties" });
-  await controller.updatePreferences({ templateId: "journal:research-single" });
-  await controller.updatePreferences({ templateId: "journal:ieee-journal" });
+  await controller.updatePreferences({ templateId: "general" });
+  await controller.updatePreferences({ templateId: "registry:example:1.0-r1" });
   assert.equal(controller.layout.titleSource, "properties");
   assert.equal(controller.settingsResetChanges, true);
   await controller.resetSettings();
@@ -1559,8 +1310,11 @@ test("journal profiles retain each layout across switching and record package pr
   assert.equal(controller.error, "");
   assert.equal(calls.format, 0);
   const documents = (await controller.store.list()).documents;
-  assert.equal(documents[0].publishing?.template?.id, "journal-ieee-journal");
-  assert.equal(documents[0].citationStyle, "IEEEtran");
+  assert.equal(
+    documents[0].publishing?.template?.id,
+    "registry-example-1.0-r1",
+  );
+  assert.equal(documents[0].citationStyle, "style");
 });
 
 test("deferred journal choices are hidden and cannot be selected", async () => {
@@ -1609,16 +1363,21 @@ test("disabled selections retain saved note choices without creating PDFs", asyn
   assert.equal(controller.selectedTemplate?.id, "academic");
 });
 
-test("a saved unsupported journal profile explains recovery without replacing the choice", async () => {
+test("removed registry versions retain saved selection and explain exact reinstallation", () => {
   const { controller, leaf } = setup();
-  const preferences = readNotePreferences({ templateId: "journal:cas-double" });
-  controller.catalog!.notes[0].preferences = preferences;
-  const text = leaf.view.text;
+  controller.catalog!.notes[0].preferences = readNotePreferences({
+    templateId: "registry:removed:1.0-r1",
+  });
+  const before = leaf.view.text;
+  assert.equal(
+    controller.notePreferences.templateId,
+    "registry:removed:1.0-r1",
+  );
   assert.equal(controller.selectedTemplate, undefined);
-  assert.match(controller.academicProblem, /Double-column CAS is unavailable/);
+  assert.match(
+    controller.templateAvailabilityProblem,
+    /exact template version.*not installed/,
+  );
   assert.equal(controller.canCreate(), false);
-  await controller.create();
-  assert.equal(controller.notePreferences.templateId, "journal:cas-double");
-  assert.equal((await controller.store.list()).documents.length, 0);
-  assert.equal(leaf.view.text, text);
+  assert.equal(leaf.view.text, before);
 });

@@ -42,6 +42,7 @@ class Control {
   inputEl = new Element();
   buttonEl = new Element();
   toggleEl = new Element();
+  selectEl = new Element();
   change?: (value: string | boolean) => Promise<void>;
   click?: () => Promise<void>;
   value?: string | boolean;
@@ -573,22 +574,17 @@ test("template management stays in its own screen, with academic properties in t
   assert.deepEqual(
     rows.filter((row) => row.name).map((row) => row.name),
     [
+      "Add from registry",
       "General documents",
       "Academic papers",
-      "AASTeX",
-      "ACM",
-      "IEEE",
-      "APS / AIP",
-      "Elsevier",
-      "Elsevier CAS",
-      "MNRAS",
-      "Springer LNCS",
-      "Research / preprint",
+      "Create your own template",
     ],
   );
   assert.ok(
     rows
-      .filter((row) => row.name)
+      .filter((row) =>
+        ["General documents", "Academic papers"].includes(row.name),
+      )
       .every(
         (row) =>
           row.controls.at(-1)!.value ===
@@ -598,8 +594,8 @@ test("template management stays in its own screen, with academic properties in t
   );
   assert.equal(
     rows.filter((row) => row.controls.some((control) => control.click)).length,
-    3,
-    "Configure remains available for both built-ins alongside Add template",
+    4,
+    "Configure remains available alongside registry refresh and custom creation",
   );
   Row.rendered = [];
   await rows.at(-1)!.control!.click!();

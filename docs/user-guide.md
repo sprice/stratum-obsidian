@@ -422,14 +422,14 @@ Open **Settings → Publishing → Manage templates**, or select the gear beside
 by default. Other templates start off. Existing configuration, saved toggle choices,
 and saved note choices are retained when upgrading.
 
-The right-hand switch enables a template family and its profiles. Built-in and
-custom layouts enable without a download. Enabling a journal family or AASTeX installs and verifies
-its compatible mirrored release; a failed installation leaves it off. Disabling hides
-its choices and keeps cached files. Re-enabling verifies and reuses them. A disabled
+Choose a registry template, select its versions, and click **Install**. Each
+version is verified before it is enabled. The switches under **Your templates**
+enable individual installed versions. Built-in and custom layouts enable without
+a download. Disabling keeps cached files; re-enabling verifies and reuses them. A disabled
 saved template is never replaced automatically. With no templates enabled, use
 **Manage templates** from the empty state.
 
-**Configure** still edits reusable layouts; **Add template** creates a disabled
+**Configure** edits reusable layouts; **Create custom template** creates a disabled
 custom layout. The note-specific **Settings** button edits only the current note.
 
 ### Supported templates
@@ -442,27 +442,14 @@ Choose a family in **Publish → Template**, then choose its **Profile / version
 The selected class controls page layout and bibliography. General and Academic
 layouts remain available when you want to customize fonts, margins, and CSL styles.
 
-| Family              | Profiles                                                              |
-| ------------------- | --------------------------------------------------------------------- |
-| ACM                 | Conference (`sigconf`), journal (`acmsmall`), anonymous review        |
-| IEEE                | Journal, conference                                                   |
-| APS / AIP           | APS Physical Review A preprint/reprint; AIP JCP numerical/author-year |
-| Elsevier            | Preprint, review, journal; each with numerical/author-year citations  |
-| Elsevier CAS        | Single column                                                         |
-| MNRAS               | Standard manuscript, referee                                          |
-| Springer LNCS       | Proceedings                                                           |
-| Research / preprint | Original Stratum single/double-column layouts                         |
+Available templates and versions come from the registry. Each installation fixes
+its document class, class options, bibliography style, and renderer adapter.
+The version selector chooses among installed, enabled releases; it does not
+provide additional layout modes within a release.
 
-These are manuscript PDFs for the named profiles, not a guarantee of publisher
-acceptance. Journal-layout profiles do not invent publication identifiers, dates,
-or publisher copyright grants. They do not create source submission archives or
-submit papers. Deferred families are omitted from the template choices; no
-substitute style is silently selected.
-
-Developer note: Astronomy & Astrophysics is deferred pending official asset/access
-and distribution-permission verification. Official JMLR support is deferred pending
-redistribution permission for `jmlr2e.sty`; the distinct CTAN `jmlr` class is not a
-substitute. Neither family is offered in the UI.
+These are manuscript PDFs, not a guarantee of publisher acceptance. Stratum does
+not create source submission archives or submit papers. Unsupported installation
+metadata is rejected rather than silently replaced with another style.
 
 Use one leading `# Title` and one `## Abstract` section, followed by unnumbered
 section headings. Alternatively choose **Publishing settings → Title source →
@@ -509,8 +496,7 @@ plugin does not rewrite those parts of your manuscript.
 
 Each adapter pins an exact release from Stratum’s public mirror, including runtime
 hashes and validation evidence. Registry presence alone does not establish renderer
-support. CAS currently supports single-column publishing only; existing double-column
-selections are retained with an explanation. Tectonic may download supporting
+support. Tectonic may download supporting
 packages and fonts; offline exporting requires both installed mirror resources
 and cached compiler dependencies. Sources, provenance and required notices remain
 in the plugin cache. Do not redistribute them without their license conditions.
@@ -521,21 +507,19 @@ The [AASTeX](https://journals.aas.org/aastex-package-for-manuscript-preparation/
 
 ##### Requirements
 
-Every author needs a name, email, and affiliation. Author emails do not appear in the PDF.
+Every author needs a name and affiliation. Email is optional; how it appears
+depends on the installed class version.
 
 When **Title source** uses the document title, the title must be a leading `#` heading.
-
-##### PDF options
-
-- **Show line numbers**.
-- **Show draft date header**.
-- **Headings already contain numbers**.
-
-Review any heading-number warnings before publishing. AASTeX adds its own section numbers. Inconsistent existing numbers can cause duplicate numbering.
+Use unnumbered section headings; the installed class controls section numbering
+and layout. The previous bundled AASTeX layout switches are not available for
+registry installations.
 
 ##### Versions
 
-Select the template version in **Publish → Create**. If the selected version is unavailable, review the notice. Select **Use installed version** to approve the installed package.
+Select an installed version in **Publish → Create**. If that exact version is
+missing, reinstall it in **Manage templates**. Saved document selections are kept;
+a different version is never selected automatically.
 
 ##### Support files
 

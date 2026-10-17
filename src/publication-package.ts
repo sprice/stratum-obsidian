@@ -9,8 +9,6 @@ import {
   type AastexPdfOptions,
   type PublicationPackageReference,
 } from "./publication-options";
-import { DEFAULT_ACADEMIC_OPTIONS } from "./publish-options";
-import type { PublishingTemplate } from "./publish-templates";
 import { publicationAuthors, publicationYaml } from "./publication-metadata";
 import type { PublishFormat } from "./publish-model";
 import type { PublishingIssue } from "./publish-properties";
@@ -189,28 +187,6 @@ export const AASTEX_PACKAGE_REFERENCE: PublicationPackageReference = {
   version: aastexPackage.manifest.version,
   upstreamVersion: aastexPackage.manifest.upstreamVersion,
 };
-export const AASTEX_TEMPLATE: PublishingTemplate = {
-  // Settings-owned template IDs cannot contain a colon.
-  id: "package:aastex",
-  name: "AASTeX",
-  documentType: "academic",
-  renderer: "aastex",
-  version: {
-    familyId: "package:aastex",
-    label: aastexPackage.manifest.upstreamVersion,
-  },
-  layout: {
-    ...DEFAULT_ACADEMIC_OPTIONS,
-    titleSource: aastexPackage.defaults.titleSource,
-    showDate: false,
-    showKeywords: false,
-    bodyFont: "",
-    titleFont: "",
-  },
-  properties: [],
-  prefill: { authors: [], affiliations: [], date: "", keywords: [] },
-};
-
 /** The body Abstract is consumed exactly once; fenced examples are not sections. */
 export function aastexManuscript(
   text: string,

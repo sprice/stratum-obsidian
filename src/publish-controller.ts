@@ -1,6 +1,6 @@
+import { installedPublishingTemplate } from "./publication-installed-templates";
 import { pluginStorageDirectory } from "./plugin-storage-paths";
 import {
-  JOURNAL_TEMPLATES,
   journalProfile,
   journalProperties,
   journalProblems,
@@ -56,7 +56,6 @@ import {
 } from "./publish-options";
 import { publicationFrontmatter, academicMetadata } from "./publish-academic";
 import {
-  AASTEX_TEMPLATE,
   aastexProblems,
   aastexPackage,
   AASTEX_PACKAGE_REFERENCE,
@@ -419,7 +418,10 @@ export class PublishController extends Component {
     );
     return {
       ...state,
-      templates: [...state.templates, AASTEX_TEMPLATE, ...JOURNAL_TEMPLATES],
+      templates: [
+        ...state.templates,
+        ...(state.installations ?? []).map(installedPublishingTemplate),
+      ],
     };
   }
   private preferencesFor(value: unknown): NotePublishPreferences {
@@ -437,7 +439,10 @@ export class PublishController extends Component {
     return this.preferenceState.template;
   }
   get journalProfile() {
-    return journalProfile(this.selectedTemplate?.id);
+    return journalProfile(
+      this.selectedTemplate?.id,
+      this.allPublishingTemplates.installations,
+    );
   }
   private get journalCheck() {
     const profile = this.journalProfile;
@@ -579,7 +584,13 @@ export class PublishController extends Component {
       if (this.journalProfile)
         return this.publishingIssues
           .filter((i) => i.blocking)
-          .map((i) => ({ text: i.message, settings: true }));
+          .map((i) => ({
+            text: i.message,
+            settings:
+              i.target === "author" ||
+              (i.target === "title" &&
+                this.layout.titleSource === "properties"),
+          }));
       if (this.selectedTemplate?.renderer === "aastex") {
         if (this.aastexPackageProblem)
           return [{ text: "Review the AASTeX package update", settings: true }];
@@ -647,8 +658,6 @@ export class PublishController extends Component {
     });
   }
   get templateAvailabilityProblem(): string {
-    const blocker = journalProfile(this.notePreferences.templateId)?.blocker;
-    if (blocker) return blocker;
     const selected = selectedPublishingTemplate(
       this.allPublishingTemplates,
       this.notePreferences.templateId,
@@ -658,6 +667,8 @@ export class PublishController extends Component {
       !publishingTemplateEnabled(this.allPublishingTemplates, selected)
     )
       return "This template is disabled. Enable it in Manage templates before publishing.";
+    if (!selected && this.notePreferences.templateId?.startsWith("registry:"))
+      return "This exact template version is not installed. Reinstall it in Manage templates; your document selection has been kept.";
     return this.publishingTemplates.templates.length
       ? "Choose a template before publishing."
       : "No templates enabled. Open Manage templates to enable one.";
@@ -726,7 +737,9 @@ export class PublishController extends Component {
         ? {
             journalPackages: {
               ...current.journalPackages,
-              [id]: journalReference(journalProfile(id)!),
+              [id]: journalReference(
+                journalProfile(id, this.allPublishingTemplates.installations)!,
+              ),
             },
           }
         : {}),
@@ -804,7 +817,7 @@ export class PublishController extends Component {
           ...current[layoutPatch.format],
           ...layoutPatch.patch,
         });
-      if (current.templateId?.startsWith("journal:"))
+      if (current.templateId?.startsWith("registry:"))
         current.journalLayouts = {
           ...current.journalLayouts,
           [current.templateId]: { ...current.pdf },
@@ -812,7 +825,10 @@ export class PublishController extends Component {
       if (
         patch.templateId &&
         patch.templateId === current.templateId &&
-        journalProfile(patch.templateId)
+        journalProfile(
+          patch.templateId,
+          this.allPublishingTemplates.installations,
+        )
       ) {
         current.journalLayouts = {
           ...current.journalLayouts,

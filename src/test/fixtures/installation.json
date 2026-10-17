@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "name": "Synthetic template",
+  "pin": {
+    "metadata": {
+      "schemaVersion": 1,
+      "templateId": "example",
+      "version": "1.0-r1",
+      "upstreamVersion": "1.0",
+      "revision": 1,
+      "redistribution": "reviewed",
+      "license": "MIT",
+      "upstreamUrl": "https://example.org/source",
+      "validationRecipeSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256": "1eed2f8d97d5093c1f976bcd04480f55a5be11ff25135504b1bd632e739b8a77",
+      "bytes": 273,
+      "requiredFiles": ["official/class.cls", "official/LICENSE"],
+      "dependencies": [],
+      "download": "/api/templates/v1/example/versions/1.0-r1/download",
+      "validation": "/api/templates/v1/example/versions/1.0-r1/validation",
+      "compilation": "not-tested",
+      "compilationNotes": "Synthetic fixture"
+    },
+    "validation": {
+      "schemaVersion": 1,
+      "templateId": "example",
+      "version": "1.0-r1",
+      "sourceSha256": "1eed2f8d97d5093c1f976bcd04480f55a5be11ff25135504b1bd632e739b8a77",
+      "recipeSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "toolchainImage": "example/compiler@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "dependencies": [],
+      "dimensions": {
+        "sourceIdentity": "passed",
+        "archiveSafety": "passed",
+        "requiredFiles": "passed",
+        "license": "passed",
+        "dependencies": "passed",
+        "compilation": "passed",
+        "bibliography": "passed"
+      }
+    },
+    "runtime": {
+      "class.cls": {
+        "path": "official/class.cls",
+        "sha256": "eb64ecc4aa707abee9380f5bbd6810f38ead5deeb8835a243b2e1174ced8804b"
+      },
+      "style.bst": {
+        "path": "official/style.bst",
+        "sha256": "3c3cc574d642b3ae199ef7fa6c07561ce7fcf4d975295821a547a2d3cbe4098e"
+      }
+    }
+  },
+  "adapter": {
+    "contract": "latex-manuscript-v1",
+    "frontMatter": "standard",
+    "documentClass": "class",
+    "classOptions": [],
+    "bibliography": "style",
+    "citations": "numeric",
+    "preload": [],
+    "packages": []
+  },
+  "assets": [
+    {
+      "name": "style.bst",
+      "sha256": "3c3cc574d642b3ae199ef7fa6c07561ce7fcf4d975295821a547a2d3cbe4098e",
+      "bytes": 25,
+      "download": "/api/templates/v1/example/versions/1.0-r1/installation/assets/3c3cc574d642b3ae199ef7fa6c07561ce7fcf4d975295821a547a2d3cbe4098e"
+    }
+  ]
+}

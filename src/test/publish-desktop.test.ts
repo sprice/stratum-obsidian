@@ -25,11 +25,13 @@ function runtime(
   desktop = true,
   remote?: object,
   modules: Record<string, unknown> = {},
+  globals: Record<string, unknown> = {},
 ) {
   return loadRuntime<typeof Desktop>(
     "publish-desktop.ts",
     { Platform: { isDesktopApp: desktop, isDesktop: desktop } },
     {
+      ...globals,
       TextDecoder,
       TextEncoder,
       Uint8Array,
@@ -818,4 +820,50 @@ test("mirror download bounds HTTPS redirects, bytes, hash and total time", async
     await assert.rejects(run([], 1000, url), /requires HTTPS/);
     assert.equal(urls.length, 0);
   }
+});
+
+test("explicit loopback development origin allows HTTP without opening other origins", async () => {
+  const bytes = new TextEncoder().encode("Synthetic local registry response");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  let calls = 0;
+  const http = {
+    get(_url: string, _options: unknown, callback: (r: EventEmitter) => void) {
+      calls++;
+      const request = new EventEmitter();
+      schedule(() => {
+        const response = Object.assign(new EventEmitter(), {
+          statusCode: 200,
+          headers: {},
+          destroy() {},
+        });
+        callback(response);
+        response.emit("data", bytes);
+        response.emit("end");
+        request.emit("close");
+      }, 0);
+      return request;
+    },
+  };
+  const { downloadPublicationResource: download } = runtime(
+    true,
+    undefined,
+    { "node:http": http },
+    { __STRATUM_TEMPLATE_REGISTRY_ORIGIN__: "http://localhost:8788" },
+  );
+  assert.deepEqual(
+    Array.from(
+      await download({
+        url: "http://localhost:8788/api/templates/v1/example",
+        sha256,
+      }),
+    ),
+    Array.from(bytes),
+  );
+  for (const url of [
+    "http://localhost:8789/private",
+    "http://example.org/private",
+    "http://user:secret@localhost:8788/private",
+  ])
+    await assert.rejects(download({ url, sha256 }), /requires HTTPS/);
+  assert.equal(calls, 1);
 });

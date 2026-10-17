@@ -1,3 +1,4 @@
+import installation from "../fixtures/installation.json";
 import { TFile, MarkdownView, editorInfoField } from "obsidian";
 import { EditorState, StateEffect, type ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -10,7 +11,6 @@ import {
   PUBLISH_EDITOR_CHANGE_DELAY,
 } from "../../publish-controller";
 import { PublishPanel, type PublishViewState } from "../../view-publish";
-import { JOURNAL_TEMPLATES } from "../../journal-profiles";
 import { PublishFontError } from "../../publish-desktop";
 import type { PublishAdapter } from "../../publish-store";
 import type StratumPlugin from "../../plugin";
@@ -88,6 +88,7 @@ export interface FixtureOptions {
   titleFont?: string;
   theme?: "light" | "dark";
   aastex?: boolean;
+  acm?: boolean;
   templateId?: "general" | "academic";
   source?: string;
   editable?: boolean;
@@ -117,12 +118,15 @@ async function reset(options: FixtureOptions = {}) {
     settings: {
       publishingTemplates: {
         templates: [],
-        enabledIds: [
-          "general",
-          "academic",
-          "package:aastex",
-          ...JOURNAL_TEMPLATES.map((t) => t.version!.familyId),
+        installations: [
+          options.acm
+            ? {
+                ...installation,
+                adapter: { ...installation.adapter, frontMatter: "acmart" },
+              }
+            : installation,
         ],
+        enabledIds: ["general", "academic", "registry:example:1.0-r1"],
       },
       publishPdfSetupComplete: true,
       pandocPath: "pandoc",
@@ -300,7 +304,7 @@ async function reset(options: FixtureOptions = {}) {
   );
   await controller.updatePreferences({
     templateId: options.aastex
-      ? "package:aastex"
+      ? "registry:example:1.0-r1"
       : (options.templateId ?? "general"),
   });
   const preferences = {
@@ -410,18 +414,6 @@ export const publicationFixture = {
     controller.busy = busy;
     controller.emit();
   },
-  setAastexPackage(
-    reference: import("../../publication-options").PublicationPackageReference,
-  ) {
-    return controller.updatePreferences({
-      aastex: { ...controller.notePreferences.aastex!, package: reference },
-    });
-  },
-  setAastexOptions(
-    options: Parameters<PublishController["updateAastexPdfOptions"]>[0],
-  ) {
-    return controller.updateAastexPdfOptions(options);
-  },
   resetSaveCount() {
     adapter.catalogWrites = 0;
   },
@@ -431,10 +423,6 @@ export const publicationFixture = {
     file.basename = "Synthetic second paper";
     controller.document = file;
     controller.emit();
-  },
-  savedOptions(path: string) {
-    return controller.catalog?.notes.find((note) => note.path === path)
-      ?.preferences?.aastex?.options;
   },
   async addDocuments(count = 1) {
     const note = await controller.store.note(
@@ -487,7 +475,6 @@ export const publicationFixture = {
       bodyFont: controller.layout.bodyFont,
       titleFont: controller.layout.titleFont,
       fonts: controller.fontError?.fonts ?? [],
-      aastexOptions: controller.aastexPdfOptions,
       saveCount: adapter.catalogWrites,
     };
   },

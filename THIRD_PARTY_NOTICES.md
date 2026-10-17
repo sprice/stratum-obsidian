@@ -144,13 +144,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Downloaded LaTeX templates
 
-Plugin releases contain Stratum's MIT rendering adapters and compatibility pins,
+Plugin releases contain Stratum's MIT rendering adapters,
 not upstream journal resource bundles. Enabling a supported template downloads an
 exact release from Stratum's keyless public mirror. Full mirrored ZIPs, required
 dependencies, original notices, and any reduced-distribution STRATUM-BUNDLE.txt
-remain in the local verified resource cache. The compatibility pins retain public
-source URLs, hashes, component licenses and conditions in
-[src/publication-registry-pins.json](src/publication-registry-pins.json).
+remain in the local verified resource cache. Saved installation metadata retains public source URLs, hashes, component
+licenses, and validation evidence for each exact release.
 
 AASTeX 7.0.2 retains the American Astronomical Society's unchanged class under
 LPPL 1.3c or later. Its aasjournalv7.1.bst permits nonprofit use and distribution

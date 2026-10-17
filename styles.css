@@ -1862,3 +1862,9 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 :is([class^="stratum-"], [class*=" stratum-"]) [hidden] {
   display: none;
 }
+
+.stratum-template-versions {
+  max-height: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

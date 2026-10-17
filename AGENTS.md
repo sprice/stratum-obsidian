@@ -33,17 +33,17 @@ Do not repeat successful checks unless subsequent edits affect them.
 Run commands from this plugin directory. `<test-files>` means explicit file
 paths; select a related set by listing its files, not the entire test glob.
 
-| Purpose | Command |
-| --- | --- |
-| One test file or selected related test files | `pnpm --silent quiet pnpm exec node --test --import tsx <test-files>` |
-| Full source test suite (only when warranted) | `pnpm --silent test` |
-| Tooling tests (script changes) | `pnpm --silent test:tooling` |
-| TypeScript across the plugin | `pnpm --silent typecheck` |
-| Formatting check on changed files | `pnpm --silent quiet pnpm exec prettier --check <changed-files>` |
-| Format changed files | `pnpm --silent quiet pnpm exec prettier --write <changed-files>` |
+| Purpose                                                     | Command                                                                                   |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| One test file or selected related test files                | `pnpm --silent quiet pnpm exec node --test --import tsx <test-files>`                     |
+| Full source test suite (only when warranted)                | `pnpm --silent test`                                                                      |
+| Tooling tests (script changes)                              | `pnpm --silent test:tooling`                                                              |
+| TypeScript across the plugin                                | `pnpm --silent typecheck`                                                                 |
+| Formatting check on changed files                           | `pnpm --silent quiet pnpm exec prettier --check <changed-files>`                          |
+| Format changed files                                        | `pnpm --silent quiet pnpm exec prettier --write <changed-files>`                          |
 | Obsidian ESLint checks on changed TS/manifest/license files | `OBSIDIAN_REVIEW=1 pnpm --silent quiet pnpm exec eslint --max-warnings=0 <changed-files>` |
-| Lint scorecard (lint-policy changes) | `pnpm --silent lint:scorecard` |
-| Production bundle plus TypeScript (bundling changes) | `pnpm --silent build` |
+| Lint scorecard (lint-policy changes)                        | `pnpm --silent lint:scorecard`                                                            |
+| Production bundle plus TypeScript (bundling changes)        | `pnpm --silent build`                                                                     |
 
 Quiet commands report package-qualified results, elapsed time, and available
 test/file counts. Aggregate checks include nested results. Failures preserve
@@ -75,8 +75,9 @@ remain encoded text.
 - Keep vault access scoped to the feature. External services must have a disclosed
   purpose; do not transmit vault content without consent or add hidden telemetry.
 - Do not execute downloaded code or implement plugin auto-updates. The narrow
-  exception is official LaTeX template resources pinned in the plugin catalog and
-  verified by SHA-256 before use. Compile those resources only with the existing
+  exception is official LaTeX template resources pinned by a strictly validated, versioned
+  registry installation manifest and verified
+  by SHA-256 before use. Compile those resources only with the existing
   Tectonic untrusted/no-shell-escape protections. This exception does not permit
   downloaded JavaScript, Lua filters, installers, binaries, rendering code, or
   plugin/dependency executable updates.

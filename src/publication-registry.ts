@@ -1,5 +1,5 @@
-import pins from "./publication-registry-pins.json";
 import { publicationAssetPath } from "./publication-asset-map";
+import { isTemplateResourceName } from "./publication-installation";
 import {
   cachedPublicationResource,
   type BibliographyCache,
@@ -39,10 +39,9 @@ export interface RegistryPin {
   };
   validation: unknown;
   runtime: Record<string, { path: string; sha256: string }>;
+  dependencyPaths?: Record<string, string>;
   derived?: { source: string; target: string; prefix: string; sha256: string };
 }
-export const TEMPLATE_RESOURCE_PINS: Readonly<Record<string, RegistryPin>> =
-  pins;
 export interface RegistryDownload {
   (spec: {
     url: string;
@@ -52,7 +51,7 @@ export interface RegistryDownload {
 }
 export function registryUrl(path: string): string {
   if (
-    !/^\/api\/templates\/v1\/[a-z0-9._/-]+$/.test(path) ||
+    !/^\/api\/templates\/v1(?:\/[a-z0-9._/-]+)?$/.test(path) ||
     path.includes("..")
   )
     throw new Error("Invalid template mirror download path.");
@@ -183,10 +182,9 @@ export async function resolveRegistryResources(
     throw new Error("Template archive size changed.");
   const files = publicationArchive(archive, inflate);
   for (const dependency of metadata.dependencies) {
-    if (
-      !publicationAssetPath(dependency.targetPath) ||
-      Object.hasOwn(files, dependency.targetPath)
-    )
+    const targetPath =
+      pin.dependencyPaths?.[dependency.id] ?? dependency.targetPath;
+    if (!publicationAssetPath(targetPath) || Object.hasOwn(files, targetPath))
       throw new Error("Invalid template dependency path.");
     const bytes = await cachedPublicationResource(
       cache,
@@ -203,12 +201,9 @@ export async function resolveRegistryResources(
         }),
       signal,
     );
-    if (
-      bytes.length !== dependency.bytes ||
-      !dependency.requiredFiles.includes(dependency.targetPath)
-    )
-      throw new Error("Invalid template dependency size or required path.");
-    files[dependency.targetPath] = bytes;
+    if (bytes.length !== dependency.bytes)
+      throw new Error("Invalid template dependency size.");
+    files[targetPath] = bytes;
   }
   for (const required of [
     ...metadata.requiredFiles,
@@ -223,10 +218,7 @@ export async function resolveRegistryResources(
     Uint8Array
   >;
   for (const [name, entry] of Object.entries(pin.runtime)) {
-    if (
-      !/^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(cls|sty|rtx|bst|jpeg)$/.test(name) ||
-      !publicationAssetPath(entry.path)
-    )
+    if (!isTemplateResourceName(name) || !publicationAssetPath(entry.path))
       throw new Error("Invalid adapter resource path.");
     const bytes = files[entry.path];
     if (!bytes || (await resourceDigest(bytes)) !== entry.sha256)

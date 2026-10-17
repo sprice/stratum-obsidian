@@ -174,7 +174,11 @@ export function readNotePreferences(
       ? {
           journalLayouts: Object.fromEntries(
             Object.entries(v.journalLayouts)
-              .filter(([id]) => /^journal:[a-z0-9-]+$/.test(id))
+              .filter(([id]) =>
+                /^(?:journal:[a-z0-9-]+|registry:[a-z0-9._-]+:[a-z0-9._-]+)$/.test(
+                  id,
+                ),
+              )
               .map(([id, value]) => [
                 id,
                 readPublishOptions(value, DEFAULT_ACADEMIC_OPTIONS),
@@ -189,7 +193,9 @@ export function readNotePreferences(
           journalPackages: Object.fromEntries(
             Object.entries(v.journalPackages).flatMap(([id, value]) => {
               const reference = readPublicationPackageReference(value);
-              return /^journal:[a-z0-9-]+$/.test(id) && reference
+              return /^(?:journal:[a-z0-9-]+|registry:[a-z0-9._-]+:[a-z0-9._-]+)$/.test(
+                id,
+              ) && reference
                 ? [[id, reference]]
                 : [];
             }),

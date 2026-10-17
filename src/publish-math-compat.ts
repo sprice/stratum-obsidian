@@ -15,7 +15,10 @@ export const publicationMathPreamble = String.raw`
 % STIX already supplies \mathscr; a second script font can exceed legacy TeX's
 % 16 symbol-font slots in the CAS class. Keep STIX's native script alphabet.
 \makeatletter
-\@ifpackageloaded{stix}{%
+\newif\ifstratumnativemathfonts
+\@ifpackageloaded{stix}{\stratumnativemathfontstrue}{}
+\@ifpackageloaded{newtxmath}{\stratumnativemathfontstrue}{}
+\ifstratumnativemathfonts%
   \usepackage{upgreek}
   % gensymb allocates an additional symbol font at begin-document. Use the
   % corresponding text symbols inside math to retain STIX's available slots.
@@ -24,8 +27,9 @@ export const publicationMathPreamble = String.raw`
   \providecommand{\ohm}{\ifmmode\mathord{\text{\textohm}}\else\textohm\fi}
   \providecommand{\celsius}{\ifmmode\mathord{\text{\textcelsius}}\else\textcelsius\fi}
   \providecommand{\perthousand}{\ifmmode\mathord{\text{\textperthousand}}\else\textperthousand\fi}
-}{%
-  \usepackage{gensymb}\usepackage{upgreek}\usepackage{mathrsfs}}
+\else%
+  \usepackage{gensymb}\usepackage{upgreek}\usepackage{mathrsfs}
+\fi
 \makeatother
 \usepackage{cases}
 % amscd's legacy lookahead reads \next, but amsgen's \FN@ can use a different

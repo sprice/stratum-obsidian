@@ -16,7 +16,6 @@ import {
 } from "./ui-controls";
 import { renderPublishCustomization } from "./publish-customize";
 import { resetNoteCitationStyle } from "./citation-style-choice";
-import { openStratumSettings } from "./view-helpers";
 import type { PublishOptions } from "./publish-options";
 import {
   publishingIssueText,
@@ -306,11 +305,16 @@ export class PublishingSettingsModal extends Modal {
         text: "PDF tools need setup.",
       });
       const setup = createStratumButton(options, {
-        text: "Open Stratum settings",
+        text: "Open publishing tools",
       });
       setup.addEventListener("click", () => {
-        this.close();
-        openStratumSettings(this.publish.plugin);
+        void import("./publish-setup")
+          .then(({ PublishSetupModal }) => {
+            if (this.publish.plugin.isUnloaded) return;
+            this.close();
+            new PublishSetupModal(this.publish.plugin).open();
+          })
+          .catch((error: unknown) => this.publish.fail(error));
       });
     }
     this.error = this.contentEl.createDiv({

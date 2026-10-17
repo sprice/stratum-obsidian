@@ -717,16 +717,23 @@ export async function downloadPublicationResource(
     const download = (url: string) => {
       if (settled) return;
       try {
+        const target = new URL(url);
+        const loopback =
+          target.protocol === "http:" &&
+          ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname);
         if (
-          new URL(url).protocol !== "https:" ||
-          new URL(url).origin !== TEMPLATE_REGISTRY_ORIGIN ||
-          new URL(url).username ||
-          new URL(url).password
+          (target.protocol !== "https:" && !loopback) ||
+          target.origin !== TEMPLATE_REGISTRY_ORIGIN ||
+          target.username ||
+          target.password
         )
           throw new Error(
             "The template resource download requires HTTPS from Stratum’s mirror.",
           );
-        const request = https.get(
+        const transport = loopback
+          ? (require("node:http") as BibliographyHttps)
+          : https;
+        const request = transport.get(
           url,
           {
             signal,
@@ -757,6 +764,15 @@ export async function downloadPublicationResource(
                 ),
               );
               response.destroy();
+              return;
+            }
+            if (response.statusCode === 429) {
+              response.destroy();
+              finish(
+                new Error(
+                  "The template mirror is busy. Wait one minute, then retry the failed versions. Installed templates are still available offline.",
+                ),
+              );
               return;
             }
             if (response.statusCode !== 200) {
@@ -855,10 +871,12 @@ async function convertAastexPublication(
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "stratum-aastex-"));
   const options = readAastexPdfOptions(input.options);
   try {
-    const { aastexPackage: pkg, aastexLatex } =
-      await import("./publication-package");
     const journal = input.journal;
-    if (!journal || journal.family !== "research") {
+    if (!journal?.installation)
+      throw new Error(
+        "Install this template from the registry before publishing.",
+      );
+    {
       if (!tools.bibliographyCache)
         throw new Error(
           "Enable this template in Manage templates before publishing.",
@@ -867,7 +885,7 @@ async function convertAastexPublication(
         await import("./publication-resources")
       ).installedTemplateResources(
         tools.bibliographyCache,
-        journal?.family ?? "aastex",
+        journal.installation,
         signal,
         false,
       );
@@ -878,7 +896,7 @@ async function convertAastexPublication(
     }
     await fs.writeFile(
       path.join(directory, "aastex.lua"),
-      journal?.family === "mnras"
+      journal.installation.adapter.documentClass === "mnras"
         ? aastexFilter.replace("table}[ht]", "table}")
         : aastexFilter,
       {
@@ -984,35 +1002,20 @@ async function convertAastexPublication(
     }
     const decode = async (name: string) =>
       new TextDecoder().decode(await fs.readFile(path.join(directory, name)));
-    const tex = journal
-      ? (await import("./journal-profiles")).journalLatex(
-          journal,
-          input.manuscript,
-          await decode("body.tex"),
-          await decode("abstract.tex"),
-          !!input.references.length,
-          await decode("preamble.tex"),
-        )
-      : aastexLatex(
-          input.manuscript,
-          await decode("body.tex"),
-          await decode("abstract.tex"),
-          !!input.references.length,
-          pkg,
-          await decode("preamble.tex"),
-          options,
-        );
+    const tex = (await import("./journal-profiles")).journalLatex(
+      journal,
+      input.manuscript,
+      await decode("body.tex"),
+      await decode("abstract.tex"),
+      !!input.references.length,
+      await decode("preamble.tex"),
+    );
     await fs.writeFile(path.join(directory, "document.tex"), tex, {
       mode: 0o600,
     });
     await runPublishTool(
       tools.tectonic,
-      [
-        "--untrusted",
-        "--keep-logs",
-        ...(journal ? ["--keep-intermediates"] : []),
-        "document.tex",
-      ],
+      ["--untrusted", "--keep-logs", "--keep-intermediates", "document.tex"],
       {
         cwd: directory,
         signal,
