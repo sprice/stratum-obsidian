@@ -18,7 +18,7 @@ export function publishingToolState(
   if (error) return { ...state, label: "Check failed", detail: error };
   return {
     ...state,
-    label: ready ? "Ready" : "Detected",
+    label: ready ? "Ready" : checking ? "Checking…" : "Found",
     detail: tool.version,
   };
 }
@@ -30,6 +30,5 @@ export function publishingSetupAction(
   if (checking) return "Checking…";
   if (readiness?.pdf) return "Done";
   if (readiness?.pdfError) return "Retry check";
-  if (readiness?.pandoc.path && readiness.tectonic.path) return "Enable PDF";
   return "Check again";
 }

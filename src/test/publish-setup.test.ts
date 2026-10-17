@@ -158,7 +158,7 @@ test("setup rechecks stale detection on every open and offers PDF verification w
     settings: { pandocPath: "", tectonicPath: "" },
   } as never);
   modal.onOpen();
-  assert.deepEqual(checks, [false]);
+  assert.deepEqual(checks, [true]);
   const content = modal.contentEl as unknown as Element;
   const toolLabels = (element: Element): string[] =>
     element.tagName === "STRONG"
@@ -172,7 +172,7 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   };
   callbacks.forEach((callback) => callback());
   assert.equal(content.find("Get Tectonic"), undefined);
-  assert.ok(content.find("Detected"));
+  assert.ok(content.find("Found"));
   assert.ok(content.find("Found automatically"));
   const pathDescription = content.find("/synthetic/tectonic")!;
   function parentOf(root: Element, target: Element): Element | undefined {
@@ -189,12 +189,21 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   assert.ok(content.find("/synthetic/tectonic"));
   assert.equal(content.find("Use automatic detection")!.hidden, true);
   assert.equal(content.find("Check again")!.hidden, true);
-  content.find("Enable PDF")!.click();
-  assert.deepEqual(checks, [false, true]);
+  assert.equal(content.find("Enable PDF"), undefined);
+  const retry = (element: Element): Element | undefined =>
+    element.text === "Check again" && !element.hidden
+      ? element
+      : element.children.map(retry).find(Boolean);
+  retry(content)!.click();
+  assert.deepEqual(checks, [true, true]);
   publish.checking = true;
   callbacks.forEach((callback) => callback());
   assert.equal(content.find("Cancel check")!.hidden, false);
-  assert.equal(content.find("Checking…")!.disabled, true);
+  const checkingButton = (element: Element): Element | undefined =>
+    element.tagName === "BUTTON" && element.text === "Checking…"
+      ? element
+      : element.children.map(checkingButton).find(Boolean);
+  assert.equal(checkingButton(content)!.disabled, true);
   publish.checking = false;
   publish.readiness!.pdf = true;
   callbacks.forEach((callback) => callback());
@@ -204,7 +213,7 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   modal.onOpen();
   assert.deepEqual(
     checks,
-    [false, true],
+    [true, true],
     "reopening verified setup does not rerun conversion",
   );
   let sidebarReadiness = publish.readiness;
@@ -231,6 +240,28 @@ test("setup rechecks stale detection on every open and offers PDF verification w
   modal.onClose();
   assert.equal(callbacks.size, 0);
   modal.onOpen();
-  assert.deepEqual(checks, [false, true, false]);
+  assert.deepEqual(checks, [true, true, true]);
+  modal.onClose();
+  publish.checking = true;
+  modal.onOpen();
+  assert.equal(checks.length, 3, "wait for the existing detection check");
+  publish.checking = false;
+  callbacks.forEach((callback) => callback());
+  assert.deepEqual(checks, [true, true, true, true]);
+  callbacks.forEach((callback) => callback());
+  assert.equal(checks.length, 4, "verify only once per opening");
+  modal.onClose();
+  publish.checking = true;
+  modal.onOpen();
+  content.find("Cancel check")!.click();
+  publish.checking = false;
+  callbacks.forEach((callback) => callback());
+  assert.equal(checks.length, 4, "cancelling also clears queued verification");
+  retry(content)!.click();
+  assert.equal(
+    checks.length,
+    5,
+    "an explicit retry still verifies PDF support",
+  );
   modal.onClose();
 });

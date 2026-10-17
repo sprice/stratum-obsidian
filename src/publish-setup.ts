@@ -106,7 +106,7 @@ export class PublishSetupModal extends Modal {
                 inputEl.value = selected;
                 this.syncReset();
                 await this.plugin.saveSettings();
-                await publish.check();
+                await publish.check(true);
               } catch (error) {
                 publish.fail(error);
               }
@@ -133,7 +133,7 @@ export class PublishSetupModal extends Modal {
       this.controls.find((control) => control.tagName === "INPUT")?.focus();
       void this.plugin
         .saveSettings()
-        .then(() => publish.check())
+        .then(() => publish.check(true))
         .catch((error) => publish.fail(error));
     });
     this.downloadNote = contentEl.createEl("p", {
@@ -144,11 +144,14 @@ export class PublishSetupModal extends Modal {
       cls: "stratum-publish-status",
       attr: { role: "status", "aria-live": "polite" },
     });
+    let checkOnIdle = !publish.readiness?.pdf;
     const actions = contentEl.createDiv({ cls: "modal-button-container" });
     this.secondary = createStratumButton(actions, { text: "Check again" });
     this.secondary.addEventListener("click", () => {
-      if (publish.checking) publish.cancel();
-      else void publish.check(true);
+      if (publish.checking) {
+        checkOnIdle = false;
+        publish.cancel();
+      } else void publish.check(true);
     });
     this.primary = createStratumButton(actions, {
       text: "Check again",
@@ -158,11 +161,19 @@ export class PublishSetupModal extends Modal {
       if (publish.readiness?.pdf) this.close();
       else void publish.check(true);
     });
-    this.unsubscribe = publish.subscribe(() => this.updateStatus());
+    // A lightweight check may still be running when opened from Publish.
+    // Finish verification once it settles, without repeating successful setup.
+    const checkWhenIdle = () => {
+      if (!checkOnIdle || publish.checking || publish.busy) return;
+      checkOnIdle = false;
+      if (!publish.readiness?.pdf) void publish.check(true);
+    };
+    this.unsubscribe = publish.subscribe(() => {
+      this.updateStatus();
+      checkWhenIdle();
+    });
     this.updateStatus();
-    // Successful setup is cached. Failed or incomplete setup can be retried here.
-    if (!publish.readiness?.pdf && !publish.checking && !publish.busy)
-      void publish.check();
+    checkWhenIdle();
   }
   private updateStatus(): void {
     const publish = this.plugin.publish!;

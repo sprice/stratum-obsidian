@@ -10,6 +10,7 @@ import {
   type StratumTabs,
 } from "./ui-controls";
 import { Component, setIcon } from "obsidian";
+import { PublishSetupModal } from "./publish-setup";
 import { PublishingTemplatesModal } from "./publish-template-settings";
 import type { PublishController } from "./publish-controller";
 import {
@@ -33,6 +34,7 @@ export class PublishPanel extends Component {
   private documentsContainer!: HTMLElement;
   private documentsPanel!: PublishedDocumentsPanel;
   private tabs!: StratumTabs<"publish" | "documents">;
+  private dependencies!: HTMLElement;
   private controls!: HTMLElement;
   private status!: HTMLElement;
   private statusMessage!: HTMLElement;
@@ -110,6 +112,19 @@ export class PublishPanel extends Component {
     this.body.createEl("p", {
       cls: "stratum-placeholder",
       text: "PDF documents created for your note",
+    });
+    this.dependencies = this.body.createDiv({
+      cls: "stratum-publish-notice",
+      attr: { role: "status", "aria-live": "polite" },
+    });
+    this.dependencies.createEl("p", {
+      text: "Missing publishing dependencies",
+    });
+    createStratumButton(this.dependencies, {
+      text: "Open publishing tools",
+      wrap: true,
+    }).addEventListener("click", () => {
+      new PublishSetupModal(this.publish.plugin).open();
     });
     const selectors = this.body.createDiv({
       cls: "stratum-publish-template-selectors",
@@ -195,6 +210,7 @@ export class PublishPanel extends Component {
   }
   private update(): void {
     const publish = this.publish;
+    this.dependencies.hidden = publish.checking || !!publish.readiness?.pdf;
     if (
       publish.lastPublishedId &&
       publish.lastPublishedId !== this.state.lastPublishedId
@@ -307,9 +323,6 @@ export class PublishPanel extends Component {
                   ? settingsNotice(
                       "Finish or resolve the pending publication edit",
                     )
-                  : "") ||
-                (!publish.readiness?.pdf
-                  ? settingsNotice("Review PDF tool setup")
                   : ""));
     this.status.hidden = !problem;
     const cls = publish.error
