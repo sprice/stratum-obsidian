@@ -14,6 +14,9 @@ export interface PublicationAuthor {
   name: string;
   email: string;
   affiliations: string[];
+  institution?: string;
+  city?: string;
+  country?: string;
 }
 export interface PublicationAuthors {
   authors: PublicationAuthor[];
@@ -67,6 +70,11 @@ export function publicationAuthors(
       name: typeof author.name === "string" ? author.name : "",
       email: typeof author.email === "string" ? author.email : "",
       affiliations: (author.affiliations ?? []) as string[],
+      ...Object.fromEntries(
+        ["institution", "city", "country"]
+          .filter((key) => typeof author[key] === "string")
+          .map((key) => [key, author[key]]),
+      ),
     };
   });
   return { structured: true, legacy, authors };
@@ -113,7 +121,12 @@ export interface PublicationChange {
   insert: string;
 }
 export type AuthorOperation =
-  | { type: "field"; author: number; key: "name" | "email"; value: string }
+  | {
+      type: "field";
+      author: number;
+      key: "name" | "email" | "institution" | "city" | "country";
+      value: string;
+    }
   | { type: "affiliation"; author: number; index: number; value: string }
   | { type: "add-affiliation"; author: number }
   | { type: "remove-affiliation"; author: number; index: number }
@@ -302,6 +315,12 @@ export const PUBLICATION_PROPERTIES = {
   affiliations: "Affiliations",
   date: "Date",
   keywords: "Keywords",
+  stratum_running_title: "Running title",
+  stratum_running_authors: "Running authors",
+  stratum_corresponding_author: "Corresponding author email",
+  stratum_acm_conference: "ACM conference name",
+  stratum_acm_year: "ACM publication year",
+  stratum_acm_doi: "ACM DOI",
 } as const;
 export type PublicationPropertyKey = keyof typeof PUBLICATION_PROPERTIES;
 export interface PublicationPropertyOperation {

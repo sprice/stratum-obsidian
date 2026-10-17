@@ -15,6 +15,8 @@ export interface BibliographyCache {
 }
 interface Specification {
   sha256: string;
+  maxBytes?: number;
+  extension?: "bst" | "zip" | "json" | "bin";
 }
 const queues = new WeakMap<
   BibliographyCache["adapter"],
@@ -26,8 +28,9 @@ const cancelled = (signal?: AbortSignal) => {
 async function verified(
   bytes: Uint8Array,
   fingerprint: string,
+  maxBytes = 1_000_000,
 ): Promise<boolean> {
-  if (bytes.length > 1_000_000) return false;
+  if (bytes.length > maxBytes) return false;
   const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes));
   return (
     Array.from(new Uint8Array(digest), (byte) =>
@@ -39,22 +42,23 @@ async function cached(
   cache: BibliographyCache,
   path: string,
   fingerprint: string,
+  maxBytes: number,
 ): Promise<Uint8Array | undefined> {
   try {
     const stat = await cache.adapter.stat(path);
-    if (!stat || stat.type !== "file" || stat.size > 1_000_000)
-      return undefined;
+    if (!stat || stat.type !== "file" || stat.size > maxBytes) return undefined;
     const bytes = new Uint8Array(await cache.adapter.readBinary(path));
-    if (await verified(bytes, fingerprint)) return bytes;
+    if (await verified(bytes, fingerprint, maxBytes)) return bytes;
   } catch {
     /* Missing/unreadable entries are cache misses, never trusted. */
   }
   return undefined;
 }
 async function ensureDirectory(cache: BibliographyCache): Promise<void> {
-  let path = "";
+  let path = cache.directory.startsWith("/") ? "/" : "";
   for (const part of cache.directory.split("/")) {
-    path = path ? `${path}/${part}` : part;
+    if (!part) continue;
+    path = path === "/" ? `/${part}` : path ? `${path}/${part}` : part;
     if (!(await cache.adapter.exists(path))) {
       try {
         await cache.adapter.mkdir(path);
@@ -65,7 +69,7 @@ async function ensureDirectory(cache: BibliographyCache): Promise<void> {
   }
 }
 /** Reverify persistent public style bytes; export scratch cleanup never owns this directory. */
-export async function cachedAastexBibliography(
+export async function cachedPublicationResource(
   cache: BibliographyCache,
   specification: Specification,
   download: () => Promise<Uint8Array>,
@@ -73,8 +77,18 @@ export async function cachedAastexBibliography(
 ): Promise<Uint8Array> {
   cancelled(signal);
   if (!/^[a-f0-9]{64}$/.test(specification.sha256))
-    throw new Error("Invalid bibliography fingerprint.");
-  const path = `${cache.directory}/${specification.sha256}.bst`;
+    throw new Error("Invalid resource fingerprint.");
+  const maxBytes = specification.maxBytes ?? 1_000_000;
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > 32 * 1024 * 1024
+  )
+    throw new Error("Invalid resource size limit.");
+  const extension = specification.extension ?? "bst";
+  if (!["bst", "zip", "json", "bin"].includes(extension))
+    throw new Error("Invalid resource extension.");
+  const path = `${cache.directory}/${specification.sha256}.${extension}`;
   let queue = queues.get(cache.adapter);
   if (!queue) {
     queue = new Map();
@@ -85,16 +99,21 @@ export async function cachedAastexBibliography(
     .catch(() => {})
     .then(async () => {
       cancelled(signal);
-      const existing = await cached(cache, path, specification.sha256);
+      const existing = await cached(
+        cache,
+        path,
+        specification.sha256,
+        maxBytes,
+      );
       cancelled(signal);
       if (existing) return existing;
       // Remove a corrupt entry without touching other version fingerprints.
       if (await cache.adapter.exists(path)) await cache.adapter.remove(path);
       const bytes = await download();
       cancelled(signal);
-      if (!(await verified(bytes, specification.sha256)))
+      if (!(await verified(bytes, specification.sha256, maxBytes)))
         throw new Error(
-          "The AAS bibliography style changed. Update Stratum before publishing this PDF.",
+          "The template resource changed. Update Stratum before installing this template.",
         );
       await ensureDirectory(cache);
       const temporary = `${cache.directory}/${specification.sha256}.${crypto.randomUUID()}.tmp`;
@@ -105,7 +124,20 @@ export async function cachedAastexBibliography(
         );
         cancelled(signal);
         await cache.adapter.rename(temporary, path);
-        return bytes;
+        cancelled(signal);
+        const persisted = await cached(
+          cache,
+          path,
+          specification.sha256,
+          maxBytes,
+        );
+        if (!persisted) {
+          await cache.adapter.remove(path);
+          throw new Error(
+            "The template cache could not be verified after writing. Check disk space and enable the template again.",
+          );
+        }
+        return persisted;
       } finally {
         if (await cache.adapter.exists(temporary))
           await cache.adapter.remove(temporary);

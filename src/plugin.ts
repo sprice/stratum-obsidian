@@ -349,14 +349,19 @@ export default class StratumPlugin extends Plugin {
     this.addSettingTab(this.settingTab);
     this.registerView(VIEW_TYPE_STRATUM, (leaf) => new StratumView(leaf, this));
 
-    this.addRibbonIcon("book-open-text", openStratumRibbonLabel, () => {
-      this.activeViewTab = resolveActiveTab(
-        this.activeViewTab,
-        readEnabledTabs(this.settings.enabledTabs),
-        Platform.isDesktopApp,
-      );
-      void this.activateView().then(() => {
-        this.refreshViews();
+    // Register after layout restoration so Obsidian appends the icon below
+    // existing actions instead of sorting a new action ahead of saved ones.
+    this.app.workspace.onLayoutReady(() => {
+      if (this.isUnloaded) return;
+      this.addRibbonIcon("book-open-text", openStratumRibbonLabel, () => {
+        this.activeViewTab = resolveActiveTab(
+          this.activeViewTab,
+          readEnabledTabs(this.settings.enabledTabs),
+          Platform.isDesktopApp,
+        );
+        void this.activateView().then(() => {
+          this.refreshViews();
+        });
       });
     });
 

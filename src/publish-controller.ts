@@ -1,4 +1,11 @@
+import { installedPublishingTemplate } from "./publication-installed-templates";
 import { pluginStorageDirectory } from "./plugin-storage-paths";
+import {
+  journalProfile,
+  journalProperties,
+  journalProblems,
+  journalReference,
+} from "./journal-profiles";
 import {
   addPublishingProperties,
   mappedPublishingProperties,
@@ -8,6 +15,7 @@ import {
 } from "./publish-properties";
 import {
   readPublishingTemplates,
+  publishingTemplateEnabled,
   selectedPublishingTemplate,
   type PublishingTemplate,
 } from "./publish-templates";
@@ -48,7 +56,6 @@ import {
 } from "./publish-options";
 import { publicationFrontmatter, academicMetadata } from "./publish-academic";
 import {
-  AASTEX_TEMPLATE,
   aastexProblems,
   aastexPackage,
   AASTEX_PACKAGE_REFERENCE,
@@ -64,6 +71,7 @@ import type { renderAastexPublication } from "./publication-render";
 
 type Checked<T> = { value: T } | { error: unknown };
 interface NoteChecks {
+  journal: Checked<ReturnType<typeof journalProblems>>;
   aastex: Checked<ReturnType<typeof aastexProblems>>;
   properties: Checked<PublishingIssue | undefined>;
   readinessNotices: { text: string; settings: boolean }[];
@@ -396,11 +404,24 @@ export class PublishController extends Component {
     );
   }
   get publishingTemplates() {
+    const state = this.allPublishingTemplates;
+    return {
+      ...state,
+      templates: state.templates.filter((template) =>
+        publishingTemplateEnabled(state, template),
+      ),
+    };
+  }
+  get allPublishingTemplates() {
     const state = readPublishingTemplates(
       this.plugin.settings.publishingTemplates,
     );
     return {
-      templates: [...state.templates, AASTEX_TEMPLATE],
+      ...state,
+      templates: [
+        ...state.templates,
+        ...(state.installations ?? []).map(installedPublishingTemplate),
+      ],
     };
   }
   private preferencesFor(value: unknown): NotePublishPreferences {
@@ -417,6 +438,37 @@ export class PublishController extends Component {
   get selectedTemplate() {
     return this.preferenceState.template;
   }
+  get journalProfile() {
+    return journalProfile(
+      this.selectedTemplate?.id,
+      this.allPublishingTemplates.installations,
+    );
+  }
+  private get journalCheck() {
+    const profile = this.journalProfile;
+    if (!profile) return undefined;
+    const result = this.noteCheck("journal", () =>
+      checked(() =>
+        journalProblems(
+          this.currentText(),
+          this.layout.titleSource,
+          profile,
+          this.layout.showKeywords,
+        ),
+      ),
+    );
+    if ("error" in result) throw result.error;
+    return result.value;
+  }
+  get journalPackageProblem(): string {
+    const profile = this.journalProfile;
+    const saved = profile && this.notePreferences.journalPackages?.[profile.id];
+    return profile &&
+      saved &&
+      !samePublicationPackage(saved, journalReference(profile))
+      ? "This journal package changed. Choose the profile again to review and accept the installed version before publishing."
+      : "";
+  }
   get aastexPdfOptions(): AastexPdfOptions {
     return readAastexPdfOptions(this.notePreferences.aastex?.options);
   }
@@ -425,7 +477,7 @@ export class PublishController extends Component {
     return this.selectedTemplate?.renderer === "aastex" &&
       saved &&
       !samePublicationPackage(saved, AASTEX_PACKAGE_REFERENCE)
-      ? `This note uses AASTeX ${saved.upstreamVersion}, Stratum adapter ${saved.version}. Installed: AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion}, adapter ${AASTEX_PACKAGE_REFERENCE.version}. Review the update before creating another PDF. Older package assets are not retained.`
+      ? `This note uses AASTeX ${saved.upstreamVersion}, Stratum adapter ${saved.version}. Installed: AASTeX ${AASTEX_PACKAGE_REFERENCE.upstreamVersion}, adapter ${AASTEX_PACKAGE_REFERENCE.version}. Review the update before creating another PDF. Cached files are retained; publishing uses the supported installed version.`
       : "";
   }
   get aastexHeadingProblems(): string[] {
@@ -469,7 +521,9 @@ export class PublishController extends Component {
       this.layout,
       this.selectedTemplate?.prefill,
     );
-    return fields;
+    return this.journalProfile
+      ? [...fields, ...journalProperties(this.journalProfile)]
+      : fields;
   }
   get noteProperties(): Record<string, unknown> {
     const text = this.currentText();
@@ -527,6 +581,16 @@ export class PublishController extends Component {
   get readinessNotices(): { text: string; settings: boolean }[] {
     if (!this.selectedTemplate) return [];
     return this.noteCheck("readinessNotices", () => {
+      if (this.journalProfile)
+        return this.publishingIssues
+          .filter((i) => i.blocking)
+          .map((i) => ({
+            text: i.message,
+            settings:
+              i.target === "author" ||
+              (i.target === "title" &&
+                this.layout.titleSource === "properties"),
+          }));
       if (this.selectedTemplate?.renderer === "aastex") {
         if (this.aastexPackageProblem)
           return [{ text: "Review the AASTeX package update", settings: true }];
@@ -553,8 +617,24 @@ export class PublishController extends Component {
     });
   }
   get academicProblem(): string {
-    if (!this.selectedTemplate) return "Choose a template before publishing.";
+    if (!this.selectedTemplate) return this.templateAvailabilityProblem;
     return this.noteCheck("academicProblem", () => {
+      if (this.journalProfile) {
+        try {
+          return (
+            this.journalPackageProblem ||
+            this.journalCheck?.issues
+              .filter((i) => i.blocking)
+              .map((i) => i.message)
+              .join("\n") ||
+            ""
+          );
+        } catch (error) {
+          return error instanceof Error
+            ? error.message
+            : "Repair publication metadata.";
+        }
+      }
       if (this.selectedTemplate?.renderer === "aastex") {
         if (this.aastexPackageProblem) return this.aastexPackageProblem;
         const aastex = this.aastexCheck;
@@ -577,6 +657,22 @@ export class PublishController extends Component {
         : "Check this note's publishing properties.";
     });
   }
+  get templateAvailabilityProblem(): string {
+    const selected = selectedPublishingTemplate(
+      this.allPublishingTemplates,
+      this.notePreferences.templateId,
+    );
+    if (
+      selected &&
+      !publishingTemplateEnabled(this.allPublishingTemplates, selected)
+    )
+      return "This template is disabled. Enable it in Manage templates before publishing.";
+    if (!selected && this.notePreferences.templateId?.startsWith("registry:"))
+      return "This exact template version is not installed. Reinstall it in Manage templates; your document selection has been kept.";
+    return this.publishingTemplates.templates.length
+      ? "Choose a template before publishing."
+      : "No templates enabled. Open Manage templates to enable one.";
+  }
   /**
    * The note's metadata issues for the selected template, placed for the
    * Settings forms. A title issue belongs to the Title field only when that
@@ -593,7 +689,19 @@ export class PublishController extends Component {
         },
       ];
       let issues: PublishingIssue[];
-      if (this.selectedTemplate?.renderer === "aastex") {
+      if (this.journalProfile) {
+        try {
+          issues = [...(this.journalCheck?.issues ?? [])];
+          if (this.journalPackageProblem)
+            issues.unshift({
+              target: "general",
+              message: this.journalPackageProblem,
+              blocking: true,
+            });
+        } catch (error) {
+          return failure(error, "Repair publication metadata.");
+        }
+      } else if (this.selectedTemplate?.renderer === "aastex") {
         const aastex = this.aastexCheck;
         if (!("value" in aastex))
           return failure(aastex.error, "Repair the publication metadata.");
@@ -625,10 +733,24 @@ export class PublishController extends Component {
     if (!template)
       throw new Error("This publishing template is no longer available.");
     return {
+      ...(template.renderer === "journal"
+        ? {
+            journalPackages: {
+              ...current.journalPackages,
+              [id]: journalReference(
+                journalProfile(id, this.allPublishingTemplates.installations)!,
+              ),
+            },
+          }
+        : {}),
       templateId: id,
       documentType: template.documentType,
       opening: template.layout.titleSource,
-      pdf: { ...template.layout },
+      pdf: {
+        ...(template.renderer === "journal"
+          ? (current.journalLayouts?.[id] ?? template.layout)
+          : template.layout),
+      },
       ...(template.renderer === "aastex"
         ? {
             aastex: current.aastex ?? {
@@ -647,6 +769,10 @@ export class PublishController extends Component {
         JSON.stringify(readAastexPdfOptions(undefined))
       );
     const current = this.notePreferences;
+    if (this.journalProfile)
+      return Object.entries(this.selectedTemplate.layout).some(
+        ([key, value]) => current.pdf[key as keyof PublishOptions] !== value,
+      );
     const target = this.templatePreferencePatch(
       this.selectedTemplate.id,
       current,
@@ -691,6 +817,28 @@ export class PublishController extends Component {
           ...current[layoutPatch.format],
           ...layoutPatch.patch,
         });
+      if (current.templateId?.startsWith("registry:"))
+        current.journalLayouts = {
+          ...current.journalLayouts,
+          [current.templateId]: { ...current.pdf },
+        };
+      if (
+        patch.templateId &&
+        patch.templateId === current.templateId &&
+        journalProfile(
+          patch.templateId,
+          this.allPublishingTemplates.installations,
+        )
+      ) {
+        current.journalLayouts = {
+          ...current.journalLayouts,
+          [patch.templateId]: {
+            ...this.publishingTemplates.templates.find(
+              (t) => t.id === patch.templateId,
+            )!.layout,
+          },
+        };
+      }
       if (patch.templateId)
         patch = {
           ...patch,
@@ -1100,7 +1248,8 @@ export class PublishController extends Component {
       opening: this.layout.titleSource,
     };
     const layout = { ...publishing[format] };
-    const packaged = this.selectedTemplate?.renderer === "aastex";
+    const journal = this.journalProfile;
+    const packaged = this.selectedTemplate?.renderer === "aastex" || !!journal;
     const propertyDefinitions = this.propertyDefinitions.map((field) => ({
       ...field,
     }));
@@ -1134,7 +1283,13 @@ export class PublishController extends Component {
           : this.plugin.citations.formatForPublication(text, path),
         this.store.note(file.path, title, ctime),
       ]);
-      if (packaged) {
+      if (journal) {
+        publishing.journalPackages = {
+          ...publishing.journalPackages,
+          [journal.id]: journalReference(journal),
+        };
+        await this.store.setPreferences(note.id, publishing);
+      } else if (packaged) {
         publishing.aastex = {
           options: readAastexPdfOptions(publishing.aastex?.options),
           package: { ...AASTEX_PACKAGE_REFERENCE },
@@ -1156,6 +1311,7 @@ export class PublishController extends Component {
             title,
             publishing,
             aborter.signal,
+            journal,
           )
         : await renderPublication(
             this.plugin.app,
@@ -1203,20 +1359,26 @@ export class PublishController extends Component {
           format,
           createdAt: date.toISOString(),
           citationStyle: rendered.aastex
-            ? aastexPackage.manifest.bibliographyStyle
+            ? (journal?.bibliography ??
+              aastexPackage.manifest.bibliographyStyle)
             : preferences.style,
           citationLanguage: preferences.language,
           publishing: {
             ...(packaged
               ? {
                   template: {
-                    id: aastexPackage.manifest.id,
-                    version: aastexPackage.manifest.version,
-                    upstreamVersion: aastexPackage.manifest.upstreamVersion,
+                    ...(journal
+                      ? journalReference(journal)
+                      : {
+                          id: aastexPackage.manifest.id,
+                          version: aastexPackage.manifest.version,
+                          upstreamVersion:
+                            aastexPackage.manifest.upstreamVersion,
+                        }),
                   },
                 }
               : {}),
-            ...(rendered.aastex
+            ...(rendered.aastex && !journal
               ? { aastexPdfOptions: { ...rendered.aastex.options } }
               : {}),
             documentType: publishing.documentType,

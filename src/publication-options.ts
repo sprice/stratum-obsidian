@@ -38,7 +38,10 @@ export function readPublicationPackageReference(
     !["id", "version", "upstreamVersion"].every(
       (key) =>
         typeof stored[key] === "string" &&
-        /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(stored[key]),
+        (key === "id"
+          ? /^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,239}$/
+          : /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/
+        ).test(stored[key]),
     )
   )
     return undefined;

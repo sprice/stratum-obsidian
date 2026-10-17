@@ -120,13 +120,13 @@ All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above copyright
+- Redistributions of source code must retain the above copyright
   notice, this list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above
+- Redistributions in binary form must reproduce the above
   copyright notice, this list of conditions and the following
   disclaimer in the documentation and/or other materials provided
   with the distribution.
-* Neither the name of John MacFarlane nor the names of other
+- Neither the name of John MacFarlane nor the names of other
   contributors may be used to endorse or promote products derived
   from this software without specific prior written permission.
 
@@ -142,15 +142,23 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-## AASTeX 7.0.2 — LPPL-1.3c-or-later
+## Downloaded LaTeX templates
 
-Stratum bundles the unmodified `aastex702.cls` under LPPL 1.3c or later. See
-[src/publication-templates/aastex/licenses/NOTICE.txt](src/publication-templates/aastex/licenses/NOTICE.txt).
+Plugin releases contain Stratum's MIT rendering adapters,
+not upstream journal resource bundles. Enabling a supported template downloads an
+exact release from Stratum's keyless public mirror. Full mirrored ZIPs, required
+dependencies, original notices, and any reduced-distribution STRATUM-BUNDLE.txt
+remain in the local verified resource cache. Saved installation metadata retains public source URLs, hashes, component
+licenses, and validation evidence for each exact release.
 
-### Downloaded bibliography style
+AASTeX 7.0.2 retains the American Astronomical Society's unchanged class under
+LPPL 1.3c or later. Its aasjournalv7.1.bst permits nonprofit use and distribution
+only without payment beyond distribution costs. The Stratum reduced-bundle notice
+identifies omitted files and the complete original work. Its CC0 dedication applies
+only to that packaging notice. Preserve all upstream attribution and conditions.
 
-For cited AASTeX PDF exports, Stratum downloads
-[`aasjournalv7.1.bst`](https://journals.aas.org/wp-content/uploads/2026/06/aasjournalv7.1.bst)
-directly from the American Astronomical Society and caches it locally. Stratum
-does not include or redistribute this file in its plugin releases. The downloaded
-file retains its original copyright and usage notices.
+Other journal releases retain their declared component terms, including sources
+and notices for generated ACM and Elsevier classes. Downloading does not waive
+redistribution obligations or imply publisher support. See the retained release
+metadata and archive before redistributing resources. No official JMLR or
+Astronomy & Astrophysics resources are installed by this plugin.

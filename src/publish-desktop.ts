@@ -1,7 +1,8 @@
 import {
-  cachedAastexBibliography,
-  type BibliographyCache,
-} from "./publication-bibliography-cache";
+  TEMPLATE_REGISTRY_ORIGIN,
+  MAX_TEMPLATE_BYTES,
+} from "./publication-registry";
+import { type BibliographyCache } from "./publication-bibliography-cache";
 /* Desktop host access is loaded only after Platform.isDesktopApp is checked. */
 import { Platform } from "obsidian";
 import { readPublishOptions, type PublishOptions } from "./publish-options";
@@ -27,6 +28,7 @@ interface PublishTools {
   tectonic: string;
 }
 interface AastexExportInput {
+  journal?: import("./journal-profiles").JournalProfile;
   manuscript: ReturnType<typeof aastexManuscript>;
   abstractHtml: string;
   references: import("./csl-data").CslItem[];
@@ -649,10 +651,11 @@ $endif$
 
 interface BibliographyResponse {
   statusCode?: number;
-  headers: { location?: string };
+  headers: { location?: string; "content-length"?: string };
   destroy(): void;
   on(event: "data", listener: (bytes: Uint8Array) => void): void;
   on(event: "error", listener: (error: Error) => void): void;
+  on(event: "aborted", listener: () => void): void;
   on(event: "end", listener: () => void): void;
 }
 interface BibliographyRequest {
@@ -674,8 +677,8 @@ interface BibliographyCrypto {
 }
 
 /** Download pinned public style bytes; caching is handled separately. */
-export async function downloadAastexBibliography(
-  specification: { url: string; sha256: string },
+export async function downloadPublicationResource(
+  specification: { url: string; sha256?: string; maxBytes?: number },
   signal?: AbortSignal,
   timeout = 30_000,
 ): Promise<Uint8Array> {
@@ -683,6 +686,13 @@ export async function downloadAastexBibliography(
     throw new Error("PDF publishing requires desktop Obsidian.");
   const require = host().require;
   if (!require) throw new Error("Desktop network access is unavailable.");
+  const maxBytes = specification.maxBytes ?? 1_000_000;
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > MAX_TEMPLATE_BYTES
+  )
+    throw new Error("Invalid template download size limit.");
   const https = require("node:https") as BibliographyHttps;
   const crypto = require("node:crypto") as BibliographyCrypto;
   const { Buffer } = require("node:buffer") as {
@@ -700,24 +710,36 @@ export async function downloadAastexBibliography(
       else resolve(bytes!);
     };
     const timer = window.setTimeout(() => {
-      const error = new Error(
-        "Downloading the AAS bibliography style timed out.",
-      );
+      const error = new Error("Downloading the template resource timed out.");
       finish(error);
       active?.destroy(error);
     }, timeout);
-    const download = (url: string, redirects: number) => {
+    const download = (url: string) => {
       if (settled) return;
       try {
-        if (new URL(url).protocol !== "https:")
-          throw new Error("The AAS bibliography download requires HTTPS.");
-        const request = https.get(
+        const target = new URL(url);
+        const loopback =
+          target.protocol === "http:" &&
+          ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname);
+        if (
+          (target.protocol !== "https:" && !loopback) ||
+          target.origin !== TEMPLATE_REGISTRY_ORIGIN ||
+          target.username ||
+          target.password
+        )
+          throw new Error(
+            "The template resource download requires HTTPS from Stratum’s mirror.",
+          );
+        const transport = loopback
+          ? (require("node:http") as BibliographyHttps)
+          : https;
+        const request = transport.get(
           url,
           {
             signal,
             headers: {
               "Cache-Control": "no-store",
-              "User-Agent": "Stratum-Obsidian (AASTeX publishing)",
+              "User-Agent": "Stratum-Obsidian (publishing templates)",
             },
           },
           (response) => {
@@ -725,42 +747,54 @@ export async function downloadAastexBibliography(
               response.destroy();
               return;
             }
-            response.on("error", (error) => finish(error));
+            const interrupted = () =>
+              finish(
+                new Error(
+                  signal?.aborted
+                    ? "Publishing cancelled."
+                    : "The template resource download was interrupted. Enable the template again to retry.",
+                ),
+              );
+            response.on("aborted", interrupted);
+            response.on("error", interrupted);
             if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0)) {
-              const location = response.headers.location;
+              finish(
+                new Error(
+                  "The template mirror redirected. Update Stratum or try again later.",
+                ),
+              );
               response.destroy();
-              if (redirects === 3) {
-                finish(
-                  new Error(
-                    "The AAS bibliography download redirected too many times.",
-                  ),
-                );
-                return;
-              }
-              if (!location) {
-                finish(
-                  new Error(
-                    "The AAS bibliography redirect has no Location header.",
-                  ),
-                );
-                return;
-              }
-              try {
-                download(new URL(location, url).href, redirects + 1);
-              } catch (error) {
-                finish(
-                  error instanceof Error ? error : new Error(String(error)),
-                );
-              }
               return;
             }
-            if (response.statusCode !== 200) {
+            if (response.statusCode === 429) {
               response.destroy();
               finish(
                 new Error(
-                  `AAS could not supply the bibliography style (HTTP ${response.statusCode ?? "unknown"}). Try publishing again later.`,
+                  "The template mirror is busy. Wait one minute, then retry the failed versions. Installed templates are still available offline.",
                 ),
               );
+              return;
+            }
+            if (response.statusCode !== 200) {
+              finish(
+                new Error(
+                  `The Stratum mirror could not supply the template resource (HTTP ${response.statusCode ?? "unknown"}). Try enabling the template again later.`,
+                ),
+              );
+              response.destroy();
+              return;
+            }
+            const advertised = response.headers["content-length"];
+            if (
+              advertised &&
+              (!/^\d+$/.test(advertised) || Number(advertised) > maxBytes)
+            ) {
+              finish(
+                new Error(
+                  "The template resource download is too large or has an invalid size.",
+                ),
+              );
+              response.destroy();
               return;
             }
             const chunks: Uint8Array[] = [];
@@ -768,9 +802,9 @@ export async function downloadAastexBibliography(
             response.on("data", (chunk: Uint8Array) => {
               if (settled) return;
               length += chunk.length;
-              if (length > 1_000_000) {
+              if (length > maxBytes) {
                 const error = new Error(
-                  "The AAS bibliography download is too large.",
+                  "The template resource download is too large.",
                 );
                 finish(error);
                 response.destroy();
@@ -783,14 +817,23 @@ export async function downloadAastexBibliography(
                 finish(new Error("Publishing cancelled."));
                 return;
               }
+              if (advertised && Number(advertised) !== length) {
+                finish(
+                  new Error(
+                    "The template resource download was interrupted. Enable the template again to retry.",
+                  ),
+                );
+                return;
+              }
               const bytes = Buffer.concat(chunks);
               if (
+                specification.sha256 &&
                 crypto.createHash("sha256").update(bytes).digest("hex") !==
-                specification.sha256
+                  specification.sha256
               ) {
                 finish(
                   new Error(
-                    "The AAS bibliography style changed. Update Stratum before publishing this PDF.",
+                    "The template resource changed. Update Stratum before publishing this PDF.",
                   ),
                 );
                 return;
@@ -805,7 +848,7 @@ export async function downloadAastexBibliography(
             new Error(
               signal?.aborted
                 ? "Publishing cancelled."
-                : `Could not download the AAS bibliography style. Check your internet connection and try again. ${error.message}`,
+                : `Could not download the template resource. Check your internet connection and try again. ${error.message}`,
             ),
           ),
         );
@@ -813,7 +856,7 @@ export async function downloadAastexBibliography(
         finish(error instanceof Error ? error : new Error(String(error)));
       }
     };
-    download(specification.url, 0);
+    download(specification.url);
   });
 }
 async function convertAastexPublication(
@@ -828,38 +871,38 @@ async function convertAastexPublication(
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "stratum-aastex-"));
   const options = readAastexPdfOptions(input.options);
   try {
-    const { aastexPackage: pkg, aastexLatex } =
-      await import("./publication-package");
-    for (const relative of [pkg.manifest.class])
-      await fs.writeFile(
-        path.join(directory, path.basename(relative)),
-        pkg.files[relative],
-        { mode: 0o600 },
+    const journal = input.journal;
+    if (!journal?.installation)
+      throw new Error(
+        "Install this template from the registry before publishing.",
       );
-    if (input.references.length) {
-      const download = () =>
-        downloadAastexBibliography(
-          pkg.manifest.bibliographyDownload,
-          signal,
-          Math.min(timeout, 30_000),
+    {
+      if (!tools.bibliographyCache)
+        throw new Error(
+          "Enable this template in Manage templates before publishing.",
         );
-      const bibliography = tools.bibliographyCache
-        ? await cachedAastexBibliography(
-            tools.bibliographyCache,
-            pkg.manifest.bibliographyDownload,
-            download,
-            signal,
-          )
-        : await download();
-      await fs.writeFile(
-        path.join(directory, path.basename(pkg.manifest.bibliographyStyle)),
-        bibliography,
-        { mode: 0o600 },
+      const resources = await (
+        await import("./publication-resources")
+      ).installedTemplateResources(
+        tools.bibliographyCache,
+        journal.installation,
+        signal,
+        false,
       );
+      for (const [name, content] of Object.entries(resources))
+        await fs.writeFile(path.join(directory, name), content, {
+          mode: 0o600,
+        });
     }
-    await fs.writeFile(path.join(directory, "aastex.lua"), aastexFilter, {
-      mode: 0o600,
-    });
+    await fs.writeFile(
+      path.join(directory, "aastex.lua"),
+      journal.installation.adapter.documentClass === "mnras"
+        ? aastexFilter.replace("table}[ht]", "table}")
+        : aastexFilter,
+      {
+        mode: 0o600,
+      },
+    );
     await fs.writeFile(
       path.join(directory, "preamble.latex"),
       aastexPreambleTemplate,
@@ -959,32 +1002,57 @@ async function convertAastexPublication(
     }
     const decode = async (name: string) =>
       new TextDecoder().decode(await fs.readFile(path.join(directory, name)));
-    const tex = aastexLatex(
+    const tex = (await import("./journal-profiles")).journalLatex(
+      journal,
       input.manuscript,
       await decode("body.tex"),
       await decode("abstract.tex"),
       !!input.references.length,
-      pkg,
       await decode("preamble.tex"),
-      options,
     );
     await fs.writeFile(path.join(directory, "document.tex"), tex, {
       mode: 0o600,
     });
-    await runPublishTool(tools.tectonic, ["--keep-logs", "document.tex"], {
-      cwd: directory,
-      signal,
-      timeout,
-    });
+    await runPublishTool(
+      tools.tectonic,
+      ["--untrusted", "--keep-logs", "--keep-intermediates", "document.tex"],
+      {
+        cwd: directory,
+        signal,
+        timeout,
+      },
+    );
     if (signal?.aborted) throw new Error("Publishing cancelled.");
-    const log = await decode("document.log");
+    let log = "";
+    try {
+      log = await decode("document.log");
+    } catch (error) {
+      if (
+        !journal ||
+        !(
+          error &&
+          typeof error === "object" &&
+          "code" in error &&
+          error.code === "ENOENT"
+        )
+      )
+        throw error;
+    }
+    if (journal && input.references.length) {
+      const aux = await decode("document.aux");
+      for (const reference of input.references)
+        if (!aux.includes(`\\bibcite{${reference.id}}`))
+          throw new Error(
+            "The journal bibliography has unresolved citations. Review Citations before publishing.",
+          );
+    }
     if (
       /Citation .* undefined|There were undefined (?:references|citations)|No file .*\.bbl/.test(
         log,
       )
     )
       throw new Error(
-        "AASTeX could not resolve the manuscript bibliography. Review citation data and try again.",
+        `${journal?.name ?? "AASTeX"} could not resolve the manuscript bibliography. Review citation data and try again.`,
       );
     const bytes = await fs.readFile(path.join(directory, "document.pdf"));
 

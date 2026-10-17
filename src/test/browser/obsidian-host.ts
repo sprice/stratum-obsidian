@@ -290,6 +290,10 @@ export class DropdownComponent {
     this.selectEl.value = value;
     return this;
   }
+  setDisabled(disabled: boolean) {
+    this.selectEl.disabled = disabled;
+    return this;
+  }
   onChange(callback: (value: string) => void) {
     this.selectEl.addEventListener("change", () =>
       callback(this.selectEl.value),
@@ -366,6 +370,10 @@ export class Setting {
   }
   setDesc(text: string) {
     this.descEl.setText(text);
+    return this;
+  }
+  addButton(callback: (component: ButtonComponent) => void) {
+    callback(new ButtonComponent(this.controls));
     return this;
   }
   addDropdown(callback: (component: DropdownComponent) => void) {

@@ -50,5 +50,6 @@ export async function generatePublicationAssets(directory = packageDirectory) {
 if (
   process.argv[1] &&
   fileURLToPath(import.meta.url) === resolve(process.argv[1])
-)
+) {
   await generatePublicationAssets(process.argv[2]);
+}

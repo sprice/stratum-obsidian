@@ -8,7 +8,7 @@ import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
 import { readNotePreferences } from "../publish-options";
 import { readPublishingTemplates } from "../publish-templates";
-import { AASTEX_TEMPLATE } from "../publication-package";
+import { AASTEX_TEMPLATE } from "./publication-template-fixture";
 import type { PublishedDocument } from "../publish-model";
 
 class Element {
@@ -284,7 +284,12 @@ test("a note chooses from all templates without a document type selector", () =>
   assert.equal(select.value, "");
   assert.deepEqual(
     select.children.map((el) => el.text),
-    ["Choose template", "General documents", "Academic papers", "AASTeX"],
+    [
+      "Choose template",
+      "General documents",
+      "Academic papers",
+      "Synthetic template",
+    ],
   );
   assert.equal(
     root.all().find((el) => el.text === "Create PDF document")!.hidden,
@@ -534,7 +539,7 @@ test("controller updates keep template and version options until their choices c
   assert.equal(template.children[3], templateOptions[3]);
   assert.deepEqual(
     version.children.map((option) => option.text),
-    [AASTEX_TEMPLATE.version!.label, "Synthetic older"],
+    [AASTEX_TEMPLATE.version.label, "Synthetic older"],
   );
   assert.equal(version.value, "package:aastex");
   publish.notePreferences.templateId = "general";
@@ -597,5 +602,32 @@ test("Documents keeps unchanged rows and rebuilds when visible document details 
   assert.ok(
     list.all().some((el) => el.text === "Synthetic renamed.pdf"),
     "a changed filename rebuilds the row",
+  );
+});
+
+test("template manager gear shares only the Template column and leaves Version separate", () => {
+  const { root } = setup();
+  const selectors = root
+    .all()
+    .find((el) => el.cls === "stratum-publish-template-selectors")!;
+  assert.equal(selectors.children.length, 2);
+  const first = selectors.children[0].all();
+  assert.ok(
+    first.some((el) => el.attrs.get("aria-label") === "Choose template"),
+  );
+  assert.ok(
+    first.some(
+      (el) => el.attrs.get("aria-label") === "Manage publishing templates",
+    ),
+  );
+  assert.ok(
+    !first.some(
+      (el) => el.attrs.get("aria-label") === "Choose template version",
+    ),
+  );
+  assert.ok(
+    selectors.children[1]
+      .all()
+      .some((el) => el.attrs.get("aria-label") === "Choose template version"),
   );
 });

@@ -1,4 +1,4 @@
-/** Shared by General and AASTeX; these mirror Obsidian's mathematical extensions. */
+/** Shared by all publishing adapters; mirrors Obsidian's mathematical extensions. */
 export const publicationMathPreamble = String.raw`
 \usepackage{mathtools}
 \usepackage{xcolor}
@@ -11,10 +11,26 @@ export const publicationMathPreamble = String.raw`
 \usepackage{colortbl}
 \usepackage{empheq}
 \usepackage{extpfeil}
-\usepackage{gensymb}
 \usepackage{textcomp}
-\usepackage{upgreek}
-\usepackage{mathrsfs}
+% STIX already supplies \mathscr; a second script font can exceed legacy TeX's
+% 16 symbol-font slots in the CAS class. Keep STIX's native script alphabet.
+\makeatletter
+\newif\ifstratumnativemathfonts
+\@ifpackageloaded{stix}{\stratumnativemathfontstrue}{}
+\@ifpackageloaded{newtxmath}{\stratumnativemathfontstrue}{}
+\ifstratumnativemathfonts%
+  \usepackage{upgreek}
+  % gensymb allocates an additional symbol font at begin-document. Use the
+  % corresponding text symbols inside math to retain STIX's available slots.
+  \providecommand{\degree}{\ifmmode\mathord{\text{\textdegree}}\else\textdegree\fi}
+  \providecommand{\micro}{\ifmmode\mathord{\text{\textmu}}\else\textmu\fi}
+  \providecommand{\ohm}{\ifmmode\mathord{\text{\textohm}}\else\textohm\fi}
+  \providecommand{\celsius}{\ifmmode\mathord{\text{\textcelsius}}\else\textcelsius\fi}
+  \providecommand{\perthousand}{\ifmmode\mathord{\text{\textperthousand}}\else\textperthousand\fi}
+\else%
+  \usepackage{gensymb}\usepackage{upgreek}\usepackage{mathrsfs}
+\fi
+\makeatother
 \usepackage{cases}
 % amscd's legacy lookahead reads \next, but amsgen's \FN@ can use a different
 % token register. AASTeX author parsing leaves \next set and exposes this mismatch.

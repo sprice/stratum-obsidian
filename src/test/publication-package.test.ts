@@ -4,7 +4,6 @@ import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
 import {
   aastexPackage,
   aastexProblems,
@@ -18,37 +17,10 @@ import {
   aastexFormattedDocument,
 } from "../publication-citations";
 import { loadRuntime } from "./runtime-harness";
-import { preparePublishMath } from "../publish-math";
 import {
   DEFAULT_ACADEMIC_OPTIONS,
   type NotePublishPreferences,
 } from "../publish-options";
-const require = createRequire(import.meta.url);
-function installedTool(
-  name: string,
-  configured?: string,
-  versionFlag = "--version",
-): string {
-  for (const candidate of [
-    configured,
-    name,
-    `/opt/homebrew/bin/${name}`,
-    `/usr/local/bin/${name}`,
-  ]) {
-    if (!candidate) continue;
-    try {
-      execFileSync(candidate, [versionFlag], { stdio: "ignore" });
-      return candidate;
-    } catch {
-      /* Try the next installed location. */
-    }
-  }
-  return "";
-}
-const pandoc = installedTool("pandoc", process.env.STRATUM_TEST_PANDOC);
-const tectonic = installedTool("tectonic", process.env.STRATUM_TEST_TECTONIC);
-const pdftotext = installedTool("pdftotext", undefined, "-v");
-
 const sample = aastexPackage.files["examples/manuscript.md"];
 
 test("package input rejects malformed asset maps before reading files", () => {
@@ -69,27 +41,11 @@ test("package input rejects malformed asset maps before reading files", () => {
   );
 });
 
-test("bibliography stays external and requires an approved URL and checksum", () => {
+test("bibliography stays external to the renderer package", () => {
   assert.equal(
     Object.keys(aastexPackage.files).some((path) => path.endsWith(".bst")),
     false,
   );
-  const altered = (bibliographyDownload: unknown) => ({
-    ...aastexPackage.files,
-    "manifest.json": JSON.stringify({
-      ...aastexPackage.manifest,
-      bibliographyDownload,
-    }),
-  });
-  for (const declaration of [
-    undefined,
-    { url: "https://example.com/style.bst", sha256: "a".repeat(64) },
-    { ...aastexPackage.manifest.bibliographyDownload, sha256: "invalid" },
-  ])
-    assert.throws(
-      () => loadPublicationPackage(altered(declaration)),
-      /bibliography download/,
-    );
   assert.throws(
     () =>
       loadPublicationPackage({
@@ -361,229 +317,6 @@ test("structured citation tokens preserve groups, narrative form, locators and s
     formatted.citations.every((value) => !value.includes("private-id")),
   );
 });
-test(
-  "real packaged PDF compiles code formatting, AMS math, chemistry and native bibliography",
-  { timeout: 120_000 },
-  async () => {
-    assert.ok(
-      pandoc && tectonic,
-      "Install Pandoc and Tectonic for the required compilation check.",
-    );
-    const desktop = loadRuntime<typeof import("../publish-desktop")>(
-      "publish-desktop.ts",
-      { Platform: { isDesktopApp: true, isDesktop: true } },
-      {
-        TextDecoder,
-        TextEncoder,
-        Uint8Array,
-        window: { require, setTimeout, clearTimeout },
-      },
-      "browser",
-    );
-    const reference = {
-      id: "stratum0",
-      type: "article-journal",
-      title: "Synthetic bibliography verification",
-      author: [{ family: "Example", given: "Alex" }],
-      issued: { "date-parts": [[2026]] },
-      "container-title": "Example Journal",
-      volume: "1",
-      page: "1-4",
-    };
-    const equations = preparePublishMath(String.raw`
-Inline water: $\ce{H2O}$.
-$$\ce{[AgCl2]-}$$
-$$\ce{$A$ ->[\ce{+H2O}] $B$}$$
-$$\ce{SO4^2- + Ba^2+ -> BaSO4 v}$$
-$$
-\text{Aligned equation}\quad\begin{aligned}
-a &= b \\
-c &= d
-\end{aligned}
-$$
-$$
-\text{Piecewise equation}\quad f(x) = \begin{cases}
-x^2 & x \ge 0 \\
--x & x < 0
-\end{cases}
-$$
-$$
-\text{Matrix equation}\quad M = \begin{bmatrix}
-1 & 2 \\
-3 & 4
-\end{bmatrix}
-$$
-`);
-    const html =
-      '<html><body><h1>Introduction</h1><p>A reference <span class="stratum-aastex-citation" data-tex="\\citep{stratum0}">Citation</span>.</p>' +
-      equations.restore(equations.markdown) +
-      '<pre class="python"><code>def synthetic_square(x):\n    return x ** 2</code></pre>' +
-      "<pre><code>plain_code_marker = 1 &lt; 2</code></pre>" +
-      '<p>Inline <code class="python">print(42)</code>; <s>Removed phrase</s>.</p><p><u>Underlined phrase</u>.</p>' +
-      '<table><tr><td>Inline table code</td><td><code class="python">table_value = 7</code></td></tr></table>' +
-      '<table><caption>Synthetic measurements &amp; comparison</caption><thead><tr><th style="text-align:left">Sample</th><th style="text-align:right">Value</th><th style="text-align:center">Group</th></tr></thead><tbody><tr><td>A</td><td>1</td><td>Control</td></tr></tbody></table></body></html>';
-    const probe = await mkdtemp(join(tmpdir(), "stratum-table-test-"));
-    try {
-      const filter = join(probe, "aastex.lua");
-      await writeFile(filter, desktop.aastexFilter);
-      const preambleTemplate = join(probe, "preamble.latex");
-      await writeFile(preambleTemplate, desktop.aastexPreambleTemplate);
-      // A document with highlighting only inside a table must still discover it.
-      const preamble = execFileSync(
-        pandoc,
-        [
-          "-f",
-          "html",
-          "-t",
-          "latex",
-          "--standalone",
-          `--template=${preambleTemplate}`,
-        ],
-        {
-          input:
-            '<table><tr><td><code class="python">table_value = 7</code></td></tr></table><p><s>Removed</s></p>',
-          encoding: "utf8",
-        },
-      );
-      assert.match(preamble, /\\newenvironment\{Shaded\}/);
-      assert.match(preamble, /\\DefineVerbatimEnvironment\{Highlighting\}/);
-      assert.match(preamble, /\\newcommand\{\\NormalTok\}/);
-      assert.match(preamble, /\\usepackage\{fancyvrb\}/);
-      assert.match(preamble, /\\usepackage\{soul\}/);
-      const body = execFileSync(
-        pandoc,
-        [
-          "-f",
-          "html+epub_html_exts+tex_math_single_backslash",
-          "-t",
-          "latex",
-          `--lua-filter=${filter}`,
-        ],
-        { input: html, encoding: "utf8" },
-      );
-      assert.match(body, /\\caption\{Synthetic measurements \\& comparison\}/);
-      assert.match(body, /\\multicolumn\{1\}\{r\}\{Value\}/);
-      assert.match(body, /\\multicolumn\{1\}\{c\}\{Group\}/);
-      assert.match(body, /A & 1 & Control/);
-      for (const environment of ["aligned", "cases", "bmatrix"])
-        assert.ok(body.includes(`\\begin{${environment}}`));
-      assert.match(body, /\\begin\{Shaded\}/);
-      assert.match(body, /\\begin\{verbatim\}/);
-      assert.match(body, /\\VERB/);
-      const aligned = execFileSync(
-        pandoc,
-        ["-f", "markdown", "-t", "latex", `--lua-filter=${filter}`],
-        {
-          input:
-            "| Left | Right | Center |\n|:--|--:|:--:|\n| A | 1 | Control |\n",
-          encoding: "utf8",
-        },
-      );
-      assert.match(aligned, /\\begin\{tabular\}\{lrc\}/);
-      assert.throws(
-        () =>
-          execFileSync(
-            pandoc,
-            ["-f", "html", "-t", "latex", `--lua-filter=${filter}`],
-            {
-              input: '<table><tr><td colspan="2">Merged</td></tr></table>',
-              encoding: "utf8",
-              stdio: ["pipe", "pipe", "pipe"],
-            },
-          ),
-        /Merged table cells are not supported/,
-      );
-    } finally {
-      await rm(probe, { recursive: true, force: true });
-    }
-    for (const heading of ["section", "subsection", "prose"]) {
-      const manuscriptHtml =
-        heading === "section"
-          ? html
-          : html.replace(
-              "<h1>Introduction</h1>",
-              heading === "subsection"
-                ? "<h2>Introduction</h2>"
-                : "<p>Introduction</p>",
-            );
-      const bytes = await desktop.convertPublication(
-        manuscriptHtml,
-        [],
-        "pdf",
-        {
-          pandoc,
-          tectonic,
-        },
-        undefined,
-        120_000,
-        DEFAULT_ACADEMIC_OPTIONS,
-        {
-          manuscript: aastexManuscript(sample, "properties"),
-          abstractHtml:
-            '<p>Synthetic abstract <code class="python">abstract_value = 3</code>.</p>',
-          references: [reference],
-        },
-      );
-      assert.equal(
-        new TextDecoder().decode(new Uint8Array(bytes).subarray(0, 5)),
-        "%PDF-",
-      );
-      await writeFile(
-        join(tmpdir(), "stratum-aastex-verified.pdf"),
-        new Uint8Array(bytes),
-      );
-      if (process.env.STRATUM_REQUIRE_PUBLISHING_TOOLS === "1") {
-        const artifacts = join(".test-artifacts", "publishing");
-        await mkdir(artifacts, { recursive: true });
-        await writeFile(
-          join(artifacts, `aastex-code-${heading}.pdf`),
-          new Uint8Array(bytes),
-        );
-      }
-      if (pdftotext) {
-        const text = execFileSync(
-          pdftotext,
-          ["-layout", join(tmpdir(), "stratum-aastex-verified.pdf"), "-"],
-          { encoding: "utf8" },
-        );
-        assert.match(text, /Synthetic measurements & comparison/);
-        assert.match(text, /Control/);
-        assert.match(text, /Example Journal/);
-        assert.match(text, /Example.*2026/);
-        assert.ok(!text.includes("A reference Citation"));
-        assert.equal(
-          (text.match(/Synthetic Stratum manuscript/g) ?? []).length,
-          1,
-          heading,
-        );
-        assert.equal(
-          (text.match(/Synthetic abstract/g) ?? []).length,
-          1,
-          heading,
-        );
-        assert.match(text, /Alex Example/);
-        assert.match(text, /Morgan Sample/);
-        for (const label of [
-          "Aligned equation",
-          "Piecewise equation",
-          "Matrix equation",
-          "synthetic_square",
-          "plain_code_marker",
-          "print(42)",
-          "table_value",
-          "abstract_value",
-          "Removed phrase",
-          "Underlined phrase",
-        ])
-          // Keep physical reading order and allow spacing around decorations.
-          assert.ok(
-            text.replace(/\s+/g, "").includes(label.replace(/\s+/g, "")),
-            `${heading}: ${label}; extracted PDF text: ${text}`,
-          );
-      }
-    }
-  },
-);
 
 test("package declarations drive requirements and class rendering; inconsistent declarations are rejected", () => {
   const changed = {
@@ -648,86 +381,3 @@ test("package declarations drive requirements and class rendering; inconsistent 
     /defaults/,
   );
 });
-
-test(
-  "real AASTeX PDFs cover all line/date options and nonblocking heading fallback",
-  { timeout: 120_000 },
-  async () => {
-    assert.ok(
-      pandoc && tectonic,
-      "Install Pandoc and Tectonic for the required compilation check.",
-    );
-    assert.ok(pdftotext, "Install Poppler for PDF text verification.");
-    const desktop = loadRuntime<typeof import("../publish-desktop")>(
-      "publish-desktop.ts",
-      { Platform: { isDesktopApp: true, isDesktop: true } },
-      {
-        TextDecoder,
-        TextEncoder,
-        Uint8Array,
-        window: { require, setTimeout, clearTimeout },
-      },
-      "browser",
-    );
-    const directory = await mkdtemp(join(tmpdir(), "stratum-aastex-options-"));
-    try {
-      for (const showLineNumbers of [true, false])
-        for (const showDraftDateHeader of [true, false]) {
-          const mismatch = !showLineNumbers && !showDraftDateHeader;
-          const headingIssues: string[] = [];
-          const html = `<h1 id="first">1. First section</h1><p>See section 1. Source prose stays intact.</p><h2>1.1. Rich <em>methods</em></h2><p>Details.</p><h1>${mismatch ? "3" : "2"}. Final section</h1><p>Results.</p>`;
-          const bytes = await desktop.convertPublication(
-            html,
-            [],
-            "pdf",
-            { pandoc, tectonic },
-            undefined,
-            120_000,
-            DEFAULT_ACADEMIC_OPTIONS,
-            {
-              manuscript: aastexManuscript(sample, "properties"),
-              abstractHtml: "<p>Synthetic options abstract.</p>",
-              references: [],
-              options: {
-                showLineNumbers,
-                showDraftDateHeader,
-                numberedHeadings: true,
-              },
-              headingIssues,
-            },
-          );
-          assert.equal(
-            new TextDecoder().decode(new Uint8Array(bytes).subarray(0, 5)),
-            "%PDF-",
-          );
-          assert.equal(
-            headingIssues.length > 0,
-            mismatch,
-            headingIssues.join("; "),
-          );
-          const name = `aastex-options-lines-${showLineNumbers}-date-${showDraftDateHeader}.pdf`;
-          const path = join(directory, name);
-          await writeFile(path, new Uint8Array(bytes));
-          if (process.env.STRATUM_REQUIRE_PUBLISHING_TOOLS === "1") {
-            await mkdir(".test-artifacts/publishing", { recursive: true });
-            await writeFile(
-              join(".test-artifacts/publishing", name),
-              new Uint8Array(bytes),
-            );
-          }
-          const text = execFileSync(pdftotext, ["-layout", path, "-"], {
-            encoding: "utf8",
-          });
-          assert.equal(/Draft version/i.test(text), showDraftDateHeader, text);
-          assert.match(text, /Typeset using/i);
-          assert.match(text, /First section/i);
-          assert.match(text, /Final section/i);
-          assert.match(text, /Source prose stays intact/);
-          if (mismatch) assert.match(text, /2\.\s+3\.\s+Final section/i);
-          else assert.ok(!/2\.\s+2\.\s+Final section/i.test(text), text);
-        }
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  },
-);

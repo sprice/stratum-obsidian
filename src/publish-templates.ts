@@ -1,4 +1,8 @@
 import {
+  readTemplateInstallation,
+  type TemplateInstallation,
+} from "./publication-installation";
+import {
   publicationProperties,
   type PublishingProperty,
 } from "./publish-properties";
@@ -18,13 +22,30 @@ export interface PublishingTemplate {
   layout: PublishOptions;
   properties: PublishingProperty[];
   prefill: AcademicDefaults;
-  renderer?: "aastex";
+  renderer?: "aastex" | "journal";
   // Runtime descriptors describe installed choices; saved templates keep existing IDs.
   version?: { familyId: string; label: string };
 }
 export interface PublishingTemplates {
   templates: PublishingTemplate[];
+  enabledIds?: string[];
+  installations?: TemplateInstallation[];
+  /** Preserve future or damaged records without making them executable. */
+  unavailableInstallations?: unknown[];
 }
+export function publishingTemplateId(template: PublishingTemplate): string {
+  return template.id.startsWith("registry:")
+    ? template.id
+    : (template.version?.familyId ?? template.id);
+}
+export function publishingTemplateEnabled(
+  state: PublishingTemplates,
+  template: PublishingTemplate,
+): boolean {
+  return state.enabledIds?.includes(publishingTemplateId(template)) === true;
+}
+const array = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : [];
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -87,7 +108,41 @@ export function readPublishingTemplates(value: unknown): PublishingTemplates {
     if (builtIn) Object.assign(builtIn, template);
     else templates.push(template);
   }
-  return { templates };
+  const installations: TemplateInstallation[] = [],
+    unavailableInstallations: unknown[] = [];
+  const identities = new Set<string>();
+  for (const value of [
+    ...array(stored.installations),
+    ...array(stored.unavailableInstallations),
+  ]) {
+    try {
+      const manifest = readTemplateInstallation(value),
+        id = `${manifest.pin.metadata.templateId}:${manifest.pin.metadata.version}`;
+      if (identities.has(id)) {
+        unavailableInstallations.push(value);
+        continue;
+      }
+      identities.add(id);
+      installations.push(manifest);
+    } catch {
+      unavailableInstallations.push(value);
+    }
+  }
+  return {
+    templates,
+    installations,
+    unavailableInstallations,
+    enabledIds: Array.isArray(stored.enabledIds)
+      ? [
+          ...new Set(
+            stored.enabledIds.filter(
+              (id): id is string =>
+                typeof id === "string" && /^[a-zA-Z0-9:._-]{1,240}$/.test(id),
+            ),
+          ),
+        ]
+      : ["general", "academic"],
+  };
 }
 export function selectedPublishingTemplate(
   state: PublishingTemplates,
@@ -106,7 +161,10 @@ export function removePublishingTemplate(
   });
 }
 
-export function publishingTemplateFamilies(state: PublishingTemplates) {
+export function publishingTemplateFamilies(
+  state: PublishingTemplates,
+  individualInstallations = false,
+) {
   const families = new Map<
     string,
     {
@@ -117,7 +175,10 @@ export function publishingTemplateFamilies(state: PublishingTemplates) {
     }
   >();
   for (const template of state.templates) {
-    const id = template.version?.familyId ?? template.id;
+    const id =
+      individualInstallations && template.id.startsWith("registry:")
+        ? template.id
+        : (template.version?.familyId ?? template.id);
     let family = families.get(id);
     if (!family) {
       family = {

@@ -69,6 +69,12 @@ Run from the plugin directory with Pandoc, Tectonic, and `pdftotext` installed:
 pnpm --silent quiet pnpm exec node --test --import tsx src/test/publish-math-compat.test.ts
 ```
 
+Template mirror responses are mocked in resource and download tests. Real-template
+PDF integration runs only when `STRATUM_TEST_TEMPLATE_CACHE` points to an existing
+verified local cache; missing or corrupt resources fail without network requests.
+Without that variable, real-template integration is explicitly skipped. General
+PDF compilation and mocked template tests still run.
+
 To check the synthetic inputs against the installed Obsidian engine, open the
 comparison note in Reading view, then run:
 

@@ -1,12 +1,14 @@
-import files from "./publication-templates/aastex/files.json";
 import { publicationMathPreamble } from "./publish-math-compat";
+import {
+  publicationAssetMap,
+  publicationAssetPath as relativePath,
+} from "./publication-asset-map";
+import files from "./publication-templates/aastex/files.json";
 import {
   readAastexPdfOptions,
   type AastexPdfOptions,
   type PublicationPackageReference,
 } from "./publication-options";
-import { DEFAULT_ACADEMIC_OPTIONS } from "./publish-options";
-import type { PublishingTemplate } from "./publish-templates";
 import { publicationAuthors, publicationYaml } from "./publication-metadata";
 import type { PublishFormat } from "./publish-model";
 import type { PublishingIssue } from "./publish-properties";
@@ -40,7 +42,6 @@ export interface PublicationPackage {
     compiler: "tectonic";
     class: string;
     bibliographyStyle: string;
-    bibliographyDownload: { url: string; sha256: string };
   };
   schema: {
     fields: PackageField[];
@@ -55,14 +56,7 @@ export interface PublicationPackage {
 }
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
-const assetMap = (value: unknown): value is Record<string, string> =>
-  object(value) &&
-  Object.values(value).every((asset) => typeof asset === "string");
 const output = (value: unknown): value is PublishFormat => value === "pdf";
-const relativePath = (path: string) =>
-  /^[a-zA-Z0-9_./-]+$/.test(path) &&
-  !path.startsWith("/") &&
-  !path.split("/").some((part) => part === ".." || part === "." || !part);
 function json(assets: Record<string, string>, path: string): unknown {
   try {
     return JSON.parse(assets[path]) as unknown;
@@ -70,15 +64,9 @@ function json(assets: Record<string, string>, path: string): unknown {
     throw new Error(`Invalid publication package JSON: ${path}.`);
   }
 }
-/** Assets are package relative and bundled into main.js, never read from a checkout. */
-export function loadPublicationPackage(assets: unknown): PublicationPackage {
-  if (!assetMap(assets))
-    throw new Error(
-      "Publication package assets must be an object of text files.",
-    );
-  for (const path of Object.keys(assets))
-    if (!relativePath(path))
-      throw new Error("Invalid publication package asset path.");
+/** Renderer configuration is bundled; official runtime resources resolve separately. */
+export function loadPublicationPackage(input: unknown): PublicationPackage {
+  const assets = publicationAssetMap(input);
   const manifest = json(assets, "manifest.json");
   if (
     !object(manifest) ||
@@ -100,7 +88,7 @@ export function loadPublicationPackage(assets: unknown): PublicationPackage {
     !manifest.outputs.includes("pdf")
   )
     throw new Error("Unsupported publication package compiler or outputs.");
-  for (const key of ["entry", "schema", "defaults", "class"]) {
+  for (const key of ["entry", "schema", "defaults"]) {
     const path = manifest[key];
     if (
       typeof path !== "string" ||
@@ -113,7 +101,9 @@ export function loadPublicationPackage(assets: unknown): PublicationPackage {
   }
   const parsedManifest = manifest as unknown as PublicationPackage["manifest"];
   if (
-    !parsedManifest.class.endsWith(".cls") ||
+    typeof parsedManifest.class !== "string" ||
+    !relativePath(parsedManifest.class) ||
+    parsedManifest.class !== "vendor/aastex702.cls" ||
     typeof parsedManifest.bibliographyStyle !== "string" ||
     !relativePath(parsedManifest.bibliographyStyle) ||
     !parsedManifest.bibliographyStyle.endsWith(".bst") ||
@@ -122,15 +112,6 @@ export function loadPublicationPackage(assets: unknown): PublicationPackage {
     throw new Error(
       "Invalid publication package class or external bibliography declaration.",
     );
-  const download = manifest.bibliographyDownload;
-  if (
-    !object(download) ||
-    download.url !==
-      "https://journals.aas.org/wp-content/uploads/2026/06/aasjournalv7.1.bst" ||
-    typeof download.sha256 !== "string" ||
-    !/^[a-f0-9]{64}$/.test(download.sha256)
-  )
-    throw new Error("Invalid publication package bibliography download.");
   const schema = json(assets, parsedManifest.schema);
   if (!object(schema) || !object(schema.rules) || !Array.isArray(schema.fields))
     throw new Error("Invalid publication package metadata schema.");
@@ -206,28 +187,6 @@ export const AASTEX_PACKAGE_REFERENCE: PublicationPackageReference = {
   version: aastexPackage.manifest.version,
   upstreamVersion: aastexPackage.manifest.upstreamVersion,
 };
-export const AASTEX_TEMPLATE: PublishingTemplate = {
-  // Settings-owned template IDs cannot contain a colon.
-  id: "package:aastex",
-  name: "AASTeX",
-  documentType: "academic",
-  renderer: "aastex",
-  version: {
-    familyId: "package:aastex",
-    label: aastexPackage.manifest.upstreamVersion,
-  },
-  layout: {
-    ...DEFAULT_ACADEMIC_OPTIONS,
-    titleSource: aastexPackage.defaults.titleSource,
-    showDate: false,
-    showKeywords: false,
-    bodyFont: "",
-    titleFont: "",
-  },
-  properties: [],
-  prefill: { authors: [], affiliations: [], date: "", keywords: [] },
-};
-
 /** The body Abstract is consumed exactly once; fenced examples are not sections. */
 export function aastexManuscript(
   text: string,

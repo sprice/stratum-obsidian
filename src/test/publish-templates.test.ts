@@ -144,7 +144,7 @@ test("bounded opening choices derive requirements and preserve prefill without a
 });
 
 test("installed version descriptors group choices without changing stored template IDs", async () => {
-  const { AASTEX_TEMPLATE } = await import("../publication-package");
+  const { AASTEX_TEMPLATE } = await import("./publication-template-fixture");
   const templates = readPublishingTemplates(undefined).templates;
   const families = publishingTemplateFamilies({
     templates: [...templates, AASTEX_TEMPLATE],
@@ -152,9 +152,9 @@ test("installed version descriptors group choices without changing stored templa
   assert.equal(families[0].versioned, false);
   assert.deepEqual(families[2], {
     id: "package:aastex",
-    name: "AASTeX",
+    name: "Synthetic template",
     versioned: true,
-    choices: [{ id: "package:aastex", label: "7.0.2" }],
+    choices: [{ id: "package:aastex", label: "Synthetic current" }],
   });
   const saved = readPublishingTemplates({ templates });
   assert.deepEqual(

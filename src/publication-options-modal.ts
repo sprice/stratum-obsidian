@@ -16,7 +16,6 @@ import {
 } from "./ui-controls";
 import { renderPublishCustomization } from "./publish-customize";
 import { resetNoteCitationStyle } from "./citation-style-choice";
-import { openStratumSettings } from "./view-helpers";
 import type { PublishOptions } from "./publish-options";
 import {
   publishingIssueText,
@@ -230,6 +229,11 @@ export class PublishingSettingsModal extends Modal {
         approve: compatibility.createDiv(),
         headings: compatibility.createDiv(),
       };
+    } else if (this.publish.journalProfile) {
+      options.createEl("p", {
+        text: "The selected journal profile controls layout and bibliography. Change the profile in the publishing panel. Anonymous review omits author fields and PDF author metadata; review identifying text, acknowledgments, figures and references yourself.",
+        cls: "stratum-publication-help",
+      });
     } else {
       const citations = options.createDiv();
       void this.publish
@@ -301,11 +305,16 @@ export class PublishingSettingsModal extends Modal {
         text: "PDF tools need setup.",
       });
       const setup = createStratumButton(options, {
-        text: "Open Stratum settings",
+        text: "Open publishing tools",
       });
       setup.addEventListener("click", () => {
-        this.close();
-        openStratumSettings(this.publish.plugin);
+        void import("./publish-setup")
+          .then(({ PublishSetupModal }) => {
+            if (this.publish.plugin.isUnloaded) return;
+            this.close();
+            new PublishSetupModal(this.publish.plugin).open();
+          })
+          .catch((error: unknown) => this.publish.fail(error));
       });
     }
     this.error = this.contentEl.createDiv({

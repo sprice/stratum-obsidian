@@ -15,6 +15,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generatePublicationAssets } from "./publication-assets.mjs";
 
+test("bundled adapter assets contain no external template classes or bibliography", async () => {
+  const { contents } = await generatePublicationAssets();
+  const assets = JSON.parse(contents);
+  assert.ok(assets["manifest.json"]);
+  assert.ok(assets["licenses/NOTICE.txt"]);
+  assert.deepEqual(
+    Object.keys(assets).filter((name) => /\.(cls|bst)$/.test(name)),
+    [],
+  );
+});
+
 test("CLI bootstraps missing generated data without requiring a checkout artifact", async () => {
   const directory = await mkdtemp(join(tmpdir(), "stratum-assets-bootstrap-"));
   try {

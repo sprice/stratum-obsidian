@@ -334,321 +334,6 @@ test("publishing actions match shared Sync styling and retain responsive disable
   });
 });
 
-test("AASTeX document options stay compact, keyboard accessible and within a narrow panel", async () => {
-  await scenario("aastex-options", async () => {
-    await page.setViewportSize(320, 900);
-    await page.evaluate("window.publicationFixture.reset({aastex:true})");
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-publish-panel').textContent.includes('Stratum adapter')",
-      ),
-      false,
-    );
-    await page
-      .locator('button[aria-label="Publishing settings for this note"]')
-      .click();
-    await page.evaluate(
-      "document.querySelector('.stratum-aastex-option .checkbox-container')?.focus()",
-    );
-    await until("!!document.querySelector('.stratum-document-options-modal')");
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-document-options-modal').textContent.includes('Stratum adapter')",
-      ),
-      false,
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.activeElement === document.querySelector('.stratum-aastex-option .checkbox-container')",
-      ),
-      true,
-    );
-    await page.evaluate("window.publicationFixture.holdSaves(true)");
-    // This driver path sends Space key/code/VK on both native key events.
-    await page.type(" ");
-    await until("window.publicationFixture.state().saving");
-    assert.equal(
-      await page.evaluate(`(() => {
-        const switches = [...document.querySelectorAll('.stratum-aastex-option .checkbox-container')];
-        return document.activeElement === switches[0]
-          && !switches[0].classList.contains('is-disabled')
-          && switches.slice(1).every(toggle => toggle.classList.contains('is-disabled'));
-      })()`),
-      true,
-    );
-    await page.evaluate("window.publicationFixture.holdSaves(false)");
-    await until(
-      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.activeElement === document.querySelector('.stratum-aastex-option .checkbox-container')",
-      ),
-      true,
-    );
-    assert.equal(
-      await page.evaluate(
-        "window.publicationFixture.state().aastexOptions.showDraftDateHeader",
-      ),
-      true,
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.querySelectorAll('.stratum-aastex-option').length",
-      ),
-      3,
-    );
-    assert.equal(
-      await page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
-      true,
-    );
-    assert.equal(
-      await page.evaluate(`Array.from(document.querySelectorAll('.stratum-aastex-option')).every(row => {
-        const toggle = row.querySelector('.setting-item-control > .checkbox-container');
-        const label = row.querySelector('.setting-item-name');
-        const input = toggle.querySelector('input[type=checkbox]');
-        const bounds = toggle.getBoundingClientRect();
-        return row.classList.contains('setting-item') && toggle.tagName === 'LABEL' && !!input
-          && input.getAttribute('aria-label') === label.textContent
-          && !toggle.hasAttribute('aria-label')
-          && bounds.width === 40 && bounds.height === 22
-          && Math.abs(bounds.right - row.getBoundingClientRect().right) < 1
-          && label.getBoundingClientRect().right <= bounds.left;
-      })`),
-      true,
-    );
-    await page.evaluate(
-      "document.querySelector('.stratum-publishing-done').focus()",
-    );
-    await page.keyPress("Tab");
-    assert.equal(
-      await page.evaluate(
-        "document.activeElement?.getAttribute('aria-label') === 'Title'",
-      ),
-      true,
-    );
-    await capture("aastex-options-narrow-keyboard");
-    await page.keyPress("Escape");
-    await until("!document.querySelector('.stratum-document-options-modal')");
-    assert.equal(
-      await page.evaluate(
-        "document.activeElement === document.querySelector('button[aria-label=\"Publishing settings for this note\"]')",
-      ),
-      true,
-    );
-  });
-});
-
-test("native options save once in both directions and persist across modal reopen", async () => {
-  await scenario("aastex-native-toggle-matrix", async () => {
-    const keys = ["showLineNumbers", "showDraftDateHeader", "numberedHeadings"];
-    for (const [index, key] of keys.entries())
-      for (const start of [false, true]) {
-        await page.evaluate("window.publicationFixture.reset({aastex:true})");
-        await page.evaluate(
-          `window.publicationFixture.setAastexOptions({${key}:${start}})`,
-        );
-        await page.evaluate("window.publicationFixture.resetSaveCount()");
-        await page
-          .locator('button[aria-label="Publishing settings for this note"]')
-          .click();
-        const toggle = `.stratum-aastex-option:nth-of-type(${index + 1}) .checkbox-container`;
-        await page.evaluate(
-          `document.querySelector('${toggle} input').focus()`,
-        );
-        await page.type(" ");
-        await until(
-          `!window.publicationFixture.state().saving && window.publicationFixture.state().aastexOptions.${key} === ${!start}`,
-        );
-        assert.equal(
-          await page.evaluate("window.publicationFixture.state().saveCount"),
-          1,
-        );
-        assert.equal(
-          await page.evaluate(
-            "[...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => !toggle.classList.contains('is-disabled'))",
-          ),
-          true,
-        );
-        assert.equal(
-          await page.evaluate(
-            `document.querySelector('${toggle} input').checked`,
-          ),
-          !start,
-        );
-        await page.keyPress("Escape");
-        await page
-          .locator('button[aria-label="Publishing settings for this note"]')
-          .click();
-        assert.equal(
-          await page.evaluate(
-            `document.querySelector('${toggle} input').checked`,
-          ),
-          !start,
-        );
-        assert.equal(
-          await page.evaluate("window.publicationFixture.state().saveCount"),
-          1,
-        );
-        await page.keyPress("Escape");
-      }
-  });
-});
-
-test("repeated native changes during a held save retain the latest choice and close safely", async () => {
-  await scenario("aastex-native-toggle-repeated", async () => {
-    await page.evaluate("window.publicationFixture.reset({aastex:true})");
-    await page.evaluate("window.publicationFixture.resetSaveCount()");
-    await page
-      .locator('button[aria-label="Publishing settings for this note"]')
-      .click();
-    await page.evaluate(
-      "document.querySelector('.stratum-aastex-option .checkbox-container')?.focus()",
-    );
-    await page.evaluate("window.publicationFixture.holdSaves(true)");
-    await page.type(" ");
-    await page.type(" ");
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-aastex-option input').checked",
-      ),
-      true,
-    );
-    await page.keyPress("Escape");
-    await page.evaluate("window.publicationFixture.holdSaves(false)");
-    await until("!window.publicationFixture.state().saving");
-    assert.equal(
-      await page.evaluate("window.publicationFixture.state().saveCount"),
-      2,
-    );
-    await page
-      .locator('button[aria-label="Publishing settings for this note"]')
-      .click();
-    await page.evaluate(
-      "document.querySelector('.stratum-aastex-option .checkbox-container')?.focus()",
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-aastex-option input').checked",
-      ),
-      true,
-    );
-    assert.equal(
-      await page.evaluate("window.publicationFixture.state().saveCount"),
-      2,
-    );
-    await page.evaluate(
-      "window.publicationFixture.resetSaveCount(); window.publicationFixture.holdSaves(true); window.publicationFixture.failNextSave()",
-    );
-    await page.type(" ");
-    await page.type(" ");
-    await page.evaluate("window.publicationFixture.holdSaves(false)");
-    await until("!window.publicationFixture.state().saving");
-    assert.equal(
-      await page.evaluate("window.publicationFixture.state().saveCount"),
-      2,
-    );
-    assert.equal(
-      await page.evaluate(
-        "window.publicationFixture.state().aastexOptions.showLineNumbers",
-      ),
-      true,
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-document-options-modal .stratum-publish-error').hidden ? '' : document.querySelector('.stratum-document-options-modal .stratum-publish-error').innerText",
-      ),
-      "",
-    );
-    await page.keyPress("Escape");
-  });
-});
-
-test("AASTeX reset retains auto-save and failed-save recovery", async () => {
-  await scenario("aastex-modal-reset", async () => {
-    await page.evaluate("window.publicationFixture.reset({aastex:true})");
-    const gear = 'button[aria-label="Publishing settings for this note"]';
-    await page.locator(gear).click();
-    await page.evaluate(
-      "document.querySelector('.stratum-aastex-option .checkbox-container').focus()",
-    );
-    await page.type(" ");
-    await until(
-      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
-    );
-    await page.locator(".stratum-publishing-reset").click();
-    await until(
-      "!window.publicationFixture.state().saving && window.publicationFixture.state().aastexOptions.showLineNumbers",
-    );
-    await page.evaluate("window.publicationFixture.failSave(true)");
-    await page.evaluate("window.publicationFixture.resetSaveCount()");
-    await page
-      .locator(".stratum-aastex-option:first-of-type .checkbox-container")
-      .click();
-    await until(
-      "document.querySelector('.stratum-document-options-modal .stratum-publish-error').innerText.includes('Synthetic preference save failed')",
-    );
-    await until("!window.publicationFixture.state().saving");
-    assert.equal(
-      await page.evaluate("window.publicationFixture.state().saveCount"),
-      1,
-    );
-    assert.equal(
-      await page.evaluate(
-        "[...document.querySelectorAll('.stratum-aastex-option .checkbox-container')].every(toggle => !toggle.classList.contains('is-disabled'))",
-      ),
-      true,
-    );
-    await capture("aastex-modal-save-error");
-    await page.evaluate("window.publicationFixture.failSave(false)");
-    await page
-      .locator(".stratum-aastex-option:first-of-type .checkbox-container")
-      .click();
-    await until(
-      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
-    );
-    assert.equal(
-      await page.evaluate("window.publicationFixture.state().saveCount"),
-      2,
-    );
-    await page.keyPress("Escape");
-  });
-});
-
-test("switching source notes closes options while queued changes save to the captured note", async () => {
-  await scenario("aastex-modal-note-switch", async () => {
-    await page.evaluate("window.publicationFixture.reset({aastex:true})");
-    await page
-      .locator('button[aria-label="Publishing settings for this note"]')
-      .click();
-    await page.evaluate(
-      "document.querySelector('.stratum-aastex-option .checkbox-container')?.focus()",
-    );
-    await page.evaluate("window.publicationFixture.holdSaves(true)");
-    await page.type(" ");
-    await until("window.publicationFixture.state().saving");
-    await page.evaluate("window.publicationFixture.switchNote()");
-    assert.equal(
-      await page.locator(".stratum-document-options-modal").count(),
-      0,
-    );
-    await page.evaluate("window.publicationFixture.holdSaves(false)");
-    await until("!window.publicationFixture.state().saving");
-    assert.equal(
-      await page.evaluate(
-        "window.publicationFixture.savedOptions('Papers/Synthetic paper.md').showLineNumbers",
-      ),
-      false,
-    );
-    assert.equal(
-      await page.evaluate(
-        "window.publicationFixture.state().aastexOptions.showLineNumbers",
-      ),
-      true,
-    );
-  });
-});
-
 test("secondary tabs show PDF history and retain filtering across navigation", async () => {
   await scenario("publishing-documents-tabs", async () => {
     await page.setViewportSize(320, 900);
@@ -1154,119 +839,6 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
   });
 });
 
-test("AASTeX modal shares author edits, preserves legacy associations and keeps body title and abstract rules", async () => {
-  await scenario("aastex-details-and-title", async () => {
-    await page.evaluate(
-      `window.publicationFixture.reset({aastex:true,source:${JSON.stringify("---\ntitle: Property title\nauthors: [Legacy Writer]\naffiliations: [Legacy global affiliation]\ntags: [preserved] # Keep\n---\n\n# Leading title\n\n## Introduction\nBody.\n")}})`,
-    );
-    await openSettings();
-    assert.equal(await page.locator(".stratum-publishing-advanced").count(), 0);
-    assert.equal(
-      await page
-        .locator('select[aria-label="Citation style for this note"]')
-        .count(),
-      0,
-    );
-    // Legacy authors have no cards yet, so their issues stay in the alert.
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-publishing-validation [role=\"alert\"]').textContent",
-      ),
-      "Required: Author 1 needs an email address.\nRequired: Author 1 needs an affiliation/address.",
-    );
-    assert.equal(
-      await page
-        .locator(
-          ".stratum-publishing-settings-modal .stratum-publication-validation[data-author]",
-        )
-        .count(),
-      0,
-    );
-    await page
-      .locator(
-        '.stratum-publishing-settings-modal button[aria-label="Use existing authors"]',
-      )
-      .click();
-    await until(
-      "document.querySelector('.stratum-publishing-settings-modal fieldset')?.textContent.includes('Required: Author 1 needs an email address.')",
-    );
-    assert.doesNotMatch(await validationBlock(), /Author 1/);
-    await capture("aastex-author-card-issues");
-    await editProperty("Author 1 email", "legacy@example.org");
-    await page
-      .locator(
-        '.stratum-publishing-settings-modal button[aria-label="Add affiliation to author 1"]',
-      )
-      .click();
-    await editProperty("Author 1 affiliation 1", "Explicit affiliation");
-    await until("window.publicationFixture.state().canCreate");
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('button[aria-label=\"Move author 1 up\"]').disabled && document.querySelector('button[aria-label=\"Move author 1 down\"]').disabled",
-      ),
-      true,
-    );
-    await page.evaluate("window.publicationFixture.setBusy(true)");
-    await page.evaluate("window.publicationFixture.setBusy(false)");
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('button[aria-label=\"Move author 1 up\"]').disabled && document.querySelector('button[aria-label=\"Move author 1 down\"]').disabled",
-      ),
-      true,
-    );
-    const original = String(
-      await page.evaluate("window.publicationFixture.text()"),
-    );
-    assert.match(
-      original,
-      /authors: \[Legacy Writer\]\naffiliations: \[Legacy global affiliation\]/,
-    );
-    assert.match(original, /Explicit affiliation/);
-    assert.equal(
-      await validationBlock(),
-      "Guidance: No Abstract section was found. Check the journal's submission requirements.",
-    );
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-publishing-settings-modal').textContent.split('No Abstract section was found').length",
-      ),
-      2,
-      "Guidance shows once, in the validation block",
-    );
-    await page
-      .locator('select[aria-label="Title source"]')
-      .selectOption("body");
-    await until("!window.publicationFixture.state().saving");
-    await page.evaluate(
-      "window.publicationFixture.replaceText(window.publicationFixture.text().replace('# Leading title\\n', ''))",
-    );
-    await until("!window.publicationFixture.state().canCreate");
-    // The Title property cannot supply a body title, so the issue is general.
-    await until(
-      "document.querySelector('.stratum-publishing-validation').textContent.includes('Required: Add a manuscript title using the selected title source.')",
-    );
-    assert.deepEqual(await titleIssue(), [null, null]);
-    await page
-      .locator('select[aria-label="Title source"]')
-      .selectOption("properties");
-    await until("window.publicationFixture.state().canCreate");
-    await editProperty("Title", "");
-    await until("!window.publicationFixture.state().canCreate");
-    await until(
-      "document.querySelector('.stratum-publishing-settings-modal input[aria-label=\"Title\"]').getAttribute('aria-invalid') === 'true'",
-    );
-    assert.deepEqual(await titleIssue(), [
-      "true",
-      "Required: Add a manuscript title using the selected title source.",
-    ]);
-    assert.doesNotMatch(await validationBlock(), /manuscript title/);
-    await editProperty("Title", "Restored property title");
-    await until("window.publicationFixture.state().canCreate");
-    assert.deepEqual(await titleIssue(), [null, null]);
-    await capture("aastex-common-settings");
-  });
-});
-
 test("metadata conflicts retain drafts and require explicit recovery before Done or export", async () => {
   await scenario("metadata-conflict", async () => {
     await reset({
@@ -1480,61 +1052,6 @@ test("citation override and reset use the note's current style and preserve inde
   });
 });
 
-test("failed note options survive Escape and reopen for explicit retry", async () => {
-  await scenario("interrupted-option-retry", async () => {
-    await reset({ aastex: true });
-    await openSettings();
-    await page.evaluate("window.publicationFixture.failSave(true)");
-    await page
-      .locator(".stratum-aastex-option:first-of-type .checkbox-container")
-      .click();
-    await until(
-      "!window.publicationFixture.state().saving && !document.querySelector('.stratum-publish-error').hidden",
-    );
-    await page.keyPress("Escape");
-    await page.evaluate("window.publicationFixture.failSave(false)");
-    await openSettings();
-    await until(
-      "!document.querySelector('.stratum-document-options-modal .stratum-publish-error').hidden",
-    );
-    await page.evaluate(
-      "[...document.querySelectorAll('.modal button')].find(button => button.textContent === 'Retry saving options').click()",
-    );
-    await until(
-      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
-    );
-    await page.locator(".stratum-publishing-done").click();
-    await until("!document.querySelector('.modal')");
-  });
-});
-
-test("closing during an option save retains a late failure in the reopened captured note", async () => {
-  await scenario("late-option-failure", async () => {
-    await reset({ aastex: true });
-    await openSettings();
-    await page.evaluate(
-      "window.publicationFixture.holdSaves(true); window.publicationFixture.failNextSave()",
-    );
-    await page
-      .locator(".stratum-aastex-option:first-of-type .checkbox-container")
-      .click();
-    await until("window.publicationFixture.state().saving");
-    await page.keyPress("Escape");
-    await page.evaluate("window.publicationFixture.holdSaves(false)");
-    await until("!window.publicationFixture.state().saving");
-    await openSettings();
-    await until(
-      "!document.querySelector('.stratum-document-options-modal .stratum-publish-error').hidden",
-    );
-    await page.evaluate(
-      "[...document.querySelectorAll('.modal button')].find(button => button.textContent === 'Retry saving options').click()",
-    );
-    await until(
-      "!window.publicationFixture.state().saving && !window.publicationFixture.state().aastexOptions.showLineNumbers",
-    );
-  });
-});
-
 test("shared author conflict recovery refreshes current values after a second external edit", async () => {
   await scenario("author-conflict-current-value", async () => {
     await reset({
@@ -1567,7 +1084,7 @@ test("shared author conflict recovery refreshes current values after a second ex
   });
 });
 
-test("template and installed version selectors keep equal available columns and preserve package approval", async () => {
+test("template and installed version selectors keep equal available columns and use exact registry versions", async () => {
   await scenario("template-version-columns", async () => {
     for (const width of [320, 560]) {
       await page.setViewportSize(width, 900);
@@ -1590,8 +1107,8 @@ test("template and installed version selectors keep equal available columns and 
         assert.equal(m.overflow, false);
         assert.equal(m.versionVisible, templateId === "aastex");
         if (templateId === "aastex") {
-          assert.equal(m.label, "AASTeX");
-          assert.deepEqual(m.versions, ["7.0.2"]);
+          assert.equal(m.label, "Synthetic template");
+          assert.deepEqual(m.versions, ["1.0-r1"]);
         }
         if (width === 320 && templateId === "general")
           await capture("publishing-generic-columns");
@@ -1599,20 +1116,6 @@ test("template and installed version selectors keep equal available columns and 
           await capture("publishing-version-columns");
       }
     }
-    await page.evaluate(
-      "window.publicationFixture.setAastexPackage({id: 'aastex', version: '0.1.0', upstreamVersion: '7.0.1'})",
-    );
-    await page
-      .locator('select[aria-label="Choose template version"]')
-      .selectOption("package:aastex");
-    await openSettings();
-    assert.equal(
-      await page.evaluate(
-        "document.querySelector('.stratum-document-options-modal').textContent.includes('Older package assets are not retained')",
-      ),
-      true,
-    );
-    await page.keyPress("Escape");
     await page.locator('select[aria-label="Choose template"]').selectOption("");
     await until(
       "!window.publicationFixture.state().saving && document.querySelector('button[aria-label=\"Publishing settings for this note\"]').disabled",
@@ -1663,62 +1166,16 @@ test("editor undo and redo transactions refresh Settings metadata without the re
   });
 });
 
-test("AASTeX settings omit static copy and title deletion while retaining autosave feedback and aligned actions", async () => {
-  await scenario("aastex-modal-cleanup", async () => {
-    for (const width of [320, 560]) {
-      await page.setViewportSize(width, 900);
-      await reset({ aastex: true }, width);
-      await openSettings();
-      assert.equal(
-        await page.evaluate(
-          "document.querySelector('.stratum-document-options-modal').textContent.includes('Changes save automatically')",
-        ),
-        false,
-      );
-      assert.equal(
-        await page
-          .locator('button[aria-label="Remove title from this note"]')
-          .count(),
-        0,
-      );
-      assert.equal(
-        await page.evaluate(
-          "document.querySelector('.stratum-publishing-reset').textContent",
-        ),
-        "Reset to defaults",
-      );
-      assert.equal(
-        await page.evaluate(
-          `(() => {const done=document.querySelector('.stratum-publishing-done'),r=done.getBoundingClientRect(),p=done.parentElement.getBoundingClientRect();return Math.abs(r.right-p.right)<=1 && document.documentElement.scrollWidth<=innerWidth;})()`,
-        ),
-        true,
-      );
-      await page.evaluate("window.publicationFixture.holdSaves(true)");
-      await page
-        .locator(".stratum-aastex-option:first-of-type .checkbox-container")
-        .click();
-      await until(
-        "window.publicationFixture.state().saving && document.querySelector('.stratum-document-options-modal').innerText.includes('Saving settings…')",
-      );
-      await page.evaluate("window.publicationFixture.holdSaves(false)");
-      await until("!window.publicationFixture.state().saving");
-      await capture(`aastex-settings-cleanup-${width}`);
-      await page.keyPress("Escape");
-    }
-  });
-});
-
 test("cleanup silently follows the selected template and restores all removed keys with one undo", async () => {
   await scenario("template-frontmatter-cleanup", async () => {
     const source =
       '---\ntitle: ""\nauthors: []\naffiliations: []\ndate: null\nkeywords: []\ncustom: "" # retained\n---\nBody\n';
-    for (const templateId of ["general", "academic", "package:aastex"]) {
+    for (const templateId of ["general", "academic"]) {
       for (const width of [320, 560]) {
         await page.setViewportSize(width, 900);
         await reset(
           {
             templateId,
-            aastex: templateId === "package:aastex",
             source,
           },
           width,
@@ -1898,10 +1355,9 @@ test("cleanup cannot target a switched note through a retained button", async ()
 
 test("reset availability reacts to saved changes and resets only the selected template's options", async () => {
   await scenario("reset-no-op-states", async () => {
-    for (const templateId of ["general", "academic", "package:aastex"]) {
+    for (const templateId of ["general", "academic"]) {
       await reset({
         templateId,
-        aastex: templateId === "package:aastex",
         bodyFont: "",
         titleFont: "",
         source: manuscript,
@@ -1911,15 +1367,9 @@ test("reset availability reacts to saved changes and resets only the selected te
         "document.querySelector('.stratum-publishing-reset').disabled",
       );
       const before = await page.evaluate("window.publicationFixture.text()");
-      if (templateId === "package:aastex") {
-        await page
-          .locator(".stratum-aastex-option:first-of-type .checkbox-container")
-          .click();
-      } else {
-        await page
-          .locator('select[aria-label="Title source"]')
-          .selectOption(templateId === "general" ? "properties" : "body");
-      }
+      await page
+        .locator('select[aria-label="Title source"]')
+        .selectOption(templateId === "general" ? "properties" : "body");
       await until(
         "!window.publicationFixture.state().saving && !document.querySelector('.stratum-publishing-reset').disabled",
       );
@@ -1940,7 +1390,7 @@ test("reset availability reacts to saved changes and resets only the selected te
 
 test("cleanup availability follows focused drafts, current mappings, external edits and undo without saving during prediction", async () => {
   await scenario("cleanup-no-op-states", async () => {
-    for (const aastex of [false, true]) {
+    for (const aastex of [false]) {
       const source = "---\ntitle: Populated\nkeywords: [retained]\n---\nBody";
       await reset({ templateId: "academic", aastex, bodyFont: "", source });
       await openSettings();
@@ -2032,10 +1482,10 @@ test("cleanup availability follows focused drafts, current mappings, external ed
 
 test("PDF option fields and Advanced layout use shared token spacing across templates and narrow widths", async () => {
   await scenario("pdf-options-shared-spacing", async () => {
-    for (const templateId of ["general", "academic", "package:aastex"])
+    for (const templateId of ["general", "academic"])
       for (const theme of ["dark", "light"] as const)
         for (const width of [320, 560]) {
-          const aastex = templateId === "package:aastex";
+          const aastex = templateId === "registry:example:1.0-r1";
           await reset({ templateId, aastex, theme, bodyFont: "" }, width);
           await openSettings();
           assert.equal(
@@ -2185,7 +1635,7 @@ test("Academic shares grouped authors without automatic legacy conversion or AAS
     await capture("academic-grouped-authors");
     await page.keyPress("Escape");
     await page.evaluate(
-      "window.publicationFixture.selectTemplate('package:aastex')",
+      "window.publicationFixture.selectTemplate('registry:example:1.0-r1')",
     );
     assert.equal(
       await page.evaluate("window.publicationFixture.text()"),
@@ -2521,5 +1971,102 @@ test("Title validation merges its description and removes only its own help id",
       "synthetic-help",
     );
     await page.keyPress("Escape");
+  });
+});
+
+test("registry adapter exposes structured metadata without a legacy catalogue", async () => {
+  await scenario("journal-settings", async () => {
+    await page.evaluate(
+      `window.publicationFixture.reset({templateId:"registry:example:1.0-r1", acm:true, source:${JSON.stringify(`---\nstratum_publish:\n  authors:\n    - name: Example Author\n      email: author@example.invalid\n      affiliations: [Example Institute]\n---\n# Example manuscript\n## Abstract\nSynthetic abstract.\n## Introduction\nBody.`)}})`,
+    );
+    await page
+      .locator('button[aria-label="Publishing settings for this note"]')
+      .click();
+    await until("!!document.querySelector('.stratum-document-options-modal')");
+    assert.equal(
+      await page.locator('input[aria-label="Author 1 institution"]').count(),
+      1,
+    );
+    assert.equal(
+      await page.locator('input[aria-label="ACM conference name"]').count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .locator('select[aria-label="Citation style for this note"]')
+        .count(),
+      0,
+    );
+    assert.equal(
+      await page.locator('select[aria-label="Choose template"]').count(),
+      1,
+    );
+    assert.equal(
+      await page.evaluate(
+        `Array.from(document.querySelectorAll('select[aria-label="Choose template"] option')).some(option => /JMLR|Astronomy & Astrophysics|unavailable/i.test(option.textContent))`,
+      ),
+      false,
+    );
+  });
+});
+
+test("template manager gear preserves columns and all-off state can enable a built-in", async () => {
+  await scenario("template-availability", async () => {
+    await page.evaluate(
+      'window.publicationFixture.reset({templateId:"registry:example:1.0-r1"})',
+    );
+    assert.equal(
+      await page.evaluate(`(() => {
+      const select = document.querySelector('select[aria-label="Choose template"]').getBoundingClientRect();
+      const gear = document.querySelector('button[aria-label="Manage publishing templates"]').getBoundingClientRect();
+      const version = document.querySelector('select[aria-label="Choose template version"]').getBoundingClientRect();
+      return gear.left >= select.right && gear.right < version.left;
+    })()`),
+      true,
+    );
+    await page.evaluate("window.publicationFixture.setEnabledTemplates([])");
+    await page
+      .locator('button[aria-label="Manage publishing templates"]')
+      .click();
+    await until(
+      "!!document.querySelector('.modal[aria-label=\"Publishing templates\"]')",
+    );
+    assert.doesNotMatch(
+      String(
+        await page.evaluate("document.querySelector('.modal').textContent"),
+      ),
+      /Previous template profiles|For documents using earlier profiles/,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelectorAll('.modal .checkbox-container.is-enabled').length",
+      ),
+      0,
+    );
+    assert.equal(
+      await page.evaluate(
+        "Array.from(document.querySelectorAll('.modal button')).filter(button => button.textContent === 'Configure').length",
+      ),
+      2,
+    );
+    await page
+      .locator('.modal [aria-label="Enable General documents"]')
+      .click();
+    await until(
+      "!!document.querySelector('.modal [aria-label=\"Enable General documents\"].is-enabled')",
+    );
+    await page.keyPress("Escape");
+    assert.equal(
+      await page.evaluate(
+        "Array.from(document.querySelector('select[aria-label=\"Choose template\"]').options).some(option => option.textContent === 'General documents')",
+      ),
+      true,
+    );
+    assert.equal(
+      await page.evaluate(
+        "document.querySelector('select[aria-label=\"Choose template\"]').value",
+      ),
+      "",
+    );
   });
 });

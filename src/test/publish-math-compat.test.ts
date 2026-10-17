@@ -7,7 +7,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compatibleMathTex } from "../publish-math-compat";
 import { preparePublishMath } from "../publish-math";
-import { aastexManuscript } from "../publication-package";
 import { DEFAULT_PUBLISH_OPTIONS } from "../publish-options";
 import { loadRuntime } from "./runtime-harness";
 import {
@@ -117,10 +116,13 @@ const pandoc = tool("pandoc"),
   tectonic = tool("tectonic"),
   pdftotext = tool("pdftotext");
 
-for (const template of ["General", "AASTeX"] as const)
+for (const template of ["General"] as string[])
   test(
     `Reading-view math examples compile and retain references in ${template} PDF`,
-    { skip: !pandoc || !tectonic || !pdftotext, timeout: 120_000 },
+    {
+      skip: !pandoc || !tectonic || !pdftotext,
+      timeout: 120_000,
+    },
     async () => {
       const desktop = loadRuntime<typeof import("../publish-desktop")>(
         "publish-desktop.ts",
@@ -129,6 +131,7 @@ for (const template of ["General", "AASTeX"] as const)
           TextDecoder,
           TextEncoder,
           Uint8Array,
+          crypto,
           window: { require, setTimeout, clearTimeout },
         },
         "browser",
@@ -139,20 +142,13 @@ for (const template of ["General", "AASTeX"] as const)
         html,
         [],
         "pdf",
-        { pandoc, tectonic },
+        {
+          pandoc,
+          tectonic,
+        },
         undefined,
         120_000,
         { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "", titleFont: "" },
-        template === "AASTeX"
-          ? {
-              manuscript: aastexManuscript(
-                "---\nstratum_publish:\n  authors:\n    - name: Example Author\n      email: author@example.test\n      affiliations: [Example Institute]\n---\n# Math compatibility\n\nSynthetic mathematical examples.",
-                "body",
-              ),
-              abstractHtml: "",
-              references: [],
-            }
-          : undefined,
       );
       assert.equal(
         new TextDecoder().decode(new Uint8Array(bytes).subarray(0, 5)),
@@ -163,8 +159,6 @@ for (const template of ["General", "AASTeX"] as const)
         const path = join(directory, "comparison.pdf");
         await writeFile(path, new Uint8Array(bytes));
         const text = execFileSync(pdftotext, [path, "-"], { encoding: "utf8" });
-        if (template === "AASTeX")
-          assert.match(text, /Example Author/, "Author parsing is exercised");
         assert.ok(
           (text.match(/P1/g) ?? []).length >= 2,
           "The equation tag and its reference both survive",

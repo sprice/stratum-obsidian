@@ -1,6 +1,8 @@
 import {
   readAastexPreferences,
   type AastexPreferences,
+  readPublicationPackageReference,
+  type PublicationPackageReference,
 } from "./publication-options";
 export type DocumentType = "general" | "academic";
 export interface PublishOptions {
@@ -29,6 +31,8 @@ export interface AcademicDefaults {
 }
 export interface NotePublishPreferences {
   aastex?: AastexPreferences;
+  journalPackages?: Record<string, PublicationPackageReference>;
+  journalLayouts?: Record<string, PublishOptions>;
   documentType: DocumentType;
   templateId?: string;
   opening: "properties" | "body";
@@ -164,6 +168,40 @@ export function readNotePreferences(
   const base = documentType === "academic" ? academic : defaults;
   return {
     documentType,
+    ...(v.journalLayouts &&
+    typeof v.journalLayouts === "object" &&
+    !Array.isArray(v.journalLayouts)
+      ? {
+          journalLayouts: Object.fromEntries(
+            Object.entries(v.journalLayouts)
+              .filter(([id]) =>
+                /^(?:journal:[a-z0-9-]+|registry:[a-z0-9._-]+:[a-z0-9._-]+)$/.test(
+                  id,
+                ),
+              )
+              .map(([id, value]) => [
+                id,
+                readPublishOptions(value, DEFAULT_ACADEMIC_OPTIONS),
+              ]),
+          ),
+        }
+      : {}),
+    ...(v.journalPackages &&
+    typeof v.journalPackages === "object" &&
+    !Array.isArray(v.journalPackages)
+      ? {
+          journalPackages: Object.fromEntries(
+            Object.entries(v.journalPackages).flatMap(([id, value]) => {
+              const reference = readPublicationPackageReference(value);
+              return /^(?:journal:[a-z0-9-]+|registry:[a-z0-9._-]+:[a-z0-9._-]+)$/.test(
+                id,
+              ) && reference
+                ? [[id, reference]]
+                : [];
+            }),
+          ),
+        }
+      : {}),
     ...(v.templateId === "package:aastex" || v.aastex
       ? { aastex: readAastexPreferences(v.aastex) }
       : {}),

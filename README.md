@@ -36,9 +36,9 @@ Switch citation styles without rewriting your prose. Formatting works offline wh
 
 ### Publish your paper
 
-Create PDFs on your computer with **General documents** or **Academic papers**. Set document details, author information, citation style, and layout options. Preview your PDFs in Obsidian and save copies to share.
+Create PDFs on your computer. Set document details, author information, citation style, and layout options. Preview your PDFs in Obsidian and save copies to share.
 
-Use **AASTeX** for an astronomy journal format. See [Supported templates](docs/user-guide.md#supported-templates) for its requirements and options.
+Download additional publishing templates through **Settings → Publishing → Manage templates**, or use the gear beside **Publish → Create → Template**. Downloads come from Stratum’s public template mirror at `templates.stratumnotes.com`; no manuscript or reference data is sent. Installed files are verified and reused offline, provided the compiler’s supporting packages and fonts are also cached. See [Publishing](docs/user-guide.md#publish-documents) for setup and options.
 
 ## Get started
 

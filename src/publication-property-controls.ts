@@ -186,10 +186,15 @@ export class PublicationPropertyControls {
       Object.keys(PUBLICATION_PROPERTIES) as PublicationPropertyKey[]
     ).filter(
       (key) =>
-        (aastex
-          ? key === "title"
-          : (!structured && !academic) ||
-            !["authors", "affiliations"].includes(key)) ||
+        (key.startsWith("stratum_")
+          ? !!this.publish.journalProfile &&
+            this.publish.propertyDefinitions.some((field) => field.key === key)
+          : aastex
+            ? key === "title"
+            : this.publish.journalProfile
+              ? key === "title" || key === "keywords"
+              : (!structured && !academic) ||
+                !["authors", "affiliations"].includes(key)) ||
         session.properties.has(key),
     );
     const requiredTitle = this.publish.layout.titleSource === "properties";
@@ -201,6 +206,7 @@ export class PublicationPropertyControls {
         : true,
     );
     const enabled = (key: PublicationPropertyKey) =>
+      key.startsWith("stratum_") ||
       !!(
         this.pending.get(flags[key]!)?.value ?? this.publish.layout[flags[key]!]
       );
@@ -287,10 +293,14 @@ export class PublicationPropertyControls {
       const row = this.container.createDiv({
         cls: "stratum-publishing-property",
       });
-      if (key !== "title" && !aastex) this.inclusion(row, key);
+      if (key !== "title" && !aastex && !key.startsWith("stratum_"))
+        this.inclusion(
+          row,
+          key as "authors" | "affiliations" | "date" | "keywords",
+        );
       const field = createStratumField(
         row,
-        key === "title"
+        key === "title" || key.startsWith("stratum_")
           ? PUBLICATION_PROPERTIES[key] + (required ? " · required" : "")
           : "",
       );

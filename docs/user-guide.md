@@ -415,9 +415,99 @@ Stratum stores PDFs and publication history under `<vault config>/plugins/stratu
 
 On upgrade, Stratum automatically moves the previous `<vault config>/stratum/published` storage and vault-root `stratum-references.json` into the plugin directory. It verifies copies before removing the old files. Notes, citation identities, PDF filenames, and saved publication choices stay unchanged. Empty legacy folders may remain if Obsidian cannot remove them; this does not prevent the plugin from loading. If both locations contain conflicting data or data migration fails, Stratum stops loading and displays a notice; saved data is retained. Resolve the storage conflict or restore from backup before reloading.
 
+### Template availability
+
+Open **Settings → Publishing → Manage templates**, or select the gear beside
+**Publish → Create → Template**. General documents and Academic papers are enabled
+by default. Other templates start off. Existing configuration, saved toggle choices,
+and saved note choices are retained when upgrading. Custom templates saved before
+this setting existed also start off; enable them under **Your templates** before
+publishing notes that use them.
+
+Choose a registry template, select its versions, and click **Install**. Each
+version is verified before it is enabled. The switches under **Your templates**
+enable individual installed versions. Built-in and custom layouts enable without
+a download. Disabling keeps cached files; re-enabling verifies and reuses them. A disabled
+saved template is never replaced automatically. With no templates enabled, use
+**Manage templates** from the empty state.
+
+**Details** beside an installed version shows its exact release and license.
+**Repair** verifies its cached files and downloads any that are missing or damaged.
+**Remove** deletes the installation record but keeps notes, publication history
+and cached files. If the mirror reports that it is busy, wait one minute, then
+install only the versions that failed.
+
+**Configure** edits reusable layouts; **Create custom template** creates a disabled
+custom layout. The note-specific **Settings** button edits only the current note.
+
 ### Supported templates
 
 These templates provide specialized publication formats. Use the shared publishing workflow above and follow the requirements for your selected template.
+
+#### Journal and research profiles
+
+Choose a family in **Publish → Template**, then choose its **Profile / version**.
+The selected class controls page layout and bibliography. General and Academic
+layouts remain available when you want to customize fonts, margins, and CSL styles.
+
+Available templates and versions come from the registry. Each installation fixes
+its document class, class options, bibliography style, and renderer adapter.
+The version selector chooses among installed, enabled releases; it does not
+provide additional layout modes within a release.
+
+These are manuscript PDFs, not a guarantee of publisher acceptance. Stratum does
+not create source submission archives or submit papers. Unsupported installation
+metadata is rejected rather than silently replaced with another style.
+
+Use one leading `# Title` and one `## Abstract` section, followed by unnumbered
+section headings. Alternatively choose **Publishing settings → Title source →
+Title property**. Add authors through **Publishing settings → Authors**; every
+identified author needs a name and assigned affiliation. Multiple affiliations
+remain attached to their authors. ACM also requires an institution, city and
+country for each author; additional affiliation text appears as an author note.
+The corresponding author email, when supplied, must match an author's email.
+
+For example:
+
+```yaml
+stratum_publish:
+  authors:
+    - name: Alex Example
+      email: alex@example.invalid
+      institution: Example Institute
+      city: Example City
+      country: Example Country
+      affiliations:
+        - Example Institute
+        - Second Institute
+stratum_corresponding_author: alex@example.invalid
+stratum_running_title: A short manuscript title
+stratum_running_authors: Example and colleagues
+keywords: [research, methods]
+```
+
+Edit running heads, corresponding-author email, and optional ACM conference,
+year, and DOI values in **Publishing settings → Document details**. Fields are
+shown only for applicable profiles. Turning keywords off preserves the note's
+value and omits it from the PDF. Title-source choices are retained separately for
+each profile. Review and reselect a profile when its installed package version
+changes; previous PDFs remain in Documents.
+
+Citations use the profile's native bibliography. Narrative/grouped citations and
+locators are supported; suppress-author citations require an author-year profile.
+Publisher styles can omit article titles or use superscript citations. This is
+independent of the note's Reading-view CSL style.
+
+Anonymous ACM review omits author front matter and PDF author metadata. Review
+identifying prose, acknowledgments, figures, and self-citations yourself; the
+plugin does not rewrite those parts of your manuscript.
+
+Each adapter pins an exact release from Stratum’s public mirror, including runtime
+hashes and validation evidence. Registry presence alone does not establish renderer
+support. Tectonic may download supporting
+packages and fonts; offline exporting requires both installed mirror resources
+and cached compiler dependencies. Sources, provenance and required notices remain
+in the plugin cache. Do not redistribute them without their license conditions.
 
 #### AASTeX
 
@@ -425,27 +515,28 @@ The [AASTeX](https://journals.aas.org/aastex-package-for-manuscript-preparation/
 
 ##### Requirements
 
-Every author needs a name, email, and affiliation. Author emails do not appear in the PDF.
+Every author needs a name and affiliation. Email is optional; how it appears
+depends on the installed class version.
 
 When **Title source** uses the document title, the title must be a leading `#` heading.
-
-##### PDF options
-
-- **Show line numbers**.
-- **Show draft date header**.
-- **Headings already contain numbers**.
-
-Review any heading-number warnings before publishing. AASTeX adds its own section numbers. Inconsistent existing numbers can cause duplicate numbering.
+Use unnumbered section headings; the installed class controls section numbering
+and layout. The previous bundled AASTeX layout switches are not available for
+registry installations.
 
 ##### Versions
 
-Select the template version in **Publish → Create**. If the selected version is unavailable, review the notice. Select **Use installed version** to approve the installed package.
+Select an installed version in **Publish → Create**. If that exact version is
+missing, reinstall it in **Manage templates**. Saved document selections are kept;
+a different version is never selected automatically.
 
 ##### Support files
 
-AASTeX is supplied with the plugin. For cited PDFs, Stratum downloads the required bibliography style from AAS when no verified local copy is available.
+Enable AASTeX in **Manage templates** to download its compatible mirrored class
+and bibliography release. Both are verified before the template becomes available.
+Export uses installed resources and does not start a missing-resource download.
+If files are missing or damaged, disable and re-enable AASTeX to reinstall.
 
-Stratum checks the file before saving or using it. The cached file contains no manuscript or reference data.
+Stratum checks the file before saving or using it. The cached resources contain no content from your vault.
 
 ## Commands and hotkeys
 
@@ -490,18 +581,25 @@ Coverage varies by source. Stratum sends only the DOI to OpenAlex, not your draf
 - Cloud imports fetch Zotero metadata, notes, and annotations. The service can cache search metadata, abstracts, and enrichment responses.
 - Additional citation styles come from `www.zotero.org`.
 - Additional citation languages come from the Citation Style Language project on `raw.githubusercontent.com`.
-- AASTeX bibliography-style downloads contact `journals.aas.org`. Tectonic can download typesetting support files.
+- Publishing template downloads contact Stratum’s public API at `templates.stratumnotes.com`. Tectonic can download typesetting support files.
 - Selecting an external source link opens its destination.
 
 Style and language requests identify resources. They do not contain your draft or reference data.
 
-### AASTeX downloads and privacy
+### Publishing template downloads and privacy
 
-When you create an AASTeX PDF with citations, Stratum downloads a file from the American Astronomical Society at `journals.aas.org`. This file controls how references appear in your PDF.
+When you enable a supported journal family or AASTeX in **Manage templates**,
+Stratum downloads only public release metadata, validation evidence and resources
+from `templates.stratumnotes.com/api/templates/v1`. No account or bucket credentials are
+needed, and no manuscript or reference data is sent. AASTeX bibliography use is
+restricted to nonprofit purposes; its original notices and mirror packaging notice
+are retained. Other releases retain their own component license conditions.
 
 The download uses a secure connection. Stratum checks that it matches the expected file, then saves it in the plugin folder for reuse.
 
-**Your manuscript and reference data are not sent to AAS.**
+If the mirror is unavailable, retry enablement later. Verified installed versions
+remain usable offline. Missing or damaged caches require explicit reinstallation
+in Manage templates; publishing never silently downloads or upgrades resources.
 
 ### Your writing and credentials
 

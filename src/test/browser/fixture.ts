@@ -1,3 +1,4 @@
+import installation from "../fixtures/installation.json";
 import { TFile, MarkdownView, editorInfoField } from "obsidian";
 import { EditorState, StateEffect, type ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -87,6 +88,7 @@ export interface FixtureOptions {
   titleFont?: string;
   theme?: "light" | "dark";
   aastex?: boolean;
+  acm?: boolean;
   templateId?: "general" | "academic";
   source?: string;
   editable?: boolean;
@@ -114,6 +116,18 @@ async function reset(options: FixtureOptions = {}) {
   adapter = new MemoryVault();
   const plugin = {
     settings: {
+      publishingTemplates: {
+        templates: [],
+        installations: [
+          options.acm
+            ? {
+                ...installation,
+                adapter: { ...installation.adapter, frontMatter: "acmart" },
+              }
+            : installation,
+        ],
+        enabledIds: ["general", "academic", "registry:example:1.0-r1"],
+      },
       publishPdfSetupComplete: true,
       pandocPath: "pandoc",
       tectonicPath: "tectonic",
@@ -125,6 +139,7 @@ async function reset(options: FixtureOptions = {}) {
     },
     manifest: { id: "stratum" },
     saveSettings: () => Promise.resolve(),
+    refreshViews: () => controller.emit(),
     app: {
       vault: {
         adapter,
@@ -289,7 +304,7 @@ async function reset(options: FixtureOptions = {}) {
   );
   await controller.updatePreferences({
     templateId: options.aastex
-      ? "package:aastex"
+      ? "registry:example:1.0-r1"
       : (options.templateId ?? "general"),
   });
   const preferences = {
@@ -305,6 +320,13 @@ async function reset(options: FixtureOptions = {}) {
   panel.onload();
 }
 export const publicationFixture = {
+  setEnabledTemplates(enabledIds: string[]) {
+    controller.plugin.settings.publishingTemplates = {
+      ...controller.plugin.settings.publishingTemplates!,
+      enabledIds,
+    };
+    controller.emit();
+  },
   setTitleSource(titleSource: "body" | "properties") {
     return controller.updateLayout({ titleSource });
   },
@@ -392,18 +414,6 @@ export const publicationFixture = {
     controller.busy = busy;
     controller.emit();
   },
-  setAastexPackage(
-    reference: import("../../publication-options").PublicationPackageReference,
-  ) {
-    return controller.updatePreferences({
-      aastex: { ...controller.notePreferences.aastex!, package: reference },
-    });
-  },
-  setAastexOptions(
-    options: Parameters<PublishController["updateAastexPdfOptions"]>[0],
-  ) {
-    return controller.updateAastexPdfOptions(options);
-  },
   resetSaveCount() {
     adapter.catalogWrites = 0;
   },
@@ -413,10 +423,6 @@ export const publicationFixture = {
     file.basename = "Synthetic second paper";
     controller.document = file;
     controller.emit();
-  },
-  savedOptions(path: string) {
-    return controller.catalog?.notes.find((note) => note.path === path)
-      ?.preferences?.aastex?.options;
   },
   async addDocuments(count = 1) {
     const note = await controller.store.note(
@@ -469,7 +475,6 @@ export const publicationFixture = {
       bodyFont: controller.layout.bodyFont,
       titleFont: controller.layout.titleFont,
       fonts: controller.fontError?.fonts ?? [],
-      aastexOptions: controller.aastexPdfOptions,
       saveCount: adapter.catalogWrites,
     };
   },
