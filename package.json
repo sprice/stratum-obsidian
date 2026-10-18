@@ -44,7 +44,11 @@
     "ci:lint-review": "wireit",
     "ci:scorecard": "wireit",
     "ci:test-tooling": "wireit",
-    "ci:typecheck": "wireit"
+    "ci:typecheck": "wireit",
+    "ci:test": "wireit",
+    "ci:test-browser": "wireit",
+    "ci:publishing-preflight": "wireit",
+    "ci:build": "wireit"
   },
   "keywords": [],
   "license": "MIT",
@@ -108,7 +112,12 @@
         ".gitignore",
         "manifest.json",
         "LICENSE",
-        "styles.css"
+        "styles.css",
+        "esbuild.config.mjs",
+        "plugin.config.json",
+        "THIRD_PARTY_NOTICES.md",
+        "licenses/**/*",
+        ".env"
       ],
       "packageLocks": [
         "pnpm-lock.yaml"
@@ -133,6 +142,21 @@
         },
         "TZ": {
           "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
         }
       }
     },
@@ -154,6 +178,21 @@
           "external": true
         },
         "TZ": {
+          "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
           "external": true
         }
       }
@@ -177,6 +216,21 @@
         },
         "TZ": {
           "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
         }
       }
     },
@@ -199,6 +253,21 @@
         },
         "TZ": {
           "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
         }
       }
     },
@@ -220,6 +289,242 @@
           "external": true
         },
         "TZ": {
+          "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
+        }
+      }
+    },
+    "ci:test": {
+      "command": "pnpm test",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        ".ci-cache/publishing.json"
+      ],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_REQUIRE_PUBLISHING_TOOLS": {
+          "external": true
+        },
+        "STRATUM_TEST_PANDOC": {
+          "external": true
+        },
+        "STRATUM_TEST_TECTONIC": {
+          "external": true
+        },
+        "STRATUM_TEST_PDFTOTEXT": {
+          "external": true
+        },
+        "STRATUM_TEST_CHROME": {
+          "external": true
+        },
+        "STRATUM_TEST_TEMPLATE_CACHE": {
+          "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
+        }
+      }
+    },
+    "ci:test-browser": {
+      "command": "pnpm test:browser",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        ".ci-cache/publishing.json"
+      ],
+      "output": [
+        ".test-artifacts/publishing/*.png",
+        ".test-artifacts/publishing/timings.json"
+      ],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_REQUIRE_PUBLISHING_TOOLS": {
+          "external": true
+        },
+        "STRATUM_TEST_PANDOC": {
+          "external": true
+        },
+        "STRATUM_TEST_TECTONIC": {
+          "external": true
+        },
+        "STRATUM_TEST_PDFTOTEXT": {
+          "external": true
+        },
+        "STRATUM_TEST_CHROME": {
+          "external": true
+        },
+        "STRATUM_TEST_TEMPLATE_CACHE": {
+          "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
+        }
+      }
+    },
+    "ci:publishing-preflight": {
+      "command": "pnpm test:publishing:preflight",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        ".ci-cache/publishing.json"
+      ],
+      "output": [
+        ".test-artifacts/publishing/tools.json"
+      ],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_REQUIRE_PUBLISHING_TOOLS": {
+          "external": true
+        },
+        "STRATUM_TEST_PANDOC": {
+          "external": true
+        },
+        "STRATUM_TEST_TECTONIC": {
+          "external": true
+        },
+        "STRATUM_TEST_PDFTOTEXT": {
+          "external": true
+        },
+        "STRATUM_TEST_CHROME": {
+          "external": true
+        },
+        "STRATUM_TEST_TEMPLATE_CACHE": {
+          "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
+        }
+      }
+    },
+    "ci:build": {
+      "command": "pnpm build",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        "esbuild.config.mjs",
+        "plugin.config.json",
+        ".env",
+        "THIRD_PARTY_NOTICES.md",
+        "licenses/**/*"
+      ],
+      "output": [
+        "main.js"
+      ],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
           "external": true
         }
       }

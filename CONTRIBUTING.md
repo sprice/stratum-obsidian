@@ -34,9 +34,12 @@ and watch commands keep their live output.
 CI prints full failure diagnostics so they remain available in the job output.
 
 GitHub Actions uses Wireit to cache successful formatting, lint, scorecard,
-tooling-test, and typecheck results when their inputs match. Publishing checks,
-source tests, browser tests, and builds still run normally. The standard developer
-commands remain uncached. The shared `ci:inputs` task declares the files that
+tooling-test, typecheck, source-test, browser-test, PDF-preflight, and build results
+when their inputs match. Browser screenshots, preflight reports, and `main.js` are
+restored on cache hits. Preparation always verifies publishing tools and fingerprints
+their versions, installed fonts on Linux, and optional template-cache contents. Build
+keys include bundler configuration, license notices, `.env`, and build environment
+overrides. Release builds and the standard developer commands remain uncached. The shared `ci:inputs` task declares the files that
 invalidate all cached checks; each check tracks its own command and environment.
 For an uncached CI run, select
 **Build & Lint → Run workflow** and enable **uncached**. To disable task caching

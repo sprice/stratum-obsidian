@@ -1,11 +1,78 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, readdir, lstat } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { generatePublicationAssets } from "./publication-assets.mjs";
 import { testFiles } from "./ci-test-coverage.mjs";
+import { verifyPublishingTools } from "./require-publishing-tools.mjs";
+
+// Hash optional external template resources without recording their paths/content.
+async function treeDigest(directory) {
+  const hash = createHash("sha256");
+  async function visit(path, name = "") {
+    const stat = await lstat(path);
+    if (stat.isSymbolicLink())
+      throw new Error("CI template cache must not contain symlinks.");
+    hash.update(JSON.stringify([name, stat.isDirectory()]));
+    if (stat.isDirectory()) {
+      for (const entry of (await readdir(path)).sort())
+        await visit(join(path, entry), `${name}/${entry}`);
+    } else
+      hash.update(
+        createHash("sha256")
+          .update(await readFile(path))
+          .digest(),
+      );
+  }
+  await visit(directory);
+  return hash.digest("hex");
+}
+
+export async function publishingFingerprint(
+  env,
+  run = spawnSync,
+  platform = process.platform,
+) {
+  if (env.STRATUM_REQUIRE_PUBLISHING_TOOLS !== "1")
+    throw new Error(
+      "Cached publishing checks require STRATUM_REQUIRE_PUBLISHING_TOOLS=1.",
+    );
+  const outputs = [];
+  verifyPublishingTools(
+    env,
+    (executable, args, options) => {
+      const result = run(
+        executable,
+        executable === "fc-list"
+          ? ["--format=%{family}:%{style}:%{fontversion}\\n"]
+          : args,
+        options,
+      );
+      if (result.error || result.status !== 0)
+        throw (
+          result.error ?? new Error(`Tool exited with status ${result.status}`)
+        );
+      // Include stderr (Poppler), and the entire sorted font inventory, in the key.
+      const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`
+        .trim()
+        .split("\n")
+        .sort()
+        .join("\n");
+      outputs.push(output);
+      return output;
+    },
+    platform,
+  );
+  return createHash("sha256").update(JSON.stringify(outputs)).digest("hex");
+}
 
 // Run before any cached check: generated inputs must exist even on a cache hit.
-export async function prepareCiCache(root = process.cwd(), env = process.env) {
+export async function prepareCiCache(
+  root = process.cwd(),
+  env = process.env,
+  fingerprint = publishingFingerprint,
+) {
   const manifest = JSON.parse(
     await readFile(join(root, "package.json"), "utf8"),
   );
@@ -16,6 +83,12 @@ export async function prepareCiCache(root = process.cwd(), env = process.env) {
   await generatePublicationAssets(
     join(root, "src/publication-templates/aastex"),
   );
+  const publishing = {
+    tools: await fingerprint(env),
+    templates: env.STRATUM_TEST_TEMPLATE_CACHE
+      ? await treeDigest(env.STRATUM_TEST_TEMPLATE_CACHE)
+      : null,
+  };
   // Only enumerate execution metadata. Never serialize the full environment.
   const contents = `${JSON.stringify(
     {
@@ -37,6 +110,10 @@ export async function prepareCiCache(root = process.cwd(), env = process.env) {
   const directory = join(root, ".ci-cache");
   const target = join(directory, "environment.json");
   await mkdir(directory, { recursive: true });
+  await writeFile(
+    join(directory, "publishing.json"),
+    `${JSON.stringify(publishing)}\n`,
+  );
   let previous;
   try {
     previous = await readFile(target, "utf8");

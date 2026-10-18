@@ -16,7 +16,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { parse } from "yaml";
-import { prepareCiCache } from "./ci-cache-prepare.mjs";
+import {
+  prepareCiCache as prepare,
+  publishingFingerprint,
+} from "./ci-cache-prepare.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
@@ -24,6 +27,11 @@ const cachedTasks = Object.keys(manifest.scripts).filter(
   (name) => manifest.scripts[name] === "wireit",
 );
 const binary = fileURLToPath(import.meta.resolve("wireit/bin/wireit.js"));
+const prepareCiCache = (
+  root,
+  env,
+  fingerprint = async () => "synthetic-tools-v1",
+) => prepare(root, env, fingerprint);
 const preparationEnv = { npm_config_user_agent: "pnpm/10.12.4", CI: "true" };
 
 async function put(root, file, contents) {
@@ -56,7 +64,12 @@ async function fixture(t, name) {
     directory,
     "probe.mjs",
     `
-    import { appendFileSync, existsSync } from 'node:fs';
+    import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+    import { dirname } from 'node:path';
+    for (const path of ${JSON.stringify(manifest.wireit[name].output.map((p) => p.replace("*.png", "synthetic.png")))}) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, 'synthetic output');
+    }
     appendFileSync('executions', 'run\\n');
     if (existsSync('fail')) process.exit(7);
   `,
@@ -113,6 +126,12 @@ for (const name of cachedTasks) {
         force: true,
       });
     await expectRun(0);
+    for (const output of manifest.wireit[name].output) {
+      const path = join(directory, output.replace("*.png", "synthetic.png"));
+      await rm(path);
+      await expectRun(0);
+      assert.equal(await readFile(path, "utf8"), "synthetic output");
+    }
     for (const file of [
       "src/example.ts",
       "eslint.config.mts",
@@ -123,6 +142,11 @@ for (const name of cachedTasks) {
       "pnpm-lock.yaml",
       "src/publication-templates/aastex/example.cls",
       ".prettierignore",
+      "esbuild.config.mjs",
+      "plugin.config.json",
+      "licenses/synthetic.txt",
+      "THIRD_PARTY_NOTICES.md",
+      ".env",
     ]) {
       await put(directory, file, "changed input\n");
       await expectRun(1);
@@ -161,6 +185,14 @@ for (const name of cachedTasks) {
       ImageVersion: "new-image",
     });
     await expectRun(1);
+    if (manifest.wireit[name].files.includes(".ci-cache/publishing.json")) {
+      await prepareCiCache(
+        directory,
+        { ...preparationEnv, ImageVersion: "new-image" },
+        async () => "synthetic-tools-v2",
+      );
+      await expectRun(1);
+    }
     await expectRun(1, { TZ: "Pacific/Honolulu" });
     await expectRun(0, { TZ: "Pacific/Honolulu" });
     await put(directory, "fail", "");
@@ -242,16 +274,81 @@ test("CI prepares cached inputs, preserves uncached checks and disables caches f
   );
   for (const name of cachedTasks)
     assert(steps.findIndex((step) => step.run === `pnpm ${name}`) > prepare);
-  for (const command of [
-    "pnpm test",
-    "pnpm test:browser",
-    "pnpm build",
-    "pnpm test:publishing:preflight",
-  ])
-    assert(steps.some((step) => step.run === command));
+
   assert.equal(
     workflow.jobs.release.steps.find((step) => step.name === "Build plugin")
       .run,
     "pnpm build",
+  );
+});
+
+test("publishing fingerprints include stderr and every font, and reject unavailable tools", async () => {
+  const env = {
+    STRATUM_REQUIRE_PUBLISHING_TOOLS: "1",
+    STRATUM_TEST_CHROME: "/synthetic/chrome",
+  };
+  const fingerprint = (extra = {}) =>
+    publishingFingerprint(
+      env,
+      (exe) => ({
+        status: 0,
+        stdout: "Synthetic installed dependency",
+        stderr: "",
+        ...extra[exe],
+      }),
+      "linux",
+    );
+  const first = await fingerprint();
+  assert.notEqual(
+    first,
+    await fingerprint({ pdftotext: { stderr: "new Poppler version" } }),
+  );
+  {
+    assert.notEqual(
+      first,
+      await fingerprint({ "fc-list": { stdout: "First font\nSecond font" } }),
+    );
+    assert.equal(
+      await fingerprint({ "fc-list": { stdout: "First font\nSecond font" } }),
+      await fingerprint({ "fc-list": { stdout: "Second font\nFirst font" } }),
+    );
+  }
+  await assert.rejects(
+    publishingFingerprint(env, () => ({ status: 1 })),
+    /Required CI publishing dependency/,
+  );
+  await assert.rejects(
+    publishingFingerprint({}),
+    /STRATUM_REQUIRE_PUBLISHING_TOOLS/,
+  );
+});
+
+test("template cache content changes invalidate publishing inputs without exposing data", async (t) => {
+  const directory = await fixture(t, "ci:test");
+  const templates = await mkdtemp(
+    join(tmpdir(), "stratum-synthetic-templates-"),
+  );
+  t.after(() => rm(templates, { recursive: true, force: true }));
+  await put(templates, "synthetic.cls", "synthetic template version one");
+  const env = { ...preparationEnv, STRATUM_TEST_TEMPLATE_CACHE: templates };
+  await prepareCiCache(directory, env);
+  const first = await readFile(
+    join(directory, ".ci-cache/publishing.json"),
+    "utf8",
+  );
+  assert.equal((await run(directory, "ci:test")).code, 0);
+  await put(templates, "synthetic.cls", "synthetic template version two");
+  await prepareCiCache(directory, env);
+  const second = await readFile(
+    join(directory, ".ci-cache/publishing.json"),
+    "utf8",
+  );
+  assert.notEqual(first, second);
+  assert(!second.includes(templates));
+  assert(!second.includes("synthetic template"));
+  assert.equal((await run(directory, "ci:test")).code, 0);
+  assert.equal(
+    await readFile(join(directory, "executions"), "utf8"),
+    "run\nrun\n",
   );
 });
