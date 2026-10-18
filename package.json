@@ -10,7 +10,8 @@
   "type": "module",
   "scripts": {
     "prepare": "node scripts/publication-assets.mjs",
-    "test:browser": "node scripts/publication-assets.mjs && node --test --import tsx src/test/browser/publishing.test.ts src/test/browser/publication-editor.test.ts",
+    "test:browser": "node scripts/run-quiet.mjs pnpm run test:browser:verbose",
+    "test:browser:verbose": "node scripts/publication-assets.mjs && node --test --import tsx src/test/browser/publishing.test.ts src/test/browser/publication-editor.test.ts",
     "dev": "node esbuild.config.mjs",
     "build": "node scripts/run-quiet.mjs pnpm run build:verbose",
     "build:verbose": "node scripts/publication-assets.mjs && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
