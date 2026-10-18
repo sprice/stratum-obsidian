@@ -20,6 +20,58 @@ test("plugin CI selects every test file, including nested browser tests", () => 
   const covered = coveredTests(workflow, root);
   assert.deepEqual(missingTests(testFiles(root), covered, root), []);
 });
+test("coverage guard follows Wireit commands and internal dependencies", () => {
+  const directory = mkdtempSync(join(tmpdir(), "stratum-wireit-coverage-"));
+  try {
+    mkdirSync(join(directory, "tests"));
+    for (const name of ["unit", "browser", "omitted"])
+      writeFileSync(join(directory, `tests/${name}.test.ts`), "");
+    const manifest = {
+      scripts: { "ci:test": "wireit", test: "node --test tests/unit.test.ts" },
+      wireit: {
+        "ci:test": {
+          command: "pnpm test",
+          dependencies: [{ script: "browser" }],
+        },
+        browser: { command: "node --test tests/browser.test.ts" },
+      },
+    };
+    const workflow = "jobs:\n  build:\n    steps:\n      - run: pnpm ci:test\n";
+    function writeManifest() {
+      writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+    }
+    writeManifest();
+    assert.deepEqual(
+      missingTests(
+        testFiles(directory),
+        coveredTests(workflow, directory),
+        directory,
+      ),
+      ["tests/omitted.test.ts"],
+    );
+    manifest.wireit.browser.command = "pnpm ci:test";
+    writeManifest();
+    assert.throws(
+      () => coveredTests(workflow, directory),
+      /Circular CI script/,
+    );
+    manifest.wireit.browser.command = "node --test tests/browser.test.ts";
+    manifest.wireit["ci:test"].dependencies = ["../other:test"];
+    writeManifest();
+    assert.throws(
+      () => coveredTests(workflow, directory),
+      /Unsupported Wireit dependency/,
+    );
+    delete manifest.wireit["ci:test"];
+    writeManifest();
+    assert.throws(
+      () => coveredTests(workflow, directory),
+      /Missing Wireit configuration/,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 test("coverage guard detects omitted nested tests and follows script wrappers", () => {
   const root = mkdtempSync(join(tmpdir(), "stratum-ci-coverage-"));
   try {

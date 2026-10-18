@@ -34,10 +34,16 @@
     "format": "node scripts/run-quiet.mjs pnpm run format:verbose",
     "format:verbose": "prettier --write src/",
     "test:tooling": "node scripts/run-quiet.mjs pnpm run test:tooling:verbose",
-    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs",
+    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs scripts/ci-cache.test.mjs",
     "quiet": "node scripts/run-quiet.mjs",
     "test:publishing:preflight": "node scripts/require-publishing-tools.mjs",
-    "lint:scorecard:rules": "node scripts/run-quiet.mjs node scripts/scorecard-rules.mjs"
+    "lint:scorecard:rules": "node scripts/run-quiet.mjs node scripts/scorecard-rules.mjs",
+    "ci:prepare": "node scripts/ci-cache-prepare.mjs",
+    "ci:format": "wireit",
+    "ci:lint-review": "wireit",
+    "ci:scorecard": "wireit",
+    "ci:test-tooling": "wireit",
+    "ci:typecheck": "wireit"
   },
   "keywords": [],
   "license": "MIT",
@@ -59,6 +65,7 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.0",
+    "wireit": "0.14.13",
     "yaml": "2.8.3"
   },
   "pnpm": {
@@ -79,5 +86,142 @@
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
     "unified": "11.0.5"
+  },
+  "wireit": {
+    "ci:inputs": {
+      "files": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".npmrc",
+        "pnpm-workspace.yaml",
+        ".github/**/*",
+        "scripts/**/*",
+        ".ci-cache/environment.json",
+        "src/**/*",
+        "!src/publication-templates/aastex/files.json",
+        "tsconfig*.json",
+        "eslint.config.*",
+        ".prettier*",
+        "prettier.config.*",
+        ".editorconfig",
+        ".gitignore",
+        "manifest.json",
+        "LICENSE",
+        "styles.css"
+      ],
+      "packageLocks": [
+        "pnpm-lock.yaml"
+      ]
+    },
+    "ci:format": {
+      "command": "pnpm format:check",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:lint-review": {
+      "command": "pnpm lint:review",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:scorecard": {
+      "command": "pnpm lint:scorecard",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:test-tooling": {
+      "command": "pnpm test:tooling",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:typecheck": {
+      "command": "pnpm typecheck",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    }
   }
 }

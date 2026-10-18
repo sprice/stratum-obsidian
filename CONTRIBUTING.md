@@ -33,6 +33,16 @@ individual tool's `:verbose` script. Extra arguments are forwarded. Development
 and watch commands keep their live output.
 CI prints full failure diagnostics so they remain available in the job output.
 
+GitHub Actions uses Wireit to cache successful formatting, lint, scorecard,
+tooling-test, and typecheck results when their inputs match. Publishing checks,
+source tests, browser tests, and builds still run normally. The standard developer
+commands remain uncached. The shared `ci:inputs` task declares the files that
+invalidate all cached checks; each check tracks its own command and environment.
+For an uncached CI run, select
+**Build & Lint → Run workflow** and enable **uncached**. To disable task caching
+for all Actions runs, set the repository variable `STRATUM_CI_CACHE_DISABLED`
+to `true`.
+
 `pnpm lint:scorecard` checks CSS and decoding regression rules through
 `pnpm lint:scorecard:rules`: no `display: contents`, no `!important`, and no
 direct runtime base64 decoding calls in production `src/` (tests and tooling
