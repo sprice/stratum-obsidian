@@ -752,10 +752,13 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
         ),
         true,
       );
-      if (templateId === "general")
-        await page
-          .locator('select[aria-label="Title source"]')
-          .selectOption("properties");
+      assert.equal(
+        await page.evaluate("window.publicationFixture.state().titleSource"),
+        "body",
+      );
+      await page
+        .locator('select[aria-label="Title source"]')
+        .selectOption("properties");
       await until(
         "!!document.querySelector('.stratum-publishing-settings-modal input[aria-label=\"Title\"]')",
       );
@@ -827,7 +830,7 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
         await page.evaluate(
           "document.querySelector('select[aria-label=\"Title source\"]').value",
         ),
-        templateId === "general" ? "body" : "properties",
+        "body",
       );
       assert.equal(
         await page.evaluate(
@@ -843,6 +846,42 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
         ),
         true,
       );
+    }
+  });
+});
+
+test("template switches restore saved title sources and default new templates to body", async () => {
+  await scenario("saved-template-title-sources", async () => {
+    await reset({
+      templateId: "general",
+      source: manuscript.replace("tags:", "title: Synthetic title\ntags:"),
+    });
+    for (const [templateId, expected, saved] of [
+      ["general", "body", "properties"],
+      ["academic", "body", "properties"],
+      ["general", "properties", "body"],
+      ["academic", "properties", "body"],
+      ["general", "body", "body"],
+      ["academic", "body", "body"],
+    ]) {
+      await page
+        .locator('select[aria-label="Choose template"]')
+        .selectOption(templateId);
+      await until("!window.publicationFixture.state().saving");
+      await openSettings();
+      assert.equal(
+        await page.evaluate("window.publicationFixture.state().titleSource"),
+        expected,
+      );
+      await page
+        .locator('select[aria-label="Title source"]')
+        .selectOption(saved);
+      await page.keyPress("Tab");
+      await until(
+        `window.publicationFixture.state().titleSource === ${JSON.stringify(saved)} && !window.publicationFixture.state().saving && !document.querySelector('.stratum-publishing-done').disabled`,
+      );
+      await page.locator(".stratum-publishing-done").click();
+      await until("!document.querySelector('.modal')");
     }
   });
 });
@@ -978,6 +1017,9 @@ test("metadata requires an explicitly registered editable note while options rem
       source: manuscript,
     });
     await openSettings();
+    await page
+      .locator('select[aria-label="Title source"]')
+      .selectOption("properties");
     assert.equal(
       await page
         .locator('.stratum-publishing-settings-modal input[aria-label="Title"]')
@@ -1219,12 +1261,13 @@ test("cleanup silently follows the selected template and restores all removed ke
         else if (templateId === "academic") {
           assert.doesNotMatch(
             cleaned,
-            /title:|authors:|affiliations:|date:|keywords:/,
+            /authors:|affiliations:|date:|keywords:/,
           );
           assert.equal(
             await page.evaluate("window.publicationFixture.state().canCreate"),
-            false,
+            true,
           );
+          assert.match(cleaned, /title: ""/);
         } else {
           assert.doesNotMatch(cleaned, /title:/);
           assert.match(cleaned, /authors: \[\]/);
@@ -1377,7 +1420,7 @@ test("reset availability reacts to saved changes and resets only the selected te
       const before = await page.evaluate("window.publicationFixture.text()");
       await page
         .locator('select[aria-label="Title source"]')
-        .selectOption(templateId === "general" ? "properties" : "body");
+        .selectOption("properties");
       await until(
         "!window.publicationFixture.state().saving && !document.querySelector('.stratum-publishing-reset').disabled",
       );
@@ -1402,6 +1445,9 @@ test("cleanup availability follows focused drafts, current mappings, external ed
       const source = "---\ntitle: Populated\nkeywords: [retained]\n---\nBody";
       await reset({ templateId: "academic", aastex, bodyFont: "", source });
       await openSettings();
+      await page
+        .locator('select[aria-label="Title source"]')
+        .selectOption("properties");
       await until(
         "document.querySelector('.stratum-publishing-cleanup').disabled",
       );
