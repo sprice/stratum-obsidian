@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, writeFile, readFile, rm, symlink } from "node:fs/promises";
+import {
+  mkdtemp,
+  writeFile,
+  readFile,
+  rm,
+  symlink,
+  chmod,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -31,6 +38,10 @@ test("local success applies only to the exact snapshot, including unstaged chang
     ).sort(),
     ["sha256", "version"],
   );
+  await chmod(join(root, "source.ts"), 0o755);
+  assert.equal(await hasLocalValidation(root), false);
+  await chmod(join(root, "source.ts"), 0o644);
+  assert.equal(await hasLocalValidation(root), true);
   await writeFile(join(root, "source.ts"), "changed source");
   assert.equal(await hasLocalValidation(root), false);
   await assert.rejects(recordLocalValidation(digest, root), /Sources changed/);

@@ -7,6 +7,9 @@ import {
   receiptFile,
 } from "./ci-local-validation.mjs";
 
+// Invalidate success before probing tools, so interrupted setup cannot retain it.
+if (!process.env.CI) await rm(receiptFile, { force: true });
+
 const env = {
   ...process.env,
   STRATUM_REQUIRE_PUBLISHING_TOOLS: "1",
@@ -20,14 +23,15 @@ if (!env.STRATUM_TEST_CHROME) {
     "chromium",
     "chromium-browser",
   ]) {
-    if (spawnSync(candidate, ["--version"], { stdio: "ignore" }).status === 0) {
+    if (
+      spawnSync(candidate, ["--version"], { stdio: "ignore", timeout: 15_000 })
+        .status === 0
+    ) {
       env.STRATUM_TEST_CHROME = candidate;
       break;
     }
   }
 }
-// A failed rerun must never leave an older success receipt in place.
-if (!process.env.CI) await rm(receiptFile, { force: true });
 const before = await sourceDigest();
 await prepareCiCache(process.cwd(), env);
 const result = spawnSync("pnpm", ["ci:validate"], {

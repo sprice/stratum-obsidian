@@ -31,7 +31,9 @@ export async function sourceDigest(root = process.cwd()) {
     const contents = symlink
       ? Buffer.from(await readlink(path))
       : await readFile(path);
-    hash.update(JSON.stringify([file, symlink, contents.length]));
+    // Git preserves the owner execute bit; permission-only edits can change scripts.
+    const executable = !symlink && (stat.mode & 0o100) !== 0;
+    hash.update(JSON.stringify([file, symlink, executable, contents.length]));
     hash.update(contents);
   }
   return hash.digest("hex");
