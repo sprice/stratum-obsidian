@@ -201,8 +201,8 @@ export default class StratumPlugin extends Plugin {
   localLiveSyncDebounceTimer: number | null = null;
   localLiveSyncRunPromise: Promise<void> | null = null;
   localLiveSyncError: string | null = null;
+  localLiveSyncApplyingChanges = false;
   localLiveSyncFocusRegistered = false;
-  localLiveSyncSnapshots = new Map<string, string>();
   statusBarItemEl: HTMLElement | null = null;
   readonly library = {
     search: (query: string) => searchLibrary(this, query),
@@ -604,7 +604,6 @@ export default class StratumPlugin extends Plugin {
       window.clearTimeout(this.localLiveSyncDebounceTimer);
       this.localLiveSyncDebounceTimer = null;
     }
-    this.localLiveSyncSnapshots.clear();
   }
 
   async loadSettings(): Promise<void> {
@@ -652,7 +651,9 @@ export default class StratumPlugin extends Plugin {
   }
 
   isZoteroAutoSyncRunning(): boolean {
-    return this.noteRefreshPromises.size > 0;
+    return (
+      this.localLiveSyncApplyingChanges || this.noteRefreshPromises.size > 0
+    );
   }
 
   isBulkLibrarySyncRunning(): boolean {

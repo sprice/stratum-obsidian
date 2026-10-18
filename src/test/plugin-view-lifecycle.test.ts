@@ -43,3 +43,30 @@ for (const unload of ["before", "during", "never"] as const) {
     assert.equal(revealed, unload === "never" ? 1 : 0);
   });
 }
+
+test("heartbeat checks stay quiet while applying changes stays busy across note refreshes", () => {
+  class HostComponent {}
+  const { default: StratumPlugin } = loadRuntime<typeof import("../plugin")>(
+    "plugin.ts",
+    new Proxy<Record<string, unknown>>({}, { get: () => HostComponent }),
+  );
+  const plugin = {
+    noteRefreshPromises: new Map<string, Promise<void>>(),
+    localLiveSyncRunPromise: null as Promise<void> | null,
+    localLiveSyncApplyingChanges: false,
+  };
+  const busy = () =>
+    StratumPlugin.prototype.isZoteroAutoSyncRunning.call(plugin as never);
+  assert.equal(busy(), false);
+  plugin.localLiveSyncRunPromise = Promise.resolve();
+  assert.equal(busy(), false);
+  plugin.localLiveSyncApplyingChanges = true;
+  assert.equal(busy(), true);
+  plugin.noteRefreshPromises.set("Papers/Synthetic.md", Promise.resolve());
+  assert.equal(busy(), true);
+  plugin.noteRefreshPromises.clear();
+  assert.equal(busy(), true);
+  plugin.localLiveSyncRunPromise = null;
+  plugin.localLiveSyncApplyingChanges = false;
+  assert.equal(busy(), false);
+});

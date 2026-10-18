@@ -48,6 +48,13 @@ export interface PendingAuthState {
   createdAt: string;
 }
 
+export interface LocalZoteroHeartbeatCheckpoint {
+  accountId: string | null;
+  port: number;
+  serverId: string;
+  libraryVersion: number;
+}
+
 export interface StratumSettings {
   publishingTemplates?: PublishingTemplates;
   publishReadinessCache: PublishReadinessCache | null;
@@ -72,6 +79,7 @@ export interface StratumSettings {
   bulkSyncEnabled: boolean;
   bulkSyncPreferenceInitialized: boolean;
   zoteroLocalApiPort: number;
+  localZoteroHeartbeats: Record<string, LocalZoteroHeartbeatCheckpoint>;
   zoteroDataDir: string;
   pendingAuth: PendingAuthState | null;
   accountEmail: string | null;
@@ -112,6 +120,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   bulkSyncEnabled: false,
   bulkSyncPreferenceInitialized: false,
   zoteroLocalApiPort: 23119,
+  localZoteroHeartbeats: {},
   zoteroDataDir: getDefaultZoteroDataDir(),
   pendingAuth: null,
   accountEmail: null,

@@ -54,6 +54,7 @@ type StoredSettingsData = Partial<
     | "bulkSyncEnabled"
     | "bulkSyncPreferenceInitialized"
     | "zoteroLocalApiPort"
+    | "localZoteroHeartbeats"
     | "zoteroDataDir"
     | "pendingAuth"
     | "accountEmail"
@@ -178,6 +179,36 @@ function readEnabledLibraries(value: unknown): EnabledLibrary[] {
       identity: library.identity.trim(),
     }))
     .filter((library) => library.id && library.name && library.identity);
+}
+
+function readLocalZoteroHeartbeats(
+  value: unknown,
+): StratumSettings["localZoteroHeartbeats"] {
+  if (!isRecord(value)) return {};
+  const checkpoints: StratumSettings["localZoteroHeartbeats"] = {};
+  for (const [identity, entry] of Object.entries(value)) {
+    if (
+      isRecord(entry) &&
+      (typeof entry.accountId === "string" || entry.accountId === null) &&
+      typeof entry.port === "number" &&
+      Number.isInteger(entry.port) &&
+      entry.port > 0 &&
+      entry.port <= 65535 &&
+      typeof entry.serverId === "string" &&
+      Boolean(entry.serverId.trim()) &&
+      typeof entry.libraryVersion === "number" &&
+      Number.isSafeInteger(entry.libraryVersion) &&
+      entry.libraryVersion >= 0
+    ) {
+      checkpoints[identity] = {
+        accountId: entry.accountId,
+        port: entry.port,
+        serverId: entry.serverId,
+        libraryVersion: entry.libraryVersion,
+      };
+    }
+  }
+  return checkpoints;
 }
 
 function readItemFileMap(value: unknown): Record<string, ItemFileMapEntry> {
@@ -400,6 +431,9 @@ function readStoredSettings(value: unknown): Omit<
     // Existing installations keep their saved layout when upgrading.
     initialSidebarOpened: value.initialSidebarOpened !== false,
     collectionCatalogs: readCollectionCatalogs(value.collectionCatalogs),
+    localZoteroHeartbeats: readLocalZoteroHeartbeats(
+      value.localZoteroHeartbeats,
+    ),
     itemFileMap: readItemFileMap(value.itemFileMap),
     libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),
     libraryBulkSync: readBulkLibrarySyncStateMap(value.libraryBulkSync),
@@ -646,6 +680,9 @@ export async function loadPluginSettings(plugin: StratumPlugin): Promise<void> {
   plugin.settings = {
     ...DEFAULT_SETTINGS,
     ...persistedSettings,
+    localZoteroHeartbeats: {
+      ...(persistedSettings.localZoteroHeartbeats ?? {}),
+    },
     enabledTabs: readEnabledTabs(persistedSettings.enabledTabs),
     itemFileMap: {
       ...DEFAULT_SETTINGS.itemFileMap,

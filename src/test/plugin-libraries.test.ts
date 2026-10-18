@@ -53,6 +53,7 @@ function createMockPlugin(params?: {
     bulkSyncEnabled: false,
     bulkSyncPreferenceInitialized: true,
     zoteroLocalApiPort: 23119,
+    localZoteroHeartbeats: {},
     zoteroDataDir: "/Users/test/Zotero",
     pendingAuth: null,
     accountEmail: "test@example.com",

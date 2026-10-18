@@ -706,3 +706,54 @@ test("content snapshots detect unsynced annotation changes, additions and deleti
   parentMissing = true;
   assert.equal(await read(), "deleted");
 });
+
+test("heartbeat reads one library counter including child changes without loading note contents", async () => {
+  const { loadLocalZoteroHeartbeat } = await import("../zotero-local");
+  const paths: string[] = [];
+  const heartbeat = await loadLocalZoteroHeartbeat({
+    port: 23119,
+    library: buildPersonalLibrary("1"),
+    request: ({ url }) => {
+      paths.push(new URL(url).pathname + new URL(url).search);
+      return Promise.resolve({
+        status: 200,
+        headers: {
+          "zotero-server-id": "synthetic-server",
+          "last-modified-version": "42",
+        },
+        json: { ABCD1234: 3 },
+        text: "",
+      });
+    },
+  });
+  assert.deepEqual(heartbeat, {
+    serverId: "synthetic-server",
+    libraryVersion: 42,
+  });
+  assert.deepEqual(paths, [
+    "/api/users/1/collections?format=versions&limit=1&start=0",
+  ]);
+});
+
+test("heartbeat rejects old synced counters and missing local versions", async () => {
+  const { loadLocalZoteroHeartbeat } = await import("../zotero-local");
+  const headerCases: Record<string, string>[] = [
+    { "Last-Modified-Version": "42" },
+    { "Zotero-Server-ID": "synthetic-server" },
+    {
+      "Zotero-Server-ID": "synthetic-server",
+      "Last-Modified-Version": "invalid",
+    },
+  ];
+  for (const headers of headerCases) {
+    await assert.rejects(
+      loadLocalZoteroHeartbeat({
+        port: 23119,
+        library: buildPersonalLibrary("1"),
+        request: () =>
+          Promise.resolve({ status: 200, headers, json: {}, text: "" }),
+      }),
+      /Zotero 10|change counter/,
+    );
+  }
+});

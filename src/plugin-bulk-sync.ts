@@ -618,12 +618,15 @@ export async function runBulkLibrarySync(
   const runPromise = (async () => {
     try {
       if (!canSyncLibrary(plugin, library)) return;
-      if (plugin.isZoteroAutoSyncRunning()) {
-        new Notice(
-          `${PLUGIN_NAME}: Wait for the current Zotero sync to finish first.`,
-        );
-        return;
-      }
+      // Claim the bulk run before draining automatic refreshes. Polling yields
+      // between notes once this run is registered, so manual sync takes priority
+      // without overlapping an existing note write.
+      await Promise.resolve();
+      await Promise.all([
+        plugin.localLiveSyncRunPromise,
+        ...plugin.noteRefreshPromises.values(),
+      ]);
+      if (!canSyncLibrary(plugin, library)) return;
 
       if (!plugin.backend.hasSession()) {
         new Notice(`${PLUGIN_NAME}: Sign in to Stratum before bulk syncing.`);
