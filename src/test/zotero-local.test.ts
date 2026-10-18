@@ -9,6 +9,7 @@ import {
   loadLocalZoteroCatalogPage,
   loadLocalZoteroCollections,
   loadLocalZoteroItemVersions,
+  loadLocalZoteroNoteSnapshot,
   loadLocalZoteroItemDetail,
   loadLocalZoteroLibraryVersion,
   loadLocalZoteroLibraries,
@@ -625,4 +626,83 @@ test("collection hierarchy cycles do not overflow the stack", async () => {
   assert.ok(
     collections.every((collection) => collection.displayName.length < 100),
   );
+});
+
+test("content snapshots detect unsynced annotation changes, additions and deletions", async () => {
+  let comment = "Initial comment";
+  let present = true;
+  let failure = false;
+  let parentMissing = false;
+  const responseFor = ({ url }: { url: string }) => {
+    if (failure)
+      return { status: 503, headers: {}, json: {}, text: "Unavailable" };
+    if (url.includes("/PDF00001/children"))
+      return {
+        status: 200,
+        headers: {},
+        text: "",
+        json: present
+          ? [
+              {
+                key: "ANNO0001",
+                version: 0,
+                data: {
+                  itemType: "annotation",
+                  parentItem: "PDF00001",
+                  annotationComment: comment,
+                  version: 0,
+                },
+              },
+            ]
+          : [],
+      };
+    if (url.includes("/PAPER001/children"))
+      return {
+        status: 200,
+        headers: {},
+        text: "",
+        json: [
+          {
+            key: "PDF00001",
+            data: { itemType: "attachment", parentItem: "PAPER001" },
+          },
+        ],
+      };
+    return {
+      status: parentMissing ? 404 : 200,
+      headers: {},
+      text: "",
+      json: {
+        key: "PAPER001",
+        version: 0,
+        data: {
+          itemType: "journalArticle",
+          title: "Synthetic paper",
+          version: 0,
+        },
+      },
+    };
+  };
+  const read = () =>
+    loadLocalZoteroNoteSnapshot({
+      port: 23119,
+      library: buildPersonalLibrary("1"),
+      itemKey: "PAPER001",
+      request: (args) => Promise.resolve(responseFor(args)),
+    });
+  const first = await read();
+  comment = "Edited without cloud sync";
+  const changed = await read();
+  assert.notEqual(changed, first);
+  assert.equal(await read(), changed);
+  present = false;
+  const removed = await read();
+  assert.notEqual(removed, changed);
+  present = true;
+  assert.equal(await read(), changed);
+  failure = true;
+  await assert.rejects(read, /Unavailable/);
+  failure = false;
+  parentMissing = true;
+  assert.equal(await read(), "deleted");
 });

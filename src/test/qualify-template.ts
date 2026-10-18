@@ -1,3 +1,4 @@
+import { testPublishingWorkspace } from "./publishing-workspace";
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -111,7 +112,11 @@ export async function qualifyTemplateInstallation(
         mathHtml,
       [],
       "pdf",
-      { ...tools, bibliographyCache: cache },
+      {
+        ...tools,
+        workspace: testPublishingWorkspace(),
+        bibliographyCache: cache,
+      },
       undefined,
       180000,
       undefined,

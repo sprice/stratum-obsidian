@@ -381,3 +381,188 @@ test("legacy bundled-template catalogs retain selections, options and accessible
   );
   assert.equal(files.get(`${directory}/published/catalog.json`), before);
 });
+
+function visibleStore(m = memory()) {
+  let folder = "Stratum Docs";
+  const trashed: string[] = [];
+  const files = {
+    folder: () => folder,
+    create: async (path: string, bytes: ArrayBuffer) => {
+      if (await m.adapter.exists(path)) throw new Error("File exists");
+      await m.adapter.writeBinary(path, bytes);
+    },
+    trash: async (path: string) => {
+      trashed.push(path);
+      await m.adapter.remove(path);
+    },
+  };
+  return {
+    ...m,
+    visible: files,
+    trashed,
+    store: new PublishStore(m.adapter, ".config/plugins/stratum", files),
+    setFolder: (value: string) => {
+      folder = value;
+    },
+  };
+}
+
+test("vault PDFs use the chosen folder, preserve prior exports, and follow moves independently of source notes", async () => {
+  const m = visibleStore();
+  const note = await m.store.note("Synthetic.md", "Synthetic", 1);
+  const bytes = new Uint8Array([1, 2, 3]).buffer;
+  const first = await m.store.create(doc(note.id, "first"), "Synthetic", bytes);
+  assert.equal(first.path, "Stratum Docs/Synthetic.pdf");
+  const second = await m.store.create(
+    doc(note.id, "second"),
+    "Synthetic",
+    bytes,
+  );
+  assert.equal(second.path, "Stratum Docs/Synthetic(2).pdf");
+  m.setFolder("Exports/Papers");
+  const third = await m.store.create(doc(note.id, "third"), "Synthetic", bytes);
+  assert.equal(third.path, "Exports/Papers/Synthetic.pdf");
+  await m.adapter.rename(third.path, "Exports/Edited.pdf");
+  await m.store.move(third.path, "Exports/Edited.pdf");
+  assert.equal((await m.store.list()).documents[2].filename, "Edited.pdf");
+  await m.adapter.rename("Exports/Edited.pdf", "Archive/Edited.pdf");
+  await m.store.move("Exports", "Archive");
+  assert.equal((await m.store.list()).documents[2].path, "Archive/Edited.pdf");
+  await m.store.move("Synthetic.md", null);
+  assert.equal((await m.store.list()).documents.length, 3);
+  await m.store.remove(first.id);
+  assert.deepEqual(m.trashed, [first.path]);
+  assert.ok(m.files.has(second.path));
+  await m.store.move("Archive", null);
+  assert.equal((await m.store.list()).documents.length, 1);
+});
+
+test("migration verifies copies, avoids unrelated files, and retains metadata", async () => {
+  const m = visibleStore();
+  const old = new PublishStore(m.adapter, ".config/plugins/stratum");
+  const note = await old.note("Synthetic.md", "Synthetic", 1);
+  const bytes = new Uint8Array([1, 2]).buffer;
+  await old.add(doc(note.id), bytes);
+  const other = new Uint8Array([9]).buffer;
+  m.files.set("Stratum Docs/doc.pdf", other);
+  const migrated = (await m.store.list()).documents[0];
+  assert.equal(migrated.path, "Stratum Docs/doc(2).pdf");
+  assert.equal(migrated.id, "doc");
+  assert.equal(migrated.noteId, note.id);
+  assert.deepEqual(m.files.get(migrated.path), bytes);
+  assert.equal(m.files.get("Stratum Docs/doc.pdf"), other);
+  assert.equal(m.files.has(old.path(doc(note.id))), false);
+  assert.equal(migrated.migrationPath, undefined);
+  assert.equal(migrated.legacyFilename, undefined);
+  assert.deepEqual((await m.store.list()).documents, [migrated]);
+});
+
+test("a failed migration commit resumes the verified destination without duplicate copies", async () => {
+  const m = visibleStore();
+  const old = new PublishStore(m.adapter, ".config/plugins/stratum");
+  const note = await old.note("Synthetic.md", "Synthetic", 1);
+  await old.add(doc(note.id), new Uint8Array([3, 4]).buffer);
+  const rename = m.adapter.rename.bind(m.adapter);
+  let commits = 0;
+  m.adapter.rename = async (from, to) => {
+    if (from.endsWith(".tmp") && to.endsWith("catalog.json") && ++commits === 2)
+      throw new Error("Disk full");
+    await rename(from, to);
+  };
+  await assert.rejects(m.store.list(), /Disk full/);
+  assert.ok(m.files.has(old.path(doc(note.id))));
+  assert.ok(m.files.has("Stratum Docs/doc.pdf"));
+  m.adapter.rename = rename;
+  const restarted = new PublishStore(
+    m.adapter,
+    ".config/plugins/stratum",
+    m.visible,
+  );
+  const result = (await restarted.list()).documents[0];
+  assert.equal(result.path, "Stratum Docs/doc.pdf");
+  assert.equal([...m.files.keys()].filter((p) => p.endsWith(".pdf")).length, 1);
+});
+
+test("failed copy verification retains the original and resumes without overwriting a different destination", async () => {
+  const m = visibleStore();
+  const old = new PublishStore(m.adapter, ".config/plugins/stratum");
+  const note = await old.note("Synthetic.md", "Synthetic", 1);
+  const bytes = new Uint8Array([3, 4]).buffer;
+  await old.add(doc(note.id), bytes);
+  const create = m.visible.create;
+  m.visible.create = (path) => create(path, new ArrayBuffer(1));
+  await assert.rejects(m.store.list(), /verified/);
+  assert.deepEqual(m.files.get(old.path(doc(note.id))), bytes);
+  m.visible.create = create;
+  assert.equal(
+    (await m.store.list()).documents[0].path,
+    "Stratum Docs/doc(2).pdf",
+  );
+  assert.ok(m.files.has("Stratum Docs/doc.pdf"));
+});
+
+test("failed trash preserves the catalog and PDF; failed creation metadata removes only its new PDF", async () => {
+  const m = visibleStore();
+  const note = await m.store.note("Synthetic.md", "Synthetic", 1);
+  const entry = await m.store.create(
+    doc(note.id),
+    "Synthetic",
+    new ArrayBuffer(2),
+  );
+  m.visible.trash = () => Promise.reject(new Error("Trash unavailable"));
+  await assert.rejects(m.store.remove(entry.id), /Trash unavailable/);
+  assert.equal((await m.store.list()).documents.length, 1);
+  assert.ok(m.files.has(entry.path!));
+  m.visible.trash = (path) => m.adapter.remove(path);
+  m.fail();
+  await assert.rejects(
+    m.store.create(doc(note.id, "new"), "Other", new ArrayBuffer(3)),
+    /Disk full/,
+  );
+  assert.equal(m.files.has("Stratum Docs/Other.pdf"), false);
+  assert.ok(m.files.has(entry.path!));
+});
+
+test("renaming a PDF to a different extension removes tracking without deleting the file", async () => {
+  const m = visibleStore();
+  const note = await m.store.note("Synthetic.md", "Synthetic", 1);
+  const entry = await m.store.create(
+    doc(note.id),
+    "Synthetic",
+    new ArrayBuffer(2),
+  );
+  await m.adapter.rename(entry.path!, "Stratum Docs/Synthetic.txt");
+  await m.store.move(entry.path!, "Stratum Docs/Synthetic.txt");
+  assert.equal((await m.store.list()).documents.length, 0);
+  assert.ok(m.files.has("Stratum Docs/Synthetic.txt"));
+});
+
+test("vault moves and deletions remain tracked when an unrelated legacy migration fails", async () => {
+  const m = visibleStore();
+  const note = await m.store.note("Synthetic.md", "Synthetic", 1);
+  const entry = await m.store.create(
+    doc(note.id),
+    "Synthetic",
+    new ArrayBuffer(2),
+  );
+  const old = new PublishStore(m.adapter, ".config/plugins/stratum");
+  await old.add(doc(note.id, "legacy"), new ArrayBuffer(3));
+  m.visible.create = () => Promise.reject(new Error("Migration unavailable"));
+  await assert.rejects(m.store.list(), /Migration unavailable/);
+
+  await m.adapter.rename(entry.path!, "Archive/Synthetic.pdf");
+  await m.store.move(entry.path!, "Archive/Synthetic.pdf");
+  await m.store.move("Synthetic.md", "Renamed.md");
+  const catalog = await old.list();
+  assert.equal(
+    catalog.documents.find((d) => d.id === entry.id)?.path,
+    "Archive/Synthetic.pdf",
+  );
+  assert.equal(catalog.notes[0].path, "Renamed.md");
+
+  await m.store.move("Archive/Synthetic.pdf", null);
+  assert.deepEqual(
+    (await old.list()).documents.map((d) => d.id),
+    ["legacy"],
+  );
+});

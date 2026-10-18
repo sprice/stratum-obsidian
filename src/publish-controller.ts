@@ -1,3 +1,5 @@
+import { publishingWorkspace } from "./publish-workspace";
+import { publishedVaultFiles } from "./publish-vault";
 import { installedPublishingTemplate } from "./publication-installed-templates";
 import { pluginStorageDirectory } from "./plugin-storage-paths";
 import {
@@ -21,7 +23,6 @@ import {
 } from "./publish-templates";
 import {
   Component,
-  FileSystemAdapter,
   MarkdownView,
   Notice,
   Platform,
@@ -33,6 +34,7 @@ import type StratumPlugin from "./plugin";
 import { PublishStore } from "./publish-store";
 import {
   VIEW_TYPE_PUBLISH_PREVIEW,
+  DEFAULT_PDF_FOLDER,
   type PublishCatalog,
   type PublishedDocument,
   type PublishFormat,
@@ -94,6 +96,7 @@ export class PublishController extends Component {
   historyScope: "note" | "all" = "note";
   readonly store: PublishStore;
   private listeners = new Set<() => void>();
+  private downloads = new Set<AbortController>();
   private settingsModal?: import("./publication-options-modal").PublishingSettingsModal;
   private settingsRequest = 0;
   private settingsLauncher?: HTMLElement;
@@ -124,6 +127,10 @@ export class PublishController extends Component {
     this.store = new PublishStore(
       plugin.app.vault.adapter,
       pluginStorageDirectory(plugin.app),
+      publishedVaultFiles(
+        plugin.app,
+        () => plugin.settings.publishFolder ?? DEFAULT_PDF_FOLDER,
+      ),
     );
     const settings = plugin.settings;
     const cache = readPublishReadinessCache(settings.publishReadinessCache);
@@ -217,6 +224,8 @@ export class PublishController extends Component {
     this.clearError();
     this.aborter?.abort();
     this.background?.abort();
+    for (const download of this.downloads) download.abort();
+    this.downloads.clear();
     if (this.sourceTimer !== null) window.clearTimeout(this.sourceTimer);
     this.listeners.clear();
   }
@@ -249,9 +258,16 @@ export class PublishController extends Component {
       !(leaf.view instanceof MarkdownView && leaf.view.file === this.document)
     )
       return;
-    if (leaf?.view.getViewType?.() === VIEW_TYPE_PUBLISH_PREVIEW) {
+    if (
+      [VIEW_TYPE_PUBLISH_PREVIEW, "pdf"].includes(
+        leaf?.view.getViewType?.() ?? "",
+      )
+    ) {
       const document = this.catalog?.documents.find(
-        (entry) => entry.id === leaf.view.getState().documentId,
+        (entry) =>
+          entry.id === leaf!.view.getState().documentId ||
+          (entry.path !== undefined &&
+            entry.path === leaf!.view.getState().file),
       );
       const note = this.catalog?.notes.find(
         (entry) => entry.id === document?.noteId,
@@ -914,7 +930,11 @@ export class PublishController extends Component {
       const recent = this.plugin.app.workspace.getMostRecentLeaf(
         this.plugin.app.workspace.rootSplit,
       );
-      if (recent?.view.getViewType?.() === VIEW_TYPE_PUBLISH_PREVIEW)
+      if (
+        [VIEW_TYPE_PUBLISH_PREVIEW, "pdf"].includes(
+          recent?.view.getViewType?.() ?? "",
+        )
+      )
         this.follow(recent);
       this.emit();
     }
@@ -1018,7 +1038,11 @@ export class PublishController extends Component {
       try {
         await probePublication(
           format,
-          { pandoc: ready.pandoc.path, tectonic: ready.tectonic.path },
+          {
+            pandoc: ready.pandoc.path,
+            tectonic: ready.tectonic.path,
+            workspace: publishingWorkspace(this.plugin.app),
+          },
           signal,
         );
         ready.pdf = true;
@@ -1046,6 +1070,7 @@ export class PublishController extends Component {
         this.plugin.settings.pandocPath,
         this.plugin.settings.tectonicPath,
         preparePdf || this.plugin.settings.publishPdfSetupComplete,
+        publishingWorkspace(this.plugin.app),
         this.aborter.signal,
         (text) => {
           this.progress = text;
@@ -1111,6 +1136,7 @@ export class PublishController extends Component {
     const tools = {
       pandoc: this.readiness.pandoc.path,
       tectonic: this.readiness.tectonic.path,
+      workspace: publishingWorkspace(this.plugin.app),
       bibliographyCache: {
         adapter: this.plugin.app.vault.adapter,
         directory: `${this.plugin.manifest.dir ?? `${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}`}/cache/bibliography`,
@@ -1239,12 +1265,6 @@ export class PublishController extends Component {
       this.emit();
     }
   }
-  private absolute(document: PublishedDocument): string {
-    const adapter = this.plugin.app.vault.adapter;
-    if (!(adapter instanceof FileSystemAdapter))
-      throw new Error("Desktop filesystem access is unavailable.");
-    return `${adapter.getBasePath()}/${this.store.path(document)}`;
-  }
   sourceNote(document: PublishedDocument): TFile | null {
     const note = this.catalog?.notes.find(
       (entry) => entry.id === document.noteId,
@@ -1271,50 +1291,45 @@ export class PublishController extends Component {
     if (!existing) await leaf.openFile(file);
     await workspace.revealLeaf(leaf);
   }
+  pdfFile(document: PublishedDocument): TFile | null {
+    const file = this.plugin.app.vault.getAbstractFileByPath(
+      this.store.path(document),
+    );
+    return file instanceof TFile && file.extension.toLowerCase() === "pdf"
+      ? file
+      : null;
+  }
   async open(document: PublishedDocument): Promise<void> {
     try {
-      if (
-        !(await this.plugin.app.vault.adapter.exists(this.store.path(document)))
-      )
+      const file = this.pdfFile(document);
+      if (!file)
         throw new Error(
-          "This published file is missing. Save another publication or remove this entry.",
+          "This PDF is unavailable. Create another PDF or remove this entry.",
         );
       const workspace = this.plugin.app.workspace;
       const existing = workspace
-        .getLeavesOfType(VIEW_TYPE_PUBLISH_PREVIEW)
-        .find((leaf) => leaf.view.getState().documentId === document.id);
+        .getLeavesOfType("pdf")
+        .find((leaf) => leaf.view.getState().file === file.path);
       const leaf = existing ?? workspace.getLeaf("tab");
-      if (!existing)
-        await leaf.setViewState({
-          type: VIEW_TYPE_PUBLISH_PREVIEW,
-          state: { documentId: document.id },
-          active: true,
-        });
+      if (!existing) await leaf.openFile(file);
       await workspace.revealLeaf(leaf);
     } catch (error) {
       this.fail(error);
     }
   }
   async saveCopy(document: PublishedDocument): Promise<void> {
+    const aborter = new AbortController();
+    this.downloads.add(aborter);
     try {
       const bytes = await this.plugin.app.vault.adapter.readBinary(
         this.store.path(document),
       );
-      const directory = this.absolute(document).slice(
-        0,
-        -(document.filename.length + 1),
-      );
-      if (
-        await savePublishedCopy(
-          bytes,
-          document.filename,
-          document.format,
-          directory,
-        )
-      )
+      if (await savePublishedCopy(bytes, document.filename, aborter.signal))
         new Notice("Document copy saved.");
     } catch (error) {
-      this.fail(error);
+      if (!aborter.signal.aborted) this.fail(error);
+    } finally {
+      this.downloads.delete(aborter);
     }
   }
   async remove(document: PublishedDocument): Promise<void> {

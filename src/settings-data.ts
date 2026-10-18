@@ -1,3 +1,4 @@
+import { DEFAULT_PDF_FOLDER } from "./publish-model";
 import type { PublishingTemplates } from "./publish-templates";
 import { DEFAULT_SOURCE_SUMMARY_TEMPLATE } from "./source-summary-template";
 import { DEFAULT_NOTES_TEMPLATE } from "./literature-note-template";
@@ -51,6 +52,7 @@ export interface StratumSettings {
   publishingTemplates?: PublishingTemplates;
   publishReadinessCache: PublishReadinessCache | null;
   publishPdfSetupComplete: boolean;
+  publishFolder: string;
   pandocPath: string;
   tectonicPath: string;
   enabledTabs: EnabledTabs;
@@ -91,6 +93,7 @@ export interface StratumSettings {
 export const DEFAULT_SETTINGS: StratumSettings = {
   publishReadinessCache: null,
   publishPdfSetupComplete: false,
+  publishFolder: DEFAULT_PDF_FOLDER,
   pandocPath: "",
   tectonicPath: "",
   enabledTabs: readEnabledTabs(undefined),

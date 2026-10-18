@@ -1,10 +1,11 @@
+import { testPublishingWorkspace } from "./publishing-workspace";
 import { manuscriptSample } from "./publication-manuscript-fixture";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer, get } from "node:http";
 import { createHash, webcrypto } from "node:crypto";
 import { createRequire } from "node:module";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, rm } from "node:fs/promises";
 import { loadRuntime } from "./runtime-harness";
 import { publicationManuscript } from "../publication-manuscript";
 import { installedJournalProfile } from "../publication-installed-templates";
@@ -46,7 +47,6 @@ test(
     const address = server.address();
     assert(address && typeof address !== "string");
     const paths: string[] = [];
-    const fs = require("node:fs/promises") as typeof import("node:fs/promises");
     const desktop = loadRuntime<typeof import("../publish-desktop")>(
       "publish-desktop.ts",
       { Platform: { isDesktopApp: true, isDesktop: true } },
@@ -71,16 +71,7 @@ test(
                     );
                   },
                 }
-              : name === "node:fs/promises"
-                ? {
-                    ...fs,
-                    mkdtemp: async (prefix: string) => {
-                      const path = await mkdtemp(prefix);
-                      paths.push(path);
-                      return path;
-                    },
-                  }
-                : require(name),
+              : require(name),
           setTimeout,
           clearTimeout,
         },
@@ -133,7 +124,11 @@ test(
           "<p>Body</p>",
           [],
           "pdf",
-          { pandoc: "unused", tectonic: "unused" },
+          {
+            workspace: testPublishingWorkspace((path) => paths.push(path)),
+            pandoc: "unused",
+            tectonic: "unused",
+          },
           undefined,
           1000,
           undefined,
@@ -204,7 +199,6 @@ test("converter never downloads missing packs and preserves cached resources on 
         return Promise.resolve();
       },
     };
-  const fs = require("node:fs/promises") as typeof import("node:fs/promises");
   const scratch: string[] = [];
   const desktop = loadRuntime<typeof import("../publish-desktop")>(
     "publish-desktop.ts",
@@ -229,16 +223,7 @@ test("converter never downloads missing packs and preserves cached resources on 
                     callback,
                   ),
               }
-            : name === "node:fs/promises"
-              ? {
-                  ...fs,
-                  mkdtemp: async (prefix: string) => {
-                    const directory = await mkdtemp(prefix);
-                    scratch.push(directory);
-                    return directory;
-                  },
-                }
-              : require(name),
+            : require(name),
         setTimeout,
         clearTimeout,
       },
@@ -246,6 +231,7 @@ test("converter never downloads missing packs and preserves cached resources on 
     "browser",
   );
   const tools = {
+    workspace: testPublishingWorkspace((path) => scratch.push(path)),
     pandoc: "stratum-missing-cache-test-tool",
     tectonic: "unused",
     bibliographyCache: {

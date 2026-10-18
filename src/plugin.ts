@@ -115,11 +115,6 @@ import {
   setSelectedSyncLibrary,
 } from "./plugin-local-sync";
 import { refreshOpenedLiteratureNote } from "./plugin-note-refresh";
-type LocalLiveSyncWatcher = {
-  close(): void;
-  on(event: "error", listener: (error: unknown) => void): unknown;
-};
-
 export default class StratumPlugin extends Plugin {
   isUnloaded = false;
   settings: StratumSettings = DEFAULT_SETTINGS;
@@ -203,16 +198,11 @@ export default class StratumPlugin extends Plugin {
   bulkLibrarySyncCurrentPageProcessedCount = 0;
   bulkLibrarySyncCurrentPageTotalCount = 0;
   bulkLibrarySyncUiRefreshTimer: number | null = null;
-  localLiveSyncWatcher: LocalLiveSyncWatcher | null = null;
-  localLiveSyncWatchDir: string | null = null;
   localLiveSyncDebounceTimer: number | null = null;
   localLiveSyncRunPromise: Promise<void> | null = null;
-  localLiveSyncDirty = false;
-  localLiveSyncQueuedAfterBulkSync = false;
-  localLiveSyncWatching = false;
   localLiveSyncError: string | null = null;
-  localLiveSyncLibraryVersions = new Map<string, number | null>();
-  localLiveSyncLibraryItemVersions = new Map<string, Record<string, number>>();
+  localLiveSyncFocusRegistered = false;
+  localLiveSyncSnapshots = new Map<string, string>();
   statusBarItemEl: HTMLElement | null = null;
   readonly library = {
     search: (query: string) => searchLibrary(this, query),
@@ -614,14 +604,7 @@ export default class StratumPlugin extends Plugin {
       window.clearTimeout(this.localLiveSyncDebounceTimer);
       this.localLiveSyncDebounceTimer = null;
     }
-    this.localLiveSyncWatcher?.close();
-    this.localLiveSyncWatcher = null;
-    this.localLiveSyncWatchDir = null;
-    this.localLiveSyncWatching = false;
-    this.localLiveSyncDirty = false;
-    this.localLiveSyncQueuedAfterBulkSync = false;
-    this.localLiveSyncLibraryVersions.clear();
-    this.localLiveSyncLibraryItemVersions.clear();
+    this.localLiveSyncSnapshots.clear();
   }
 
   async loadSettings(): Promise<void> {
@@ -742,7 +725,7 @@ export default class StratumPlugin extends Plugin {
     if (!this.isUnloaded && Platform.isDesktopApp) {
       const { reconcileLocalLiveSync } =
         await import("./plugin-local-live-sync");
-      await reconcileLocalLiveSync(this);
+      reconcileLocalLiveSync(this);
     }
   }
 

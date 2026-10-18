@@ -1060,10 +1060,18 @@ export class StratumView extends ItemView {
       });
       emptyState.createEl("p", {
         cls: "stratum-meta",
-        text: this.plugin.localSyncLibrariesError,
+        text:
+          this.plugin.localLiveSyncError ?? this.plugin.localSyncLibrariesError,
       });
       this.renderSettingsButton(emptyState);
       return;
+    }
+
+    if (this.plugin.localLiveSyncError) {
+      syncTab.createEl("p", {
+        cls: "stratum-meta",
+        text: this.plugin.localLiveSyncError,
+      });
     }
 
     const selectedSyncLibrary = getSelectedSyncLibrary(this.plugin);

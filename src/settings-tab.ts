@@ -1,3 +1,6 @@
+import { DEFAULT_PDF_FOLDER } from "./publish-model";
+import { PublishFolderSuggest } from "./publish-folder-suggest";
+import { pdfFolder } from "./publish-vault";
 import { PublishingTemplatesModal } from "./publish-template-settings";
 import { styleStratumComponent } from "./ui-controls";
 import {
@@ -26,7 +29,6 @@ import {
   getPersonalLibrary,
 } from "./plugin-libraries";
 import { clearLocalSyncState } from "./plugin-local-sync";
-import { getDefaultZoteroDataDir } from "./zotero-data-dir";
 
 interface SearchableSetting {
   name: string;
@@ -445,6 +447,55 @@ export class StratumSettingTab extends PluginSettingTab {
 
     if (Platform.isDesktopApp) {
       const publishSection = this.createSection(sections, "Publishing");
+      this.defineSetting(publishSection, "PDF folder", (setting) => {
+        setting
+          .setDesc(
+            "Where new PDFs are saved. Changing this won’t move existing PDFs.",
+          )
+          .addText((text) => {
+            styleStratumComponent(text)
+              .setPlaceholder(DEFAULT_PDF_FOLDER)
+              .setValue(this.plugin.settings.publishFolder);
+            const save = async (value: string) => {
+              if (text.getValue() !== value) return;
+              let displayedValue = value;
+              try {
+                const folder = pdfFolder(
+                  this.app,
+                  value.trim() || DEFAULT_PDF_FOLDER,
+                );
+                text.inputEl.setCustomValidity("");
+                text.setValue(folder);
+                displayedValue = folder;
+                if (folder === this.plugin.settings.publishFolder) return;
+                const previous = this.plugin.settings.publishFolder;
+                this.plugin.settings.publishFolder = folder;
+                try {
+                  await this.plugin.saveSettings();
+                } catch (error) {
+                  this.plugin.settings.publishFolder = previous;
+                  throw error;
+                }
+              } catch (error) {
+                if (text.getValue() !== displayedValue) return;
+                text.inputEl.setCustomValidity(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not save the PDF folder.",
+                );
+                text.inputEl.reportValidity();
+              }
+            };
+            let pending = Promise.resolve();
+            const scheduleSave = (value: string) => {
+              pending = pending.then(() => save(value));
+            };
+            text.inputEl.addEventListener("blur", () =>
+              scheduleSave(text.getValue()),
+            );
+            new PublishFolderSuggest(this.app, text.inputEl, scheduleSave);
+          });
+      });
       this.defineSetting(publishSection, "Publishing tools", (setting) => {
         setting
           .setDesc(
@@ -559,7 +610,6 @@ export class StratumSettingTab extends PluginSettingTab {
         }
       });
 
-      const defaultZoteroDataDir = getDefaultZoteroDataDir();
       this.defineSetting(syncSection, "Zotero local API port", (setting) => {
         setting
           .setName("Zotero local API port")
@@ -600,48 +650,6 @@ export class StratumSettingTab extends PluginSettingTab {
             text.inputEl.step = "1";
           });
       });
-
-      this.defineSetting(syncSection, "Zotero data directory", (setting) => {
-        setting
-          .setName("Zotero data directory")
-          .setDesc(
-            "Used for desktop live sync and reading area annotation images from Zotero’s cache.",
-          )
-          .addText((text) => {
-            styleStratumComponent(text);
-            text
-              .setPlaceholder(defaultZoteroDataDir)
-              .setValue(this.plugin.settings.zoteroDataDir);
-
-            text.inputEl.setAttr("aria-label", "Zotero data directory");
-            text.inputEl.addEventListener("change", () => {
-              void (async () => {
-                this.plugin.settings.zoteroDataDir =
-                  text.inputEl.value.trim() || defaultZoteroDataDir;
-                await this.plugin.saveSettings();
-                await this.plugin.reconcileLocalLiveSync();
-                this.refresh();
-              })();
-            });
-          });
-      });
-
-      this.defineSetting(
-        syncSection,
-        "Reset Zotero data directory",
-        (setting) => {
-          setting.addButton((button) =>
-            styleStratumComponent(button)
-              .setButtonText("Reset to default location")
-              .onClick(async () => {
-                this.plugin.settings.zoteroDataDir = defaultZoteroDataDir;
-                await this.plugin.saveSettings();
-                await this.plugin.reconcileLocalLiveSync();
-                this.refresh();
-              }),
-          );
-        },
-      );
     }
 
     const citations = this.createSection(sections, "Citations");

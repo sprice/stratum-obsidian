@@ -208,3 +208,66 @@ test("registry exports ignore every legacy layout switch and package approval", 
     /Install this template/,
   );
 });
+
+test("exports select citation commands by citation style in both the body and abstract", async () => {
+  const { renderJournalPublication } = loadRuntime<
+    typeof import("../publication-render")
+  >("publication-render.ts", {}, {}, "browser", {
+    "./publication-citations": {
+      publicationCitationKeys,
+      publicationReferences,
+      journalFormattedDocument,
+    },
+    "./publish-render": {
+      renderPublication: (
+        _app: unknown,
+        _markdown: string,
+        _path: string,
+        _title: string,
+        formatted: { citations: string[] },
+      ) =>
+        Promise.resolve({ html: formatted.citations.join("\n"), assets: [] }),
+    },
+  });
+  const source = sample + "\nEvidence [@synthetic].\n";
+  for (const citations of ["numeric", "author-year"] as const) {
+    const journal = { ...profile, citations };
+    const result = await renderJournalPublication(
+      {} as never,
+      {
+        diagnose: (keys: string[]) =>
+          Promise.resolve(
+            keys.map((key) => ({
+              key,
+              reference: {
+                id: key,
+                type: "article-journal",
+                author: [{ family: "Example" }],
+              },
+            })),
+          ),
+      } as never,
+      source.replace(
+        "## Abstract",
+        "## Abstract\nAbstract evidence [@synthetic].\n",
+      ),
+      "Papers/Synthetic.md",
+      "Synthetic",
+      {
+        templateId: journal.id,
+        documentType: "academic",
+        opening: "properties",
+        pdf: { ...DEFAULT_ACADEMIC_OPTIONS, titleSource: "properties" },
+      },
+      new AbortController().signal,
+      journal,
+    );
+    for (const html of [result.html, result.journal.abstractHtml]) {
+      assert.match(
+        html,
+        citations === "numeric" ? /\\cite\{stratum0\}/ : /\\citep\{stratum0\}/,
+      );
+      if (citations === "numeric") assert.doesNotMatch(html, /\\cite[pt]/);
+    }
+  }
+});

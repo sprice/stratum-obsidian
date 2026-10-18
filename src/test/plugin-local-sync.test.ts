@@ -21,6 +21,7 @@ function createSettings(params: {
   return {
     publishReadinessCache: null,
     publishPdfSetupComplete: false,
+    publishFolder: "Stratum Docs",
     pandocPath: "",
     tectonicPath: "",
     enabledTabs: readEnabledTabs(undefined),

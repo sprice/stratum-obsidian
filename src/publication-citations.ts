@@ -160,17 +160,16 @@ export function journalFormattedDocument(
         ]
           .filter(Boolean)
           .join(", ");
-        const args =
-          item.prefix || suffix
-            ? `[${escapeLatex(item.prefix)}][${escapeLatex(suffix)}]`
-            : "";
+        // Native numeric citations work with both LaTeX and natbib.
+        // Put the prefix in prose; the single optional argument is the locator/suffix.
         return (
           (draft.narrative ? authorName(item.key) + "~" : "") +
-          `\\citep${args}{${id}}`
+          (item.prefix ? escapeLatex(item.prefix) + "~" : "") +
+          `\\cite${suffix ? `[{${escapeLatex(suffix)}}]` : ""}{${id}}`
         );
       };
       const tex = simple
-        ? `\\citep{${draft.items
+        ? `\\cite{${draft.items
             .map((item) => {
               const id = ids.get(item.key);
               if (!id)

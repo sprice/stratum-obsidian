@@ -189,6 +189,9 @@ export class Notice {
 }
 export class FileSystemAdapter {}
 export class MarkdownView {}
+export class TFolder {
+  path = "";
+}
 export class TFile {
   // Native files have a parent whose children include the file itself.
   parent = { children: [this] };

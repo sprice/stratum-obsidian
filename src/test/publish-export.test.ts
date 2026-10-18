@@ -1,3 +1,4 @@
+import { testPublishingWorkspace } from "./publishing-workspace";
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
 import { createServer } from "node:http";
@@ -171,7 +172,7 @@ for (const kind of ["draft", "literature"] as const) {
             bytes: Uint8Array.from(asset.bytes).buffer,
           })),
           "pdf",
-          { pandoc, tectonic },
+          { workspace: testPublishingWorkspace(), pandoc, tectonic },
           undefined,
           120_000,
           {

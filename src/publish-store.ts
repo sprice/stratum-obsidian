@@ -1,5 +1,7 @@
 import {
   emptyCatalog,
+  publicationFolder,
+  validPublicationPath,
   publishFilename,
   readCatalog,
   movePublishedNotes,
@@ -18,6 +20,11 @@ export interface PublishAdapter {
   rename(from: string, to: string): Promise<void>;
   remove(path: string): Promise<void>;
 }
+export interface PublishedFiles {
+  folder(): string;
+  create(path: string, bytes: ArrayBuffer): Promise<void>;
+  trash(path: string): Promise<void>;
+}
 class PublicationCollisionError extends Error {}
 
 /** Serialize metadata updates. Write completed bytes before adding a catalog entry. */
@@ -27,6 +34,7 @@ export class PublishStore {
   constructor(
     private adapter: PublishAdapter,
     pluginDirectory: string,
+    private files?: PublishedFiles,
   ) {
     this.directory = `${pluginDirectory}/published`;
   }
@@ -35,7 +43,7 @@ export class PublishStore {
     this.queue = next.catch(() => {});
     return next;
   }
-  private async load(): Promise<PublishCatalog> {
+  private async load(migrate = true): Promise<PublishCatalog> {
     const path = `${this.directory}/catalog.json`;
     const backup = `${this.directory}/catalog.backup.json`;
     // A crash between the two renames must not turn existing history into an empty catalog.
@@ -49,6 +57,7 @@ export class PublishStore {
       : emptyCatalog();
     // A referenced tombstone means deletion stopped before the catalog commit.
     for (const document of catalog.documents) {
+      if (document.path) continue;
       const original = this.path(document);
       const pendingDelete = `${original}.deleting`;
       if (
@@ -57,7 +66,90 @@ export class PublishStore {
       )
         await this.adapter.rename(pendingDelete, original);
     }
+    if (migrate && this.files) await this.migrate(catalog);
     return catalog;
+  }
+  private async availablePath(
+    catalog: PublishCatalog,
+    title: string,
+  ): Promise<string> {
+    const folder = publicationFolder(this.files!.folder());
+    for (let number = 1; ; number++) {
+      const path = `${folder}/${publishFilename(title, "pdf", number)}`;
+      if (
+        !catalog.documents.some((d) =>
+          [d.path, d.migrationPath].some(
+            (p) => p?.toLowerCase() === path.toLowerCase(),
+          ),
+        ) &&
+        !(await this.adapter.exists(path))
+      )
+        return path;
+    }
+  }
+  /** Persist the destination before copying, so a restart resumes the same copy. */
+  private async migrate(catalog: PublishCatalog): Promise<void> {
+    for (const doc of catalog.documents) {
+      if (!doc.path) {
+        const source = `${this.directory}/${doc.filename}`;
+        if (!(await this.adapter.exists(source))) continue;
+        const bytes = await this.adapter.readBinary(source);
+        if (!doc.migrationPath) {
+          doc.migrationPath = await this.availablePath(
+            catalog,
+            doc.filename.slice(0, -4),
+          );
+          await this.save(catalog);
+        }
+        let target = doc.migrationPath;
+        // A different file may have occupied a reserved path while Obsidian was closed.
+        if (await this.adapter.exists(target)) {
+          if (!this.sameBytes(bytes, await this.adapter.readBinary(target))) {
+            doc.migrationPath = await this.availablePath(
+              catalog,
+              doc.filename.slice(0, -4),
+            );
+            await this.save(catalog);
+            target = doc.migrationPath;
+          }
+        }
+        if (!(await this.adapter.exists(target)))
+          await this.files!.create(target, bytes);
+        if (!this.sameBytes(bytes, await this.adapter.readBinary(target)))
+          throw new Error(
+            "The migrated PDF could not be verified. The original has been kept.",
+          );
+        doc.legacyFilename = doc.filename;
+        doc.path = target;
+        doc.filename = target.split("/").at(-1)!;
+        delete doc.migrationPath;
+        await this.save(catalog);
+      }
+      if (doc.legacyFilename) {
+        const source = `${this.directory}/${doc.legacyFilename}`;
+        // Never retire the old copy if the destination has disappeared or changed.
+        if (await this.adapter.exists(source)) {
+          if (
+            !(await this.adapter.exists(doc.path)) ||
+            !this.sameBytes(
+              await this.adapter.readBinary(source),
+              await this.adapter.readBinary(doc.path),
+            )
+          )
+            continue;
+          await this.adapter.remove(source);
+        }
+        delete doc.legacyFilename;
+        await this.save(catalog);
+      }
+    }
+  }
+  private sameBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
+    const other = new Uint8Array(b);
+    return (
+      a.byteLength === b.byteLength &&
+      new Uint8Array(a).every((byte, i) => byte === other[i])
+    );
   }
   private async ensureDirectory(): Promise<void> {
     const parts = this.directory.split("/");
@@ -114,14 +206,32 @@ export class PublishStore {
   }
   move(oldPath: string, newPath: string | null): Promise<void> {
     return this.serial(async () => {
-      const catalog = await this.load();
+      // Record vault events even when an unrelated legacy PDF cannot migrate.
+      const catalog = await this.load(false);
+      const matches = (path: string | undefined) =>
+        path === oldPath || path?.startsWith(`${oldPath}/`);
+      const affected = catalog.documents.filter((d) => matches(d.path));
       if (
+        !affected.length &&
         !catalog.notes.some(
           (n) => n.path === oldPath || n.path?.startsWith(`${oldPath}/`),
         )
       )
         return;
       movePublishedNotes(catalog, oldPath, newPath);
+      if (newPath === null)
+        catalog.documents = catalog.documents.filter((d) => !matches(d.path));
+      else
+        for (const doc of affected) {
+          doc.path = newPath + doc.path!.slice(oldPath.length);
+          doc.filename = doc.path.split("/").at(-1)!;
+        }
+      catalog.documents = catalog.documents.filter(
+        (d) =>
+          !d.path ||
+          (validPublicationPath(d.path) &&
+            d.filename.toLowerCase().endsWith(".pdf")),
+      );
       await this.save(catalog);
     });
   }
@@ -139,25 +249,32 @@ export class PublishStore {
     });
   }
   create(
-    document: Omit<PublishedDocument, "filename">,
+    document: Omit<
+      PublishedDocument,
+      "filename" | "path" | "migrationPath" | "legacyFilename"
+    >,
     title: string,
     bytes: ArrayBuffer,
   ): Promise<PublishedDocument> {
     return this.serial(async () => {
       const catalog = await this.load();
       const occupied = new Set(
-        catalog.documents.map((entry) => entry.filename.toLowerCase()),
+        catalog.documents.map((entry) => this.path(entry).toLowerCase()),
       );
       for (let number = 1; ; number++) {
         const filename = publishFilename(title, document.format, number);
-        const path = `${this.directory}/${filename}`;
+        const path = `${this.files ? publicationFolder(this.files.folder()) : this.directory}/${filename}`;
         if (
-          occupied.has(filename.toLowerCase()) ||
+          occupied.has(path.toLowerCase()) ||
           (await this.adapter.exists(path)) ||
           (await this.adapter.exists(`${path}.deleting`))
         )
           continue;
-        const entry = { ...document, filename };
+        const entry = {
+          ...document,
+          filename,
+          ...(this.files ? { path } : {}),
+        };
         try {
           await this.writeDocument(catalog, entry, bytes);
           return entry;
@@ -181,17 +298,28 @@ export class PublishStore {
       throw new Error("The source note is no longer registered.");
     if (catalog.documents.some((entry) => entry.id === document.id))
       throw new Error("A document with this identity already exists.");
-    const path = `${this.directory}/${document.filename}`;
+    const path = this.path(document);
     if (
       catalog.documents.some(
-        (entry) =>
-          entry.filename.toLowerCase() === document.filename.toLowerCase(),
+        (entry) => this.path(entry).toLowerCase() === path.toLowerCase(),
       ) ||
       (await this.adapter.exists(path))
     )
       throw new PublicationCollisionError(
         "A document with this filename already exists. Try publishing again.",
       );
+    if (document.path && this.files) {
+      await this.files.create(path, bytes);
+      catalog.documents.push(document);
+      try {
+        await this.save(catalog);
+      } catch (error) {
+        // Clean up the unrecorded PDF using the configured deletion preference.
+        await this.files.trash(path);
+        throw error;
+      }
+      return;
+    }
     await this.ensureDirectory();
     const temp = `${this.directory}/publication-${crypto.randomUUID()}.tmp`;
     let created = false;
@@ -218,13 +346,20 @@ export class PublishStore {
     }
   }
   path(document: PublishedDocument): string {
-    return `${this.directory}/${document.filename}`;
+    return document.path ?? `${this.directory}/${document.filename}`;
   }
   remove(id: string): Promise<void> {
     return this.serial(async () => {
       const catalog = await this.load();
       const doc = catalog.documents.find((d) => d.id === id);
       if (!doc) return;
+      if (doc.path && this.files) {
+        if (await this.adapter.exists(doc.path))
+          await this.files.trash(doc.path);
+        catalog.documents = catalog.documents.filter((d) => d.id !== id);
+        await this.save(catalog);
+        return;
+      }
       const path = this.path(doc),
         temp = `${path}.deleting`;
       const exists = await this.adapter.exists(path);

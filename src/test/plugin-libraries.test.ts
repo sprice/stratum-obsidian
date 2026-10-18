@@ -35,6 +35,7 @@ function createMockPlugin(params?: {
   const settings: StratumSettings = {
     publishReadinessCache: null,
     publishPdfSetupComplete: false,
+    publishFolder: "Stratum Docs",
     pandocPath: "",
     tectonicPath: "",
     enabledTabs: readEnabledTabs(undefined),
