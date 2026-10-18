@@ -1,3 +1,4 @@
+import { testPublishingWorkspace } from "./publishing-workspace";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { setTimeout as schedule } from "node:timers";
@@ -6,7 +7,14 @@ import { posix } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
+import {
+  access,
+  mkdtemp,
+  writeFile,
+  readFile,
+  rm,
+  mkdir,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -86,7 +94,7 @@ $$\ce{SO4^2- + Ba^2+ -> BaSO4 v}$$`,
       html,
       [],
       "pdf",
-      { pandoc, tectonic },
+      { workspace: testPublishingWorkspace(), pandoc, tectonic },
       undefined,
       120_000,
       {
@@ -112,7 +120,7 @@ test(
         "<html><body><p>Synthetic text.</p></body></html>",
         [],
         "pdf",
-        { pandoc, tectonic },
+        { workspace: testPublishingWorkspace(), pandoc, tectonic },
         undefined,
         120_000,
         { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "Synthetic Missing Font" },
@@ -140,7 +148,7 @@ test("PDF font preflight reports both missing fonts before starting conversion",
       "",
       [],
       "pdf",
-      { pandoc: "", tectonic: "" },
+      { workspace: testPublishingWorkspace(), pandoc: "", tectonic: "" },
       undefined,
       1000,
       {
@@ -210,7 +218,7 @@ test("font discovery is cached for the session and refreshed once when a selecte
       "",
       [],
       "pdf",
-      { pandoc: "", tectonic: "" },
+      { workspace: testPublishingWorkspace(), pandoc: "", tectonic: "" },
       undefined,
       1000,
       { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "New Serif" },
@@ -224,7 +232,7 @@ test("font discovery is cached for the session and refreshed once when a selecte
       "",
       [],
       "pdf",
-      { pandoc: "", tectonic: "" },
+      { workspace: testPublishingWorkspace(), pandoc: "", tectonic: "" },
       undefined,
       1000,
       { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: "Example Serif" },
@@ -394,12 +402,6 @@ test("GUI detection finds Homebrew tools without Terminal PATH and returns absol
     "node:process": { platform: "darwin", env: { PATH: "/usr/bin:/bin" } },
     "node:path": posix,
     "node:os": { homedir: () => "/synthetic-home" },
-    "node:fs/promises": {
-      realpath: (path: string) =>
-        path.startsWith("/opt/homebrew/bin/")
-          ? Promise.resolve(path.replace("/bin/", "/opt/bin/"))
-          : Promise.reject(new Error("Not found")),
-    },
     "node:child_process": {
       spawn: (path: string) => {
         launched.push(path);
@@ -408,8 +410,15 @@ test("GUI detection finds Homebrew tools without Terminal PATH and returns absol
           stderr: new EventEmitter(),
         });
         queueMicrotask(() => {
-          task.stdout.emit("data", `${posix.basename(path)} 1.0`);
-          task.emit("close", 0);
+          if (!path.startsWith("/opt/homebrew/bin/")) {
+            task.emit(
+              "error",
+              Object.assign(new Error("Not found"), { code: "ENOENT" }),
+            );
+          } else {
+            task.stdout.emit("data", `${posix.basename(path)} 1.0`);
+            task.emit("close", 0);
+          }
         });
         return task;
       },
@@ -417,21 +426,18 @@ test("GUI detection finds Homebrew tools without Terminal PATH and returns absol
   });
   for (const tool of ["pandoc", "tectonic"] as const) {
     const found = await desktop.detectPublishTool(tool, "");
-    assert.equal(found.path, `/opt/homebrew/opt/bin/${tool}`);
+    assert.equal(found.path, `/opt/homebrew/bin/${tool}`);
     assert.equal(found.version, `${tool} 1.0`);
   }
-  assert.equal(
-    launched.length,
-    2,
-    "missing candidates should not spawn processes",
-  );
+  assert.ok(launched.includes("/usr/bin/pandoc"));
+  const attempts = launched.length;
   const missing = await desktop.detectPublishTool("pandoc", "/custom/missing");
   assert.equal(
     missing.path,
     "",
     "explicit overrides must not silently fall back",
   );
-  assert.equal(launched.length, 2);
+  assert.equal(launched.length, attempts + 1);
 });
 
 test("an installed but unusable executable is distinct from a missing tool", async () => {
@@ -513,6 +519,7 @@ for (const style of ["apa", "chicago-notes-bibliography", "ieee"]) {
         if (style === "chicago-notes-bibliography")
           assert.equal((latex.match(/\\footnote\{/g) ?? []).length, 2);
         const bytes = await runtime().convertPublication(document, [], "pdf", {
+          workspace: testPublishingWorkspace(),
           pandoc,
           tectonic,
         });
@@ -551,7 +558,7 @@ test(
       keywordPaper,
       [],
       "pdf",
-      { pandoc, tectonic },
+      { workspace: testPublishingWorkspace(), pandoc, tectonic },
       undefined,
       120_000,
       DEFAULT_ACADEMIC_OPTIONS,
@@ -620,6 +627,7 @@ test(
       pandoc,
       "/missing-synthetic-tectonic",
       false,
+      testPublishingWorkspace(),
     );
     assert.equal(result.pdf, false);
     assert.match(result.tectonic.error!, /Could not start/);
@@ -635,6 +643,7 @@ test(
       pandoc,
       tectonic,
       true,
+      testPublishingWorkspace(),
       undefined,
       undefined,
       (state) => updates.push(state),
@@ -697,7 +706,7 @@ test(
             html,
             [],
             "pdf",
-            { pandoc, tectonic },
+            { workspace: testPublishingWorkspace(), pandoc, tectonic },
             undefined,
             120_000,
             options,
@@ -1032,6 +1041,7 @@ test(
         [{ name: "asset-0.png", bytes: image }],
         "pdf",
         {
+          workspace: testPublishingWorkspace(),
           pandoc,
           tectonic: "synthetic-tectonic",
           bibliographyCache: {} as never,
@@ -1055,3 +1065,109 @@ test(
     assert.equal(bodies[0], bodies[1]);
   },
 );
+
+test(
+  "numeric citation output compiles with native LaTeX and natbib",
+  { skip: !tectonic },
+  async () => {
+    const { journalFormattedDocument } =
+      await import("../publication-citations");
+    const formatted = journalFormattedDocument(
+      "Evidence [@first; @second]. @first reports results. More evidence [see @first, p. 12].",
+      new Map([
+        ["first", "stratum0"],
+        ["second", "stratum1"],
+      ]),
+      [
+        {
+          id: "stratum0",
+          type: "article-journal",
+          author: [{ family: "Example" }],
+        },
+        {
+          id: "stratum1",
+          type: "article-journal",
+          author: [{ family: "Synthetic" }],
+        },
+      ],
+      true,
+    );
+    const body = formatted.citations
+      .map((citation) => {
+        const match = /data-tex="([^"]*)"/.exec(citation);
+        assert.ok(match);
+        return match[1];
+      })
+      .join("\n\n");
+    for (const natbib of [false, true]) {
+      const directory = await mkdtemp(
+        join(tmpdir(), "stratum-citation-compat-"),
+      );
+      try {
+        await writeFile(
+          join(directory, "document.tex"),
+          [
+            String.raw`\documentclass{article}`,
+            natbib ? String.raw`\usepackage[numbers]{natbib}` : "",
+            String.raw`\begin{document}`,
+            body,
+            String.raw`\begin{thebibliography}{2}
+\bibitem{stratum0} Alex Example. Synthetic reference.
+\bibitem{stratum1} Sam Synthetic. Second reference.
+\end{thebibliography}
+\end{document}`,
+          ].join("\n"),
+        );
+        execFileSync(tectonic, ["--untrusted", "--keep-logs", "document.tex"], {
+          cwd: directory,
+          timeout: 60_000,
+          stdio: "pipe",
+        });
+        assert.equal(
+          (await readFile(join(directory, "document.pdf")))
+            .subarray(0, 5)
+            .toString(),
+          "%PDF-",
+        );
+        assert.doesNotMatch(
+          await readFile(join(directory, "document.log"), "utf8"),
+          /Undefined control sequence|Citation .* undefined/,
+        );
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+test("conversion cleans adapter scratch files on failure and cancellation without loading fs", async () => {
+  const modules = Object.defineProperty({}, "node:fs/promises", {
+    get() {
+      throw new Error("Conversion must not load Node fs");
+    },
+  });
+  const desktop = runtime(true, undefined, modules);
+  for (const cancelled of [false, true]) {
+    const directories: string[] = [];
+    const aborter = new AbortController();
+    if (cancelled) aborter.abort();
+    await assert.rejects(
+      desktop.convertPublication(
+        "<p>Synthetic</p>",
+        [],
+        "pdf",
+        {
+          workspace: testPublishingWorkspace((directory) =>
+            directories.push(directory),
+          ),
+          pandoc: "/missing-synthetic-publishing-tool",
+          tectonic: "unused",
+        },
+        aborter.signal,
+      ),
+      cancelled ? /cancelled/ : /Could not start/,
+    );
+    assert.equal(directories.length, 1);
+    await assert.rejects(access(directories[0]));
+  }
+});

@@ -372,15 +372,15 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
     assert.equal(await page.locator(".stratum-publish-filename").count(), 1);
     assert.equal(
       await page
-        .locator(
-          '.stratum-publish-row-actions button[aria-label^="Preview PDF"]',
-        )
+        .locator('.stratum-publish-row-actions button[aria-label^="View PDF"]')
         .count(),
       1,
     );
     assert.equal(
       await page
-        .locator('.stratum-publish-row-actions button[aria-label^="Save as"]')
+        .locator(
+          '.stratum-publish-row-actions button[aria-label^="Download PDF"]',
+        )
         .count(),
       1,
     );
@@ -397,7 +397,7 @@ test("secondary tabs show PDF history and retain filtering across navigation", a
       .click();
     assert.equal(
       await page.evaluate(
-        "document.querySelector('.modal').textContent.includes('Delete published document?')",
+        "document.querySelector('.modal').textContent.includes('Delete PDF?')",
       ),
       true,
     );
@@ -2115,7 +2115,9 @@ test("one template management action can enable a built-in from the all-off stat
     await reset({ templateId: "registry:example:1.0-r1" });
     await page.evaluate("window.publicationFixture.setEnabledTemplates([])");
     await page
-      .locator(".stratum-publish-panel .stratum-control-actions button")
+      .locator(
+        ".stratum-publish-panel .stratum-control-actions:not([hidden]) button",
+      )
       .click();
     await until(
       "!!document.querySelector('.modal[aria-label=\"Publishing templates\"]')",

@@ -1,3 +1,4 @@
+import { testPublishingWorkspace } from "./publishing-workspace";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
@@ -143,6 +144,7 @@ for (const template of ["General"] as string[])
         [],
         "pdf",
         {
+          workspace: testPublishingWorkspace(),
           pandoc,
           tectonic,
         },

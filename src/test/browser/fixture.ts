@@ -1,5 +1,5 @@
 import installation from "../fixtures/installation.json";
-import { TFile, MarkdownView, editorInfoField } from "obsidian";
+import { TFile, TFolder, MarkdownView, editorInfoField } from "obsidian";
 import { EditorState, StateEffect, type ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { PublicationEditor } from "../../publication-editor";
@@ -67,7 +67,8 @@ class MemoryVault implements PublishAdapter {
   readBinary() {
     return Promise.resolve(new ArrayBuffer(0));
   }
-  writeBinary() {
+  writeBinary(path: string) {
+    this.files.set(path, "");
     return Promise.resolve();
   }
 }
@@ -114,6 +115,7 @@ async function reset(options: FixtureOptions = {}) {
   root.empty();
   document.body.className = `theme-${options.theme ?? "dark"}`;
   adapter = new MemoryVault();
+  const publishedFiles = new Map<string, TFile | TFolder>();
   const plugin = {
     settings: {
       publishingTemplates: {
@@ -144,14 +146,39 @@ async function reset(options: FixtureOptions = {}) {
       vault: {
         adapter,
         configDir: ".synthetic",
+        async createFolder(path: string) {
+          publishedFiles.set(path, Object.assign(new TFolder(), { path }));
+          await adapter.mkdir(path);
+        },
+        async createBinary(path: string) {
+          if (await adapter.exists(path)) throw new Error("File exists");
+          publishedFiles.set(
+            path,
+            Object.assign(new TFile(), {
+              path,
+              extension: "pdf",
+              basename: path.split("/").at(-1)!.slice(0, -4),
+            }),
+          );
+          await adapter.writeBinary(path);
+        },
+        async delete(file: TFile) {
+          publishedFiles.delete(file.path);
+          await adapter.remove(file.path);
+        },
         read: () =>
           Promise.resolve(sourceEditor?.state.doc.toString() ?? sourceText),
         getAbstractFileByPath(path: string) {
+          if (publishedFiles.has(path)) return publishedFiles.get(path);
           if (!path.startsWith("Papers/Synthetic")) return null;
           return path === currentFile?.path ? currentFile : null;
         },
       },
       fileManager: {
+        async trashFile(file: TFile) {
+          publishedFiles.delete(file.path);
+          await adapter.remove(file.path);
+        },
         processFrontMatter: (
           _file: TFile,
           change: (properties: Record<string, unknown>) => void,

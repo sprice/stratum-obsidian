@@ -1,3 +1,4 @@
+import { publicationFolder } from "./publish-model";
 import { readPublishingTemplates } from "./publish-templates";
 import {
   DEFAULT_SOURCE_SUMMARY_TEMPLATE,
@@ -434,6 +435,13 @@ function readStoredSettings(value: unknown): Omit<
             pair[1].length < 2000000,
         ),
       );
+  }
+  if (typeof value.publishFolder === "string") {
+    try {
+      nextSettings.publishFolder = publicationFolder(value.publishFolder);
+    } catch {
+      /* Keep the default for invalid stored paths. */
+    }
   }
   if (typeof value.publishPdfSetupComplete === "boolean")
     nextSettings.publishPdfSetupComplete = value.publishPdfSetupComplete;

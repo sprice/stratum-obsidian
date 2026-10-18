@@ -8,6 +8,13 @@ import type { EnabledTabs, StratumTab } from "../stratum-tabs";
 
 class Element {
   isConnected = true;
+  validity = "";
+  setCustomValidity(message: string) {
+    this.validity = message;
+  }
+  reportValidity() {
+    return !this.validity;
+  }
   scrolled = false;
   scrollIntoView() {
     this.scrolled = true;
@@ -208,6 +215,7 @@ function fixture(desktop = false, modern = true) {
           }
         },
       },
+      "./publish-folder-suggest": { PublishFolderSuggest: class {} },
       "./settings-tab-chooser": {
         openTabChooser: (anchor: Element, options: typeof chooser) => {
           chooser = options;
@@ -224,7 +232,7 @@ function fixture(desktop = false, modern = true) {
   let updates = 0;
   let indexedNames: string[] = [];
   const plugin = {
-    app: {},
+    app: { vault: { configDir: ".config" } },
     backend: {
       hasSession: (): boolean => Boolean(plugin.settings.accountEmail),
     },
@@ -555,7 +563,7 @@ test("template management stays in its own screen, with academic properties in t
   )!;
   assert.deepEqual(
     Array.from(publishing.items, (item) => item.name),
-    ["Publishing tools", "Publishing templates"],
+    ["PDF folder", "Publishing tools", "Publishing templates"],
   );
   Row.rendered = [];
   const entry = new Row();
@@ -691,4 +699,64 @@ test("publishing settings omit vault AASTeX defaults", () => {
         section.items.some((setting) => setting.name.startsWith("AASTeX:")),
       ),
   );
+});
+
+test("PDF folder settings save on blur, reject external paths, and reset empty input to the default", async () => {
+  const f = fixture(true);
+  Object.assign(f.tab, { app: f.plugin.app });
+  const row = new Row();
+  f.tab
+    .getSettingDefinitions()
+    .find((section) => section.heading === "Publishing")!
+    .items.find((item) => item.name === "PDF folder")!
+    .render(row as never);
+  const control = row.control!;
+  assert.equal(control.value, "Stratum Docs");
+  assert.match(row.description, /won’t move existing/);
+  control.setValue("Exports/Papers");
+  control.inputEl.blur();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(f.plugin.settings.publishFolder, "Exports/Papers");
+  control.setValue("../outside");
+  control.inputEl.blur();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(f.plugin.settings.publishFolder, "Exports/Papers");
+  assert.match(control.inputEl.validity, /inside your vault/);
+  control.setValue("");
+  control.inputEl.blur();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(f.plugin.settings.publishFolder, "Stratum Docs");
+  assert.equal(control.value, "Stratum Docs");
+});
+
+test("queued PDF folder saves do not replace newer input or report stale failures", async () => {
+  const f = fixture(true);
+  Object.assign(f.tab, { app: f.plugin.app });
+  const row = new Row();
+  f.tab
+    .getSettingDefinitions()
+    .find((section) => section.heading === "Publishing")!
+    .items.find((item) => item.name === "PDF folder")!
+    .render(row as never);
+  const control = row.control!;
+  let rejectSave!: (error: Error) => void;
+  f.plugin.saveSettings = () =>
+    new Promise<void>((_resolve, reject) => {
+      rejectSave = reject;
+    });
+  control.setValue("First");
+  control.inputEl.blur();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  control.setValue("Second");
+  control.inputEl.blur();
+  control.setValue("Still typing");
+  rejectSave(new Error("Old save failed"));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(control.value, "Still typing");
+  assert.equal(control.inputEl.validity, "");
+  assert.equal(f.plugin.settings.publishFolder, "Stratum Docs");
+  f.plugin.saveSettings = () => Promise.resolve();
+  control.inputEl.blur();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(f.plugin.settings.publishFolder, "Still typing");
 });

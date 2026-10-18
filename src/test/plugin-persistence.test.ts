@@ -358,6 +358,7 @@ test("publishing preferences migrate with defaults and preserve explicit desktop
     settings: {} as {
       enabledTabs: { publish: boolean };
       publishPdfSetupComplete: boolean;
+      publishFolder: string;
       pandocPath: string;
       tectonicPath: string;
     },
@@ -366,15 +367,21 @@ test("publishing preferences migrate with defaults and preserve explicit desktop
   await loadPluginSettings(legacy as never);
   assert.equal(legacy.settings.enabledTabs.publish, true);
   assert.equal(legacy.settings.publishPdfSetupComplete, false);
+  assert.equal(legacy.settings.publishFolder, "Stratum Docs");
   const configured = create({
     publishEnabled: false,
     publishPdfSetupComplete: true,
+    publishFolder: "Exports/Papers",
     pandocPath: " /example/pandoc ",
     tectonicPath: "/example/tectonic",
   });
   await loadPluginSettings(configured as never);
   assert.equal(configured.settings.enabledTabs.publish, false);
   assert.equal(configured.settings.publishPdfSetupComplete, true);
+  assert.equal(configured.settings.publishFolder, "Exports/Papers");
+  const invalid = create({ publishFolder: "../outside" });
+  await loadPluginSettings(invalid as never);
+  assert.equal(invalid.settings.publishFolder, "Stratum Docs");
   assert.equal(configured.settings.pandocPath, "/example/pandoc");
   assert.equal(configured.settings.tectonicPath, "/example/tectonic");
 });

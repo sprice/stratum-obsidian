@@ -1,3 +1,4 @@
+import { testPublishingWorkspace } from "./publishing-workspace";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -69,7 +70,7 @@ test(
         "<html><body><p>Synthetic font fallback test.</p></body></html>",
         [],
         "pdf",
-        { pandoc, tectonic },
+        { workspace: testPublishingWorkspace(), pandoc, tectonic },
         undefined,
         120_000,
         { ...DEFAULT_PUBLISH_OPTIONS, bodyFont: font },

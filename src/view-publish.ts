@@ -27,6 +27,7 @@ export interface PublishViewState {
 }
 export class PublishPanel extends Component {
   private body!: HTMLElement;
+  private saved!: HTMLElement;
   private successIcon!: HTMLElement;
   private successAnnouncement!: HTMLElement;
   private shell!: HTMLElement;
@@ -185,6 +186,17 @@ export class PublishPanel extends Component {
     this.create.addEventListener("click", () => {
       void this.publish.create();
     });
+    this.saved = this.body.createDiv({ cls: "stratum-control-actions" });
+    this.saved.createSpan({ text: "PDF created. " });
+    createStratumButton(this.saved, { text: "Open PDF" }).addEventListener(
+      "click",
+      () => {
+        const doc = this.publish.allDocuments.find(
+          (d) => d.id === this.publish.lastPublishedId,
+        );
+        if (doc) void this.publish.open(doc);
+      },
+    );
     this.status = this.body.createDiv({ cls: "stratum-publish-status" });
     this.statusMessage = this.status.createDiv({
       attr: { role: "status", "aria-live": "polite" },
@@ -214,6 +226,12 @@ export class PublishPanel extends Component {
   private update(): void {
     const publish = this.publish;
     const toolsReady = !!publish.readiness?.pdf;
+    this.saved.hidden =
+      publish.busy ||
+      !!publish.error ||
+      !publish.documents.some(
+        (doc) => doc.id === publish.lastPublishedId && !!publish.pdfFile(doc),
+      );
     this.dependencies.hidden = publish.checking || toolsReady;
     if (
       publish.lastPublishedId &&

@@ -1,3 +1,4 @@
+import type { PublishWorkspace } from "./publish-workspace";
 import {
   TEMPLATE_REGISTRY_ORIGIN,
   MAX_TEMPLATE_BYTES,
@@ -18,6 +19,7 @@ export interface PublishAsset {
   bytes: ArrayBuffer;
 }
 interface PublishTools {
+  workspace: PublishWorkspace;
   bibliographyCache?: BibliographyCache;
   pandoc: string;
   tectonic: string;
@@ -59,22 +61,13 @@ function host(): HostWindow {
   return window;
 }
 interface DesktopFiles {
-  mkdtemp(prefix: string): Promise<string>;
-  writeFile(
-    path: string,
-    data: string | Uint8Array,
-    options?: { mode: number },
-  ): Promise<void>;
-  readFile(path: string): Promise<Uint8Array>;
-  rm(
-    path: string,
-    options: { recursive: boolean; force: boolean },
-  ): Promise<void>;
+  writeFile(path: string, data: Uint8Array): Promise<void>;
   realpath(path: string): Promise<string>;
   lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
 }
 interface DesktopPath {
   join(...parts: string[]): string;
+  resolve(...parts: string[]): string;
   dirname(path: string): string;
   basename(path: string): string;
   relative(from: string, to: string): string;
@@ -122,9 +115,8 @@ function modules() {
       "Desktop file access is unavailable. Restart Obsidian and try again.",
     );
   return {
-    fs: require("node:fs/promises") as DesktopFiles,
     path: require("node:path") as DesktopPath,
-    os: require("node:os") as { homedir(): string; tmpdir(): string },
+    os: require("node:os") as { homedir(): string },
     process: require("node:process") as DesktopProcess,
     child: require("node:child_process") as DesktopChild,
   };
@@ -314,7 +306,9 @@ export function runPublishTool(
     task.once("error", (reason) => {
       cleanup();
       reject(
-        new Error(`Could not start the publishing tool: ${reason.message}`),
+        new Error(`Could not start the publishing tool: ${reason.message}`, {
+          cause: reason,
+        }),
       );
     });
     task.once("close", (code) => {
@@ -338,7 +332,7 @@ export async function detectPublishTool(
   configured: string,
   signal?: AbortSignal,
 ): Promise<ToolStatus> {
-  const { fs, os, path, process } = modules();
+  const { os, path, process } = modules();
   const home = os.homedir();
   const windows = process.platform === "win32";
   const executable = windows ? `${name}.exe` : name;
@@ -375,18 +369,7 @@ export async function detectPublishTool(
   let failure: ToolStatus | undefined;
   for (const candidate of candidates) {
     if (signal?.aborted) throw new Error("Setup cancelled.");
-    let absolute: string;
-    try {
-      absolute = await fs.realpath(candidate);
-    } catch (error) {
-      if (override)
-        failure = {
-          path: "",
-          version: "",
-          error: `Could not start the publishing tool: ${error instanceof Error ? error.message : "File not found."}`,
-        };
-      continue;
-    }
+    const absolute = path.resolve(candidate);
     try {
       const version = (
         await runPublishTool(absolute, ["--version"], {
@@ -400,10 +383,13 @@ export async function detectPublishTool(
         throw new Error(`Choose the ${name} executable.`);
       return { path: absolute, version };
     } catch (reason) {
+      const missing =
+        (reason as { cause?: { code?: string } })?.cause?.code === "ENOENT";
+      if (missing && !override) continue;
       failure ??= {
         path: "",
         version: "",
-        foundPath: absolute,
+        foundPath: missing ? undefined : absolute,
         error:
           reason instanceof Error
             ? reason.message
@@ -464,22 +450,15 @@ export async function convertPublication(
       }
     }
   }
-  const { fs, path, os } = modules();
-  const directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), "stratum-publish-"),
-  );
+  host();
+  const job = await tools.workspace.create();
+  const directory = job.directory;
   try {
-    await fs.writeFile(path.join(directory, "document.html"), html, {
-      mode: 0o600,
-    });
+    await job.write("document.html", html);
     for (const asset of assets) {
       if (!/^asset-\d+\.(png|jpg|jpeg|gif|svg|webp)$/i.test(asset.name))
         throw new Error("Invalid publication image name.");
-      await fs.writeFile(
-        path.join(directory, asset.name),
-        new Uint8Array(asset.bytes),
-        { mode: 0o600 },
-      );
+      await job.write(asset.name, new Uint8Array(asset.bytes));
     }
     const output = `document.${format}`;
     const args = [
@@ -490,10 +469,9 @@ export async function convertPublication(
       output,
     ];
     args.push("--log=diagnostics.json");
-    await fs.writeFile(
-      path.join(directory, "layout.lua"),
+    await job.write(
+      "layout.lua",
       options ? publicationFilter(options) : publicationMathFilter,
-      { mode: 0o600 },
     );
     args.push("--lua-filter=layout.lua");
     if (options?.numberSections) args.push("--number-sections");
@@ -501,10 +479,9 @@ export async function convertPublication(
       `--pdf-engine=${tools.tectonic}`,
       `--variable=geometry:margin=${options?.margin ?? 1}in`,
     );
-    await fs.writeFile(
-      path.join(directory, "layout.tex"),
+    await job.write(
+      "layout.tex",
       options ? publicationHeader(options) : publicationMathPreamble,
-      { mode: 0o600 },
     );
     args.push("--include-in-header=layout.tex");
     if (options) {
@@ -542,9 +519,7 @@ export async function convertPublication(
     // Inspect warning categories, not localized stderr or a blanket warning exit status.
     // The private temporary diagnostics file is removed with the conversion directory.
     const diagnostics: unknown = JSON.parse(
-      new TextDecoder().decode(
-        await fs.readFile(path.join(directory, "diagnostics.json")),
-      ),
+      new TextDecoder().decode(await job.read("diagnostics.json")),
     );
     if (!Array.isArray(diagnostics))
       throw new Error(
@@ -562,12 +537,12 @@ export async function convertPublication(
       throw new Error(
         "An equation could not be converted to PDF. Simplify the equation, then try again.",
       );
-    const bytes = await fs.readFile(path.join(directory, output));
+    const bytes = await job.read(output);
     if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-")
       throw new Error("The converter did not produce a valid document.");
     return Uint8Array.from(bytes).buffer;
   } finally {
-    await fs.rm(directory, { recursive: true, force: true });
+    await job.remove();
   }
 }
 
@@ -854,10 +829,9 @@ async function convertJournalPublication(
   signal?: AbortSignal,
   timeout = 120_000,
 ): Promise<ArrayBuffer> {
-  const { fs, path, os } = modules();
-  const directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), "stratum-journal-"),
-  );
+  host();
+  const job = await tools.workspace.create();
+  const directory = job.directory;
   try {
     const journal = input.journal;
     if (!journal?.installation)
@@ -878,29 +852,16 @@ async function convertJournalPublication(
         false,
       );
       for (const [name, content] of Object.entries(resources))
-        await fs.writeFile(path.join(directory, name), content, {
-          mode: 0o600,
-        });
+        await job.write(name, content);
     }
-    await fs.writeFile(
-      path.join(directory, "journal.lua"),
+    await job.write(
+      "journal.lua",
       journal.installation.adapter.documentClass === "mnras"
         ? journalFilter.replace("table}[ht]", "table}")
         : journalFilter,
-      {
-        mode: 0o600,
-      },
     );
-    await fs.writeFile(
-      path.join(directory, "preamble.latex"),
-      journalPreambleTemplate,
-      { mode: 0o600 },
-    );
-    await fs.writeFile(
-      path.join(directory, "compatibility.html"),
-      `${html}\n${input.abstractHtml}`,
-      { mode: 0o600 },
-    );
+    await job.write("preamble.latex", journalPreambleTemplate);
+    await job.write("compatibility.html", `${html}\n${input.abstractHtml}`);
     await runPublishTool(
       tools.pandoc,
       [
@@ -916,19 +877,13 @@ async function convertJournalPublication(
     for (const asset of assets) {
       if (!/^asset-\d+\.(png|jpg|jpeg|gif|svg|webp)$/i.test(asset.name))
         throw new Error("Invalid publication image name.");
-      await fs.writeFile(
-        path.join(directory, asset.name),
-        new Uint8Array(asset.bytes),
-        { mode: 0o600 },
-      );
+      await job.write(asset.name, new Uint8Array(asset.bytes));
     }
     for (const [name, content] of [
       ["body", html],
       ["abstract", input.abstractHtml],
     ]) {
-      await fs.writeFile(path.join(directory, `${name}.html`), content, {
-        mode: 0o600,
-      });
+      await job.write(`${name}.html`, content);
       await runPublishTool(
         tools.pandoc,
         [
@@ -944,11 +899,7 @@ async function convertJournalPublication(
       );
     }
     if (input.references.length) {
-      await fs.writeFile(
-        path.join(directory, "references.json"),
-        JSON.stringify(input.references),
-        { mode: 0o600 },
-      );
+      await job.write("references.json", JSON.stringify(input.references));
       await runPublishTool(
         tools.pandoc,
         [
@@ -962,7 +913,7 @@ async function convertJournalPublication(
       );
     }
     const decode = async (name: string) =>
-      new TextDecoder().decode(await fs.readFile(path.join(directory, name)));
+      new TextDecoder().decode(await job.read(name));
     const tex = (await import("./journal-profiles")).journalLatex(
       journal,
       input.manuscript,
@@ -971,9 +922,7 @@ async function convertJournalPublication(
       !!input.references.length,
       await decode("preamble.tex"),
     );
-    await fs.writeFile(path.join(directory, "document.tex"), tex, {
-      mode: 0o600,
-    });
+    await job.write("document.tex", tex);
     await runPublishTool(
       tools.tectonic,
       ["--untrusted", "--keep-logs", "--keep-intermediates", "document.tex"],
@@ -1012,13 +961,13 @@ async function convertJournalPublication(
       throw new Error(
         `${journal.name} could not resolve the manuscript bibliography. Review citation data and try again.`,
       );
-    const bytes = await fs.readFile(path.join(directory, "document.pdf"));
+    const bytes = await job.read("document.pdf");
 
     if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-")
       throw new Error(`${journal.name} did not produce a valid PDF.`);
     return Uint8Array.from(bytes).buffer;
   } finally {
-    await fs.rm(directory, { recursive: true, force: true });
+    await job.remove();
   }
 }
 const probeHtml =
@@ -1050,6 +999,7 @@ export async function checkPublishing(
   pandocPath: string,
   tectonicPath: string,
   preparePdf: boolean,
+  workspace: PublishWorkspace,
   signal?: AbortSignal,
   progress?: (text: string) => void,
   report?: (readiness: PublishReadiness) => void,
@@ -1066,7 +1016,7 @@ export async function checkPublishing(
   };
   report?.({ ...readiness });
   if (!pandoc.path) return readiness;
-  const tools = { pandoc: pandoc.path, tectonic: tectonic.path };
+  const tools = { pandoc: pandoc.path, tectonic: tectonic.path, workspace };
   if (signal?.aborted) throw new Error("Setup cancelled.");
   if (preparePdf && tectonic.path) {
     progress?.(
@@ -1120,7 +1070,8 @@ export async function savePublishedCopy(
     properties: ["showOverwriteConfirmation"],
   });
   if (result.canceled || !result.filePath) return false;
-  const { fs, path } = modules();
+  const { path } = modules();
+  const fs = host().require!("node:fs/promises") as DesktopFiles;
   const destination = result.filePath;
   const realParent = await fs.realpath(path.dirname(destination));
   const realProtected = await fs.realpath(protectedDirectory);

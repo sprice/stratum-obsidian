@@ -21,6 +21,9 @@ class File {
     return this.path.replace(/\.md$/, "");
   }
 }
+class Folder {
+  constructor(public path: string) {}
+}
 class View {
   leaf?: { view: View };
   editor = { getValue: () => this.text };
@@ -120,6 +123,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
       MarkdownView: View,
       WorkspaceWindow: Popout,
       TFile: File,
+      TFolder: Folder,
       Notice: class {},
       parseYaml: JSON.parse,
     },
@@ -292,6 +296,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
         },
       },
       fileManager: {
+        trashFile: (file: File) => adapter.remove(file.path),
         processFrontMatter: (
           file: File,
           change: (properties: Record<string, unknown>) => void,
@@ -308,19 +313,37 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
       },
       vault: {
         adapter,
+        createFolder: (path: string) => adapter.mkdir(path),
+        createBinary: async (path: string, bytes: ArrayBuffer) => {
+          if (await adapter.exists(path)) throw new Error("File exists");
+          await adapter.writeBinary(path, bytes);
+        },
+        delete: (file: File) => adapter.remove(file.path),
         read: (file: File) =>
           Promise.resolve(
             roots.find((root) => root.view.file === file)?.view.text ?? "",
           ),
         configDir: ".config",
         getAbstractFileByPath: (path: string) =>
-          [first, second].find((file) => file.path === path) ?? null,
+          [first, second].find((file) => file.path === path) ??
+          (files.get(path) instanceof ArrayBuffer
+            ? Object.assign(new File(path), { extension: "pdf" })
+            : files.has(path)
+              ? new Folder(path)
+              : null),
         on: (event: string, callback: (...args: never[]) => void) => {
           events.set(event, callback);
           return {};
         },
       },
       workspace: {
+        getLeavesOfType: (type: string) =>
+          roots.filter(
+            (leaf) =>
+              (
+                leaf.view as unknown as { getViewType?: () => string }
+              ).getViewType?.() === type,
+          ),
         getLeaf: () => ({
           openFile: (file: File) => {
             opened.push(file);
@@ -597,7 +620,7 @@ test("closing the selected note clears stale editor state", () => {
   assert.equal(controller.canCreate(), false);
 });
 
-test("a PDF preview follows its source note and keeps the open source editor", () => {
+test("a native PDF follows its source note and keeps the open source editor", () => {
   const { controller, leaf, other, events, roots } = setup();
   controller.catalog = {
     version: 1,
@@ -609,6 +632,7 @@ test("a PDF preview follows its source note and keeps the open source editor", (
         id: "pdf",
         noteId: "note",
         filename: "First.pdf",
+        path: "Stratum Docs/First.pdf",
         format: "pdf",
         createdAt: new Date().toISOString(),
         citationStyle: "apa",
@@ -619,8 +643,8 @@ test("a PDF preview follows its source note and keeps the open source editor", (
   events.get("active-leaf-change")!(other as never);
   const preview = {
     view: {
-      getViewType: () => "stratum-publish-preview",
-      getState: () => ({ documentId: "pdf" }),
+      getViewType: () => "pdf",
+      getState: () => ({ file: "Stratum Docs/First.pdf" }),
     },
   };
   roots.push(preview as never);
@@ -1509,4 +1533,34 @@ test("a missing version never switches to another installed release in the same 
     controller.templateAvailabilityProblem,
     /exact template version.*not installed/,
   );
+});
+
+test("view opens a vault PDF natively, reuses its tab, and reports a missing file", async () => {
+  const f = setup();
+  await f.controller.reload();
+  const note = await f.controller.store.note("Synthetic.md", "Synthetic", 1);
+  const doc = await f.controller.store.create(
+    {
+      id: "native-pdf",
+      noteId: note.id,
+      format: "pdf",
+      createdAt: new Date().toISOString(),
+      citationStyle: "apa",
+      citationLanguage: "en-US",
+    },
+    "Synthetic",
+    new ArrayBuffer(5),
+  );
+  await f.controller.open(doc);
+  assert.equal(f.opened.length, 1);
+  assert.equal(f.opened[0].path, "Stratum Docs/Synthetic.pdf");
+  const pdfLeaf = {
+    view: { getViewType: () => "pdf", getState: () => ({ file: doc.path }) },
+  };
+  f.roots.push(pdfLeaf as never);
+  await f.controller.open(doc);
+  assert.equal(f.opened.length, 1);
+  assert.equal(f.revealed.at(-1), pdfLeaf);
+  await f.controller.open({ ...doc, path: "Missing.pdf" });
+  assert.match(f.controller.error, /unavailable/);
 });

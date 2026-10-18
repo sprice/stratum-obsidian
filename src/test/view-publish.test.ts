@@ -140,6 +140,7 @@ function setup(state?: import("../view-publish").PublishViewState) {
     errorMessage: "",
     fontError: null as { fonts: string[] } | null,
     sourceNote: () => null,
+    pdfFile: () => ({ path: "Stratum Docs/Synthetic.pdf" }),
     subscribe(callback: () => void) {
       updates.push(callback);
       return () => {};
@@ -752,4 +753,53 @@ test("template management has one labelled action outside the template fields", 
     root.all().filter((el) => el.text === "Manage templates").length,
     1,
   );
+});
+
+test("a created PDF offers opening on demand and disables file actions when unavailable", () => {
+  const state = {
+    section: "publish" as const,
+    documents: {},
+    lastPublishedId: "finished",
+  };
+  const f = setup(state);
+  const doc: PublishedDocument = {
+    id: "finished",
+    noteId: "source",
+    filename: "Synthetic.pdf",
+    path: "Stratum Docs/Synthetic.pdf",
+    format: "pdf",
+    createdAt: "2026-10-01T00:00:00Z",
+    citationStyle: "apa",
+    citationLanguage: "en-US",
+  };
+  const opened: PublishedDocument[] = [];
+  Object.assign(f.publish, {
+    documents: [doc],
+    allDocuments: [doc],
+    lastPublishedId: doc.id,
+    open: (entry: PublishedDocument) => {
+      opened.push(entry);
+      return Promise.resolve();
+    },
+  });
+  f.update();
+  assert.equal(state.section, "publish");
+  assert.equal(opened.length, 0);
+  const success = f.root
+    .all()
+    .find((el) => el.children.some((child) => child.text === "PDF created. "))!;
+  assert.equal(success.hidden, false);
+  success.children
+    .find((el) => el.text === "Open PDF")!
+    .listeners.get("click")!();
+  assert.deepEqual(opened, [doc]);
+  Object.assign(f.publish, { pdfFile: () => null });
+  f.update();
+  assert.equal(success.hidden, true);
+  const actions = f.root
+    .all()
+    .find((el) => el.cls === "stratum-publish-row-actions")!.children;
+  assert.equal(actions[0].disabled, true);
+  assert.equal(actions[2].disabled, true);
+  assert.equal(actions[3].disabled, false);
 });

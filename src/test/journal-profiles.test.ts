@@ -92,7 +92,7 @@ test("numeric citations retain narrative names and locators", () => {
     references,
     true,
   );
-  assert.match(result.citations[0], /Example~.*citep/);
+  assert.match(result.citations[0], /Example~.*cite\{/);
   assert.match(result.citations[1], /p\. 12/);
   assert.throws(
     () => journalFormattedDocument("[-@key]", ids, references, true),
@@ -208,3 +208,31 @@ for (const [frontMatter, cls, author] of [
     if (cls === "cas-sc") assert.ok(tex.includes(String.raw`\cormark[1]`));
   });
 }
+
+test("Native numeric citations preserve groups, narrative authors and citation notes", () => {
+  const ids = new Map([
+    ["first", "stratum0"],
+    ["second", "stratum1"],
+  ]);
+  const references = [
+    {
+      id: "stratum0",
+      type: "article-journal",
+      author: [{ family: "Example" }],
+    },
+    {
+      id: "stratum1",
+      type: "article-journal",
+      author: [{ family: "Synthetic" }],
+    },
+  ];
+  const format = (text: string) =>
+    journalFormattedDocument(text, ids, references, true).citations.join("\n");
+  assert.match(format("[@first; @second]"), /\\cite\{stratum0,stratum1\}/);
+  assert.match(format("@first"), /Example~\\cite\{stratum0\}/);
+  assert.match(
+    format("[see @first, p. 12]"),
+    /see~\\cite\[\{p\. 12\}\]\{stratum0\}/,
+  );
+  assert.doesNotMatch(format("@first and [@second, p. 4]"), /\\cite[pt]/);
+});

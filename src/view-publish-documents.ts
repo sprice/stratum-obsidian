@@ -58,14 +58,20 @@ export class PublishedDocumentsPanel extends Component {
       ? "all"
       : `note:${publish.document?.path ?? ""}`;
     const documents = (showAll ? publish.allDocuments : publish.documents).map(
-      (doc) => ({ doc, sourceAvailable: !!publish.sourceNote(doc) }),
+      (doc) => ({
+        doc,
+        sourceAvailable: !!publish.sourceNote(doc),
+        available: !!publish.pdfFile(doc),
+      }),
     );
     // Rebuilding unchanged rows would reset scrolling and in-progress actions.
     const listSignature = JSON.stringify([
       listContext,
-      documents.map(({ doc, sourceAvailable }) => [
+      documents.map(({ doc, sourceAvailable, available }) => [
         doc.id,
         doc.filename,
+        doc.path,
+        available,
         doc.createdAt,
         sourceAvailable,
       ]),
@@ -88,7 +94,7 @@ export class PublishedDocumentsPanel extends Component {
           : "No published PDF documents for this note",
         cls: "stratum-publish-meta",
       });
-    for (const { doc, sourceAvailable } of documents) {
+    for (const { doc, sourceAvailable, available } of documents) {
       const row = this.list.createDiv({ cls: "stratum-publish-row" });
       const details = row.createDiv({ cls: "stratum-publish-document" });
       details.createDiv({
@@ -96,11 +102,18 @@ export class PublishedDocumentsPanel extends Component {
         cls: "stratum-publish-filename",
       });
       details.createDiv({
-        text: `PDF · ${new Date(doc.createdAt).toLocaleString()}`,
+        text: `${available ? "PDF" : "PDF unavailable"} · ${new Date(doc.createdAt).toLocaleString()}`,
         cls: "stratum-publish-meta",
       });
       const actions = row.createDiv({ cls: "stratum-publish-row-actions" });
-      this.icon(actions, "eye", "Preview PDF", doc, () => publish.open(doc));
+      this.icon(
+        actions,
+        "eye",
+        "View PDF",
+        doc,
+        () => publish.open(doc),
+        !available,
+      );
       this.icon(
         actions,
         "file-text",
@@ -109,17 +122,22 @@ export class PublishedDocumentsPanel extends Component {
         () => publish.openSource(doc),
         !sourceAvailable,
       );
-      this.icon(actions, "download", "Save as", doc, () =>
-        publish.saveCopy(doc),
+      this.icon(
+        actions,
+        "download",
+        "Download PDF",
+        doc,
+        () => publish.saveCopy(doc),
+        !available,
       );
-      this.icon(actions, "trash-2", "Delete", doc, () =>
+      this.icon(actions, "trash-2", "Delete PDF", doc, () =>
         new ConfirmModal(publish.plugin.app, {
-          title: "Delete published document?",
+          title: "Delete PDF?",
           message: [
             doc.filename,
-            "This removes the stored document. Your source note and copies saved elsewhere are kept.",
+            "This deletes the vault PDF using your Obsidian deletion preferences. Your source note and copies saved elsewhere are kept.",
           ],
-          confirmLabel: "Delete document",
+          confirmLabel: "Delete PDF",
           warning: true,
           confirm: () => publish.remove(doc),
           onError: (error) => publish.fail(error),

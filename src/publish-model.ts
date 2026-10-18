@@ -11,11 +11,36 @@ import {
 } from "./publication-legacy";
 export const VIEW_TYPE_PUBLISH_PREVIEW = "stratum-publish-preview";
 
+export const DEFAULT_PDF_FOLDER = "Stratum Docs";
+
+export function validPublicationPath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !/[\\:<>"|?*]/.test(value) &&
+    !Array.from(value).some((c) => c.charCodeAt(0) < 32) &&
+    value
+      .split("/")
+      .every((part) => !!part && !part.startsWith(".") && !/[. ]$/.test(part))
+  );
+}
+
+export function publicationFolder(value: unknown): string {
+  const folder = typeof value === "string" ? value.trim() : DEFAULT_PDF_FOLDER;
+  if (!validPublicationPath(folder))
+    throw new Error("Choose a visible folder inside your vault.");
+  return folder;
+}
+
 export type PublishFormat = "pdf";
 export interface PublishedDocument {
   id: string;
   noteId: string;
   filename: string;
+  /** Absent only for PDFs in the legacy private store. */
+  path?: string;
+  migrationPath?: string;
+  legacyFilename?: string;
   format: PublishFormat;
   createdAt: string;
   citationStyle: string;
@@ -86,8 +111,18 @@ export function readCatalog(text: string): PublishCatalog {
         id(d.id) &&
         id(d.noteId) &&
         typeof d.filename === "string" &&
-        /^[^/\\]+\.pdf$/.test(d.filename) &&
+        /^[^/\\]+\.pdf$/i.test(d.filename) &&
         !Array.from(d.filename).some((c) => c.charCodeAt(0) < 32) &&
+        (d.path === undefined ||
+          (validPublicationPath(d.path) &&
+            (d.path.endsWith(`/${d.filename}`) || d.path === d.filename))) &&
+        (d.migrationPath === undefined ||
+          (validPublicationPath(d.migrationPath) &&
+            d.migrationPath.toLowerCase().endsWith(".pdf"))) &&
+        (d.legacyFilename === undefined ||
+          (typeof d.legacyFilename === "string" &&
+            /^[^/\\]+\.pdf$/i.test(d.legacyFilename) &&
+            !Array.from(d.legacyFilename).some((c) => c.charCodeAt(0) < 32))) &&
         typeof d.createdAt === "string" &&
         Number.isFinite(Date.parse(d.createdAt)) &&
         typeof d.citationStyle === "string" &&
@@ -117,8 +152,8 @@ export function readCatalog(text: string): PublishCatalog {
     new Set(catalog.notes.map((n) => n.id)).size !== catalog.notes.length ||
     new Set(catalog.documents.map((d) => d.id)).size !==
       catalog.documents.length ||
-    new Set(catalog.documents.map((d) => d.filename)).size !==
-      catalog.documents.length ||
+    new Set(catalog.documents.map((d) => (d.path ?? d.filename).toLowerCase()))
+      .size !== catalog.documents.length ||
     catalog.documents.some((d) => !catalog.notes.some((n) => n.id === d.noteId))
   )
     throw new Error(
@@ -138,7 +173,7 @@ export function publishFilename(
       .split("")
       .map((c) => (c.charCodeAt(0) < 32 ? "-" : c))
       .join("")
-      .replace(/[. ]+$/g, "") || "Document";
+      .replace(/^[. ]+|[. ]+$/g, "") || "Document";
   let safe = "";
   const encoder = new TextEncoder();
   for (const character of cleaned) {
