@@ -4,7 +4,6 @@ import {
 } from "./publish-templates";
 import {
   createStratumSelect,
-  createStratumIconButton,
   createStratumButton,
   createStratumTabs,
   type StratumTabs,
@@ -35,6 +34,9 @@ export class PublishPanel extends Component {
   private documentsPanel!: PublishedDocumentsPanel;
   private tabs!: StratumTabs<"publish" | "documents">;
   private dependencies!: HTMLElement;
+  private noteContext!: HTMLElement;
+  private templateHint!: HTMLElement;
+  private templateManagement!: HTMLElement;
   private selectors!: HTMLElement;
   private controls!: HTMLElement;
   private status!: HTMLElement;
@@ -106,13 +108,14 @@ export class PublishPanel extends Component {
       ),
     );
     this.selectSection(this.state.section);
-    this.body.createEl("h3", {
+    const heading = this.body.createDiv({ cls: "stratum-publish-heading" });
+    heading.createEl("h3", {
       cls: "stratum-section-heading",
-      text: "Publish note",
+      text: "Create a PDF",
     });
-    this.body.createEl("p", {
+    this.noteContext = heading.createEl("p", { cls: "stratum-meta" });
+    this.templateHint = this.body.createEl("p", {
       cls: "stratum-placeholder",
-      text: "PDF documents created for your note",
     });
     this.dependencies = this.body.createDiv({
       cls: "stratum-publish-notice stratum-publish-dependencies",
@@ -131,21 +134,12 @@ export class PublishPanel extends Component {
       cls: "stratum-publish-template-selectors",
     }));
     const templateColumn = selectors.createDiv();
-    const templateRow = templateColumn.createDiv({
-      cls: "stratum-publish-template-row",
-    });
-    this.template = createStratumSelect(templateRow, {
+    this.template = createStratumSelect(templateColumn, {
       label: "Template",
       ariaLabel: "Choose template",
       value: "",
       choices: [],
     });
-    createStratumIconButton(templateRow, {
-      icon: "settings",
-      ariaLabel: "Manage publishing templates",
-    }).addEventListener("click", () =>
-      new PublishingTemplatesModal(this.publish.plugin).open(),
-    );
     this.template.addEventListener("change", () => {
       this.publish.closeSettings();
       const family = publishingTemplateFamilies(
@@ -172,7 +166,7 @@ export class PublishPanel extends Component {
     });
     this.controls = this.body.createDiv({ cls: "stratum-publish-controls" });
     this.settings = createStratumButton(this.controls, {
-      text: "Settings",
+      text: "Document settings",
       wrap: true,
       tooltip: "Publishing settings for this note",
     });
@@ -183,7 +177,7 @@ export class PublishPanel extends Component {
     // controller and returns focus to the new Settings button.
     this.publish.adoptSettingsLauncher(this.settings);
     this.create = createStratumButton(this.controls, {
-      text: "Create PDF document",
+      text: "Create PDF",
       primary: true,
       wrap: true,
       className: "stratum-publish-create",
@@ -202,6 +196,14 @@ export class PublishPanel extends Component {
     this.chooseFont.addEventListener("click", () => {
       void this.publish.openSettings(this.chooseFont);
     });
+    this.templateManagement = this.body.createDiv({
+      cls: "stratum-control-actions",
+    });
+    createStratumButton(this.templateManagement, {
+      text: "Manage templates",
+    }).addEventListener("click", () =>
+      new PublishingTemplatesModal(this.publish.plugin).open(),
+    );
     this.cancel = createStratumButton(this.body, { text: "Cancel" });
     this.cancel.addEventListener("click", () => this.publish.cancel());
     this.register(this.publish.subscribe(() => this.update()));
@@ -213,7 +215,6 @@ export class PublishPanel extends Component {
     const publish = this.publish;
     const toolsReady = !!publish.readiness?.pdf;
     this.dependencies.hidden = publish.checking || toolsReady;
-    this.selectors.hidden = !toolsReady;
     if (
       publish.lastPublishedId &&
       publish.lastPublishedId !== this.state.lastPublishedId
@@ -242,12 +243,26 @@ export class PublishPanel extends Component {
       }
     }
     const hasNote = !!publish.document && publish.document.extension === "md";
+    this.noteContext.hidden = !hasNote;
+    this.noteContext.setText(
+      hasNote ? `From: ${publish.document!.basename}` : "",
+    );
     const templates = publish.publishingTemplates;
     const template = selectedPublishingTemplate(
       templates,
       publish.notePreferences.templateId,
     );
     const families = publishingTemplateFamilies(templates);
+    const needsTemplate = !template && !publish.notePreferences.templateId;
+    this.templateHint.hidden =
+      !toolsReady || publish.checking || !hasNote || !needsTemplate;
+    this.templateHint.setText(
+      families.length
+        ? "Choose a template to get started."
+        : "Enable a template to get started.",
+    );
+    this.templateManagement.hidden = !toolsReady || publish.checking;
+    this.selectors.hidden = !toolsReady || !families.length;
     // Rebuilding options on every update would reset an open dropdown.
     const templateOptions = JSON.stringify(
       families.map((family) => [family.id, family.name]),
@@ -270,6 +285,10 @@ export class PublishPanel extends Component {
     );
     this.template.value = selectedFamily?.id ?? "";
     this.versionField.hidden = !selectedFamily?.versioned;
+    this.selectors.toggleClass(
+      "stratum-publish-template-versioned",
+      !!selectedFamily?.versioned,
+    );
     const choices = selectedFamily?.choices ?? [];
     const versionOptions = JSON.stringify(
       choices.map((choice) => [choice.id, choice.label]),
@@ -288,7 +307,7 @@ export class PublishPanel extends Component {
       !hasNote || publish.busy || publish.preferencesSaving;
     this.template.disabled =
       !hasNote || publish.busy || publish.preferencesSaving;
-    this.controls.hidden = !toolsReady || !hasNote;
+    this.controls.hidden = !toolsReady || !hasNote || !template;
     this.create.hidden = !template;
     this.settings.disabled =
       !template || publish.busy || publish.preferencesSaving;
@@ -309,7 +328,9 @@ export class PublishPanel extends Component {
           : !hasNote
             ? "Open a Markdown note to publish it."
             : !template
-              ? publish.templateAvailabilityProblem
+              ? needsTemplate
+                ? ""
+                : publish.templateAvailabilityProblem
               : (notices?.length
                   ? notices
                       .map((notice) =>
@@ -333,20 +354,12 @@ export class PublishPanel extends Component {
       : publish.progress || publish.checking
         ? ""
         : "stratum-publish-notice";
-    const showTemplateAction =
-      toolsReady && !publish.checking && hasNote && !template;
-    const content = JSON.stringify([problem, cls, showTemplateAction]);
+    const content = JSON.stringify([problem, cls]);
     // Preserve diagnostic selection and scrolling across unrelated refreshes.
     if (content !== this.statusContent) {
       this.statusContent = content;
       this.statusMessage.empty();
       if (problem) this.statusMessage.createEl("p", { text: problem, cls });
-      if (showTemplateAction)
-        createStratumButton(this.statusMessage, {
-          text: "Manage templates",
-        }).addEventListener("click", () =>
-          new PublishingTemplatesModal(this.publish.plugin).open(),
-        );
     }
   }
   private acknowledgePublication(): void {
