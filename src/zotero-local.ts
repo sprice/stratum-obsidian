@@ -903,6 +903,35 @@ function buildVersionItemsPath(params: {
     : `${basePath}/items`;
 }
 
+/** Zotero 10 local counters include unsynced edits and deletions. */
+export async function loadLocalZoteroHeartbeat(params: {
+  port: number;
+  library: EnabledLibrary;
+  request?: LocalRequest;
+}): Promise<{ serverId: string; libraryVersion: number }> {
+  const response = await requestLocalJson<Record<string, number>>({
+    ...params,
+    // Every multi-object endpoint reports the library-wide counter. Reading
+    // collections avoids asking Zotero to enumerate source items just to poll.
+    path: `${buildLibraryBasePath(params.library)}/collections?format=versions&limit=1&start=0`,
+  });
+  const serverId = getHeader(response.headers, "Zotero-Server-ID")?.trim();
+  if (!serverId) {
+    throw new LocalZoteroApiError(
+      "Automatic monitoring requires Zotero 10 or later. Manual sync and refresh on open remain available.",
+    );
+  }
+  const libraryVersion = parseInteger(
+    getHeader(response.headers, "Last-Modified-Version"),
+  );
+  if (libraryVersion === null) {
+    throw new LocalZoteroApiError(
+      "Zotero did not report a library change counter. Automatic monitoring will retry.",
+    );
+  }
+  return { serverId, libraryVersion };
+}
+
 export async function loadLocalZoteroLibraryVersion(params: {
   port: number;
   library: EnabledLibrary;

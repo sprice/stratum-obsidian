@@ -109,7 +109,8 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
         getAbstractFileByPath: () => null,
       },
     },
-    isZoteroAutoSyncRunning: () => false,
+    noteRefreshPromises: new Map<string, Promise<void>>(),
+    localLiveSyncRunPromise: null as Promise<void> | null,
     rebuildItemFileMap: async () => {},
     saveSettings: async () => {},
     findExistingLiteratureNoteFile: () => file,
@@ -119,7 +120,22 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
     refreshAutoSyncUi: () => {},
     notifyLocalLiveSyncAfterBulkSync: () => {},
   };
-  await runtime.runBulkLibrarySync(plugin as never, library as never, null);
+  let releaseRefresh!: () => void;
+  const refresh = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  plugin.noteRefreshPromises.set(file.path, refresh);
+  plugin.localLiveSyncRunPromise = refresh;
+  const bulkSync = runtime.runBulkLibrarySync(
+    plugin as never,
+    library as never,
+    null,
+  );
+  await Promise.resolve();
+  assert.equal(requests.length, 0, "bulk sync waits for the active refresh");
+  assert.equal(writes, 0);
+  releaseRefresh();
+  await bulkSync;
   const state = (
     plugin.settings.libraryBulkSync as Record<
       string,

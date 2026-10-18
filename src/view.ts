@@ -1273,9 +1273,7 @@ export class StratumView extends ItemView {
         selectedSyncCollection?.displayName ??
         null;
 
-      const syncing =
-        this.plugin.isBulkLibrarySyncRunning() ||
-        this.plugin.isZoteroAutoSyncRunning();
+      const syncing = this.plugin.isBulkLibrarySyncRunning();
       const librariesBusy = syncing || this.plugin.isLoadingLocalSyncLibraries;
       const collectionsBusy = syncing || this.plugin.isLoadingSyncCollections;
       const collectionsFailed = Boolean(this.plugin.syncCollectionsError);

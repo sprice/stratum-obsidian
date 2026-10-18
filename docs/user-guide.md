@@ -51,7 +51,9 @@ If Stratum cannot connect, make sure Zotero is running. In Zotero, enable **Sett
 
 Use the default **Zotero local API port** unless you changed it in Zotero. Local syncing requires Zotero 7 or later with its local API enabled.
 
-While desktop sync is enabled, Stratum checks tracked literature notes for source changes through Zotero’s local API every 30 seconds after the previous check completes. Closing Zotero pauses automatic refresh; your saved notes and imported images remain available. Stratum retries every minute and checks when Obsidian regains focus. You can also press Sync whenever you want to update your notes. No Zotero data-directory setting or companion plugin is needed for change detection.
+While desktop sync is enabled, Stratum checks Zotero 10’s library change counters every 30 seconds after the previous check completes. These heartbeat checks do not read literature notes or show a syncing indicator. The first check establishes a library checkpoint; later checks refresh existing notes only in libraries whose counter changed. Checkpoints survive plugin reloads, so unchanged libraries do not refresh on startup. A different Zotero database establishes a new checkpoint; use manual sync to reconcile its existing notes.
+
+Closing Zotero pauses automatic refresh; your saved notes and imported images remain available. Stratum retries every minute and checks when Obsidian regains focus. You can also press Sync whenever you want to update your notes. Automatic monitoring requires Zotero 10 or later. Zotero 7–9 still support manual sync and refresh on open. No Zotero data-directory setting or companion plugin is needed for change detection.
 
 ### Import one source
 

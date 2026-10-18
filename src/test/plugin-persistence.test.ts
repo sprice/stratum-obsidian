@@ -623,3 +623,40 @@ test("the previous built-in summary template migrates without changing custom te
     );
   }
 });
+
+test("library heartbeat checkpoints survive reload and reject malformed stored counters", async () => {
+  const checkpoint = {
+    accountId: "synthetic-account",
+    port: 23119,
+    serverId: "synthetic-server",
+    libraryVersion: 42,
+  };
+  let data: unknown = {
+    localZoteroHeartbeats: {
+      "user:1": checkpoint,
+      "group:2": { ...checkpoint, libraryVersion: -1 },
+      "group:3": { ...checkpoint, serverId: "" },
+      "group:4": { ...checkpoint, port: 0 },
+      "group:5": { ...checkpoint, libraryVersion: 1.5 },
+      "group:6": null,
+    },
+  };
+  const plugin = {
+    settings: { ...DEFAULT_SETTINGS },
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(plugin.settings.localZoteroHeartbeats, {
+    "user:1": checkpoint,
+  });
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.deepEqual(plugin.settings.localZoteroHeartbeats, {
+    "user:1": checkpoint,
+  });
+});
