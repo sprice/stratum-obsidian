@@ -45,6 +45,7 @@ type StoredSettingsData = Partial<
     StratumSettings,
     | "enabledTabs"
     | "lastActiveTab"
+    | "initialSidebarOpened"
     | "notesFolder"
     | "notesTemplate"
     | "sourceSummaryTemplate"
@@ -395,6 +396,8 @@ function readStoredSettings(value: unknown): Omit<
   } = {
     enabledTabs: readEnabledTabs(value.enabledTabs, value.publishEnabled),
     lastActiveTab: readLastActiveTab(value.lastActiveTab),
+    // Existing installations keep their saved layout when upgrading.
+    initialSidebarOpened: value.initialSidebarOpened !== false,
     collectionCatalogs: readCollectionCatalogs(value.collectionCatalogs),
     itemFileMap: readItemFileMap(value.itemFileMap),
     libraryAutoSync: readZoteroAutoSyncStateMap(value.libraryAutoSync),

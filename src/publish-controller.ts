@@ -732,6 +732,10 @@ export class PublishController extends Component {
     );
     if (!template)
       throw new Error("This publishing template is no longer available.");
+    const layout =
+      current.templateLayouts && Object.hasOwn(current.templateLayouts, id)
+        ? current.templateLayouts[id]
+        : template.layout;
     return {
       ...(template.renderer === "journal"
         ? {
@@ -745,12 +749,8 @@ export class PublishController extends Component {
         : {}),
       templateId: id,
       documentType: template.documentType,
-      opening: template.layout.titleSource,
-      pdf: {
-        ...(template.renderer === "journal"
-          ? (current.journalLayouts?.[id] ?? template.layout)
-          : template.layout),
-      },
+      opening: layout.titleSource,
+      pdf: { ...layout },
       ...(template.renderer === "aastex"
         ? {
             aastex: current.aastex ?? {
@@ -769,24 +769,16 @@ export class PublishController extends Component {
         JSON.stringify(readAastexPdfOptions(undefined))
       );
     const current = this.notePreferences;
-    if (this.journalProfile)
-      return Object.entries(this.selectedTemplate.layout).some(
-        ([key, value]) => current.pdf[key as keyof PublishOptions] !== value,
-      );
-    const target = this.templatePreferencePatch(
-      this.selectedTemplate.id,
-      current,
-    );
-    return (
-      current.documentType !== target.documentType ||
-      current.opening !== target.opening ||
-      JSON.stringify(current.pdf) !== JSON.stringify(target.pdf)
+    return Object.entries(this.selectedTemplate.layout).some(
+      ([key, value]) => current.pdf[key as keyof PublishOptions] !== value,
     );
   }
   resetSettings(): Promise<void> {
     return this.selectedTemplate?.renderer === "aastex"
       ? this.resetAastexPdfOptions()
-      : this.updatePreferences({ templateId: this.selectedTemplate?.id });
+      : this.selectedTemplate
+        ? this.updateLayout({ ...this.selectedTemplate.layout })
+        : Promise.resolve();
   }
   updatePreferences(
     patch: Partial<NotePublishPreferences>,
@@ -812,33 +804,18 @@ export class PublishController extends Component {
             ...aastexPatch,
           }),
         };
-      if (layoutPatch)
+      if (layoutPatch) {
         current[layoutPatch.format] = readPublishOptions({
           ...current[layoutPatch.format],
           ...layoutPatch.patch,
         });
-      if (current.templateId?.startsWith("registry:"))
-        current.journalLayouts = {
-          ...current.journalLayouts,
+        current.opening = current.pdf.titleSource;
+      }
+      if (current.templateId)
+        current.templateLayouts = {
+          ...current.templateLayouts,
           [current.templateId]: { ...current.pdf },
         };
-      if (
-        patch.templateId &&
-        patch.templateId === current.templateId &&
-        journalProfile(
-          patch.templateId,
-          this.allPublishingTemplates.installations,
-        )
-      ) {
-        current.journalLayouts = {
-          ...current.journalLayouts,
-          [patch.templateId]: {
-            ...this.publishingTemplates.templates.find(
-              (t) => t.id === patch.templateId,
-            )!.layout,
-          },
-        };
-      }
       if (patch.templateId)
         patch = {
           ...patch,

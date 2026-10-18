@@ -2,6 +2,7 @@ import {
   createStratumDisclosure,
   createStratumSummary,
   createStratumButton,
+  createStratumIconButton,
   createStratumSelect,
   createStratumSearch,
   createStratumTabs,
@@ -1130,10 +1131,6 @@ export class StratumView extends ItemView {
       });
       librarySelect = picker;
       picker.id = "stratum-sync-library-picker";
-      picker.disabled =
-        this.plugin.isBulkLibrarySyncRunning() ||
-        this.plugin.isZoteroAutoSyncRunning() ||
-        this.plugin.isLoadingLocalSyncLibraries;
 
       for (const library of this.plugin.localSyncLibraries) {
         const option = picker.createEl("option", {
@@ -1158,24 +1155,50 @@ export class StratumView extends ItemView {
     const collectionPicker = filters.createDiv({
       cls: "stratum-search-control",
     });
-    const collectionSelect = createStratumSelect(collectionPicker, {
+    const collectionRow = collectionPicker.createDiv({
+      cls: "stratum-sync-collection-row",
+    });
+    const collectionField = collectionRow.createDiv({
+      cls: "stratum-sync-collection-select",
+    });
+    const collectionSelect = createStratumSelect(collectionField, {
       label: "Collection",
       ariaLabel: "Choose collection",
       value: "",
       choices: [],
     });
     collectionSelect.id = "stratum-sync-collection-picker";
-    collectionSelect.disabled =
-      this.plugin.isBulkLibrarySyncRunning() ||
-      this.plugin.isZoteroAutoSyncRunning() ||
-      this.plugin.isLoadingSyncCollections ||
-      Boolean(this.plugin.syncCollectionsError);
+    const refreshCollections = createStratumIconButton(collectionRow, {
+      icon: "refresh-cw",
+      ariaLabel: "Refresh collections",
+      className: "stratum-sync-collection-refresh",
+    });
+    refreshCollections.addEventListener("click", () => {
+      void this.plugin.localSync.refreshCollections(selectedSyncLibrary);
+    });
+    const missingCollection =
+      selectedSyncCollection &&
+      !this.plugin.syncCollections.some(
+        (collection) => collection.key === selectedSyncCollection.key,
+      );
 
     const allCollectionsOption = collectionSelect.createEl("option", {
       text: "All collections",
       value: "",
     });
     allCollectionsOption.selected = !selectedSyncCollection;
+    if (missingCollection) {
+      const missingOption = collectionSelect.createEl("option", {
+        text: `${selectedSyncCollection.displayName} (unavailable)`,
+        value: selectedSyncCollection.key,
+      });
+      missingOption.selected = true;
+      missingOption.disabled = true;
+      collectionPicker.createEl("p", {
+        cls: "stratum-error",
+        text: "The selected collection is unavailable. Choose a collection before syncing.",
+      });
+    }
 
     for (const collection of this.plugin.syncCollections) {
       const option = collectionSelect.createEl("option", {
@@ -1195,7 +1218,6 @@ export class StratumView extends ItemView {
       });
     });
 
-    let retryCollections: HTMLButtonElement | null = null;
     if (this.plugin.syncCollectionsError) {
       const collectionErrorRow = collectionPicker.createDiv({
         cls: "stratum-cache-row",
@@ -1203,17 +1225,6 @@ export class StratumView extends ItemView {
       collectionErrorRow.createEl("p", {
         cls: "stratum-error",
         text: this.plugin.syncCollectionsError,
-      });
-      const retryCollectionsButton = createStratumButton(collectionErrorRow, {
-        className: "stratum-inline-action",
-        text: this.plugin.isLoadingSyncCollections ? "Retrying..." : "Retry",
-      });
-      retryCollections = retryCollectionsButton;
-      if (this.plugin.isLoadingSyncCollections) {
-        retryCollectionsButton.disabled = true;
-      }
-      retryCollectionsButton.addEventListener("click", () => {
-        void this.plugin.localSync.refreshCollections(selectedSyncLibrary);
       });
     }
 
@@ -1224,12 +1235,6 @@ export class StratumView extends ItemView {
       primary: true,
       text: "Sync",
     });
-    bulkSyncButton.disabled =
-      this.plugin.isBulkLibrarySyncRunning() ||
-      this.plugin.isZoteroAutoSyncRunning() ||
-      this.plugin.isLoadingLocalSyncLibraries ||
-      this.plugin.isLoadingSyncCollections ||
-      Boolean(this.plugin.syncCollectionsError);
     bulkSyncButton.addEventListener("click", () => {
       void this.plugin.runBulkLibrarySync();
     });
@@ -1253,28 +1258,29 @@ export class StratumView extends ItemView {
         selectedSyncCollection?.displayName ??
         null;
 
-      if (retryCollections) {
-        retryCollections.disabled = this.plugin.isLoadingSyncCollections;
-        retryCollections.setText(
-          this.plugin.isLoadingSyncCollections ? "Retrying..." : "Retry",
-        );
-      }
-      if (librarySelect)
-        librarySelect.disabled =
-          this.plugin.isBulkLibrarySyncRunning() ||
-          this.plugin.isZoteroAutoSyncRunning() ||
-          this.plugin.isLoadingLocalSyncLibraries;
-      collectionSelect.disabled =
+      const syncing =
         this.plugin.isBulkLibrarySyncRunning() ||
-        this.plugin.isZoteroAutoSyncRunning() ||
-        this.plugin.isLoadingSyncCollections ||
-        Boolean(this.plugin.syncCollectionsError);
+        this.plugin.isZoteroAutoSyncRunning();
+      const librariesBusy = syncing || this.plugin.isLoadingLocalSyncLibraries;
+      const collectionsBusy = syncing || this.plugin.isLoadingSyncCollections;
+      const collectionsFailed = Boolean(this.plugin.syncCollectionsError);
+      refreshCollections.disabled =
+        librariesBusy || this.plugin.isLoadingSyncCollections;
+      refreshCollections.toggleClass(
+        "is-loading",
+        this.plugin.isLoadingSyncCollections,
+      );
+      refreshCollections.setAttribute(
+        "aria-busy",
+        String(this.plugin.isLoadingSyncCollections),
+      );
+      if (librarySelect) librarySelect.disabled = librariesBusy;
+      collectionSelect.disabled = collectionsBusy || collectionsFailed;
       bulkSyncButton.disabled =
-        this.plugin.isBulkLibrarySyncRunning() ||
-        this.plugin.isZoteroAutoSyncRunning() ||
-        this.plugin.isLoadingLocalSyncLibraries ||
-        this.plugin.isLoadingSyncCollections ||
-        Boolean(this.plugin.syncCollectionsError);
+        Boolean(missingCollection) ||
+        librariesBusy ||
+        collectionsBusy ||
+        collectionsFailed;
       bulkSyncButton.setText(
         getBulkLibrarySyncButtonLabel(scopedBulkSyncState, {
           libraryName: selectedSyncLibrary.name,

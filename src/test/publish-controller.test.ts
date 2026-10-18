@@ -902,9 +902,10 @@ test("preparation and required fields follow a general template without changing
       },
     ],
   });
-  const { controller, leaf } = setup({
-    publishingTemplates: { ...state, enabledIds: ["general", "academic"] },
-  });
+  const { controller, leaf } = setup(
+    { publishingTemplates: { ...state, enabledIds: ["general", "academic"] } },
+    false,
+  );
   await controller.updatePreferences({ templateId: "general" });
   assert.match(controller.academicProblem, /title/);
   assert.equal(controller.canCreate(), false);
@@ -934,6 +935,7 @@ test("templates without published properties ignore unreadable note YAML", async
 test("a repeated title warns but does not block creation", async () => {
   const { controller, leaf } = setup();
   await controller.updatePreferences({ templateId: "academic" });
+  await controller.updateLayout({ titleSource: "properties" });
   leaf.view.text =
     '---\n{"title":"Synthetic title"}\n---\n\n# Synthetic title\n\nSynthetic body.';
   assert.equal(controller.academicProblem, "");
@@ -1284,6 +1286,104 @@ test("pop-out notes can open Settings and remain selected through layout changes
     ),
   );
   f.controller.onunload();
+});
+
+test("built-in defaults use document titles and preserve separate saved layouts through reload and reset", async () => {
+  const { controller } = setup();
+  assert.equal(controller.layout.titleSource, "body");
+  await controller.updatePreferences({ templateId: "academic" });
+  assert.equal(controller.layout.titleSource, "body");
+  await controller.updateLayout({ titleSource: "properties", bodySize: 11 });
+  await controller.updatePreferences({ templateId: "general" });
+  assert.equal(controller.layout.titleSource, "body");
+  await controller.updateLayout({ bodySize: 14 });
+
+  // Drop the in-memory catalog so restoration must read serialized preferences.
+  controller.catalog = null;
+  await controller.reload();
+  await controller.updatePreferences({ templateId: "academic" });
+  assert.equal(controller.layout.titleSource, "properties");
+  assert.equal(controller.notePreferences.opening, "properties");
+  assert.equal(controller.layout.bodySize, 11);
+  assert.equal(controller.settingsResetChanges, true);
+  // Selecting the current template is not an implicit reset.
+  await controller.updatePreferences({ templateId: "academic" });
+  assert.equal(controller.layout.bodySize, 11);
+  await controller.resetSettings();
+  assert.equal(controller.layout.titleSource, "body");
+  assert.equal(controller.settingsResetChanges, false);
+  await controller.updatePreferences({ templateId: "general" });
+  assert.equal(controller.layout.bodySize, 14);
+  await controller.updatePreferences({ templateId: "academic" });
+  assert.equal(controller.layout.titleSource, "body");
+  assert.equal(controller.layout.bodySize, 10);
+});
+
+test("saved document title overrides an older plugin template default after switching away and back", async () => {
+  const { readPublishingTemplates } = await import("../publish-templates");
+  const state = readPublishingTemplates(undefined);
+  state.templates[1].layout.titleSource = "properties";
+  const { controller } = setup({ publishingTemplates: state });
+  await controller.updatePreferences({ templateId: "academic" });
+  await controller.updateLayout({ titleSource: "body" });
+  await controller.updatePreferences({ templateId: "general" });
+  controller.catalog = null;
+  await controller.reload();
+  await controller.updatePreferences({ templateId: "academic" });
+  assert.equal(controller.layout.titleSource, "body");
+  assert.equal(controller.notePreferences.opening, "body");
+});
+
+test("custom template IDs cannot resolve inherited layout-map properties", async () => {
+  const { readPublishingTemplates } = await import("../publish-templates");
+  const state = readPublishingTemplates(undefined);
+  const custom = {
+    ...state.templates[0],
+    id: "constructor",
+    name: "Synthetic custom template",
+    layout: { ...state.templates[0].layout, bodySize: 15 },
+  };
+  const { controller } = setup({
+    publishingTemplates: readPublishingTemplates({
+      templates: [...state.templates, custom],
+      enabledIds: ["general", custom.id],
+    }),
+  });
+  await controller.updatePreferences({ templateId: custom.id });
+  assert.equal(controller.layout.bodySize, 15);
+  await controller.updateLayout({ bodySize: 16 });
+  await controller.updatePreferences({ templateId: "general" });
+  await controller.updatePreferences({ templateId: custom.id });
+  assert.equal(controller.layout.bodySize, 16);
+});
+
+test("legacy registry layouts survive loading and explicit reset replaces the saved choice", async () => {
+  const { controller, leaf } = setup();
+  const note = await controller.store.note(
+    leaf.view.file.path,
+    leaf.view.file.basename,
+    leaf.view.file.stat.ctime,
+  );
+  await controller.store.setPreferences(
+    note.id,
+    readNotePreferences({
+      templateId: "general",
+      journalLayouts: {
+        "registry:example:1.0-r1": { titleSource: "properties", bodySize: 13 },
+      },
+    }),
+  );
+  await controller.reload();
+  await controller.updatePreferences({ templateId: "registry:example:1.0-r1" });
+  assert.equal(controller.layout.titleSource, "properties");
+  assert.equal(controller.layout.bodySize, 13);
+  await controller.resetSettings();
+  await controller.updatePreferences({ templateId: "general" });
+  controller.catalog = null;
+  await controller.reload();
+  await controller.updatePreferences({ templateId: "registry:example:1.0-r1" });
+  assert.equal(controller.layout.titleSource, "body");
+  assert.equal(controller.layout.bodySize, 10);
 });
 
 test("journal profiles retain each layout across switching and record package provenance", async () => {

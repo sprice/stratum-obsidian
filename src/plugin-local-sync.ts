@@ -302,13 +302,19 @@ async function runSyncCollectionsRequest(
 
     plugin.syncCollections = collections;
     plugin.syncCollectionsError = null;
+    const selectedKey =
+      plugin.selectedSyncCollection?.key ??
+      plugin.settings.selectedSyncCollectionKey;
     plugin.selectedSyncCollection =
-      collections.find(
-        (collection) =>
-          collection.key ===
-          (plugin.selectedSyncCollection?.key ??
-            plugin.settings.selectedSyncCollectionKey),
-      ) ?? null;
+      collections.find((collection) => collection.key === selectedKey) ??
+      (selectedKey
+        ? (plugin.selectedSyncCollection ?? {
+            key: selectedKey,
+            name: "Unavailable collection",
+            displayName: "Unavailable collection",
+            parentCollectionKey: null,
+          })
+        : null);
     const nextCollectionKey = plugin.selectedSyncCollection?.key ?? null;
     if (plugin.settings.selectedSyncCollectionKey !== nextCollectionKey) {
       plugin.settings.selectedSyncCollectionKey = nextCollectionKey;
@@ -319,12 +325,9 @@ async function runSyncCollectionsRequest(
       return plugin.syncCollections;
     }
 
-    plugin.syncCollections = [];
-    plugin.selectedSyncCollection = null;
-    plugin.settings.selectedSyncCollectionKey = null;
     plugin.syncCollectionsError =
       error instanceof Error ? error.message : "Failed to load collections.";
-    return [];
+    return plugin.syncCollections;
   } finally {
     if (requestId === plugin.syncCollectionsRequestId) {
       plugin.isLoadingSyncCollections = false;
@@ -341,8 +344,11 @@ function queueSyncCollectionsRequest(
   library: EnabledLibrary,
 ): Promise<ZoteroCollectionSummary[]> {
   clearPendingSyncCollections(plugin);
+  if (plugin.syncCollectionsLibraryIdentity !== library.identity) {
+    plugin.syncCollections = [];
+    plugin.selectedSyncCollection = null;
+  }
   plugin.syncCollectionsLibraryIdentity = library.identity;
-  plugin.syncCollections = [];
   plugin.syncCollectionsError = null;
   plugin.hasLoadedSyncCollections = false;
   plugin.isLoadingSyncCollections = true;
@@ -387,7 +393,15 @@ export function refreshSyncCollections(
     return null;
   }
 
-  return queueSyncCollectionsRequest(plugin, library);
+  if (
+    plugin.syncCollectionsLibraryIdentity === library.identity &&
+    plugin.syncCollectionsPendingPromise
+  ) {
+    return plugin.syncCollectionsPendingPromise;
+  }
+  const pending = queueSyncCollectionsRequest(plugin, library);
+  plugin.refreshViews();
+  return pending;
 }
 
 export function getLibraryFromFrontmatter(params: {

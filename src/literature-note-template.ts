@@ -10,10 +10,9 @@ export const DEFAULT_NOTES_TEMPLATE = ORIGINAL_TEMPLATE;
 export const NOTES_TEMPLATE_KEY = "stratum_notes_template";
 
 export function renderNotesTemplate(template: string): string {
-  const text = template.replace(/\r\n/g, "\n");
-  return (
-    text + (text.endsWith("\n\n") ? "" : text.endsWith("\n") ? "\n" : "\n\n")
-  );
+  let text = template.replace(/\r\n/g, "\n");
+  while (!text.endsWith("\n\n\n")) text += "\n";
+  return text;
 }
 
 export function validateNotesTemplate(template: string): string | null {

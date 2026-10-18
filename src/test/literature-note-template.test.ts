@@ -58,6 +58,14 @@ function read(content: string) {
   };
 }
 
+test("starter spacing keeps at least two blank lines without trimming user text", () => {
+  for (const template of ["Prompt", "Prompt\n", "Prompt\n\n", "Prompt\n\n\n"])
+    assert.equal(renderNotesTemplate(template), "Prompt\n\n\n");
+  assert.equal(renderNotesTemplate(""), "\n\n\n");
+  assert.equal(renderNotesTemplate("Prompt\n\n\n\n"), "Prompt\n\n\n\n");
+  assert.equal(renderNotesTemplate("Prompt  \r\n"), "Prompt  \n\n\n");
+});
+
 test("new notes record their starter and untouched notes follow successive templates", () => {
   const original = write();
   assert.equal(
@@ -92,7 +100,7 @@ test("edited starters and their recorded history survive later template changes"
     "- [ ] Read\n\n",
   ]) {
     const content = initial.replace(
-      "- [ ] Read\n\n" + SYNC_BOUNDARY,
+      "- [ ] Read\n\n\n" + SYNC_BOUNDARY,
       edited + "\n\n" + SYNC_BOUNDARY,
     );
     const updated = write("## New default", content);

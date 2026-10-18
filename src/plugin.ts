@@ -3,6 +3,7 @@ import type { SourceSummaries } from "./source-summary";
 import { readAvailableCitationStyles } from "./citation-style-defaults";
 import type { PublishController } from "./publish-controller";
 import { selectStratumTab } from "./plugin-tabs";
+import { openInitialSidebar } from "./plugin-onboarding";
 import {
   readEnabledTabs,
   resolveActiveTab,
@@ -534,6 +535,7 @@ export default class StratumPlugin extends Plugin {
     refreshAutoSyncUi(this);
 
     this.app.workspace.onLayoutReady(() => {
+      void openInitialSidebar(this);
       void bootstrapRemoteState(this);
     });
   }
