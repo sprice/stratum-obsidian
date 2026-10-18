@@ -17,7 +17,7 @@ test("CI preflight rejects missing tools instead of allowing conversion tests to
           (executable) => {
             if (executable === missing)
               throw new Error("Synthetic missing executable");
-            return "Synthetic installed dependency";
+            return { status: 0, stdout: "Synthetic installed dependency" };
           },
           "linux",
         ),
@@ -25,14 +25,23 @@ test("CI preflight rejects missing tools instead of allowing conversion tests to
     );
   }
   assert.throws(
-    () => verifyPublishingTools({}, () => "Available", "linux"),
+    () =>
+      verifyPublishingTools(
+        {},
+        () => ({ status: 0, stdout: "Available" }),
+        "linux",
+      ),
     /STRATUM_TEST_CHROME/,
   );
   assert.throws(
     () =>
       verifyPublishingTools(
         env,
-        (executable) => (executable === "fc-list" ? "" : "Available"),
+        (executable) => ({
+          status: 0,
+          stdout: executable === "fc-list" ? "" : "Available",
+          stderr: "Synthetic warning must not count as an installed font",
+        }),
         "linux",
       ),
     /dependency fonts/,
@@ -47,7 +56,7 @@ test("CI preflight uses explicit paths and the correct Poppler version argument"
     },
     (executable, args) => {
       calls.push([executable, ...args]);
-      return "Synthetic version\n";
+      return { status: 0, stdout: "Synthetic version\n" };
     },
     "linux",
   );
@@ -59,4 +68,26 @@ test("CI preflight uses explicit paths and the correct Poppler version argument"
     ),
   );
   assert(calls.some(([executable]) => executable === "/synthetic/pandoc"));
+});
+
+test("tool reports retain versions written to stderr and reject unsuccessful probes", () => {
+  const env = { STRATUM_TEST_CHROME: "/synthetic/chrome" };
+  const versions = verifyPublishingTools(
+    env,
+    () => ({
+      status: 0,
+      stdout: "",
+      stderr: "Synthetic version\nCopyright notice",
+    }),
+    "darwin",
+  );
+  assert.equal(versions.pdftotext, "Synthetic version");
+  for (const result of [
+    { status: 2 },
+    { status: null, error: new Error("Synthetic spawn failure") },
+  ])
+    assert.throws(
+      () => verifyPublishingTools(env, () => result, "linux"),
+      /Required CI publishing dependency pandoc/,
+    );
 });

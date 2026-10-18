@@ -9,11 +9,19 @@ runs:
       with:
         chrome-version: "155.0.8059.39"
         install-dependencies: true
+    - name: Configure Tectonic cache
+      shell: bash
+      run: echo "TECTONIC_CACHE_DIR=$RUNNER_TEMP/stratum-tectonic-cache" >> "$GITHUB_ENV"
     - name: Cache Tectonic resources
       uses: actions/cache@v4
       with:
-        path: ~/.cache/Tectonic
-        key: tectonic-${{ runner.os }}-0.17.0-pandoc-3.12-v1
+        path: ${{ runner.temp }}/stratum-tectonic-cache
+        key: tectonic-${{ runner.os }}-${{ runner.arch }}-0.17.0-pandoc-3.12-v2
+    - name: Cache publishing executables
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/stratum-publishing-tools/bin
+        key: publishing-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-publishing-tests/setup.sh') }}
     - name: Install publishing tools
       shell: bash
       env:

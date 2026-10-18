@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   readFileSync,
@@ -10,9 +10,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export function verifyPublishingTools(
+export function inspectPublishingTools(
   env = process.env,
-  run = execFileSync,
+  run = spawnSync,
   platform = process.platform,
 ) {
   const tools = {
@@ -21,10 +21,10 @@ export function verifyPublishingTools(
     pdftotext: [env.STRATUM_TEST_PDFTOTEXT || "pdftotext", "-v"],
     chrome: [env.STRATUM_TEST_CHROME, "--version"],
     ...(platform === "linux"
-      ? { fonts: ["fc-list", "--format=%{family}\n"] }
+      ? { fonts: ["fc-list", "--format=%{family}:%{style}:%{fontversion}\n"] }
       : {}),
   };
-  const versions = {};
+  const outputs = {};
   for (const [name, [executable, argument]] of Object.entries(tools)) {
     if (!executable)
       throw new Error(
@@ -32,15 +32,20 @@ export function verifyPublishingTools(
       );
     try {
       // Poppler prints its version on stderr; capture it without cluttering successful runs.
-      const output = run(executable, [argument], {
+      const result = run(executable, [argument], {
         encoding: "utf8",
         timeout: 15_000,
         stdio: ["ignore", "pipe", "pipe"],
       });
-      if (name === "fonts" && !output.trim())
+      if (result.error || result.status !== 0)
+        throw (
+          result.error ?? new Error(`Tool exited with status ${result.status}`)
+        );
+      const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
+      if (name === "fonts" && !result.stdout?.trim())
         throw new Error("No installed fonts");
-      versions[name] =
-        output.trim().split("\n")[0] || "Available (version written to stderr)";
+      outputs[name] =
+        name === "fonts" ? output.split("\n").sort().join("\n") : output;
     } catch (error) {
       throw new Error(
         `Required CI publishing dependency ${name} is unavailable: ${executable}`,
@@ -48,7 +53,22 @@ export function verifyPublishingTools(
       );
     }
   }
-  return versions;
+  return outputs;
+}
+
+export function verifyPublishingTools(
+  env = process.env,
+  run = spawnSync,
+  platform = process.platform,
+) {
+  return Object.fromEntries(
+    Object.entries(inspectPublishingTools(env, run, platform)).map(
+      ([name, output]) => [
+        name,
+        output.split("\n")[0] || "Available (no version reported)",
+      ],
+    ),
+  );
 }
 export function preflight() {
   if (process.env.STRATUM_REQUIRE_PUBLISHING_TOOLS !== "1") return;

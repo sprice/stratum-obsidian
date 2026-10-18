@@ -10,7 +10,8 @@
   "type": "module",
   "scripts": {
     "prepare": "node scripts/publication-assets.mjs",
-    "test:browser": "node scripts/publication-assets.mjs && node --test --import tsx src/test/browser/publishing.test.ts src/test/browser/publication-editor.test.ts",
+    "test:browser": "node scripts/run-quiet.mjs pnpm run test:browser:verbose",
+    "test:browser:verbose": "node scripts/publication-assets.mjs && node --test --import tsx src/test/browser/publishing.test.ts src/test/browser/publication-editor.test.ts",
     "dev": "node esbuild.config.mjs",
     "build": "node scripts/run-quiet.mjs pnpm run build:verbose",
     "build:verbose": "node scripts/publication-assets.mjs && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
@@ -34,10 +35,22 @@
     "format": "node scripts/run-quiet.mjs pnpm run format:verbose",
     "format:verbose": "prettier --write src/",
     "test:tooling": "node scripts/run-quiet.mjs pnpm run test:tooling:verbose",
-    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs",
+    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs scripts/ci-cache.test.mjs scripts/ci-local-validation.test.mjs",
     "quiet": "node scripts/run-quiet.mjs",
     "test:publishing:preflight": "node scripts/require-publishing-tools.mjs",
-    "lint:scorecard:rules": "node scripts/run-quiet.mjs node scripts/scorecard-rules.mjs"
+    "lint:scorecard:rules": "node scripts/run-quiet.mjs node scripts/scorecard-rules.mjs",
+    "ci:prepare": "node scripts/ci-cache-prepare.mjs",
+    "ci:format": "wireit",
+    "ci:lint-review": "wireit",
+    "ci:scorecard": "wireit",
+    "ci:test-tooling": "wireit",
+    "ci:typecheck": "wireit",
+    "ci:test": "wireit",
+    "ci:test-browser": "wireit",
+    "ci:publishing-preflight": "wireit",
+    "ci:build": "wireit",
+    "ci:check": "node scripts/ci-check.mjs",
+    "ci:validate": "wireit"
   },
   "keywords": [],
   "license": "MIT",
@@ -59,6 +72,7 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.0",
+    "wireit": "0.14.13",
     "yaml": "2.8.3"
   },
   "pnpm": {
@@ -79,5 +93,355 @@
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
     "unified": "11.0.5"
+  },
+  "wireit": {
+    "ci:inputs": {
+      "files": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".npmrc",
+        "pnpm-workspace.yaml",
+        ".ci-cache/environment.json",
+        ".gitignore",
+        "scripts/run-quiet.mjs"
+      ],
+      "packageLocks": [
+        "pnpm-lock.yaml"
+      ]
+    },
+    "ci:format": {
+      "command": "pnpm format:check",
+      "dependencies": [
+        "ci:source-inputs"
+      ],
+      "files": [
+        ".prettier*",
+        "prettier.config.*",
+        ".editorconfig"
+      ],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:lint-review": {
+      "command": "pnpm lint:review",
+      "dependencies": [
+        "ci:source-inputs"
+      ],
+      "files": [
+        "eslint.config.*",
+        "manifest.json",
+        "LICENSE"
+      ],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:scorecard": {
+      "command": "pnpm lint:scorecard",
+      "dependencies": [
+        "ci:source-inputs"
+      ],
+      "files": [
+        "eslint.config.*",
+        "styles.css",
+        "scripts/lint-scorecard.mjs",
+        "scripts/scorecard-program.mjs",
+        "scripts/scorecard-rules.mjs"
+      ],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:test-tooling": {
+      "command": "pnpm test:tooling",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        "scripts/**/*",
+        ".github/**/*",
+        "src/publication-metadata.ts",
+        "src/yaml-binary.ts"
+      ],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:typecheck": {
+      "command": "pnpm typecheck",
+      "dependencies": [
+        "ci:source-inputs"
+      ],
+      "files": [],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        }
+      }
+    },
+    "ci:test": {
+      "command": "pnpm test",
+      "dependencies": [
+        "ci:source-inputs"
+      ],
+      "files": [
+        ".ci-cache/publishing.json",
+        "scripts/require-publishing-tools.mjs"
+      ],
+      "output": [],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_REQUIRE_PUBLISHING_TOOLS": {
+          "external": true
+        },
+        "STRATUM_TEST_PANDOC": {
+          "external": true
+        },
+        "STRATUM_TEST_TECTONIC": {
+          "external": true
+        },
+        "STRATUM_TEST_PDFTOTEXT": {
+          "external": true
+        },
+        "STRATUM_TEST_CHROME": {
+          "external": true
+        },
+        "STRATUM_TEST_TEMPLATE_CACHE": {
+          "external": true
+        }
+      }
+    },
+    "ci:test-browser": {
+      "command": "pnpm test:browser",
+      "dependencies": [
+        "ci:source-inputs"
+      ],
+      "files": [
+        ".ci-cache/publishing.json",
+        "styles.css"
+      ],
+      "output": [
+        ".test-artifacts/publishing/*.png",
+        ".test-artifacts/publishing/timings.json"
+      ],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_REQUIRE_PUBLISHING_TOOLS": {
+          "external": true
+        },
+        "STRATUM_TEST_PANDOC": {
+          "external": true
+        },
+        "STRATUM_TEST_TECTONIC": {
+          "external": true
+        },
+        "STRATUM_TEST_PDFTOTEXT": {
+          "external": true
+        },
+        "STRATUM_TEST_CHROME": {
+          "external": true
+        },
+        "STRATUM_TEST_TEMPLATE_CACHE": {
+          "external": true
+        }
+      }
+    },
+    "ci:publishing-preflight": {
+      "command": "pnpm test:publishing:preflight",
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        ".ci-cache/publishing.json",
+        "scripts/require-publishing-tools.mjs"
+      ],
+      "output": [
+        ".test-artifacts/publishing/tools.json"
+      ],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_REQUIRE_PUBLISHING_TOOLS": {
+          "external": true
+        },
+        "STRATUM_TEST_PANDOC": {
+          "external": true
+        },
+        "STRATUM_TEST_TECTONIC": {
+          "external": true
+        },
+        "STRATUM_TEST_PDFTOTEXT": {
+          "external": true
+        },
+        "STRATUM_TEST_CHROME": {
+          "external": true
+        },
+        "STRATUM_TEST_TEMPLATE_CACHE": {
+          "external": true
+        }
+      }
+    },
+    "ci:build": {
+      "command": "node scripts/run-quiet.mjs node esbuild.config.mjs production",
+      "dependencies": [
+        "ci:source-inputs"
+      ],
+      "files": [
+        "esbuild.config.mjs",
+        "plugin.config.json",
+        ".env",
+        "THIRD_PARTY_NOTICES.md",
+        "licenses/**/*",
+        "scripts/scorecard-bundle.mjs",
+        "scripts/scorecard-rules.mjs"
+      ],
+      "output": [
+        "main.js"
+      ],
+      "env": {
+        "NODE_OPTIONS": {
+          "external": true
+        },
+        "LANG": {
+          "external": true
+        },
+        "LC_ALL": {
+          "external": true
+        },
+        "TZ": {
+          "external": true
+        },
+        "STRATUM_WEB_APP_URL": {
+          "external": true
+        },
+        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_URL": {
+          "external": true
+        },
+        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
+          "external": true
+        },
+        "STRATUM_DEBUG": {
+          "external": true
+        }
+      }
+    },
+    "ci:source-inputs": {
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        "src/**/*",
+        "!src/publication-templates/aastex/files.json",
+        "scripts/publication-assets.mjs",
+        "tsconfig*.json"
+      ]
+    },
+    "ci:validate": {
+      "dependencies": [
+        "ci:test",
+        "ci:test-tooling",
+        "ci:publishing-preflight",
+        "ci:format",
+        "ci:lint-review",
+        "ci:scorecard",
+        "ci:test-browser",
+        "ci:typecheck",
+        "ci:build"
+      ]
+    }
   }
 }

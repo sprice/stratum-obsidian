@@ -33,6 +33,42 @@ individual tool's `:verbose` script. Extra arguments are forwarded. Development
 and watch commands keep their live output.
 CI prints full failure diagnostics so they remain available in the job output.
 
+Run `pnpm ci:check` for the complete cached validation, including browser tests and
+real PDF conversion. Install Pandoc, Tectonic, Poppler (`pdftotext`), and Chrome
+first; set `STRATUM_TEST_CHROME` if Chrome is outside its usual location. The
+command runs up to two independent tasks at once (override with
+`WIREIT_PARALLEL`) and caches successful tasks locally. It checks types once;
+the separate bundle task does not repeat TypeScript validation.
+
+A successful local run writes `.ci-local-validation.json`. Include that file in
+the same commit as the validated changes. GitHub compares its digest with the
+checked-out source snapshot, including new and deleted files. A match skips
+validation and publishing-tool installation, then bundles the plugin on the
+runner. Any subsequent source, tooling, configuration, or documentation change
+invalidates the receipt. If files change during validation, no new receipt is
+written. Run the command again after finishing your changes.
+
+The receipt is a maintainer assertion that the checks passed locally; it is
+portable across operating systems and Node versions, rather than a separate
+Linux validation. It contains only a version and source digest. Ignored local
+environment files and generated output are excluded, and GitHub always creates
+its own bundle using its own build configuration. Review receipts with the code.
+
+Without a matching receipt, GitHub runs `pnpm ci:check` with Wireit caches for
+formatting, lint, scorecard, tooling tests, types, source tests, browser tests,
+PDF preflight, and bundling. Each task tracks its relevant inputs: workflow and
+tooling edits do not invalidate unrelated source checks, and build-only inputs
+do not invalidate tests. Browser screenshots, preflight reports, and `main.js`
+are restored on cache hits. Publishing checks fingerprint tool versions, Linux
+fonts, and optional template resources. Tectonic uses an explicit cache directory
+shared with the Actions resource cache.
+
+Release tags always run validation without task caches or local receipts, and
+release builds remain fresh. For an uncached run, select **Build & Lint → Run
+workflow** and enable **uncached**. Set the repository variable
+`STRATUM_CI_CACHE_DISABLED` to `true` to disable both task caches and local receipts.
+Standard developer commands remain uncached.
+
 `pnpm lint:scorecard` checks CSS and decoding regression rules through
 `pnpm lint:scorecard:rules`: no `display: contents`, no `!important`, and no
 direct runtime base64 decoding calls in production `src/` (tests and tooling

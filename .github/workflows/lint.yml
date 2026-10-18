@@ -7,13 +7,31 @@ on:
   pull_request:
     branches: ["**"]
 
+  workflow_dispatch:
+    inputs:
+      uncached:
+        description: Run validation without local receipts or task caches
+        type: boolean
+        default: false
+
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      # The setup action opts eligible runs into GitHub caching via GITHUB_ENV.
+      WIREIT_CACHE: none
+      WIREIT_LOGGER: simple
+      # Bound CPU/memory contention while allowing independent checks to overlap.
+      WIREIT_PARALLEL: 2
+      WIREIT_FAILURES: continue
 
     strategy:
       matrix:
@@ -27,22 +45,25 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "pnpm"
+      - name: Inspect local validation
+        id: local-validation
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.uncached != true && vars.STRATUM_CI_CACHE_DISABLED != 'true' }}
+        run: node scripts/ci-local-validation.mjs
       - uses: ./.github/actions/setup-publishing-tests
+        if: steps.local-validation.outputs.validated != 'true'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:publishing:preflight
-        timeout-minutes: 5
-      - run: pnpm --silent test:tooling
-      - run: pnpm format:check
-      - name: Obsidian lint (no errors or warnings)
-        run: pnpm lint:review
-      - name: Scorecard CSS, base64, and type compatibility
-        run: pnpm lint:scorecard
-      - run: pnpm test
-      - run: pnpm test:browser
-        if: ${{ !cancelled() }}
-        timeout-minutes: 3
+      - name: Enable validation caching
+        if: ${{ steps.local-validation.outputs.validated != 'true' && !startsWith(github.ref, 'refs/tags/') && inputs.uncached != true && vars.STRATUM_CI_CACHE_DISABLED != 'true' }}
+        uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2
+      - name: Check plugin (cached tasks)
+        if: steps.local-validation.outputs.validated != 'true'
+        run: pnpm ci:check
+        timeout-minutes: 12
+      - name: Bundle locally validated plugin
+        if: steps.local-validation.outputs.validated == 'true'
+        run: node scripts/run-quiet.mjs node esbuild.config.mjs production
       - name: Upload publishing test artifacts
-        if: ${{ always() }}
+        if: ${{ always() && steps.local-validation.outputs.validated != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: publishing-tests
@@ -50,8 +71,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
-      - run: pnpm typecheck
-      - run: pnpm build
 
   release:
     name: Release Obsidian plugin

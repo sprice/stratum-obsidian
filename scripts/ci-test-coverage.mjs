@@ -5,6 +5,8 @@ import { parse } from "yaml";
 const testName = /(?:[._](?:test|spec))\.(?:[cm]?js|tsx?)$/;
 const ignored = new Set([
   ".git",
+  ".wireit",
+  ".ci-cache",
   "node_modules",
   ".test-artifacts",
   "dist",
@@ -29,6 +31,48 @@ export function testFiles(directory) {
 export function coveredTests(workflow, cwd, packages = new Map()) {
   const covered = new Set();
   const active = new Set();
+  function visitScript(name, directory) {
+    const manifest = JSON.parse(
+      readFileSync(resolve(directory, "package.json"), "utf8"),
+    );
+    const script = manifest.scripts?.[name];
+    const config = manifest.wireit?.[name];
+    if (!script && !config)
+      throw new Error(`Unknown CI script ${name} in ${directory}`);
+    const key = `${directory}:${name}`;
+    if (active.has(key)) throw new Error(`Circular CI script: ${key}`);
+    active.add(key);
+    try {
+      if (script === "wireit" || (!script && config)) {
+        if (!config || typeof config !== "object")
+          throw new Error(`Missing Wireit configuration: ${key}`);
+        if (
+          config.dependencies !== undefined &&
+          !Array.isArray(config.dependencies)
+        )
+          throw new Error(`Unsupported Wireit dependencies: ${key}`);
+        for (const dependency of config.dependencies ?? []) {
+          const target =
+            typeof dependency === "string" ? dependency : dependency?.script;
+          // This guard supports package-local tasks only; never silently omit others.
+          if (typeof target !== "string" || target.includes("/"))
+            throw new Error(`Unsupported Wireit dependency: ${key}`);
+          visitScript(target, directory);
+        }
+        if (config.command !== undefined) {
+          if (typeof config.command !== "string")
+            throw new Error(`Unsupported Wireit command: ${key}`);
+          visit(config.command, directory);
+        }
+      } else {
+        if (script.startsWith("wireit"))
+          throw new Error(`Unsupported Wireit invocation: ${key}`);
+        visit(script, directory);
+      }
+    } finally {
+      active.delete(key);
+    }
+  }
   function visit(command, directory) {
     for (let part of command.split(/&&|\n/)) {
       part = part.trim();
@@ -54,16 +98,9 @@ export function coveredTests(workflow, cwd, packages = new Map()) {
         if (tokens[index] === "run") index++;
         const name = tokens[index];
         if (name === "install") continue;
-        const manifest = JSON.parse(
-          readFileSync(resolve(target, "package.json"), "utf8"),
-        );
-        const script = manifest.scripts?.[name];
-        if (!script) throw new Error(`Unknown CI script ${name} in ${target}`);
-        const key = `${target}:${name}`;
-        if (active.has(key)) throw new Error(`Circular CI script: ${key}`);
-        active.add(key);
-        visit(script, target);
-        active.delete(key);
+        visitScript(name, target);
+      } else if (part === "node scripts/ci-check.mjs") {
+        visitScript("ci:validate", directory);
       } else if (tokens[0] === "node" && tokens.includes("--test")) {
         let index = tokens.indexOf("--test") + 1;
         for (; index < tokens.length; index++) {
