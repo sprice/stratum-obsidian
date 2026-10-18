@@ -875,3 +875,183 @@ test("explicit loopback development origin allows HTTP without opening other ori
     await assert.rejects(download({ url, sha256 }), /requires HTTPS/);
   assert.equal(calls, 1);
 });
+
+test(
+  "installed AASTeX and standard adapters share citation, table, image and math conversion",
+  { skip: !pandoc },
+  async () => {
+    const { installationFixture } =
+      await import("./publication-installation-fixture");
+    const { installedJournalProfile } =
+      await import("../publication-installed-templates");
+    const { publicationManuscript } = await import("../publication-manuscript");
+    const { publicationReferences, journalFormattedDocument } =
+      await import("../publication-citations");
+    const child =
+      require("node:child_process") as typeof import("node:child_process");
+    const image = new Uint8Array([137, 80, 78, 71]).buffer;
+    const reference = {
+      id: "key",
+      type: "article-journal",
+      title: "Synthetic reference",
+      author: [{ family: "Example" }],
+      issued: { "date-parts": [[2024]] },
+    };
+    const { ids, references } = publicationReferences(["key"], [reference]);
+    const manuscript = publicationManuscript(
+      "---\nstratum_publish:\n  authors:\n    - name: Synthetic Author\n      affiliations: [Synthetic Institute]\n---\n# Synthetic title\n## Abstract\nSynthetic abstract.\n## Results\nBody",
+      "body",
+    );
+    const bodies: string[] = [];
+    for (const frontMatter of ["aastex7", "standard"] as const) {
+      const installation = installationFixture().manifest;
+      installation.adapter.frontMatter = frontMatter;
+      installation.adapter.citations = "author-year";
+      const journal = installedJournalProfile(installation);
+      const citation = journalFormattedDocument(
+        "[@key]",
+        ids,
+        references,
+        false,
+      ).citations[0];
+      let scratch = "";
+      const desktop = loadRuntime<typeof Desktop>(
+        "publish-desktop.ts",
+        { Platform: { isDesktopApp: true, isDesktop: true } },
+        {
+          TextDecoder,
+          TextEncoder,
+          Uint8Array,
+          window: {
+            setTimeout,
+            clearTimeout,
+            require: (name: string): unknown =>
+              name === "node:child_process"
+                ? {
+                    spawn: (
+                      executable: string,
+                      args: string[],
+                      options: { cwd: string },
+                    ) => {
+                      if (executable !== "synthetic-tectonic")
+                        return child.spawn(executable, args, options);
+                      const task = Object.assign(new EventEmitter(), {
+                        stdout: new EventEmitter(),
+                        stderr: new EventEmitter(),
+                        kill: () => true,
+                      });
+                      scratch = options.cwd;
+                      void (async () => {
+                        await Promise.resolve();
+                        try {
+                          assert.deepEqual(Array.from(args), [
+                            "--untrusted",
+                            "--keep-logs",
+                            "--keep-intermediates",
+                            "document.tex",
+                          ]);
+                          const body = await readFile(
+                            join(scratch, "body.tex"),
+                            "utf8",
+                          );
+                          bodies.push(body);
+                          assert.match(body, /\\citep\{stratum0\}/);
+                          assert.match(body, /\\begin\{tabular\}\{ll\}/);
+                          assert.match(
+                            body,
+                            /\\multicolumn\{1\}\{r\}\{Count\}/,
+                          );
+                          assert.match(body, /\\includegraphics.*asset-0\.png/);
+                          assert.match(body, /x\^2/);
+                          assert.match(body, /\\alpha/);
+                          assert.match(body, /1\. Literal heading/);
+                          assert.deepEqual(
+                            new Uint8Array(
+                              await readFile(join(scratch, "asset-0.png")),
+                            ),
+                            new Uint8Array(image),
+                          );
+                          const tex = await readFile(
+                            join(scratch, "document.tex"),
+                            "utf8",
+                          );
+                          assert.match(tex, /\\bibliographystyle\{style\}/);
+                          assert.match(tex, /\\bibliography\{references\}/);
+                          assert.match(
+                            tex,
+                            frontMatter === "aastex7"
+                              ? /\\affiliation\{Synthetic Institute\}/
+                              : /Synthetic Institute/,
+                          );
+                          assert.match(
+                            await readFile(
+                              join(scratch, "references.bib"),
+                              "utf8",
+                            ),
+                            /Synthetic reference/i,
+                          );
+                          await writeFile(
+                            join(scratch, "document.aux"),
+                            "\\bibcite{stratum0}{1}",
+                          );
+                          await writeFile(
+                            join(scratch, "document.log"),
+                            "Synthetic compiler boundary",
+                          );
+                          await writeFile(
+                            join(scratch, "document.pdf"),
+                            "%PDF-Synthetic compiler boundary",
+                          );
+                          task.emit("close", 0);
+                        } catch (error) {
+                          task.emit("error", error);
+                        }
+                      })();
+                      return task;
+                    },
+                  }
+                : require(name),
+          },
+        },
+        "browser",
+        {
+          // Resource hash verification is covered by installation/resource tests.
+          // Exercise real Pandoc and stop at the compiler boundary without downloading classes.
+          "./publication-resources": {
+            installedTemplateResources: () =>
+              Promise.resolve({
+                "class.cls": new TextEncoder().encode(
+                  "Synthetic verified resource",
+                ),
+              }),
+          },
+        },
+      );
+      const bytes = await desktop.convertPublication(
+        `<h1>1. Literal heading</h1><p>${citation}</p><table><thead><tr><th>Group</th><th style="text-align:right">Count</th></tr></thead><tbody><tr><td>Example</td><td>2</td></tr></tbody></table><p><img src="asset-0.png" alt="Synthetic"></p><p><span class="math inline">\\(x^2 + \\alpha\\)</span></p>`,
+        [{ name: "asset-0.png", bytes: image }],
+        "pdf",
+        {
+          pandoc,
+          tectonic: "synthetic-tectonic",
+          bibliographyCache: {} as never,
+        },
+        undefined,
+        120000,
+        undefined,
+        {
+          journal,
+          manuscript,
+          abstractHtml: "<p>Synthetic abstract.</p>",
+          references,
+        },
+      );
+      assert.match(new TextDecoder().decode(bytes), /^%PDF-/);
+      await assert.rejects(readFile(join(scratch, "document.tex")), {
+        code: "ENOENT",
+      });
+    }
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0], bodies[1]);
+  },
+);

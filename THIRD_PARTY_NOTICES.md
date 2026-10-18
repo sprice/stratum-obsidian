@@ -109,7 +109,7 @@ Source: https://github.com/eemeli/yaml
 
 ## Pandoc LaTeX template helpers — BSD-3-Clause
 
-Stratum's AASTeX template includes and adapts Pandoc's LaTeX helpers for lists
+Stratum's journal rendering pipeline includes and adapts Pandoc's LaTeX helpers for lists
 and image sizing under the BSD-3-Clause option.
 Source: https://github.com/jgm/pandoc-templates/blob/master/common.latex
 

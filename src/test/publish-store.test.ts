@@ -331,3 +331,53 @@ test("catalog saves drop non-PDF entries and leave their files in place", async 
   );
   assert.equal(files.has(`${store.directory}/Removing.docx`), false);
 });
+
+test("legacy bundled-template catalogs retain selections, options and accessible PDFs after reload", async () => {
+  const { adapter, files } = memory();
+  const directory = ".synthetic/plugins/stratum";
+  const store = new PublishStore(adapter, directory);
+  const { readNotePreferences, DEFAULT_ACADEMIC_OPTIONS } =
+    await import("../publish-options");
+  const note = await store.note("Papers/Synthetic.md", "Synthetic", 1);
+  const options = {
+    showLineNumbers: false,
+    showDraftDateHeader: false,
+    numberedHeadings: true,
+  };
+  const template = { id: "aastex", version: "1.1.0", upstreamVersion: "7.0.2" };
+  await store.setPreferences(
+    note.id,
+    readNotePreferences({
+      templateId: "package:aastex",
+      aastex: { options, package: template },
+    }),
+  );
+  const document = {
+    ...doc(note.id),
+    publishing: {
+      documentType: "academic" as const,
+      opening: "properties" as const,
+      layout: DEFAULT_ACADEMIC_OPTIONS,
+      template,
+      aastexPdfOptions: options,
+    },
+  };
+  const bytes = new TextEncoder().encode(
+    "%PDF-Synthetic retained publication",
+  ).buffer;
+  await store.add(document, bytes);
+  const before = files.get(`${directory}/published/catalog.json`);
+  const reloaded = new PublishStore(adapter, directory);
+  const catalog = await reloaded.list();
+  assert.equal(catalog.notes[0].preferences?.templateId, "package:aastex");
+  assert.deepEqual(catalog.notes[0].preferences?.aastex, {
+    options,
+    package: template,
+  });
+  assert.deepEqual(catalog.documents[0].publishing?.aastexPdfOptions, options);
+  assert.deepEqual(
+    await adapter.readBinary(reloaded.path(catalog.documents[0])),
+    bytes,
+  );
+  assert.equal(files.get(`${directory}/published/catalog.json`), before);
+});

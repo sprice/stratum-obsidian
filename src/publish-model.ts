@@ -8,7 +8,7 @@ import {
 import {
   readAastexPdfOptions,
   type AastexPdfOptions,
-} from "./publication-options";
+} from "./publication-legacy";
 export const VIEW_TYPE_PUBLISH_PREVIEW = "stratum-publish-preview";
 
 export type PublishFormat = "pdf";

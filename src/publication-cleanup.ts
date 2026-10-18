@@ -13,7 +13,6 @@ import {
 } from "./publication-metadata";
 import { publicationProperties } from "./publish-properties";
 import type { PublishOptions } from "./publish-options";
-import { aastexPackage } from "./publication-package";
 
 function empty(node: unknown): boolean {
   return (
@@ -45,7 +44,6 @@ function legacyNames(value: unknown): boolean {
 export function cleanupPublicationProperties(
   text: string,
   layout: PublishOptions,
-  aastex: boolean,
 ): PublicationChange {
   // Cleanup can repair empty structured values that the author form rejects.
   const parsed = publicationYaml(text, false);
@@ -112,11 +110,7 @@ export function cleanupPublicationProperties(
   const mapped = new Set(
     publicationProperties(layout).map((field) => field.key),
   );
-  for (const key of aastex
-    ? layout.titleSource === "properties"
-      ? ["title"]
-      : []
-    : mapped) {
+  for (const key of mapped) {
     if (!root.has(key) || !empty(root.get(key, true))) continue;
     if (
       key === "authors" &&
@@ -131,8 +125,7 @@ export function cleanupPublicationProperties(
     if (remove(root, key)) removedRoot.add(key);
   }
   const namespace = root.get("stratum_publish", true);
-  const structured =
-    aastex || mapped.has("authors") || mapped.has("affiliations");
+  const structured = mapped.has("authors") || mapped.has("affiliations");
   if (structured && root.has("stratum_publish") && !protectedNode(namespace)) {
     if (empty(namespace)) remove(root, "stratum_publish");
     else if (isMap(namespace) && !namespace.flow) {
@@ -140,8 +133,7 @@ export function cleanupPublicationProperties(
       if (
         namespace.has("authors") &&
         empty(authors) &&
-        (aastex ||
-          !mapped.has("affiliations") ||
+        (!mapped.has("affiliations") ||
           !legacyNames(parsed.properties.affiliations)) &&
         !legacyNames(
           (removedRoot.has("authors")
@@ -152,14 +144,10 @@ export function cleanupPublicationProperties(
         if (namespace.items.length === 1) remove(root, "stratum_publish");
         else remove(namespace, "authors");
       } else if (isSeq(authors)) {
-        const fields = aastex
-          ? aastexPackage.schema.fields.map((field) =>
-              field.path.split(".").at(-1)!,
-            )
-          : [
-              ...(mapped.has("authors") ? ["name"] : []),
-              ...(mapped.has("affiliations") ? ["affiliations"] : []),
-            ];
+        const fields = [
+          ...(mapped.has("authors") ? ["name"] : []),
+          ...(mapped.has("affiliations") ? ["affiliations"] : []),
+        ];
         for (const author of authors.items) {
           if (!isMap(author) || author.flow || author.anchor) continue;
           const keys = fields.filter(

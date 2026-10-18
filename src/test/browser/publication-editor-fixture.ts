@@ -1,3 +1,7 @@
+import installation from "../fixtures/installation.json";
+import { readTemplateInstallation } from "../../publication-installation";
+import { installedJournalProfile } from "../../publication-installed-templates";
+const profile = installedJournalProfile(readTemplateInstallation(installation));
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import {
@@ -14,7 +18,7 @@ import {
   publicationAuthors,
   publicationYaml,
 } from "../../publication-metadata";
-import { aastexProblems } from "../../publication-package";
+import { journalProblems } from "../../journal-profiles";
 import type StratumPlugin from "../../plugin";
 import type {
   Editor,
@@ -69,13 +73,14 @@ for (const type of ["focus", "blur", "pointerdown", "mousedown", "click"])
   );
 const publish = {
   document: { path },
-  notePreferences: { templateId: "package:aastex" },
-  selectedTemplate: { renderer: "aastex" },
+  notePreferences: { templateId: "registry:example:1.0-r1" },
+  selectedTemplate: { renderer: "journal" },
+  journalProfile: profile,
   layout: { titleSource: "properties" as "body" | "properties" },
   /** The controller's issues for the note, from the same package validator. */
   get publishingIssues() {
     try {
-      return aastexProblems(text(), this.layout.titleSource, "pdf").issues;
+      return journalProblems(text(), this.layout.titleSource, profile).issues;
     } catch {
       return [];
     }

@@ -4,8 +4,8 @@ import { ESLint } from "eslint";
 import { scorecardProgram } from "./scorecard-program.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-for (const generatedAssets of [true, false]) {
-  const program = scorecardProgram(root, { generatedAssets });
+{
+  const program = scorecardProgram(root);
   const eslint = new ESLint({
     cwd: root,
     overrideConfig: [
@@ -44,7 +44,7 @@ for (const generatedAssets of [true, false]) {
     process.exitCode = 1;
   } else {
     console.log(
-      `Scorecard compatibility lint passed without ambient Node types (${generatedAssets ? "generated assets present" : "generated assets absent"}).`,
+      "Scorecard compatibility lint passed without ambient Node types.",
     );
   }
 }

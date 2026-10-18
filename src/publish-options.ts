@@ -1,9 +1,11 @@
 import {
-  readAastexPreferences,
-  type AastexPreferences,
   readPublicationPackageReference,
   type PublicationPackageReference,
 } from "./publication-options";
+import {
+  readAastexPreferences,
+  type AastexPreferences,
+} from "./publication-legacy";
 export type DocumentType = "general" | "academic";
 export interface PublishOptions {
   bodyFont: string;

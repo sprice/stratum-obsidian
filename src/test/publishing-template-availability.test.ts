@@ -52,17 +52,27 @@ test("new and legacy configurations enable only built-ins by default", () => {
 test("successful enablement follows installation; disabling preserves configuration", async () => {
   const { plugin, host } = setup();
   let installs = 0;
-  await setPublishingTemplateEnabled(host, "package:aastex", true, () => {
-    assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [
-      "general",
-      "academic",
-    ]);
-    installs++;
-    return Promise.resolve();
-  });
-  await setPublishingTemplateEnabled(host, "package:aastex", false, () => {
-    throw new Error("Disable must not install");
-  });
+  await setPublishingTemplateEnabled(
+    host,
+    "registry:example:1.0-r1",
+    true,
+    () => {
+      assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [
+        "general",
+        "academic",
+      ]);
+      installs++;
+      return Promise.resolve();
+    },
+  );
+  await setPublishingTemplateEnabled(
+    host,
+    "registry:example:1.0-r1",
+    false,
+    () => {
+      throw new Error("Disable must not install");
+    },
+  );
   assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [
     "general",
     "academic",
@@ -74,7 +84,7 @@ test("successful enablement follows installation; disabling preserves configurat
 test("failed or cancelled installation leaves enablement untouched", async () => {
   const { plugin, host } = setup();
   await assert.rejects(
-    setPublishingTemplateEnabled(host, "package:aastex", true, () =>
+    setPublishingTemplateEnabled(host, "registry:example:1.0-r1", true, () =>
       Promise.reject(new Error("Offline")),
     ),
     /Offline/,
@@ -83,7 +93,7 @@ test("failed or cancelled installation leaves enablement untouched", async () =>
   await assert.rejects(
     setPublishingTemplateEnabled(
       host,
-      "package:aastex",
+      "registry:example:1.0-r1",
       true,
       () => {
         abort.abort();
@@ -127,14 +137,14 @@ test("a later disable cannot be undone by an earlier slow installation", async (
   let release!: () => void;
   const installing = setPublishingTemplateEnabled(
     host,
-    "package:aastex",
+    "registry:example:1.0-r1",
     true,
     () =>
       new Promise<void>((resolve) => {
         release = resolve;
       }),
   );
-  await setPublishingTemplateEnabled(host, "package:aastex", false);
+  await setPublishingTemplateEnabled(host, "registry:example:1.0-r1", false);
   release();
   await installing;
   assert.deepEqual(plugin.settings.publishingTemplates.enabledIds, [

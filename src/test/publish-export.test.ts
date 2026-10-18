@@ -204,8 +204,8 @@ for (const kind of ["draft", "literature"] as const) {
     );
   }
 }
-test("AASTeX body and abstract share browser rasterization with distinct assets", async () => {
-  const result = await render("aastex", true);
+test("Journal body and abstract share browser rasterization with distinct assets", async () => {
+  const result = await render("journal", true);
   assertImages(result, 2);
   assert.match(result.html, /src="asset-0\.png"/);
   assert.match(result.abstractHtml, /src="asset-1\.png"/);

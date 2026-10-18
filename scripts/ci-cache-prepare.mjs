@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { generatePublicationAssets } from "./publication-assets.mjs";
 import { testFiles } from "./ci-test-coverage.mjs";
 import { inspectPublishingTools } from "./require-publishing-tools.mjs";
 
@@ -42,7 +41,7 @@ export async function publishingFingerprint(
   return createHash("sha256").update(JSON.stringify(outputs)).digest("hex");
 }
 
-// Run before any cached check: generated inputs must exist even on a cache hit.
+// Record execution inputs before any cached check, including cache hits.
 export async function prepareCiCache(
   root = process.cwd(),
   env = process.env,
@@ -55,9 +54,6 @@ export async function prepareCiCache(
   if (`pnpm@${pnpm}` !== manifest.packageManager)
     throw new Error(`Run pnpm ci:prepare with ${manifest.packageManager}.`);
 
-  await generatePublicationAssets(
-    join(root, "src/publication-templates/aastex"),
-  );
   const publishing = {
     tools: await fingerprint(env),
     templates: env.STRATUM_TEST_TEMPLATE_CACHE

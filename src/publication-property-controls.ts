@@ -17,7 +17,6 @@ import {
   setStratumFieldMessage,
 } from "./ui-controls";
 import type { PublishOptions } from "./publish-options";
-import { publishingIssueText } from "./publish-properties";
 import { StableRender } from "./ui-render";
 const flags: Partial<Record<PublicationPropertyKey, keyof PublishOptions>> = {
   authors: "showAuthors",
@@ -175,7 +174,6 @@ export class PublicationPropertyControls {
       });
       return;
     }
-    const aastex = this.publish.selectedTemplate?.renderer === "aastex";
     const academic = this.publish.selectedTemplate?.documentType === "academic";
     const structured = !!(
       properties.stratum_publish &&
@@ -189,12 +187,10 @@ export class PublicationPropertyControls {
         (key.startsWith("stratum_")
           ? !!this.publish.journalProfile &&
             this.publish.propertyDefinitions.some((field) => field.key === key)
-          : aastex
-            ? key === "title"
-            : this.publish.journalProfile
-              ? key === "title" || key === "keywords"
-              : (!structured && !academic) ||
-                !["authors", "affiliations"].includes(key)) ||
+          : this.publish.journalProfile
+            ? key === "title" || key === "keywords"
+            : (!structured && !academic) ||
+              !["authors", "affiliations"].includes(key)) ||
         session.properties.has(key),
     );
     const requiredTitle = this.publish.layout.titleSource === "properties";
@@ -217,9 +213,7 @@ export class PublicationPropertyControls {
             (issue) => issue.target === "title",
           )
         : [];
-    const titleMessage = titleIssues
-      .map((issue) => (aastex ? publishingIssueText(issue) : issue.message))
-      .join("\n");
+    const titleMessage = titleIssues.map((issue) => issue.message).join("\n");
     const titleInvalid = titleIssues.some((issue) => issue.blocking);
     const showTitleIssue = () => {
       const input = this.container.querySelector<HTMLInputElement>(
@@ -293,7 +287,7 @@ export class PublicationPropertyControls {
       const row = this.container.createDiv({
         cls: "stratum-publishing-property",
       });
-      if (key !== "title" && !aastex && !key.startsWith("stratum_"))
+      if (key !== "title" && !key.startsWith("stratum_"))
         this.inclusion(
           row,
           key as "authors" | "affiliations" | "date" | "keywords",
@@ -394,7 +388,7 @@ export class PublicationPropertyControls {
         });
       }
     }
-    if ((structured || academic) && !aastex)
+    if (structured || academic)
       for (const key of ["authors", "affiliations"] as const) {
         this.inclusion(this.container, key);
       }

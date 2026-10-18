@@ -4,7 +4,7 @@ import {
 } from "./publication-installation";
 import { installationLatex } from "./publication-installation-render";
 import { installedJournalProfile } from "./publication-installed-templates";
-import { aastexManuscript } from "./publication-package";
+import { publicationManuscript } from "./publication-manuscript";
 import type { PublishingIssue, PublishingProperty } from "./publish-properties";
 
 export type JournalFamily = "registry";
@@ -24,7 +24,7 @@ export interface JournalProfile {
   bibliography: string;
   citations: "numeric" | "author-year";
   anonymous?: boolean;
-  installation?: TemplateInstallation;
+  installation: TemplateInstallation;
 }
 export function journalProfile(
   id?: string,
@@ -70,7 +70,7 @@ export function journalProblems(
   profile: JournalProfile,
   includeKeywords = true,
 ) {
-  const manuscript = aastexManuscript(text, titleSource);
+  const manuscript = publicationManuscript(text, titleSource);
   if (!includeKeywords)
     manuscript.properties = { ...manuscript.properties, keywords: undefined };
   const issues: PublishingIssue[] = [];
@@ -153,7 +153,7 @@ export function journalProblems(
 }
 export function journalLatex(
   profile: JournalProfile,
-  manuscript: ReturnType<typeof aastexManuscript>,
+  manuscript: ReturnType<typeof publicationManuscript>,
   body: string,
   abstract: string,
   bibliography: boolean,
