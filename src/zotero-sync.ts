@@ -245,9 +245,7 @@ export function formatBulkLibrarySyncCompletionMessage(params: {
           params.state.enrichmentFailureCount === 1 ? "" : "s"
         }. Run sync again later to try again.`
       : completedSummary;
-  return params.state.annotationImageWarning
-    ? `${summary} ${params.state.annotationImageWarning}`
-    : summary;
+  return summary;
 }
 
 export function getBulkLibrarySyncButtonLabel(

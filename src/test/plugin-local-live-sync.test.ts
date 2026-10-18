@@ -67,7 +67,7 @@ test("isWatchedZoteroDataFile only reacts to Zotero sqlite writes", () => {
   assert.equal(isWatchedZoteroDataFile("zotero.sqlite"), true);
   assert.equal(isWatchedZoteroDataFile("zotero.sqlite-wal"), true);
   assert.equal(isWatchedZoteroDataFile("zotero.sqlite-shm"), true);
-  assert.equal(isWatchedZoteroDataFile("better-bibtex.sqlite"), false);
+  assert.equal(isWatchedZoteroDataFile("unrelated.sqlite"), false);
   assert.equal(isWatchedZoteroDataFile(null), false);
 });
 
@@ -79,7 +79,7 @@ test("watch events without filenames still trigger a live sync pass", () => {
     true,
   );
   assert.equal(
-    shouldTriggerLocalLiveSyncFromWatchEvent("better-bibtex.sqlite"),
+    shouldTriggerLocalLiveSyncFromWatchEvent("unrelated.sqlite"),
     false,
   );
 });

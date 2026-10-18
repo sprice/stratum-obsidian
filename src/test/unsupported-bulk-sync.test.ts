@@ -146,7 +146,7 @@ test("bulk sync continues past unknown types without retries or enrichment", asy
     getBulkLibrarySyncStatusMessage({ state, libraryName: library.name }) ?? "",
     /1 skipped/,
   );
-  assert.match(
+  assert.doesNotMatch(
     getBulkLibrarySyncStatusMessage({ state, libraryName: library.name }) ?? "",
     /1 area image could not be refreshed/,
   );

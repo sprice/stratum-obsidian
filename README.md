@@ -63,7 +63,7 @@ Read [Privacy and connections](docs/user-guide.md#privacy-and-connections) for s
 
 ## Optional Zotero plugins
 
-Install [Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases) in Zotero to manage citation keys and import area annotation images on desktop.
+Install [Stratum](https://github.com/sprice/stratum-zotero) in Zotero to import area annotation images through Zotero's local API on desktop.
 
 ## Community and contributing
 
