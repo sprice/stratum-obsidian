@@ -66,11 +66,11 @@ Opening a tracked literature note starts a refresh. Background checks also keep 
 
 ### Import area annotation images
 
-Stratum can import images from Zotero's **Select Area** tool. Fetching these images requires desktop Zotero and [Better BibTeX](https://github.com/retorquere/zotero-better-bibtex/releases).
+Stratum can import images from Zotero's **Select Area** tool. Fetching these images requires desktop Zotero with the [Stratum plugin](https://github.com/sprice/stratum-zotero).
 
-1. Install Better BibTeX in Zotero.
+1. Install Stratum in Zotero.
 2. Keep Zotero running with its local API enabled.
-3. Make sure the source has a citation key and a PDF available on your computer.
+3. Make sure the source PDF is available on your computer.
 4. Sync the source, library, or collection.
 
 Stratum saves imported images in **Attachments** inside your literature notes folder. The folder is created when an image imports successfully.

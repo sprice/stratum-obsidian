@@ -1,15 +1,11 @@
 import { buildLiteratureNoteContent } from "../literature-note-content";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import {
   setTimeout as scheduleTimeout,
   clearTimeout as cancelTimeout,
 } from "node:timers";
-import { join } from "node:path";
-import type * as Bbt from "../better-bibtex-images";
-import type * as Files from "../annotation-image-file";
+import type * as StratumImages from "../stratum-zotero-images";
 import type * as Images from "../plugin-annotation-images";
 import {
   annotationImageName,
@@ -18,30 +14,21 @@ import {
 } from "../annotation-image-paths";
 import { normalizeZoteroItemDetail } from "../zotero-item-detail-normalizer";
 import { loadRuntime } from "./runtime-harness";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import * as buffer from "node:buffer";
 import * as http from "node:http";
 import { EventEmitter } from "node:events";
 import { runInNewContext } from "node:vm";
-import type {
-  AnnotationFileSystem,
-  AnnotationPath,
-  AnnotationHttp,
-} from "../annotation-node-api";
+import type { AnnotationHttp } from "../annotation-node-api";
 import type { ZoteroItemDetail } from "../backend-types";
 
 // Compile against real Node declarations so the independent contracts cannot drift.
 const desktopApis: {
-  fs: AnnotationFileSystem;
-  path: AnnotationPath;
   http: AnnotationHttp;
-} = { fs, path, http };
+} = { http };
 
 function httpTransport(chunks: unknown[]) {
   let cleared = false;
-  const runtime = loadRuntime<typeof Bbt>(
-    "better-bibtex-images.ts",
+  const runtime = loadRuntime<typeof StratumImages>(
+    "stratum-zotero-images.ts",
     { Platform: { isDesktop: true } },
     {
       TextDecoder,
@@ -92,9 +79,8 @@ function httpTransport(chunks: unknown[]) {
   );
   return {
     request: () =>
-      runtime.requestBetterBibtex(
-        "http://127.0.0.1:23119/better-bibtex/json-rpc",
-        "{}",
+      runtime.requestStratumImage(
+        "http://127.0.0.1:23119/stratum/v1/annotation-image",
       ),
     get cleared() {
       return cleared;
@@ -103,8 +89,6 @@ function httpTransport(chunks: unknown[]) {
 }
 
 test("desktop host contracts match Node and decode cross-realm split UTF-8 HTTP chunks", async () => {
-  assert.equal(desktopApis.fs, fs);
-  assert.equal(desktopApis.path, path);
   assert.equal(desktopApis.http, http);
   const bytes = new TextEncoder().encode(JSON.stringify({ title: "Étoiles" }));
   const foreign: unknown = runInNewContext("Uint8Array.from(bytes)", { bytes });
@@ -114,7 +98,7 @@ test("desktop host contracts match Node and decode cross-realm split UTF-8 HTTP 
     (foreign as Uint8Array).subarray(11),
   ]);
   const result = await transport.request();
-  assert.equal((result as { title: string }).title, "Étoiles");
+  assert.equal((result.json as { title: string }).title, "Étoiles");
   assert.equal(transport.cleared, true);
 });
 
@@ -123,14 +107,14 @@ test("HTTP transport rejects non-byte chunks and closes the request", async () =
     const transport = httpTransport([chunk]);
     await assert.rejects(
       transport.request(),
-      /Unexpected Better BibTeX response chunk/,
+      /Unexpected Stratum Zotero response chunk/,
     );
     assert.equal(transport.cleared, true);
   }
 });
 
 test("HTTP transport enforces its byte limit before decoding", async () => {
-  const transport = httpTransport([new Uint8Array(4 * 1024 * 1024 + 1)]);
+  const transport = httpTransport([new Uint8Array(80 * 1024 * 1024 + 4097)]);
   await assert.rejects(transport.request(), /response is too large/);
   assert.equal(transport.cleared, true);
 });
@@ -180,91 +164,129 @@ function fixture(): ZoteroItemDetail {
     collections: [],
   });
 }
-const bbt = loadRuntime<typeof Bbt>("better-bibtex-images.ts", {
-  Platform: { isDesktopApp: true, isDesktop: true },
-});
-const read = loadRuntime<typeof Files>(
-  "annotation-image-file.ts",
-  { Platform: { isDesktopApp: true, isDesktop: true } },
-  {},
-  "node",
-  { "node:fs/promises": fs, "node:path": path, "node:buffer": buffer },
+const stratum = loadRuntime<typeof StratumImages>(
+  "stratum-zotero-images.ts",
+  {
+    Platform: { isDesktopApp: true, isDesktop: true },
+  },
+  { URLSearchParams },
 );
-function response(open = "zotero://open-pdf/library/items/PDFD1234") {
+function imageResponse() {
+  const bytes = new Uint8Array(24);
+  bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
+  bytes.set([73, 72, 68, 82], 12);
   return {
-    id: "stratum-images",
-    result: [
-      {
-        open,
-        annotations: [
-          {
-            key: "IMGD1234",
-            parentItem: "PDFD1234",
-            annotationType: "image",
-            annotationImagePath: "/synthetic/cache/library/IMGD1234.png",
-          },
-        ],
-      },
-    ],
+    status: 200,
+    json: {
+      apiVersion: 1,
+      library: { type: "user", id: "1" },
+      annotationKey: "IMGD1234",
+      attachmentKey: "PDFD1234",
+      contentType: "image/png",
+      bytes: Array.from(bytes),
+    },
   };
 }
 
-test("BBT retrieves a native citekey and accepts only matching attachment annotations", async () => {
-  const paths = await bbt.loadBetterBibtexImagePaths(
-    fixture(),
+test("Stratum requests images by library and annotation identity without citation keys", async () => {
+  const detail = fixture();
+  detail.item.citationKey = null;
+  const image = await stratum.loadStratumAnnotationImage(
+    detail,
+    detail.annotations[0],
     23119,
-    (url, body) => {
-      assert.equal(url, "http://127.0.0.1:23119/better-bibtex/json-rpc");
-      assert.deepEqual((JSON.parse(body) as { params: unknown }).params, [
-        "exampleStudy2020",
-      ]);
-      return Promise.resolve(response());
+    (url) => {
+      const endpoint = new URL(url);
+      assert.equal(endpoint.pathname, "/stratum/v1/annotation-image");
+      assert.equal(endpoint.searchParams.get("annotationKey"), "IMGD1234");
+      assert.equal(endpoint.searchParams.get("libraryId"), "1");
+      assert.equal(endpoint.searchParams.get("format"), "bytes");
+      return Promise.resolve(imageResponse());
     },
   );
-  assert.equal(paths.size, 1);
-  assert.equal(
-    (
-      await bbt.loadBetterBibtexImagePaths(fixture(), 23119, () =>
-        Promise.resolve(response("zotero://open-pdf/groups/2/items/PDFD1234")),
-      )
-    ).size,
-    0,
-  );
-  const wrong = response();
-  wrong.result[0].annotations[0].parentItem = "OTHER123";
-  assert.equal(
-    (
-      await bbt.loadBetterBibtexImagePaths(fixture(), 23119, () =>
-        Promise.resolve(wrong),
-      )
-    ).size,
-    0,
-  );
+  assert.equal(image.byteLength, 24);
 });
-test("BBT failures are recoverable and missing citekeys never send fallback guesses", async () => {
-  for (const result of [
-    null,
-    { error: { code: -32601 } },
-    { id: "wrong", result: [] },
-    { id: "stratum-images", result: {} },
+
+test("Stratum rejects mismatched libraries, annotations, attachments, and malformed PNG bytes", async () => {
+  const detail = fixture();
+  for (const change of [
+    { library: { type: "group", id: "1" } },
+    { library: { type: "user", id: "2" } },
+    { annotationKey: "OTHER123" },
+    { attachmentKey: "OTHER123" },
+    { bytes: [-1] },
+    { bytes: Array(24).fill(0) },
+    { bytes: [...imageResponse().json.bytes.slice(0, 23), 1.5] },
+    { bytes: undefined },
+    { apiVersion: 2 },
   ]) {
+    const response = imageResponse();
+    Object.assign(response.json, change);
     await assert.rejects(
-      bbt.loadBetterBibtexImagePaths(fixture(), 23119, () =>
-        Promise.resolve(result),
+      stratum.loadStratumAnnotationImage(
+        detail,
+        detail.annotations[0],
+        23119,
+        () => Promise.resolve(response),
       ),
     );
   }
+});
+
+test("Stratum distinguishes an unavailable annotation from a missing Zotero plugin", async () => {
   const detail = fixture();
-  detail.item.citationKey = null;
-  assert.equal(
-    (
-      await bbt.loadBetterBibtexImagePaths(detail, 23119, () => {
-        assert.fail("No request expected");
-      })
-    ).size,
-    0,
+  await assert.rejects(
+    stratum.loadStratumAnnotationImage(
+      detail,
+      detail.annotations[0],
+      23119,
+      () =>
+        Promise.resolve({
+          status: 409,
+          json: { error: { code: "image_unavailable" } },
+        }),
+    ),
+    stratum.StratumAnnotationItemError,
+  );
+  await assert.rejects(
+    stratum.loadStratumAnnotationImage(
+      detail,
+      detail.annotations[0],
+      23119,
+      () => Promise.resolve({ status: 404, json: null }),
+    ),
+    /HTTP 404/,
   );
 });
+
+test("image connection diagnostics exclude raw errors and private paths", async () => {
+  const detail = fixture();
+  for (const code of ["ECONNREFUSED", "UNKNOWN"]) {
+    await assert.rejects(
+      stratum.loadStratumAnnotationImage(
+        detail,
+        detail.annotations[0],
+        23119,
+        () =>
+          Promise.reject(
+            Object.assign(new Error("Private title at /private/example"), {
+              code,
+            }),
+          ),
+      ),
+      (error: unknown) => {
+        assert.ok(error instanceof stratum.StratumAnnotationError);
+        assert.doesNotMatch(error.message, /Private|\/private/);
+        assert.match(
+          error.message,
+          code === "ECONNREFUSED" ? /Connection refused/ : /Could not send/,
+        );
+        return true;
+      },
+    );
+  }
+});
+
 test("image paths validate the clipping key and reject traversal", () => {
   const detail = fixture();
   const name = annotationImageName(detail, "IMGD1234");
@@ -296,39 +318,6 @@ test("image paths validate the clipping key and reject traversal", () => {
     undefined,
   );
 });
-test("PNG reads are constrained to the expected cache file and reject symlinks and invalid bytes", async () => {
-  const folder = await mkdtemp(join(tmpdir(), "stratum-image-test-"));
-  try {
-    await mkdir(join(folder, "cache/library"), { recursive: true });
-    const file = join(folder, "cache/library/IMGD1234.png");
-    const png = Buffer.alloc(24);
-    png.set([137, 80, 78, 71, 13, 10, 26, 10]);
-    png.write("IHDR", 12);
-    await writeFile(file, png);
-    const params = {
-      dataDir: folder,
-      sourcePath: file,
-      libraryType: "user" as const,
-      libraryId: "1",
-      key: "IMGD1234",
-    };
-    assert.equal((await read.readAnnotationPng(params)).byteLength, 24);
-    await writeFile(file, Buffer.alloc(24));
-    await assert.rejects(read.readAnnotationPng(params), /PNG/);
-    const outside = join(folder, "other.png");
-    await writeFile(outside, png);
-    await assert.rejects(
-      read.readAnnotationPng({ ...params, sourcePath: outside }),
-      /path/,
-    );
-    await rm(file);
-    await symlink(outside, file);
-    await assert.rejects(read.readAnnotationPng(params), /path/);
-  } finally {
-    await rm(folder, { recursive: true, force: true });
-  }
-});
-
 class FakeFile {
   stat = { size: 1 };
   constructor(public path: string) {}
@@ -336,6 +325,8 @@ class FakeFile {
 function importer(
   options: {
     unavailable?: boolean;
+    identityMismatch?: boolean;
+    unsafeFailure?: boolean;
     owned?: boolean;
     collision?: boolean;
     mobile?: boolean;
@@ -422,20 +413,24 @@ function importer(
     },
     "node",
     {
-      "./better-bibtex-images": {
-        BetterBibtexItemError: class extends Error {},
-        loadBetterBibtexImagePaths: () => {
+      "./stratum-zotero-images": {
+        StratumAnnotationItemError: stratum.StratumAnnotationItemError,
+        StratumAnnotationError: stratum.StratumAnnotationError,
+        loadStratumAnnotationImage: () => {
           requests++;
           if (options.unavailable)
-            return Promise.reject(new Error("Missing BBT"));
+            return Promise.reject(
+              new stratum.StratumAnnotationError(
+                "Stratum Zotero image endpoint returned HTTP 404.",
+              ),
+            );
+          if (options.unsafeFailure)
+            return Promise.reject(
+              new Error("Private source title at /private/example"),
+            );
           if (options.changeSettings) plugin.settings.notesFolder = "Changed";
           if (options.changeAccount)
             plugin.settings.accountId = "another-account";
-          return Promise.resolve(new Map([["IMGD1234", "/synthetic"]]));
-        },
-      },
-      "./annotation-image-file": {
-        readAnnotationPng: () => {
           if (options.revokeOwnership)
             old.zotero_item_identity = "user/1/OTHER123";
           return Promise.resolve(new Uint8Array([1, 2, 3]).buffer);
@@ -451,7 +446,7 @@ function importer(
         loadLocalZoteroLibraries: () =>
           options.identityHangs
             ? new Promise(() => {})
-            : Promise.resolve({ userId: "1" }),
+            : Promise.resolve({ userId: options.identityMismatch ? "2" : "1" }),
       },
     },
   );
@@ -548,7 +543,7 @@ test("an account switch cancels image writes even when the same library remains 
   assert.equal(f.writes, 0);
 });
 
-test("ownership is checked again after reading the source PNG", async () => {
+test("ownership is checked again after fetching the source PNG", async () => {
   const f = importer({ owned: true, revokeOwnership: true });
   await f.runtime.importAnnotationImages(f.plugin, f.detail, f.existing);
   assert.equal(f.writes, 0);
@@ -602,7 +597,7 @@ test("assigned names survive title changes and recreation of a deleted image", a
   assert.equal(result.annotations[0].imagePath, f.destination);
   assert.equal(f.writes, 1);
 });
-test("missing BBT preserves old images, caches failure, and aggregates a single summary", async () => {
+test("missing Stratum preserves old images, caches failure, and aggregates a single summary", async () => {
   const f = importer({ unavailable: true, owned: true });
   for (let i = 0; i < 2; i++) {
     const result = await f.runtime.importAnnotationImages(
@@ -616,7 +611,12 @@ test("missing BBT preserves old images, caches failure, and aggregates a single 
   assert.equal(f.requests, 1);
   assert.equal(f.writes, 0);
   assert.equal(f.folders, 0);
-  assert.match(f.runtime.annotationImageSyncSummary(f.plugin), /1 area image/);
+  const summary = f.runtime.annotationImageSyncSummary(f.plugin);
+  assert.match(summary, /1 area image/);
+  assert.match(
+    summary,
+    /Details: Stratum Zotero image endpoint returned HTTP 404/,
+  );
   assert.equal(f.runtime.annotationImageSyncSummary(f.plugin), "");
 });
 test("mobile falls back without disk writes", async () => {
@@ -634,6 +634,29 @@ test("mobile falls back without disk writes", async () => {
   }
 });
 
+test("sync diagnostics distinguish account mismatch and redact unexpected failures", async () => {
+  const mismatch = importer({ identityMismatch: true });
+  await mismatch.runtime.importAnnotationImages(
+    mismatch.plugin,
+    mismatch.detail,
+    null,
+  );
+  assert.equal(mismatch.requests, 0);
+  assert.match(
+    mismatch.runtime.annotationImageSyncSummary(mismatch.plugin),
+    /account does not match/,
+  );
+  const unknown = importer({ unsafeFailure: true });
+  await unknown.runtime.importAnnotationImages(
+    unknown.plugin,
+    unknown.detail,
+    null,
+  );
+  const summary = unknown.runtime.annotationImageSyncSummary(unknown.plugin);
+  assert.match(summary, /Could not save/);
+  assert.doesNotMatch(summary, /Private|\/private/);
+});
+
 test("owned images can update and group libraries cannot use personal attachments", async () => {
   const f = importer({ owned: true });
   const result = await f.runtime.importAnnotationImages(
@@ -646,21 +669,27 @@ test("owned images can update and group libraries cannot use personal attachment
   const detail = fixture();
   detail.library.type = "group";
   detail.library.id = "2";
-  assert.equal(
-    (
-      await bbt.loadBetterBibtexImagePaths(detail, 23119, () =>
-        Promise.resolve(response()),
-      )
-    ).size,
-    0,
+  await assert.rejects(
+    stratum.loadStratumAnnotationImage(
+      detail,
+      detail.annotations[0],
+      23119,
+      () => Promise.resolve(imageResponse()),
+    ),
+    /identity/,
   );
+  const response = imageResponse();
+  response.json.library = { type: "group", id: "2" };
   assert.equal(
     (
-      await bbt.loadBetterBibtexImagePaths(detail, 23119, () =>
-        Promise.resolve(response("zotero://open-pdf/groups/2/items/PDFD1234")),
+      await stratum.loadStratumAnnotationImage(
+        detail,
+        detail.annotations[0],
+        23119,
+        () => Promise.resolve(response),
       )
-    ).size,
-    1,
+    ).byteLength,
+    24,
   );
 });
 test("managed image embeds survive enrichment refresh while My Notes stays untouched", () => {

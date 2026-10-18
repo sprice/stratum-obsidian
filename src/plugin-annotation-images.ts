@@ -1,11 +1,11 @@
-import { Platform, TFile, Notice, parseYaml, normalizePath } from "obsidian";
+import { Platform, TFile, parseYaml, normalizePath } from "obsidian";
 import type StratumPlugin from "./plugin";
 import type { ZoteroItemDetail } from "./backend-types";
 import {
-  loadBetterBibtexImagePaths,
-  BetterBibtexItemError,
-} from "./better-bibtex-images";
-import { readAnnotationPng } from "./annotation-image-file";
+  loadStratumAnnotationImage,
+  StratumAnnotationItemError,
+  StratumAnnotationError,
+} from "./stratum-zotero-images";
 import { validAnnotationImagePath } from "./annotation-image-paths";
 import { annotationImageDestination } from "./annotation-image-destination";
 import { ensureFolder } from "./literature-note-files";
@@ -20,9 +20,9 @@ const states = new WeakMap<
     unavailableUntil: number;
     port: number;
     pending: Set<string>;
+    failures: Set<string>;
     userId: string | null;
     checkedAt: number;
-    lastNotice: number;
   }
 >();
 function stateFor(plugin: StratumPlugin) {
@@ -32,29 +32,32 @@ function stateFor(plugin: StratumPlugin) {
       unavailableUntil: 0,
       port: plugin.settings.zoteroLocalApiPort,
       pending: new Set(),
+      failures: new Set(),
       userId: null,
       checkedAt: 0,
-      lastNotice: 0,
     };
     states.set(plugin, state);
   }
   return state;
 }
 
-/** A user-triggered bulk sync retries immediately after installing BBT. */
+/** A user-triggered bulk sync retries immediately after installing Stratum in Zotero. */
 export function beginAnnotationImageSync(plugin: StratumPlugin): void {
   const state = stateFor(plugin);
   state.unavailableUntil = 0;
   state.checkedAt = 0;
   state.pending.clear();
+  state.failures.clear();
 }
 
 export function annotationImageSyncSummary(plugin: StratumPlugin): string {
   const state = states.get(plugin);
   const count = state?.pending.size ?? 0;
   state?.pending.clear();
+  const reasons = [...(state?.failures ?? [])].join(" ");
+  state?.failures.clear();
   return count
-    ? ` ${count} area image${count === 1 ? "" : "s"} could not be imported or refreshed; comments and Zotero links were preserved. For images, keep Zotero running with Better BibTeX installed and the source PDF available, then sync again.`
+    ? ` ${count} area image${count === 1 ? "" : "s"} could not be imported or refreshed; comments and Zotero links were preserved. For images, keep Zotero running with Stratum installed and the source PDF available, then sync again.${reasons ? ` Details: ${reasons}` : ""}`
     : "";
 }
 
@@ -65,8 +68,7 @@ export async function importAnnotationImages(
 ): Promise<ZoteroItemDetail> {
   const images = detail.annotations.filter((a) => a.type === "image");
   if (!images.length) return detail;
-  const { notesFolder, zoteroDataDir, zoteroLocalApiPort, accountId } =
-    plugin.settings;
+  const { notesFolder, zoteroLocalApiPort, accountId } = plugin.settings;
   const state = stateFor(plugin);
   const frontmatter = existingFile
     ? splitFrontmatterContent(
@@ -92,13 +94,12 @@ export async function importAnnotationImages(
     !plugin.isUnloaded &&
     plugin.settings.accountId === accountId &&
     plugin.settings.notesFolder === notesFolder &&
-    plugin.settings.zoteroDataDir === zoteroDataDir &&
     plugin.settings.zoteroLocalApiPort === zoteroLocalApiPort &&
     plugin.backend.hasSession() &&
     plugin.settings.enabledLibraries.some(
       (l) => l.type === detail.library.type && l.id === detail.library.id,
     );
-  let sources = new Map<string, string>();
+  let canFetch = false;
   if (
     Platform.isDesktopApp &&
     Date.now() >= state.unavailableUntil &&
@@ -114,9 +115,14 @@ export async function importAnnotationImages(
         state.checkedAt = Date.now();
       }
       if (detail.library.type !== "user" || state.userId === detail.library.id)
-        sources = await loadBetterBibtexImagePaths(detail, state.port);
+        canFetch = true;
+      else
+        state.failures.add(
+          "The local Zotero account does not match this library.",
+        );
     } catch (error) {
-      if (!(error instanceof BetterBibtexItemError))
+      state.failures.add("The local Zotero library identity check failed.");
+      if (!(error instanceof StratumAnnotationItemError))
         state.unavailableUntil = Date.now() + 60_000;
     }
   }
@@ -144,14 +150,17 @@ export async function importAnnotationImages(
         prior,
         folder,
       });
-      const sourcePath = sources.get(annotation.key);
-      if (sourcePath && Platform.isDesktopApp && active()) {
-        const bytes = await readAnnotationPng({
-          dataDir: zoteroDataDir,
-          sourcePath,
-          libraryType: detail.library.type,
-          libraryId: detail.library.id,
-          key: annotation.key,
+      if (canFetch && Platform.isDesktopApp && active()) {
+        const bytes = await loadStratumAnnotationImage(
+          detail,
+          annotation,
+          state.port,
+        ).catch((error: unknown) => {
+          if (!(error instanceof StratumAnnotationItemError)) {
+            state.unavailableUntil = Date.now() + 60_000;
+            canFetch = false;
+          }
+          throw error;
         });
         if (!validAnnotationImagePath(detail, annotation.key, destination))
           throw new Error("Invalid attachment destination.");
@@ -205,7 +214,12 @@ export async function importAnnotationImages(
         imagePath = destination;
         imported = true;
       }
-    } catch {
+    } catch (error) {
+      state.failures.add(
+        error instanceof StratumAnnotationError
+          ? error.message
+          : "Could not save the annotation image in the vault.",
+      );
       /* Image failures never prevent text sync or discard a previous embed. */
     }
     if (!imported) state.pending.add(identity);
@@ -214,20 +228,8 @@ export async function importAnnotationImages(
       ...annotation,
       imagePath,
       imageMissing: !imagePath,
-      imageUnavailable: !imagePath
-        ? "Area image unavailable. Sync on desktop with Zotero running, Better BibTeX installed, a citation key, and the source PDF available."
-        : undefined,
+      imageUnavailable: !imagePath ? "Area image unavailable." : undefined,
     });
-  }
-  // Bulk sync records one aggregate warning in its inline completion status.
-  if (
-    !plugin.bulkLibrarySyncRunPromise &&
-    state.pending.size &&
-    Date.now() - state.lastNotice > 60_000 &&
-    active()
-  ) {
-    state.lastNotice = Date.now();
-    new Notice(`Stratum:${annotationImageSyncSummary(plugin)}`);
   }
   return { ...detail, annotations };
 }

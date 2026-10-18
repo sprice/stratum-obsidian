@@ -38,7 +38,11 @@ import {
   type ViewStateResult,
   parseLinktext,
 } from "obsidian";
-import { PLUGIN_NAME, VIEW_TYPE_STRATUM } from "./constants";
+import {
+  PLUGIN_NAME,
+  VIEW_TYPE_STRATUM,
+  ZOTERO_PLUGIN_DOWNLOAD_URL,
+} from "./constants";
 import {
   buildLiteratureNoteEntries,
   type LiteratureNoteEntry,
@@ -1242,6 +1246,9 @@ export class StratumView extends ItemView {
     this.renderNoteTemplateButton(actions);
 
     const statusContainer = syncSection.createDiv();
+    const imageWarningContainer = syncSection.createDiv({
+      cls: "stratum-meta",
+    });
     let reportKey = "";
     const refresh = () => {
       this.clearBulkSyncStatusTimers();
@@ -1315,6 +1322,25 @@ export class StratumView extends ItemView {
             });
           }
         }
+      }
+      imageWarningContainer.empty();
+      imageWarningContainer.hidden =
+        !scopedBulkSyncState.annotationImageWarning;
+      if (scopedBulkSyncState.annotationImageWarning) {
+        imageWarningContainer.createEl("p", {
+          text: "Some annotation images weren’t imported. The Zotero plugin is optional and adds image sync; notes and text annotations sync without it.",
+          attr: { title: scopedBulkSyncState.annotationImageWarning },
+        });
+        const downloadButton = createStratumButton(imageWarningContainer, {
+          text: "Get Stratum for Zotero",
+        });
+        downloadButton.addEventListener("click", () => {
+          window.open(
+            ZOTERO_PLUGIN_DOWNLOAD_URL,
+            "_blank",
+            "noopener,noreferrer",
+          );
+        });
       }
       statusContainer.empty();
       const scopedNounPhrase = scopedCollectionName
