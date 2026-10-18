@@ -12,12 +12,7 @@ import {
   publicationMathPreamble,
 } from "./publish-math-compat";
 import type { PublishFormat } from "./publish-model";
-import type { aastexManuscript } from "./publication-package";
-import {
-  readAastexPdfOptions,
-  type AastexPdfOptions,
-} from "./publication-options";
-import { normalizeAastexPandocHeadings } from "./publication-headings";
+import type { JournalPublication } from "./publication-render";
 export interface PublishAsset {
   name: string;
   bytes: ArrayBuffer;
@@ -26,14 +21,6 @@ interface PublishTools {
   bibliographyCache?: BibliographyCache;
   pandoc: string;
   tectonic: string;
-}
-interface AastexExportInput {
-  journal?: import("./journal-profiles").JournalProfile;
-  manuscript: ReturnType<typeof aastexManuscript>;
-  abstractHtml: string;
-  references: import("./csl-data").CslItem[];
-  options?: AastexPdfOptions;
-  headingIssues?: string[];
 }
 export interface ToolStatus {
   path: string;
@@ -443,14 +430,14 @@ export async function convertPublication(
   signal?: AbortSignal,
   timeout = 120_000,
   layout?: PublishOptions,
-  aastex?: AastexExportInput,
+  journalInput?: JournalPublication,
 ): Promise<ArrayBuffer> {
-  if (aastex)
-    return convertAastexPublication(
+  if (journalInput)
+    return convertJournalPublication(
       html,
       assets,
       tools,
-      aastex,
+      journalInput,
       signal,
       timeout,
     );
@@ -584,14 +571,14 @@ export async function convertPublication(
   }
 }
 
-export const aastexFilter =
+export const journalFilter =
   publicationMathFilter +
   `
 function Span(el)
   -- The HTML reader removes the data- prefix from custom attributes.
-  if el.classes:includes('stratum-aastex-citation') then
+  if el.classes:includes('stratum-publication-citation') then
     local tex = el.attributes['tex'] or el.attributes['data-tex']
-    if not tex then error('An AASTeX citation lost its structured data during conversion.') end
+    if not tex then error('A journal citation lost its structured data during conversion.') end
     return pandoc.RawInline('latex', tex)
   end
 end
@@ -611,7 +598,7 @@ function Table(el)
   local function add(row)
     local cells = {}
     for index, cell in ipairs(row.cells) do
-      if cell.col_span ~= 1 or cell.row_span ~= 1 then error('Merged table cells are not supported by the AASTeX template yet.') end
+      if cell.col_span ~= 1 or cell.row_span ~= 1 then error('Merged table cells are not supported by journal templates yet.') end
       local content = latex(cell.contents)
       if cell.alignment ~= pandoc.AlignDefault and alignment(cell.alignment) ~= alignments[index] then
         content = '\\\\multicolumn{1}{' .. alignment(cell.alignment) .. '}{' .. content .. '}'
@@ -632,14 +619,14 @@ function Table(el)
   elseif el.caption.short then
     caption = '\\\\caption{' .. latex({pandoc.Plain(el.caption.short)}) .. '}\\n'
   end
-  if #alignments ~= cols then error('The AASTeX table has inconsistent column definitions.') end
+  if #alignments ~= cols then error('The journal table has inconsistent column definitions.') end
   return pandoc.RawBlock('latex', '\\\\begin{table}[ht]\\n\\\\centering\\n' .. caption .. '\\\\begin{tabular}{' .. table.concat(alignments) .. '}\\n\\\\hline\\n' .. table.concat(rows, '\\n') .. '\\n\\\\hline\\n\\\\end{tabular}\\n\\\\end{table}')
 end
 `;
 
 // Let the installed Pandoc provide its complete highlighting definitions.
 // Discover requirements before Table replaces cell contents with raw LaTeX.
-export const aastexPreambleTemplate = String.raw`$highlighting-macros$
+export const journalPreambleTemplate = String.raw`$highlighting-macros$
 $if(verbatim-in-note)$
 \usepackage{fancyvrb}
 \VerbatimFootnotes
@@ -859,17 +846,18 @@ export async function downloadPublicationResource(
     download(specification.url);
   });
 }
-async function convertAastexPublication(
+async function convertJournalPublication(
   html: string,
   assets: PublishAsset[],
   tools: PublishTools,
-  input: AastexExportInput,
+  input: JournalPublication,
   signal?: AbortSignal,
   timeout = 120_000,
 ): Promise<ArrayBuffer> {
   const { fs, path, os } = modules();
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "stratum-aastex-"));
-  const options = readAastexPdfOptions(input.options);
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), "stratum-journal-"),
+  );
   try {
     const journal = input.journal;
     if (!journal?.installation)
@@ -895,17 +883,17 @@ async function convertAastexPublication(
         });
     }
     await fs.writeFile(
-      path.join(directory, "aastex.lua"),
+      path.join(directory, "journal.lua"),
       journal.installation.adapter.documentClass === "mnras"
-        ? aastexFilter.replace("table}[ht]", "table}")
-        : aastexFilter,
+        ? journalFilter.replace("table}[ht]", "table}")
+        : journalFilter,
       {
         mode: 0o600,
       },
     );
     await fs.writeFile(
       path.join(directory, "preamble.latex"),
-      aastexPreambleTemplate,
+      journalPreambleTemplate,
       { mode: 0o600 },
     );
     await fs.writeFile(
@@ -941,40 +929,13 @@ async function convertAastexPublication(
       await fs.writeFile(path.join(directory, `${name}.html`), content, {
         mode: 0o600,
       });
-      const normalize = name === "body" && options.numberedHeadings;
-      if (normalize) {
-        await runPublishTool(
-          tools.pandoc,
-          [
-            "body.html",
-            "--from=html+epub_html_exts+tex_math_single_backslash",
-            "--to=json",
-            "--output=body.json",
-          ],
-          { cwd: directory, signal, timeout },
-        );
-        const document: unknown = JSON.parse(
-          new TextDecoder().decode(
-            await fs.readFile(path.join(directory, "body.json")),
-          ),
-        );
-        const issues = normalizeAastexPandocHeadings(document);
-        input.headingIssues?.splice(0, input.headingIssues.length, ...issues);
-        await fs.writeFile(
-          path.join(directory, "body.json"),
-          JSON.stringify(document),
-          { mode: 0o600 },
-        );
-      }
       await runPublishTool(
         tools.pandoc,
         [
-          `${name}.${normalize ? "json" : "html"}`,
-          normalize
-            ? "--from=json"
-            : "--from=html+epub_html_exts+tex_math_single_backslash",
+          `${name}.html`,
+          "--from=html+epub_html_exts+tex_math_single_backslash",
           "--to=latex",
-          "--lua-filter=aastex.lua",
+          "--lua-filter=journal.lua",
           "--resource-path=.",
           "--output",
           `${name}.tex`,
@@ -1027,18 +988,15 @@ async function convertAastexPublication(
     try {
       log = await decode("document.log");
     } catch (error) {
-      if (
-        !journal ||
-        !(
-          error &&
-          typeof error === "object" &&
-          "code" in error &&
-          error.code === "ENOENT"
-        )
-      )
+      if (!(
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ))
         throw error;
     }
-    if (journal && input.references.length) {
+    if (input.references.length) {
       const aux = await decode("document.aux");
       for (const reference of input.references)
         if (!aux.includes(`\\bibcite{${reference.id}}`))
@@ -1052,12 +1010,12 @@ async function convertAastexPublication(
       )
     )
       throw new Error(
-        `${journal?.name ?? "AASTeX"} could not resolve the manuscript bibliography. Review citation data and try again.`,
+        `${journal.name} could not resolve the manuscript bibliography. Review citation data and try again.`,
       );
     const bytes = await fs.readFile(path.join(directory, "document.pdf"));
 
     if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-")
-      throw new Error("AASTeX did not produce a valid PDF.");
+      throw new Error(`${journal.name} did not produce a valid PDF.`);
     return Uint8Array.from(bytes).buffer;
   } finally {
     await fs.rm(directory, { recursive: true, force: true });

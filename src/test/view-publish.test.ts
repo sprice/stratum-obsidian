@@ -8,7 +8,7 @@ import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
 import { readNotePreferences } from "../publish-options";
 import { readPublishingTemplates } from "../publish-templates";
-import { AASTEX_TEMPLATE } from "./publication-template-fixture";
+import { INSTALLED_TEMPLATE } from "./publication-template-fixture";
 import type { PublishedDocument } from "../publish-model";
 
 class Element {
@@ -107,7 +107,10 @@ function setup(state?: import("../view-publish").PublishViewState) {
     },
     get publishingTemplates() {
       const stored = readPublishingTemplates(undefined);
-      return { ...stored, templates: [...stored.templates, AASTEX_TEMPLATE] };
+      return {
+        ...stored,
+        templates: [...stored.templates, INSTALLED_TEMPLATE],
+      };
     },
     notePreferences: readNotePreferences({ templateId: "general" }),
     get layout() {
@@ -413,7 +416,7 @@ test("secondary selection and Documents state survive panel remounts", () => {
 
 test("one note Settings entry replaces scattered controls for all three templates", () => {
   const { root, publish, settingsCalls, update } = setup();
-  for (const templateId of ["general", "academic", "package:aastex"]) {
+  for (const templateId of ["general", "academic", "registry:example:1.0-r1"]) {
     publish.notePreferences.templateId = templateId;
     update();
     const controls = root
@@ -633,14 +636,14 @@ test("controller updates keep template and version options until their choices c
       )!;
   const template = select("Choose template");
   const version = select("Choose template version");
-  publish.notePreferences.templateId = "package:aastex";
+  publish.notePreferences.templateId = "registry:example:1.0-r1";
   update();
   const templateOptions = [...template.children];
   const versionOptions = [...version.children];
-  assert.equal(template.value, "package:aastex");
+  assert.equal(template.value, "registry:example");
   assert.deepEqual(
     versionOptions.map((option) => option.value),
-    ["package:aastex"],
+    ["registry:example:1.0-r1"],
   );
   update();
   update();
@@ -655,16 +658,16 @@ test("controller updates keep template and version options until their choices c
     "unchanged versions keep their option elements",
   );
   const older = {
-    ...AASTEX_TEMPLATE,
-    id: "package:aastex-synthetic-older",
-    version: { familyId: "package:aastex", label: "Synthetic older" },
+    ...INSTALLED_TEMPLATE,
+    id: "registry:example:0.9-r1",
+    version: { familyId: "registry:example", label: "Synthetic older" },
   };
   Object.defineProperty(publish, "publishingTemplates", {
     get() {
       const stored = readPublishingTemplates(undefined);
       return {
         ...stored,
-        templates: [...stored.templates, AASTEX_TEMPLATE, older],
+        templates: [...stored.templates, INSTALLED_TEMPLATE, older],
       };
     },
   });
@@ -672,9 +675,9 @@ test("controller updates keep template and version options until their choices c
   assert.equal(template.children[3], templateOptions[3]);
   assert.deepEqual(
     version.children.map((option) => option.text),
-    [AASTEX_TEMPLATE.version.label, "Synthetic older"],
+    [INSTALLED_TEMPLATE.version.label, "Synthetic older"],
   );
-  assert.equal(version.value, "package:aastex");
+  assert.equal(version.value, "registry:example:1.0-r1");
   publish.notePreferences.templateId = "general";
   update();
   assert.equal(template.value, "general");

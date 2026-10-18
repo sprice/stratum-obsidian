@@ -163,12 +163,12 @@ test("ACM retains extra affiliations and supplied publication metadata", () => {
 
 test("anonymous ACM omits author identities and does not require author metadata", () => {
   const profile = installedProfile("acmart", "acmart");
-  profile.installation!.adapter.classOptions = [
+  profile.installation.adapter.classOptions = [
     "manuscript",
     "review",
     "anonymous",
   ];
-  const anonymous = installedJournalProfile(profile.installation!);
+  const anonymous = installedJournalProfile(profile.installation);
   assert.equal(anonymous.anonymous, true);
   const { manuscript } = journalProblems(source, "body", anonymous);
   const tex = journalLatex(anonymous, manuscript, "Body", "Abstract", false);

@@ -1,10 +1,10 @@
+import { readPublicationPackageReference } from "../publication-options";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_AASTEX_PDF_OPTIONS,
   readAastexPdfOptions,
-  readPublicationPackageReference,
-} from "../publication-options";
+} from "../publication-legacy";
 import { readNotePreferences } from "../publish-options";
 test("legacy AASTeX notes keep on/on/off defaults and accept valid per-note options", () => {
   assert.deepEqual(

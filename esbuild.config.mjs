@@ -1,6 +1,5 @@
 import esbuild from "esbuild";
 import { scorecardBundlePlugin } from "./scripts/scorecard-bundle.mjs";
-import { generatePublicationAssets } from "./scripts/publication-assets.mjs";
 import { readFileSync } from "node:fs";
 import process from "process";
 import { builtinModules } from "node:module";
@@ -15,7 +14,6 @@ const notices = [
   "./THIRD_PARTY_NOTICES.md",
   "./licenses/citeproc.txt",
   "./licenses/yaml.txt",
-  "./src/publication-templates/aastex/licenses/NOTICE.txt",
 ]
   .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
   .join("\n\n")
@@ -62,33 +60,11 @@ const supabasePublishableKey =
 const apiBaseUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1`;
 const debugLogging = process.env.STRATUM_DEBUG === "true";
 
-// Create the import target before esbuild resolves it in a clean checkout.
-await generatePublicationAssets();
-
 const context = await esbuild.context({
   banner: {
     js: banner,
   },
-  plugins: [
-    scorecardBundlePlugin(),
-    {
-      name: "publication-assets",
-      setup(build) {
-        build.onLoad(
-          { filter: /publication-templates[\\/]aastex[\\/]files\.json$/ },
-          async () => {
-            const result = await generatePublicationAssets();
-            return {
-              contents: result.contents,
-              loader: "json",
-              watchFiles: result.paths,
-              watchDirs: result.directories,
-            };
-          },
-        );
-      },
-    },
-  ],
+  plugins: [scorecardBundlePlugin()],
   entryPoints: ["src/main.ts"],
   bundle: true,
   external: [

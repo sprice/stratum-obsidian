@@ -1,11 +1,11 @@
 import { citationDocument } from "./citation-document";
 import { escapeHtml } from "./citation-display";
-import { escapeLatex } from "./publication-package";
+import { escapeLatex } from "./publication-manuscript";
 import type { CslItem } from "./csl-data";
 import type { FormattedDocument } from "./citation-format";
 import type { CitationDraft } from "./citation-model";
 
-export function aastexCitationKeys(text: string): string[] {
+export function publicationCitationKeys(text: string): string[] {
   const model = citationDocument(text, false);
   if (model.problems.length) throw new Error(model.problems.join("\n"));
   return [
@@ -17,7 +17,7 @@ export function aastexCitationKeys(text: string): string[] {
   ];
 }
 /** Safe local BibTeX IDs keep Zotero identities and user citekeys out of TeX commands. */
-export function aastexReferences(
+export function publicationReferences(
   keys: string[],
   references: CslItem[],
 ): { references: CslItem[]; ids: Map<string, string> } {
@@ -31,7 +31,7 @@ export function aastexReferences(
     })),
   };
 }
-export function aastexCitation(
+export function publicationCitation(
   draft: CitationDraft,
   ids: Map<string, string>,
 ): string {
@@ -73,7 +73,7 @@ export function aastexCitation(
       .join(",")}}`;
   return `(${draft.items.map((item) => command(item, item.suppressAuthor ? "citeyear" : "citealp")).join("; ")})`;
 }
-export function aastexFormattedDocument(
+export function publicationFormattedDocument(
   text: string,
   ids: Map<string, string>,
 ): FormattedDocument {
@@ -83,7 +83,7 @@ export function aastexFormattedDocument(
     model,
     citations: model.citations.map(
       (citation) =>
-        `<span class="stratum-aastex-citation" data-tex="${escapeHtml(aastexCitation(citation.draft, ids))}">Citation</span>`,
+        `<span class="stratum-publication-citation" data-tex="${escapeHtml(publicationCitation(citation.draft, ids))}">Citation</span>`,
     ),
     narrativeAuthors: model.citations.map(() => ""),
     bibliography: "",
@@ -99,15 +99,17 @@ export function journalFormattedDocument(
   numeric: boolean,
 ): FormattedDocument {
   if (!numeric) {
-    const formatted = aastexFormattedDocument(text, ids);
+    const formatted = publicationFormattedDocument(text, ids);
     formatted.citations = formatted.model.citations.map(({ draft }) => {
       const tex =
         draft.narrative && draft.items.length > 1
           ? draft.items
-              .map((item) => aastexCitation({ ...draft, items: [item] }, ids))
+              .map((item) =>
+                publicationCitation({ ...draft, items: [item] }, ids),
+              )
               .join("; ")
-          : aastexCitation(draft, ids);
-      return `<span class="stratum-aastex-citation" data-tex="${escapeHtml(tex)}">Citation</span>`;
+          : publicationCitation(draft, ids);
+      return `<span class="stratum-publication-citation" data-tex="${escapeHtml(tex)}">Citation</span>`;
     });
     return formatted;
   }
@@ -179,7 +181,7 @@ export function journalFormattedDocument(
             })
             .join(",")}}`
         : draft.items.map(command).join("; ");
-      return `<span class="stratum-aastex-citation" data-tex="${escapeHtml(tex)}">Citation</span>`;
+      return `<span class="stratum-publication-citation" data-tex="${escapeHtml(tex)}">Citation</span>`;
     }),
   };
 }

@@ -144,7 +144,6 @@ export class PublicationEditor extends Component {
     file: TFile,
     ctime: number,
     layout: PublishOptions,
-    aastex: boolean,
   ): void {
     const view = this.editableView(file);
     if (!this.alive || !view || file.stat.ctime !== ctime)
@@ -158,7 +157,7 @@ export class PublicationEditor extends Component {
     if (this.editableView(file) !== view || file.stat.ctime !== ctime)
       throw new Error("The original note is no longer editable.");
     const text = view.state.doc.toString();
-    const change = cleanupPublicationProperties(text, layout, aastex);
+    const change = cleanupPublicationProperties(text, layout);
     if (change.from === change.to && !change.insert) return;
     this.applyChange(view, file.path, change);
     this.refresh();
@@ -228,12 +227,7 @@ export class PublicationEditor extends Component {
       );
     return changePublicationAuthors(text, draft.operation);
   }
-  cleanupChanges(
-    file: TFile,
-    ctime: number,
-    layout: PublishOptions,
-    aastex: boolean,
-  ): boolean {
+  cleanupChanges(file: TFile, ctime: number, layout: PublishOptions): boolean {
     try {
       const view = this.editableView(file);
       if (!this.alive || !view || file.stat.ctime !== ctime) return false;
@@ -260,7 +254,7 @@ export class PublicationEditor extends Component {
           return false;
         project(this.propertyChange(text, key, draft));
       }
-      const change = cleanupPublicationProperties(text, layout, aastex);
+      const change = cleanupPublicationProperties(text, layout);
       return change.from !== change.to || !!change.insert;
     } catch {
       return false;
@@ -639,7 +633,13 @@ export class PublicationForm {
         "aria-label": label,
         "aria-required": String(
           this.service.plugin.publish?.document?.path === this.path &&
-            this.service.plugin.publish.selectedTemplate?.renderer === "aastex",
+            !!this.service.plugin.publish.journalProfile &&
+            !this.service.plugin.publish.journalProfile.anonymous &&
+            (key.endsWith(":name") ||
+              key.includes(":affiliation:") ||
+              (this.service.plugin.publish.journalProfile.installation.adapter
+                .frontMatter === "acmart" &&
+                /:(institution|city|country)$/.test(key))),
         ),
       },
     });
@@ -797,16 +797,7 @@ export class PublicationForm {
         text: "Authors are saved in this note. Each author can have several affiliations.",
         cls: "stratum-publication-help",
       });
-      const aastex =
-        this.service.plugin.publish?.document?.path === this.path &&
-        this.service.plugin.publish?.selectedTemplate?.renderer === "aastex";
-      if (aastex)
-        this.element.createEl("p", {
-          text: "For PDF, each author needs a name, email and affiliation. Emails are supplied to the class without being printed.",
-          cls: "stratum-publication-help",
-        });
       if (
-        !aastex &&
         !publish?.journalProfile &&
         publish?.selectedTemplate?.documentType === "academic"
       )

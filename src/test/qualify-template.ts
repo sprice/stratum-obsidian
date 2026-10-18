@@ -9,7 +9,7 @@ import {
   type TemplateInstallation,
 } from "../publication-installation";
 import { installedJournalProfile } from "../publication-installed-templates";
-import { aastexManuscript } from "../publication-package";
+import { publicationManuscript } from "../publication-manuscript";
 import { mathjaxParityExamples } from "./fixtures/mathjax-parity";
 import { loadRuntime } from "./runtime-harness";
 import type * as Desktop from "../publish-desktop";
@@ -93,7 +93,7 @@ export async function qualifyTemplateInstallation(
       },
       "browser",
     );
-    const manuscript = aastexManuscript(
+    const manuscript = publicationManuscript(
       `---\nstratum_publish:\n  authors:\n    - name: Registry Fixture\n      affiliations: [Synthetic Institute]\n      institution: Synthetic Institute\n      city: Example City\n      country: Example Country\n      email: fixture@example.org\n---\n# Synthetic qualification\n\n## Abstract\nSynthetic abstract.\n\n## Results\nSynthetic body.`,
       "body",
     );
@@ -107,7 +107,7 @@ export async function qualifyTemplateInstallation(
       )
       .join("");
     const bytes = await runtime.convertPublication(
-      '<h1>Results</h1><p>Synthetic citation <span class="stratum-aastex-citation" data-tex="\\cite{registryfixture}">[1]</span>.</p><p><span class="math inline">\\(x^2 + \\alpha\\)</span></p>' +
+      '<h1>Results</h1><p>Synthetic citation <span class="stratum-publication-citation" data-tex="\\cite{registryfixture}">[1]</span>.</p><p><span class="math inline">\\(x^2 + \\alpha\\)</span></p>' +
         mathHtml,
       [],
       "pdf",

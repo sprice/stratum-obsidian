@@ -7,13 +7,13 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { cssFindings, base64Findings } from "./scorecard-rules.mjs";
 
-test("scorecard type lint catches unsafe generated imports in unbuilt checkouts", async () => {
+test("scorecard type lint accepts typed imports and rejects unresolved imports", async () => {
   const { ESLint } = await import("eslint");
   const { default: tseslint } = await import("typescript-eslint");
   const { scorecardProgram } = await import("./scorecard-program.mjs");
   const root = await mkdtemp(join(tmpdir(), "stratum-scorecard-types-"));
   try {
-    await mkdir(join(root, "src/publication-templates/aastex"), {
+    await mkdir(join(root, "src/fixtures"), {
       recursive: true,
     });
     await writeFile(
@@ -29,10 +29,10 @@ test("scorecard type lint catches unsafe generated imports in unbuilt checkouts"
       }),
     );
     await writeFile(
-      join(root, "src/publication-templates/aastex/files.json"),
+      join(root, "src/fixtures/files.json"),
       '{"manifest.json":"synthetic"}',
     );
-    const source = `import files from "./publication-templates/aastex/files.json";
+    const source = `import files from "./fixtures/files.json";
 function typed(assets: Record<string, string>) { return assets; }
 function untrusted(assets: unknown) { return assets; }
 typed(files);
@@ -40,13 +40,14 @@ untrusted(files);
 `;
     const file = join(root, "src/example.ts");
     await writeFile(file, source);
-    for (const generatedAssets of [true, false]) {
-      const program = scorecardProgram(root, { generatedAssets });
+    for (const present of [true, false]) {
+      if (!present) await rm(join(root, "src/fixtures/files.json"));
+      const program = scorecardProgram(root);
       assert.equal(
         program
           .getSourceFiles()
-          .some((file) => file.fileName.endsWith("/aastex/files.json")),
-        generatedAssets,
+          .some((file) => file.fileName.endsWith("/fixtures/files.json")),
+        present,
       );
       const eslint = new ESLint({
         cwd: root,
@@ -65,14 +66,12 @@ untrusted(files);
       });
       const results = await eslint.lintFiles([file]);
       const messages = results.flatMap((result) => result.messages);
-      assert.equal(messages.length, generatedAssets ? 0 : 1);
-      if (!generatedAssets) {
-        assert.equal(
-          messages[0].ruleId,
-          "@typescript-eslint/no-unsafe-argument",
-        );
-        assert.equal(messages[0].line, 4);
-      }
+      assert.deepEqual(
+        messages.map(({ ruleId, line }) => ({ ruleId, line })),
+        present
+          ? []
+          : [{ ruleId: "@typescript-eslint/no-unsafe-argument", line: 4 }],
+      );
     }
   } finally {
     await rm(root, { recursive: true, force: true });

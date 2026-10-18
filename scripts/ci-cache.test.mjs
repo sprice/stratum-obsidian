@@ -58,7 +58,7 @@ async function fixture(t, name) {
   await put(directory, "src/example.ts", "export const value = 1;\n");
   await put(
     directory,
-    "src/publication-templates/aastex/example.cls",
+    "src/publication-installation-render.ts",
     "synthetic template\n",
   );
   await put(
@@ -144,7 +144,7 @@ for (const name of cachedTasks) {
       "scripts/helper.mjs",
       ".github/workflows/lint.yml",
       "pnpm-lock.yaml",
-      "src/publication-templates/aastex/example.cls",
+      "src/publication-installation-render.ts",
       ".prettierignore",
       ...(name === "ci:build"
         ? [
@@ -232,16 +232,15 @@ for (const name of cachedTasks) {
   });
 }
 
-test("preparation recreates assets on cache hits and records no private environment", async (t) => {
+test("preparation needs no generated assets on cache hits and records no private environment", async (t) => {
   const directory = await fixture(t, "ci:typecheck");
   const assets = join(directory, "src/publication-templates/aastex/files.json");
   await run(directory, "ci:typecheck");
-  await rm(assets);
   await prepareCiCache(directory, {
     ...preparationEnv,
     SYNTHETIC_SECRET: "never-record",
   });
-  assert.match(await readFile(assets, "utf8"), /synthetic template/);
+  await assert.rejects(readFile(assets), { code: "ENOENT" });
   assert.doesNotMatch(
     await readFile(join(directory, ".ci-cache/environment.json"), "utf8"),
     /never-record/,

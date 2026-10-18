@@ -1,8 +1,12 @@
+import installation from "../fixtures/installation.json";
+import { readTemplateInstallation } from "../../publication-installation";
+import { installedJournalProfile } from "../../publication-installed-templates";
+const profile = installedJournalProfile(readTemplateInstallation(installation));
 // Model Obsidian's rendered callout controls over real DOM and image decoding.
 // All source text and image bytes are synthetic; no vault or network is used.
 import { MarkdownRenderer, TFile } from "./obsidian-host";
 import { renderPublication } from "../../publish-render";
-import { renderAastexPublication } from "../../publication-render";
+import { renderJournalPublication } from "../../publication-render";
 import { readNotePreferences } from "../../publish-options";
 import { composeLiteratureNoteBody } from "../../literature-note-layout";
 import {
@@ -69,7 +73,7 @@ MarkdownRenderer.render = (_app, markdown, root) => {
 };
 
 async function render(
-  kind: "draft" | "literature" | "aastex",
+  kind: "draft" | "literature" | "journal",
   academic: boolean,
 ) {
   const body = `## Introduction
@@ -102,8 +106,8 @@ ${source}`;
   });
   const signal = new AbortController().signal;
   const result =
-    kind === "aastex"
-      ? await renderAastexPublication(
+    kind === "journal"
+      ? await renderJournalPublication(
           app as never,
           { diagnose: () => Promise.resolve([]) } as never,
           text,
@@ -111,9 +115,10 @@ ${source}`;
           "Synthetic export contract",
           preferences,
           signal,
+          profile,
         ).then((result) => ({
           ...result,
-          abstractHtml: result.aastex.abstractHtml,
+          abstractHtml: result.journal.abstractHtml,
         }))
       : await renderPublication(
           app as never,

@@ -256,19 +256,16 @@ test("author issues show as Required in their own card without changing source",
       '[...document.querySelectorAll(".stratum-publication-content > fieldset")].map((card) => [...card.querySelectorAll(".stratum-publication-validation p")].map((p) => p.textContent))',
     );
   await until(
-    'document.querySelector(".stratum-publication-content").textContent.includes("Required: Author 1 needs an email address.")',
+    'document.querySelector(".stratum-publication-content").textContent.includes("Required: Author 2 needs a name.")',
   );
-  assert.deepEqual(await cards(), [
-    ["Required: Author 1 needs an email address."],
-    ["Required: Author 2 needs a name."],
-  ]);
+  assert.deepEqual(await cards(), [[], ["Required: Author 2 needs a name."]]);
   assert.deepEqual(
     await page.evaluate(`(() => {
     const read = label => { const input = document.querySelector('input[aria-label="'+label+'"]'); return [input.getAttribute('aria-invalid'), document.getElementById(input.getAttribute('aria-describedby'))?.textContent ?? null]; };
     return [read('Author 1 email'), read('Author 2 name'), read('Author 1 name')];
   })()`),
     [
-      ["true", "Required: Author 1 needs an email address."],
+      [null, null],
       ["true", "Required: Author 2 needs a name."],
       [null, null],
     ],
@@ -620,6 +617,6 @@ test("missing affiliations describe each affected affiliation input", async () =
     const input = document.querySelector('input[aria-label="Author 1 affiliation 1"]');
     return document.getElementById(input.getAttribute('aria-describedby')).textContent;
   })()`),
-    "Required: Author 1 needs an affiliation/address.",
+    "Required: Author 1 needs an affiliation.",
   );
 });

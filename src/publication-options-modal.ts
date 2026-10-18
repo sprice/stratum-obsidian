@@ -1,13 +1,8 @@
-import { Modal, type App, type TFile, type ToggleComponent } from "obsidian";
+import { Modal, type App, type TFile } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import type { PublicationForm } from "./publication-editor";
 import { PublicationPropertyControls } from "./publication-property-controls";
 import { publicationAuthors } from "./publication-metadata";
-import { AASTEX_HEADING_WARNING } from "./publication-headings";
-import {
-  AASTEX_OPTION_LABELS,
-  aastexOptionToggle,
-} from "./publication-option-controls";
 import {
   createStratumButton,
   createStratumSelect,
@@ -17,11 +12,7 @@ import {
 import { renderPublishCustomization } from "./publish-customize";
 import { resetNoteCitationStyle } from "./citation-style-choice";
 import type { PublishOptions } from "./publish-options";
-import {
-  publishingIssueText,
-  type PublishingIssue,
-} from "./publish-properties";
-import type { AastexPdfOptions } from "./publication-options";
+import { type PublishingIssue } from "./publish-properties";
 
 interface OptionDraftState {
   failures: Map<string, { work: () => Promise<void>; error: string }>;
@@ -79,10 +70,6 @@ export class PublishingSettingsModal extends Modal {
   private noteKey: string;
   private templateId?: string;
   private alive = false;
-  private refreshing = false;
-  private revision = 0;
-  private pending = new Map<string, { value: boolean; revision: number }>();
-  private toggles = new Map<keyof AastexPdfOptions, ToggleComponent>();
   private unsubscribe?: () => void;
   private properties?: PublicationPropertyControls;
   private authors?: PublicationForm;
@@ -110,12 +97,6 @@ export class PublishingSettingsModal extends Modal {
     boolean
   >();
   private refreshAdvanced?: () => void;
-  private compatibility?: {
-    alert: HTMLElement;
-    approve: HTMLElement;
-    headings: HTMLElement;
-    list?: HTMLElement;
-  };
   constructor(
     app: App,
     private publish: PublishController,
@@ -177,7 +158,6 @@ export class PublishingSettingsModal extends Modal {
       cls: "stratum-publishing-pdf-options",
     });
     options.addClass("stratum-publishing-options");
-    const aastex = this.publish.selectedTemplate?.renderer === "aastex";
     const title = createStratumSelect(options, {
       label: "Title source",
       ariaLabel: "Title source",
@@ -185,7 +165,7 @@ export class PublishingSettingsModal extends Modal {
       choices: [
         {
           value: "body",
-          label: aastex ? "Leading # heading in document" : "Title in document",
+          label: "Title in document",
         },
         { value: "properties", label: "Title property" },
       ],
@@ -194,42 +174,7 @@ export class PublishingSettingsModal extends Modal {
     title.addEventListener("change", () =>
       this.layout({ titleSource: title.value as "body" | "properties" }),
     );
-    if (aastex) {
-      for (const key of Object.keys(
-        AASTEX_OPTION_LABELS,
-      ) as (keyof AastexPdfOptions)[])
-        this.toggles.set(
-          key,
-          aastexOptionToggle(
-            options,
-            key,
-            (value) => {
-              if (this.refreshing) return;
-              const revision = ++this.revision;
-              this.pending.set(key, { value, revision });
-              this.save(
-                () => this.publish.updateAastexPdfOptions({ [key]: value }),
-                () => {
-                  if (this.pending.get(key)?.revision === revision)
-                    this.pending.delete(key);
-                },
-                `aastex:${key}`,
-              );
-            },
-            this.pending.get(key)?.value ?? this.publish.aastexPdfOptions[key],
-          ),
-        );
-      const compatibility = options.createDiv({
-        cls: "stratum-publishing-compatibility",
-      });
-      const alert = compatibility.createEl("p", { attr: { role: "alert" } });
-      alert.hidden = true;
-      this.compatibility = {
-        alert,
-        approve: compatibility.createDiv(),
-        headings: compatibility.createDiv(),
-      };
-    } else if (this.publish.journalProfile) {
+    if (this.publish.journalProfile) {
       options.createEl("p", {
         text: "The selected journal profile controls layout and bibliography. Change the profile in the publishing panel. Anonymous review omits author fields and PDF author metadata; review identifying text, acknowledgments, figures and references yourself.",
         cls: "stratum-publication-help",
@@ -342,10 +287,8 @@ export class PublishingSettingsModal extends Modal {
       this.save(
         async () => {
           await this.publish.resetSettings();
-          this.pending.clear();
           for (const key of this.drafts.failures.keys())
-            if (key.startsWith(aastex ? "aastex:" : "layout:"))
-              this.drafts.failures.delete(key);
+            if (key.startsWith("layout:")) this.drafts.failures.delete(key);
           this.refreshAdvanced?.();
         },
         undefined,
@@ -391,7 +334,6 @@ export class PublishingSettingsModal extends Modal {
           this.file,
           this.ctime,
           this.publish.layout,
-          this.publish.selectedTemplate?.renderer === "aastex",
         );
         this.closingError = false;
         this.cleanupError = false;
@@ -445,35 +387,6 @@ export class PublishingSettingsModal extends Modal {
         input.getAttribute("aria-required") === "true" && !input.value.trim(),
     );
     (missing ?? inputs[0])?.focus();
-  }
-  /** Patch in place so the disclosure keeps its open state and focus across emits. */
-  private updateCompatibility(): void {
-    const view = this.compatibility;
-    if (!view) return;
-    const problem = this.publish.aastexPackageProblem;
-    setLiveText(view.alert, problem);
-    if (!problem) view.approve.empty();
-    else if (!view.approve.childElementCount)
-      createStratumButton(view.approve, {
-        text: "Use installed version",
-      }).addEventListener("click", () =>
-        this.save(() => this.publish.acceptAastexPackage()),
-      );
-    const warnings = this.publish.aastexHeadingProblems;
-    if (!warnings.length) {
-      view.headings.empty();
-      view.list = undefined;
-      return;
-    }
-    if (!view.list) {
-      const disclosure = createStratumDisclosure(view.headings);
-      createStratumSummary(disclosure, { text: "Review heading numbers" });
-      disclosure.createEl("p", { text: AASTEX_HEADING_WARNING });
-      view.list = disclosure.createEl("ul");
-    }
-    patchBlock(view.list, warnings.join("\n"), (list) => {
-      for (const warning of warnings) list.createEl("li", { text: warning });
-    });
   }
   private fail(error: unknown): void {
     if (!this.alive || !this.error) return;
@@ -558,9 +471,8 @@ export class PublishingSettingsModal extends Modal {
     const busy =
       this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;
     this.done.disabled = busy;
-    const aastex = this.publish.selectedTemplate?.renderer === "aastex";
     const failedReset = [...this.drafts.failures.keys()].some((key) =>
-      key.startsWith(aastex ? "aastex:" : "layout:"),
+      key.startsWith("layout:"),
     );
     this.reset.disabled =
       busy || (!this.publish.settingsResetChanges && !failedReset);
@@ -572,7 +484,6 @@ export class PublishingSettingsModal extends Modal {
         this.file,
         this.ctime,
         this.publish.layout,
-        aastex,
       );
   }
   private update(): void {
@@ -590,7 +501,6 @@ export class PublishingSettingsModal extends Modal {
       this.message,
       this.saving || this.publish.preferencesSaving ? "Saving settings…" : "",
     );
-    this.updateCompatibility();
     const service = this.publish.plugin.publicationEditor;
     const target = service?.editableView(this.file);
     if (service && target && !this.properties) {
@@ -677,10 +587,7 @@ export class PublishingSettingsModal extends Modal {
     const issues = this.publish.publishingIssues.filter(
       (issue) => !inline(issue),
     );
-    const issueText = (issue: PublishingIssue) =>
-      this.publish.selectedTemplate?.renderer === "aastex"
-        ? publishingIssueText(issue)
-        : issue.message;
+    const issueText = (issue: PublishingIssue) => issue.message;
     setLiveText(
       this.academicAlert,
       issues
@@ -689,32 +596,12 @@ export class PublishingSettingsModal extends Modal {
         .join("\n"),
     );
     const notes = issues.filter((issue) => !issue.blocking).map(issueText);
-    if (
-      this.publish.selectedTemplate?.renderer !== "aastex" &&
-      this.publish.duplicateTitleWarning
-    )
+    if (this.publish.duplicateTitleWarning)
       notes.push("Title may appear twice. Review the title source.");
     patchBlock(this.validationNotes, notes.join("\n"), (container) => {
       for (const note of notes)
         container.createEl("p", { text: note, cls: "stratum-publish-meta" });
     });
-    this.refreshing = true;
-    try {
-      for (const [key, toggle] of this.toggles) {
-        toggle.setValue(
-          this.pending.get(key)?.value ?? this.publish.aastexPdfOptions[key],
-        );
-        toggle.setDisabled(
-          this.publish.busy ||
-            (this.publish.preferencesSaving &&
-              !toggle.toggleEl.contains(
-                toggle.toggleEl.ownerDocument.activeElement,
-              )),
-        );
-      }
-    } finally {
-      this.refreshing = false;
-    }
     this.retryButton.hidden = !this.drafts.failures.size;
     if (this.drafts.failures.size)
       this.fail(

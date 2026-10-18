@@ -11,9 +11,8 @@ import {
 function clean(
   source: string,
   layout: PublishOptions = DEFAULT_ACADEMIC_OPTIONS,
-  aastex = false,
 ) {
-  const change = cleanupPublicationProperties(source, layout, aastex);
+  const change = cleanupPublicationProperties(source, layout);
   return source.slice(0, change.from) + change.insert + source.slice(change.to);
 }
 test("cleanup follows each template's effective mappings, including empty required title", () => {
@@ -25,11 +24,8 @@ test("cleanup follows each template's effective mappings, including empty requir
     ...DEFAULT_PUBLISH_OPTIONS,
     titleSource: "properties" as const,
   };
-  assert.equal(
-    clean(source, titleOnly, true),
-    source.replace('title: ""\n', ""),
-  );
-  assert.equal(clean(source, DEFAULT_PUBLISH_OPTIONS, true), source);
+  assert.equal(clean(source, titleOnly), source.replace('title: ""\n', ""));
+  assert.equal(clean(source, DEFAULT_PUBLISH_OPTIONS), source);
   assert.equal(
     clean(source, { ...DEFAULT_ACADEMIC_OPTIONS, titleSource: "properties" }),
     "---\nother: null\n---\nBody\n",
@@ -71,13 +67,14 @@ test("only literal empty values are removed, not populated or nonempty collectio
 test("structured cleanup retains rows and unknown fields and obeys renderer field boundaries", () => {
   const source =
     '---\nstratum_publish:\n  custom: keep\n  authors:\n    - name: "" # retain name comment\n      email: ""\n      affiliations: []\n      orcid: ""\n    - name: ""\n      email: ""\n      affiliations: []\n---\nBody\n';
-  const aastex = clean(source, DEFAULT_ACADEMIC_OPTIONS, true);
-  const props = publicationYaml(aastex).properties;
+  const cleaned = clean(source, DEFAULT_ACADEMIC_OPTIONS);
+  const props = publicationYaml(cleaned).properties;
   assert.equal(publicationAuthors(props).authors.length, 2);
-  assert.match(aastex, /# retain name comment/);
-  assert.match(aastex, /orcid: ""/);
-  assert.match(aastex, /custom: keep/);
-  assert.doesNotMatch(aastex, /name:|email:|affiliations:/);
+  assert.match(cleaned, /# retain name comment/);
+  assert.match(cleaned, /orcid: ""/);
+  assert.match(cleaned, /custom: keep/);
+  assert.doesNotMatch(cleaned, /name:|affiliations:/);
+  assert.match(cleaned, /email: ""/);
   const academic = clean(source);
   assert.equal((academic.match(/email: ""/g) ?? []).length, 2);
   assert.equal(
@@ -103,7 +100,6 @@ test("empty overrides never reactivate populated legacy authors, including simul
     clean(
       "---\nstratum_publish:\n  authors: []\n---\nBody",
       DEFAULT_ACADEMIC_OPTIONS,
-      true,
     ),
     "---\n---\nBody",
   );
@@ -114,15 +110,13 @@ test("empty namespace values can be repaired without touching unknown or legacy 
       clean(
         `---\nstratum_publish: ${value}\nauthors: []\n---\nBody`,
         DEFAULT_ACADEMIC_OPTIONS,
-        true,
       ),
-      "---\nauthors: []\n---\nBody",
+      "---\n---\nBody",
     );
   assert.equal(
     clean(
       "---\nstratum_publish:\n  authors: null\n  custom: keep\n---\nBody",
       DEFAULT_ACADEMIC_OPTIONS,
-      true,
     ),
     "---\nstratum_publish:\n  custom: keep\n---\nBody",
   );

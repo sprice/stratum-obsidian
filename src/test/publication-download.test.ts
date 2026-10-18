@@ -1,3 +1,4 @@
+import { manuscriptSample } from "./publication-manuscript-fixture";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer, get } from "node:http";
@@ -5,7 +6,7 @@ import { createHash, webcrypto } from "node:crypto";
 import { createRequire } from "node:module";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { loadRuntime } from "./runtime-harness";
-import { aastexPackage, aastexManuscript } from "../publication-package";
+import { publicationManuscript } from "../publication-manuscript";
 import { installedJournalProfile } from "../publication-installed-templates";
 import { installationFixture } from "./publication-installation-fixture";
 
@@ -138,10 +139,7 @@ test(
           undefined,
           {
             journal: installedJournalProfile(installationFixture().manifest),
-            manuscript: aastexManuscript(
-              aastexPackage.files["examples/manuscript.md"],
-              "properties",
-            ),
+            manuscript: publicationManuscript(manuscriptSample, "properties"),
             abstractHtml: "<p>Abstract</p>",
             references: [{ id: "stratum0", type: "article-journal" }],
           },
@@ -257,10 +255,7 @@ test("converter never downloads missing packs and preserves cached resources on 
   };
   const input = {
     journal: installedJournalProfile(installationFixture().manifest),
-    manuscript: aastexManuscript(
-      aastexPackage.files["examples/manuscript.md"],
-      "properties",
-    ),
+    manuscript: publicationManuscript(manuscriptSample, "properties"),
     abstractHtml: "<p>Abstract</p>",
     references: [{ id: "stratum0", type: "article-journal" }],
   };

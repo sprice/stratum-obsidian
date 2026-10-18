@@ -2,13 +2,16 @@ import {
   readTemplateInstallation,
   type TemplateInstallation,
 } from "./publication-installation";
-import { escapeLatex, type aastexManuscript } from "./publication-package";
+import {
+  escapeLatex,
+  type publicationManuscript,
+} from "./publication-manuscript";
 import { publicationMathPreamble } from "./publish-math-compat";
 
 /** Only this bundled adapter turns document metadata into TeX. Remote manifests supply bounded choices. */
 export function installationLatex(
   value: TemplateInstallation,
-  manuscript: ReturnType<typeof aastexManuscript>,
+  manuscript: ReturnType<typeof publicationManuscript>,
   body: string,
   abstract: string,
   bibliography: boolean,

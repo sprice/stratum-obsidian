@@ -345,7 +345,7 @@ test("publishing actions match shared Sync styling and retain responsive disable
 test("secondary tabs show PDF history and retain filtering across navigation", async () => {
   await scenario("publishing-documents-tabs", async () => {
     await page.setViewportSize(320, 900);
-    await page.evaluate("window.publicationFixture.reset({aastex:true})");
+    await page.evaluate("window.publicationFixture.reset({journal:true})");
     assert.equal(
       await page.evaluate(
         "document.querySelector('.stratum-publish-shell .stratum-tab-bar button:first-child').textContent",
@@ -1105,7 +1105,7 @@ test("citation override and reset use the note's current style and preserve inde
 test("shared author conflict recovery refreshes current values after a second external edit", async () => {
   await scenario("author-conflict-current-value", async () => {
     await reset({
-      aastex: true,
+      journal: true,
       source:
         "---\ntitle: Paper\nstratum_publish:\n  authors:\n    - name: Original name\n      email: author@example.org\n      affiliations: [Institute]\n---\nBody",
     });
@@ -1184,9 +1184,9 @@ test("template and installed version selectors keep equal available columns and 
   await scenario("template-version-columns", async () => {
     for (const width of [320, 560]) {
       await page.setViewportSize(width, 900);
-      for (const templateId of ["general", "academic", "aastex"]) {
+      for (const templateId of ["general", "academic", "journal"]) {
         await reset(
-          templateId === "aastex" ? { aastex: true } : { templateId },
+          templateId === "journal" ? { journal: true } : { templateId },
         );
         const measure = await page.evaluate(
           `(() => { const row=document.querySelector('.stratum-publish-template-selectors');const fields=[...row.children],r=row.getBoundingClientRect(),gap=parseFloat(getComputedStyle(row).columnGap),t=fields[0].getBoundingClientRect(); const version=document.querySelector('select[aria-label="Choose template version"]');return {width:t.width,expected:!fields[1].hidden && innerWidth-40>448 ? (r.width-gap)/2 : r.width,versionVisible:!fields[1].hidden,label:document.querySelector('select[aria-label="Choose template"]').selectedOptions[0].textContent,versions:[...version.options].map(o=>o.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})()`,
@@ -1201,14 +1201,14 @@ test("template and installed version selectors keep equal available columns and 
         };
         assert.ok(Math.abs(m.width - m.expected) <= 1);
         assert.equal(m.overflow, false);
-        assert.equal(m.versionVisible, templateId === "aastex");
-        if (templateId === "aastex") {
+        assert.equal(m.versionVisible, templateId === "journal");
+        if (templateId === "journal") {
           assert.equal(m.label, "Synthetic template");
           assert.deepEqual(m.versions, ["1.0-r1"]);
         }
         if (width === 320 && templateId === "general")
           await capture("publishing-generic-columns");
-        if (width === 560 && templateId === "aastex")
+        if (width === 560 && templateId === "journal")
           await capture("publishing-version-columns");
       }
     }
@@ -1487,9 +1487,9 @@ test("reset availability reacts to saved changes and resets only the selected te
 
 test("cleanup availability follows focused drafts, current mappings, external edits and undo without saving during prediction", async () => {
   await scenario("cleanup-no-op-states", async () => {
-    for (const aastex of [false]) {
+    for (const journal of [false]) {
       const source = "---\ntitle: Populated\nkeywords: [retained]\n---\nBody";
-      await reset({ templateId: "academic", aastex, bodyFont: "", source });
+      await reset({ templateId: "academic", journal, bodyFont: "", source });
       await openSettings();
       await page
         .locator('select[aria-label="Title source"]')
@@ -1535,7 +1535,7 @@ test("cleanup availability follows focused drafts, current mappings, external ed
       await page.keyPress("Escape");
     }
     await reset({
-      aastex: true,
+      journal: true,
       source:
         "---\ntitle: Populated\nstratum_publish:\n  authors:\n    - name: Author\n      email: author@example.org\n      affiliations: [Institute]\n---\nBody",
     });
@@ -1585,8 +1585,8 @@ test("PDF option fields and Advanced layout use shared token spacing across temp
     for (const templateId of ["general", "academic"])
       for (const theme of ["dark", "light"] as const)
         for (const width of [320, 560]) {
-          const aastex = templateId === "registry:example:1.0-r1";
-          await reset({ templateId, aastex, theme, bodyFont: "" }, width);
+          const journal = templateId === "registry:example:1.0-r1";
+          await reset({ templateId, journal, theme, bodyFont: "" }, width);
           await openSettings();
           assert.equal(
             await page.evaluate(`(() => {
@@ -1597,7 +1597,7 @@ test("PDF option fields and Advanced layout use shared token spacing across temp
       })()`),
             true,
           );
-          if (!aastex) {
+          if (!journal) {
             assert.equal(
               await page.evaluate(`(() => {
                 const rows = [...document.querySelectorAll('.stratum-publishing-details .setting-item')];
@@ -1750,7 +1750,7 @@ test("Academic shares grouped authors without automatic legacy conversion or AAS
 
 test("Settings readiness notices inherit warning color while failures remain errors", async () => {
   await scenario("settings-readiness-notice", async () => {
-    await reset({ aastex: true, source: "---\ntitle: Paper\n---\nBody" });
+    await reset({ journal: true, source: "---\ntitle: Paper\n---\nBody" });
     await until(
       "document.querySelector('.stratum-publish-status .stratum-publish-notice')?.textContent.includes('Settings: Add at least one author')",
     );
@@ -1771,7 +1771,7 @@ test("Settings readiness notices inherit warning color while failures remain err
       false,
     );
     await reset({
-      aastex: true,
+      journal: true,
       source: "---\nstratum_publish:\n  authors: []\n---\nBody",
     });
     await page.evaluate("window.publicationFixture.setTitleSource('body')");

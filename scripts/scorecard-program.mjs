@@ -1,9 +1,7 @@
 import { resolve } from "node:path";
 import ts from "typescript";
 
-// Generated publication assets are absent in a source-only scanner checkout.
-// Hide them through the compiler host, without deleting local build artifacts.
-export function scorecardProgram(root, { generatedAssets = true } = {}) {
+export function scorecardProgram(root) {
   // Reproduce the missing ambient Node types observed in the community scanner.
   // This is a compatibility check, not a replica of every scorecard analysis.
   const config = ts.readConfigFile(
@@ -26,14 +24,6 @@ export function scorecardProgram(root, { generatedAssets = true } = {}) {
 
   const options = { ...parsed.options, types: [], typeRoots: [] };
   const host = ts.createCompilerHost(options);
-  if (!generatedAssets) {
-    const generated = resolve(
-      root,
-      "src/publication-templates/aastex/files.json",
-    );
-    const fileExists = host.fileExists;
-    host.fileExists = (file) => resolve(file) !== generated && fileExists(file);
-  }
   const program = ts.createProgram(
     parsed.fileNames.filter(
       (file) =>

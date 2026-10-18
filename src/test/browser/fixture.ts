@@ -87,7 +87,7 @@ export interface FixtureOptions {
   bodyFont?: string;
   titleFont?: string;
   theme?: "light" | "dark";
-  aastex?: boolean;
+  journal?: boolean;
   acm?: boolean;
   templateId?: "general" | "academic";
   source?: string;
@@ -303,7 +303,7 @@ async function reset(options: FixtureOptions = {}) {
     1,
   );
   await controller.updatePreferences({
-    templateId: options.aastex
+    templateId: options.journal
       ? "registry:example:1.0-r1"
       : (options.templateId ?? "general"),
   });

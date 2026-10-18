@@ -1,9 +1,12 @@
+import installation from "./fixtures/installation.json";
+import { readTemplateInstallation } from "../publication-installation";
+import { installedJournalProfile } from "../publication-installed-templates";
+const profile = installedJournalProfile(readTemplateInstallation(installation));
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadRuntime } from "./runtime-harness";
 import * as publishMath from "../publish-math";
 import * as publishDocument from "../publish-document";
-import { aastexProblems } from "../publication-package";
 import * as publicationCitations from "../publication-citations";
 import { readNotePreferences } from "../publish-options";
 
@@ -84,7 +87,7 @@ class Element {
   }
 }
 
-test("AASTeX body and abstract images have distinct assets without rewriting literal filenames", async () => {
+test("Journal body and abstract images have distinct assets without rewriting literal filenames", async () => {
   class File {
     extension = "png";
     constructor(public path: string) {}
@@ -93,7 +96,7 @@ test("AASTeX body and abstract images have distinct assets without rewriting lit
     ["body.png", new File("body.png")],
     ["abstract.png", new File("abstract.png")],
   ]);
-  const { renderAastexPublication } = loadRuntime<
+  const { renderJournalPublication } = loadRuntime<
     typeof import("../publication-render")
   >(
     "publication-render.ts",
@@ -128,7 +131,6 @@ test("AASTeX body and abstract images have distinct assets without rewriting lit
     },
     "browser",
     {
-      "./publication-package": { aastexProblems },
       "./publication-citations": publicationCitations,
       "./publish-document": publishDocument,
       "./publish-math": publishMath,
@@ -151,7 +153,7 @@ test("AASTeX body and abstract images have distinct assets without rewriting lit
   };
   const preferences = readNotePreferences({
     documentType: "academic",
-    templateId: "package:aastex",
+    templateId: "registry:example:1.0-r1",
     format: "pdf",
     pdf: { titleSource: "properties" },
   });
@@ -174,7 +176,7 @@ ${abstractImages}
 ![Body](body.png)
 ![Repeated](body.png)
 `;
-    const result = await renderAastexPublication(
+    const result = await renderJournalPublication(
       app as never,
       { diagnose: () => Promise.resolve([]) } as never,
       text,
@@ -182,9 +184,10 @@ ${abstractImages}
       "Synthetic manuscript",
       preferences,
       new AbortController().signal,
+      profile,
     );
     assert.match(
-      result.aastex.abstractHtml,
+      result.journal.abstractHtml,
       /Literal asset-0\.png and `asset-0\.png` remain unchanged\./,
     );
     assert.equal((result.html.match(/src="asset-0.png"/g) ?? []).length, 2);
@@ -193,7 +196,7 @@ ${abstractImages}
     assert.equal(new Uint8Array(result.assets[0].bytes)[0], 1);
     if (abstractImages) {
       assert.equal(
-        (result.aastex.abstractHtml.match(/src="asset-1.png"/g) ?? []).length,
+        (result.journal.abstractHtml.match(/src="asset-1.png"/g) ?? []).length,
         2,
       );
       assert.equal(result.assets[1].name, "asset-1.png");

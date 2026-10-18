@@ -1,10 +1,9 @@
+import { manuscriptSample } from "./publication-manuscript-fixture";
 import { installationFixture } from "./publication-installation-fixture";
-import { aastexHeadingIssues } from "../publication-heading-preview";
 import { readNotePreferences } from "../publish-options";
-import { aastexManuscript, aastexPackage } from "../publication-package";
+import { publicationManuscript } from "../publication-manuscript";
 import { publicationYaml } from "../publication-metadata";
-import { readAastexPdfOptions } from "../publication-options";
-import * as publicationPackage from "../publication-package";
+import * as publicationPackage from "../publication-manuscript";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate as settle } from "node:timers/promises";
@@ -55,7 +54,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     check: 0,
     save: 0,
     format: 0,
-    aastex: 0,
+    journal: 0,
     parse: 0,
     settings: [] as string[],
     settingsClosed: 0,
@@ -142,19 +141,13 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     "browser",
     {
       // Count manuscript parses while keeping the shipped parser.
-      "./publication-package": {
+      "./publication-manuscript": {
         ...publicationPackage,
-        aastexManuscript: (
-          ...args: Parameters<typeof publicationPackage.aastexManuscript>
+        publicationManuscript: (
+          ...args: Parameters<typeof publicationPackage.publicationManuscript>
         ) => {
           calls.parse++;
-          return publicationPackage.aastexManuscript(...args);
-        },
-        aastexProblems: (
-          ...args: Parameters<typeof publicationPackage.aastexProblems>
-        ) => {
-          calls.parse++;
-          return publicationPackage.aastexProblems(...args);
+          return publicationPackage.publicationManuscript(...args);
         },
       },
       "./publication-options-modal": {
@@ -179,9 +172,8 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
           }
         },
       },
-      "./publication-heading-preview": { aastexHeadingIssues },
       "./publication-render": {
-        renderAastexPublication: (
+        renderJournalPublication: (
           _app: unknown,
           _service: unknown,
           text: string,
@@ -189,16 +181,17 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
           _title: string,
           publishing: ReturnType<typeof readNotePreferences>,
         ) => {
-          calls.aastex++;
+          calls.journal++;
           return Promise.resolve({
             html: "packaged synthetic",
             assets: [],
-            aastex: {
-              manuscript: aastexManuscript(text, publishing.pdf.titleSource),
+            journal: {
+              manuscript: publicationManuscript(
+                text,
+                publishing.pdf.titleSource,
+              ),
               abstractHtml: "<p>Synthetic abstract</p>",
               references: [],
-              options: readAastexPdfOptions(publishing.aastex?.options),
-              headingIssues: behavior.headingIssues,
             },
           });
         },
@@ -244,9 +237,9 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
           signal: AbortSignal,
           _timeout: number,
           _layout: unknown,
-          aastex: unknown,
+          journal: unknown,
         ) => {
-          payloads.push(aastex);
+          payloads.push(journal);
           conversionTools.push(tools);
           await conversion;
           if (signal.aborted) throw new Error("Publishing cancelled.");
@@ -1151,7 +1144,6 @@ test("problem checks parse the manuscript once per text revision", async () => {
       void controller.academicProblem;
       void controller.readinessNotices;
       void controller.publishingIssues;
-      void controller.aastexHeadingProblems;
       void controller.duplicateTitleWarning;
       controller.canCreate();
     }
@@ -1165,7 +1157,6 @@ test("problem checks parse the manuscript once per text revision", async () => {
   leaf.view.text += "\n\n## 3. Synthetic section\n\nSynthetic text.";
   read();
   assert.equal(calls.parse, 2);
-  assert.equal(controller.aastexHeadingProblems.length, 0);
 });
 
 test("problem checks follow text, preference and template changes", async () => {
@@ -1388,7 +1379,7 @@ test("legacy registry layouts survive loading and explicit reset replaces the sa
 
 test("journal profiles retain each layout across switching and record package provenance", async () => {
   const { controller, leaf, release, calls } = setup();
-  const example = aastexPackage.files["examples/manuscript.md"];
+  const example = manuscriptSample;
   const parsed = publicationYaml(example);
   leaf.view.text = `---\n${JSON.stringify(parsed.properties)}\n---\n${"# Synthetic Stratum manuscript\n" + example.slice(parsed.end)}`;
   await controller.updatePreferences({ templateId: "registry:example:1.0-r1" });
@@ -1480,4 +1471,42 @@ test("removed registry versions retain saved selection and explain exact reinsta
   );
   assert.equal(controller.canCreate(), false);
   assert.equal(leaf.view.text, before);
+});
+
+test("obsolete bundled selections require an explicit choice even with a registry release installed", () => {
+  const { controller, leaf } = setup();
+  controller.catalog!.notes[0].preferences = readNotePreferences({
+    templateId: "package:aastex",
+  });
+  const source = leaf.view.text;
+  assert.equal(controller.notePreferences.templateId, "package:aastex");
+  assert.equal(controller.selectedTemplate, undefined);
+  assert.match(
+    controller.templateAvailabilityProblem,
+    /bundled template.*no longer available.*Choose an installed template/,
+  );
+  assert.equal(controller.canCreate(), false);
+  assert.equal(leaf.view.text, source);
+});
+
+test("a missing version never switches to another installed release in the same family", () => {
+  const { controller } = setup();
+  controller.catalog!.notes[0].preferences = readNotePreferences({
+    templateId: "registry:example:0.9-r1",
+  });
+  assert.ok(
+    controller.allPublishingTemplates.installations?.some(
+      (item) => item.pin.metadata.templateId === "example",
+    ),
+  );
+  assert.equal(
+    controller.notePreferences.templateId,
+    "registry:example:0.9-r1",
+  );
+  assert.equal(controller.selectedTemplate, undefined);
+  assert.equal(controller.canCreate(), false);
+  assert.match(
+    controller.templateAvailabilityProblem,
+    /exact template version.*not installed/,
+  );
 });

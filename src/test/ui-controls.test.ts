@@ -83,9 +83,6 @@ const host = {
 };
 const { createStratumFieldset, createStratumTabs, createStratumToggle } =
   loadRuntime<typeof import("../ui-controls")>("ui-controls.ts", host);
-const { aastexOptionToggle } = loadRuntime<
-  typeof import("../publication-option-controls")
->("publication-option-controls.ts", host);
 
 function setup(selected: "one" | "two" | "three" | null = "two") {
   const root = new Element();
@@ -289,39 +286,4 @@ test("toggles are native setting rows with a labelled checkbox", () => {
   assert.equal(input.checked, false);
   toggle.setValue(true);
   assert.equal(input.checked, true, "Programmatic refreshes keep the input");
-});
-
-test("AASTeX option toggles start from the defaults or the current value", () => {
-  const root = new Element();
-  const changes: boolean[] = [];
-  const keys = [
-    "showLineNumbers",
-    "showDraftDateHeader",
-    "numberedHeadings",
-  ] as const;
-  assert.deepEqual(
-    keys.map((key) =>
-      aastexOptionToggle(root as unknown as HTMLElement, key, (value) =>
-        changes.push(value),
-      ).getValue(),
-    ),
-    [true, true, false],
-  );
-  assert.deepEqual(
-    keys.map((key, index) =>
-      aastexOptionToggle(
-        root as unknown as HTMLElement,
-        key,
-        (value) => changes.push(value),
-        index !== 1,
-      ).getValue(),
-    ),
-    [true, false, true],
-  );
-  assert.deepEqual(changes, []);
-  assert.ok(
-    root.children.every((row) =>
-      row.className.split(" ").includes("stratum-aastex-option"),
-    ),
-  );
 });

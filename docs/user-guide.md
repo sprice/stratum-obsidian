@@ -520,7 +520,9 @@ depends on the installed class version.
 
 When **Title source** uses the document title, the title must be a leading `#` heading.
 Use unnumbered section headings; the installed class controls section numbering
-and layout. The previous bundled AASTeX layout switches are not available for
+and layout. Old bundled-template selections require choosing an installed registry version; Stratum never substitutes a version automatically. Existing published PDFs and their saved options remain accessible.
+
+The previous bundled AASTeX layout switches are not available for
 registry installations.
 
 ##### Versions
