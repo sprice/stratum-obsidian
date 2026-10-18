@@ -5,7 +5,7 @@ import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { generatePublicationAssets } from "./publication-assets.mjs";
 import { testFiles } from "./ci-test-coverage.mjs";
-import { verifyPublishingTools } from "./require-publishing-tools.mjs";
+import { inspectPublishingTools } from "./require-publishing-tools.mjs";
 
 // Hash optional external template resources without recording their paths/content.
 async function treeDigest(directory) {
@@ -38,32 +38,7 @@ export async function publishingFingerprint(
     throw new Error(
       "Cached publishing checks require STRATUM_REQUIRE_PUBLISHING_TOOLS=1.",
     );
-  const outputs = [];
-  verifyPublishingTools(
-    env,
-    (executable, args, options) => {
-      const result = run(
-        executable,
-        executable === "fc-list"
-          ? ["--format=%{family}:%{style}:%{fontversion}\\n"]
-          : args,
-        options,
-      );
-      if (result.error || result.status !== 0)
-        throw (
-          result.error ?? new Error(`Tool exited with status ${result.status}`)
-        );
-      // Include stderr (Poppler), and the entire sorted font inventory, in the key.
-      const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`
-        .trim()
-        .split("\n")
-        .sort()
-        .join("\n");
-      outputs.push(output);
-      return output;
-    },
-    platform,
-  );
+  const outputs = inspectPublishingTools(env, run, platform);
   return createHash("sha256").update(JSON.stringify(outputs)).digest("hex");
 }
 
@@ -108,12 +83,15 @@ export async function prepareCiCache(
     2,
   )}\n`;
   const directory = join(root, ".ci-cache");
-  const target = join(directory, "environment.json");
   await mkdir(directory, { recursive: true });
-  await writeFile(
+  await writeIfChanged(
     join(directory, "publishing.json"),
     `${JSON.stringify(publishing)}\n`,
   );
+  await writeIfChanged(join(directory, "environment.json"), contents);
+}
+
+async function writeIfChanged(target, contents) {
   let previous;
   try {
     previous = await readFile(target, "utf8");

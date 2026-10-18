@@ -35,7 +35,7 @@
     "format": "node scripts/run-quiet.mjs pnpm run format:verbose",
     "format:verbose": "prettier --write src/",
     "test:tooling": "node scripts/run-quiet.mjs pnpm run test:tooling:verbose",
-    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs scripts/ci-cache.test.mjs",
+    "test:tooling:verbose": "node --test scripts/run-quiet.test.mjs scripts/ci-test-coverage.test.mjs scripts/require-publishing-tools.test.mjs scripts/scorecard-rules.test.mjs scripts/publication-assets.test.mjs scripts/ci-cache.test.mjs scripts/ci-local-validation.test.mjs",
     "quiet": "node scripts/run-quiet.mjs",
     "test:publishing:preflight": "node scripts/require-publishing-tools.mjs",
     "lint:scorecard:rules": "node scripts/run-quiet.mjs node scripts/scorecard-rules.mjs",
@@ -48,7 +48,9 @@
     "ci:test": "wireit",
     "ci:test-browser": "wireit",
     "ci:publishing-preflight": "wireit",
-    "ci:build": "wireit"
+    "ci:build": "wireit",
+    "ci:check": "node scripts/ci-check.mjs",
+    "ci:validate": "wireit"
   },
   "keywords": [],
   "license": "MIT",
@@ -99,25 +101,9 @@
         "pnpm-lock.yaml",
         ".npmrc",
         "pnpm-workspace.yaml",
-        ".github/**/*",
-        "scripts/**/*",
         ".ci-cache/environment.json",
-        "src/**/*",
-        "!src/publication-templates/aastex/files.json",
-        "tsconfig*.json",
-        "eslint.config.*",
-        ".prettier*",
-        "prettier.config.*",
-        ".editorconfig",
         ".gitignore",
-        "manifest.json",
-        "LICENSE",
-        "styles.css",
-        "esbuild.config.mjs",
-        "plugin.config.json",
-        "THIRD_PARTY_NOTICES.md",
-        "licenses/**/*",
-        ".env"
+        "scripts/run-quiet.mjs"
       ],
       "packageLocks": [
         "pnpm-lock.yaml"
@@ -126,9 +112,13 @@
     "ci:format": {
       "command": "pnpm format:check",
       "dependencies": [
-        "ci:inputs"
+        "ci:source-inputs"
       ],
-      "files": [],
+      "files": [
+        ".prettier*",
+        "prettier.config.*",
+        ".editorconfig"
+      ],
       "output": [],
       "env": {
         "NODE_OPTIONS": {
@@ -141,21 +131,6 @@
           "external": true
         },
         "TZ": {
-          "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
           "external": true
         }
       }
@@ -163,9 +138,13 @@
     "ci:lint-review": {
       "command": "pnpm lint:review",
       "dependencies": [
-        "ci:inputs"
+        "ci:source-inputs"
       ],
-      "files": [],
+      "files": [
+        "eslint.config.*",
+        "manifest.json",
+        "LICENSE"
+      ],
       "output": [],
       "env": {
         "NODE_OPTIONS": {
@@ -178,21 +157,6 @@
           "external": true
         },
         "TZ": {
-          "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
           "external": true
         }
       }
@@ -200,9 +164,15 @@
     "ci:scorecard": {
       "command": "pnpm lint:scorecard",
       "dependencies": [
-        "ci:inputs"
+        "ci:source-inputs"
       ],
-      "files": [],
+      "files": [
+        "eslint.config.*",
+        "styles.css",
+        "scripts/lint-scorecard.mjs",
+        "scripts/scorecard-program.mjs",
+        "scripts/scorecard-rules.mjs"
+      ],
       "output": [],
       "env": {
         "NODE_OPTIONS": {
@@ -215,21 +185,6 @@
           "external": true
         },
         "TZ": {
-          "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
           "external": true
         }
       }
@@ -239,7 +194,12 @@
       "dependencies": [
         "ci:inputs"
       ],
-      "files": [],
+      "files": [
+        "scripts/**/*",
+        ".github/**/*",
+        "src/publication-metadata.ts",
+        "src/yaml-binary.ts"
+      ],
       "output": [],
       "env": {
         "NODE_OPTIONS": {
@@ -252,21 +212,6 @@
           "external": true
         },
         "TZ": {
-          "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
           "external": true
         }
       }
@@ -274,7 +219,7 @@
     "ci:typecheck": {
       "command": "pnpm typecheck",
       "dependencies": [
-        "ci:inputs"
+        "ci:source-inputs"
       ],
       "files": [],
       "output": [],
@@ -290,31 +235,17 @@
         },
         "TZ": {
           "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
-          "external": true
         }
       }
     },
     "ci:test": {
       "command": "pnpm test",
       "dependencies": [
-        "ci:inputs"
+        "ci:source-inputs"
       ],
       "files": [
-        ".ci-cache/publishing.json"
+        ".ci-cache/publishing.json",
+        "scripts/require-publishing-tools.mjs"
       ],
       "output": [],
       "env": {
@@ -347,31 +278,17 @@
         },
         "STRATUM_TEST_TEMPLATE_CACHE": {
           "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
-          "external": true
         }
       }
     },
     "ci:test-browser": {
       "command": "pnpm test:browser",
       "dependencies": [
-        "ci:inputs"
+        "ci:source-inputs"
       ],
       "files": [
-        ".ci-cache/publishing.json"
+        ".ci-cache/publishing.json",
+        "styles.css"
       ],
       "output": [
         ".test-artifacts/publishing/*.png",
@@ -407,21 +324,6 @@
         },
         "STRATUM_TEST_TEMPLATE_CACHE": {
           "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
-          "external": true
         }
       }
     },
@@ -431,7 +333,8 @@
         "ci:inputs"
       ],
       "files": [
-        ".ci-cache/publishing.json"
+        ".ci-cache/publishing.json",
+        "scripts/require-publishing-tools.mjs"
       ],
       "output": [
         ".test-artifacts/publishing/tools.json"
@@ -466,35 +369,22 @@
         },
         "STRATUM_TEST_TEMPLATE_CACHE": {
           "external": true
-        },
-        "STRATUM_WEB_APP_URL": {
-          "external": true
-        },
-        "STRATUM_TEMPLATE_REGISTRY_ORIGIN": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_URL": {
-          "external": true
-        },
-        "STRATUM_SUPABASE_PUBLISHABLE_KEY": {
-          "external": true
-        },
-        "STRATUM_DEBUG": {
-          "external": true
         }
       }
     },
     "ci:build": {
-      "command": "pnpm build",
+      "command": "node scripts/run-quiet.mjs node esbuild.config.mjs production",
       "dependencies": [
-        "ci:inputs"
+        "ci:source-inputs"
       ],
       "files": [
         "esbuild.config.mjs",
         "plugin.config.json",
         ".env",
         "THIRD_PARTY_NOTICES.md",
-        "licenses/**/*"
+        "licenses/**/*",
+        "scripts/scorecard-bundle.mjs",
+        "scripts/scorecard-rules.mjs"
       ],
       "output": [
         "main.js"
@@ -528,6 +418,30 @@
           "external": true
         }
       }
+    },
+    "ci:source-inputs": {
+      "dependencies": [
+        "ci:inputs"
+      ],
+      "files": [
+        "src/**/*",
+        "!src/publication-templates/aastex/files.json",
+        "scripts/publication-assets.mjs",
+        "tsconfig*.json"
+      ]
+    },
+    "ci:validate": {
+      "dependencies": [
+        "ci:test",
+        "ci:test-tooling",
+        "ci:publishing-preflight",
+        "ci:format",
+        "ci:lint-review",
+        "ci:scorecard",
+        "ci:test-browser",
+        "ci:typecheck",
+        "ci:build"
+      ]
     }
   }
 }

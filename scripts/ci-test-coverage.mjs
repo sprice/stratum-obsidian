@@ -99,6 +99,8 @@ export function coveredTests(workflow, cwd, packages = new Map()) {
         const name = tokens[index];
         if (name === "install") continue;
         visitScript(name, target);
+      } else if (part === "node scripts/ci-check.mjs") {
+        visitScript("ci:validate", directory);
       } else if (tokens[0] === "node" && tokens.includes("--test")) {
         let index = tokens.indexOf("--test") + 1;
         for (; index < tokens.length; index++) {
