@@ -183,11 +183,11 @@ export class PublishingSettingsModal extends Modal {
       ariaLabel: "Title source",
       value: this.publish.layout.titleSource,
       choices: [
-        { value: "properties", label: "Title property" },
         {
           value: "body",
           label: aastex ? "Leading # heading in document" : "Title in document",
         },
+        { value: "properties", label: "Title property" },
       ],
     });
     this.title = title;

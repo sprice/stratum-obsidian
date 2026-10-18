@@ -1092,24 +1092,35 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-publish-controls,
 .stratum-publish-template-selectors {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--size-4-2);
 }
-.stratum-publish-controls {
-  margin-block-end: var(--size-4-3);
+.stratum-publish-controls,
+.stratum-publish-template-versioned {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.stratum-publish-template-row {
+.stratum-publish-heading {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: var(--size-4-1);
+  overflow-wrap: anywhere;
 }
-.stratum-publish-template-row > :first-child {
-  flex: 1;
-  min-width: 0;
+.stratum-publish-heading .stratum-section-heading {
+  margin: 0;
 }
-.stratum-publish-template-row > .clickable-icon {
-  flex: none;
-  margin-block-end: var(--size-4-1);
+@container stratum-sidebar (max-width: 28rem) {
+  .stratum-publish-controls,
+  .stratum-publish-template-versioned {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.modal.stratum-modal .setting-item.stratum-template-registry {
+  padding-bottom: var(--size-4-2);
+}
+.stratum-modal .stratum-template-registry-link {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--size-4-4);
 }
 .stratum-publish-controls > button,
 .stratum-publish-template-selectors > * {

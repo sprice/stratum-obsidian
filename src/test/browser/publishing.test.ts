@@ -279,7 +279,7 @@ test("publishing actions match shared Sync styling and retain responsive disable
             sameStyles: keys.every(key => style[key] === reference[key]),
             shared: create.classList.contains('stratum-control-button') && create.classList.contains('stratum-control-cta') && create.classList.contains('stratum-control-wrap'),
             height: rect.height, referenceHeight: sync.getBoundingClientRect().height,
-            halfWidth: Math.abs(rect.width - (row.width - parseFloat(getComputedStyle(create.parentElement).columnGap)) / 2) <= 1,
+            responsiveWidth: Math.abs(rect.width - ${width === 320 ? "row.width" : "(row.width - parseFloat(getComputedStyle(create.parentElement).columnGap)) / 2"}) <= 1,
             sameActionStyles: (() => { const secondary = getComputedStyle(create.parentElement.querySelector('button')), reference = getComputedStyle(document.querySelector('.synthetic-secondary-reference')); return keys.filter(key => !['backgroundColor','color','opacity','cursor'].includes(key)).every(key => secondary[key] === style[key]) && secondary.backgroundColor === reference.backgroundColor && secondary.color === reference.color; })(),
             sameActionSize: (() => { const settings = create.parentElement.querySelector('button'); const s = settings.getBoundingClientRect(); return Math.abs(s.width - rect.width) <= 1 && Math.abs(s.height - rect.height) <= 1; })(),
             flushRight: Math.abs(rect.right - row.right) <= 1,
@@ -293,7 +293,7 @@ test("publishing actions match shared Sync styling and retain responsive disable
           shared: boolean;
           height: number;
           referenceHeight: number;
-          halfWidth: boolean;
+          responsiveWidth: boolean;
           sameActionSize: boolean;
           sameActionStyles: boolean;
           flushRight: boolean;
@@ -306,7 +306,7 @@ test("publishing actions match shared Sync styling and retain responsive disable
         assert.ok(ready.height >= ready.referenceHeight);
         if (width === 720) assert.equal(ready.height, ready.referenceHeight);
         assert.equal(
-          ready.halfWidth &&
+          ready.responsiveWidth &&
             ready.sameActionSize &&
             ready.sameActionStyles &&
             ready.flushRight &&
@@ -323,7 +323,7 @@ test("publishing actions match shared Sync styling and retain responsive disable
         assert.equal(busy.sameStyles, true);
         assert.equal(busy.height, ready.height);
         assert.equal(
-          busy.halfWidth &&
+          busy.responsiveWidth &&
             busy.sameActionSize &&
             busy.sameActionStyles &&
             busy.flushRight &&
@@ -842,7 +842,7 @@ test("General and Academic settings edit only publishing fields, enforce dynamic
       await until("!document.querySelector('.modal')");
       assert.equal(
         await page.evaluate(
-          "document.activeElement?.textContent === 'Settings'",
+          "document.activeElement?.textContent === 'Document settings'",
         ),
         true,
       );
@@ -1134,6 +1134,52 @@ test("shared author conflict recovery refreshes current values after a second ex
   });
 });
 
+test("publishing starting state guides template selection in both themes", async () => {
+  await scenario("publishing-starting-state", async () => {
+    for (const theme of ["theme-dark", "theme-light"]) {
+      await reset({ templateId: "general" });
+      await page.evaluate(
+        `document.body.classList.remove("theme-dark", "theme-light"); document.body.classList.add("${theme}"); window.publicationFixture.selectTemplate("")`,
+      );
+      await until(
+        "!window.publicationFixture.state().saving && document.querySelector('.stratum-publish-controls').hidden",
+      );
+      for (const width of [320, 560]) {
+        await page.setViewportSize(width, 900);
+        const state = await page.evaluate(`(() => {
+          const panel = document.querySelector('.stratum-publish-panel');
+          const hint = [...panel.querySelectorAll('p')].find(p => p.textContent === 'Choose a template to get started.');
+          const field = panel.querySelector('select[aria-label="Choose template"]');
+          const selectors = panel.querySelector('.stratum-publish-template-selectors');
+          return {hint: !!hint && !hint.hidden, warning: !panel.querySelector('.stratum-publish-status').hidden,
+            managers: [...panel.querySelectorAll('button')].filter(b => b.textContent === 'Manage templates').length,
+            width: field.getBoundingClientRect().width, available: selectors.getBoundingClientRect().width,
+            overflow: document.documentElement.scrollWidth > innerWidth};
+        })()`);
+        assert.deepEqual(state, {
+          hint: true,
+          warning: false,
+          managers: 1,
+          width: (state as { available: number }).available,
+          available: (state as { available: number }).available,
+          overflow: false,
+        });
+        await capture(`publishing-start-${theme}-${width}`);
+      }
+      await page
+        .locator('select[aria-label="Choose template"]')
+        .selectOption("general");
+      await until(
+        "!window.publicationFixture.state().saving && !document.querySelector('.stratum-publish-controls').hidden",
+      );
+      await capture(`publishing-ready-${theme}`);
+    }
+    await page.evaluate(
+      'document.body.classList.remove("theme-light");document.body.classList.add("theme-dark")',
+    );
+  });
+});
+
 test("template and installed version selectors keep equal available columns and use exact registry versions", async () => {
   await scenario("template-version-columns", async () => {
     for (const width of [320, 560]) {
@@ -1143,7 +1189,7 @@ test("template and installed version selectors keep equal available columns and 
           templateId === "aastex" ? { aastex: true } : { templateId },
         );
         const measure = await page.evaluate(
-          `(() => { const row=document.querySelector('.stratum-publish-template-selectors');const fields=[...row.children],r=row.getBoundingClientRect(),gap=parseFloat(getComputedStyle(row).columnGap),t=fields[0].getBoundingClientRect(); const version=document.querySelector('select[aria-label="Choose template version"]');return {width:t.width,expected:(r.width-gap)/2,versionVisible:!fields[1].hidden,label:document.querySelector('select[aria-label="Choose template"]').selectedOptions[0].textContent,versions:[...version.options].map(o=>o.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})()`,
+          `(() => { const row=document.querySelector('.stratum-publish-template-selectors');const fields=[...row.children],r=row.getBoundingClientRect(),gap=parseFloat(getComputedStyle(row).columnGap),t=fields[0].getBoundingClientRect(); const version=document.querySelector('select[aria-label="Choose template version"]');return {width:t.width,expected:!fields[1].hidden && innerWidth-40>448 ? (r.width-gap)/2 : r.width,versionVisible:!fields[1].hidden,label:document.querySelector('select[aria-label="Choose template"]').selectedOptions[0].textContent,versions:[...version.options].map(o=>o.textContent),overflow:document.documentElement.scrollWidth>innerWidth};})()`,
         );
         const m = measure as {
           width: number;
@@ -2064,23 +2110,12 @@ test("registry adapter exposes structured metadata without a legacy catalogue", 
   });
 });
 
-test("template manager gear preserves columns and all-off state can enable a built-in", async () => {
+test("one template management action can enable a built-in from the all-off state", async () => {
   await scenario("template-availability", async () => {
-    await page.evaluate(
-      'window.publicationFixture.reset({templateId:"registry:example:1.0-r1"})',
-    );
-    assert.equal(
-      await page.evaluate(`(() => {
-      const select = document.querySelector('select[aria-label="Choose template"]').getBoundingClientRect();
-      const gear = document.querySelector('button[aria-label="Manage publishing templates"]').getBoundingClientRect();
-      const version = document.querySelector('select[aria-label="Choose template version"]').getBoundingClientRect();
-      return gear.left >= select.right && gear.right < version.left;
-    })()`),
-      true,
-    );
+    await reset({ templateId: "registry:example:1.0-r1" });
     await page.evaluate("window.publicationFixture.setEnabledTemplates([])");
     await page
-      .locator('button[aria-label="Manage publishing templates"]')
+      .locator(".stratum-publish-panel .stratum-control-actions button")
       .click();
     await until(
       "!!document.querySelector('.modal[aria-label=\"Publishing templates\"]')",

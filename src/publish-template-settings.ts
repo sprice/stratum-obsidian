@@ -35,7 +35,7 @@ import {
   type PublishingTemplate,
   type PublishingTemplates,
 } from "./publish-templates";
-import { styleStratumComponent } from "./ui-controls";
+import { createStratumAction, styleStratumComponent } from "./ui-controls";
 import { ConfirmModal } from "./ui-modal";
 import {
   installedTemplateResources,
@@ -238,15 +238,47 @@ export class PublishingTemplatesModal extends Modal {
   private releases: RegistryRelease[] = [];
   private selectedFamily = "";
   private selectedVersions = new Set<string>();
-  private status = "Loading the template registry…";
+  private status = "Choose a template, then select versions to add.";
+  private statusRequest = 0;
+  private statusTimer?: number;
+  private registrySetting?: Setting;
   private installationStatus = "";
   private installationFailed = false;
   private busy = false;
   private listingRequest = 0;
+  private familyRequest = 0;
   private view: "list" | "edit" = "list";
   private renderCurrentList() {
     if (!this.installation.signal.aborted && this.view === "list")
       this.renderList();
+  }
+  private setRegistryStatus(message: string) {
+    this.status = message;
+    this.registrySetting?.setDesc(message);
+  }
+  private beginRegistryStatus(ready: string, unavailable: string) {
+    window.clearTimeout(this.statusTimer);
+    const request = ++this.statusRequest;
+    let elapsed = false;
+    let warning = unavailable;
+    this.setRegistryStatus(ready);
+    this.statusTimer = window.setTimeout(() => {
+      elapsed = true;
+      if (request !== this.statusRequest || this.installation.signal.aborted)
+        return;
+      this.setRegistryStatus(warning);
+    }, 3000);
+    return (message: string, offline = false) => {
+      if (request !== this.statusRequest || this.installation.signal.aborted)
+        return;
+      if (offline) {
+        warning = message;
+        if (!elapsed) return;
+      } else {
+        window.clearTimeout(this.statusTimer);
+      }
+      this.setRegistryStatus(message);
+    };
   }
   private async download(spec: {
     url: string;
@@ -257,6 +289,13 @@ export class PublishingTemplatesModal extends Modal {
     return downloadPublicationResource(spec, this.installation.signal);
   }
   private async refreshRegistry() {
+    const request = ++this.familyRequest;
+    const unavailable =
+      "The registry is unavailable. Installed versions still work offline.";
+    const finishStatus = this.beginRegistryStatus(
+      "Choose a template, then select versions to add.",
+      unavailable,
+    );
     try {
       const result = await registryListing(
         publicationResourceCache(this.plugin),
@@ -270,17 +309,21 @@ export class PublishingTemplatesModal extends Modal {
           };
         },
       );
+      if (request !== this.familyRequest || this.installation.signal.aborted)
+        return;
       this.families = result.items;
-      this.status = result.offline
-        ? "Offline · showing the last registry listing. Installed versions remain available."
-        : this.families.length
-          ? "Choose a template, then select versions to add."
-          : "No templates have been published yet.";
+      finishStatus(
+        result.offline
+          ? "Offline · showing the last registry listing. Installed versions remain available."
+          : this.families.length
+            ? "Choose a template, then select versions to add."
+            : "No templates have been published yet.",
+        result.offline,
+      );
     } catch (error) {
-      this.status =
-        error instanceof Error
-          ? error.message
-          : "The registry is unavailable. Installed versions still work offline.";
+      if (request !== this.familyRequest || this.installation.signal.aborted)
+        return;
+      finishStatus(error instanceof Error ? error.message : unavailable, true);
     }
     this.renderCurrentList();
   }
@@ -291,13 +334,17 @@ export class PublishingTemplatesModal extends Modal {
     this.selectedVersions.clear();
     this.releases = [];
     const request = ++this.listingRequest;
-    this.status = "Loading versions…";
-    this.renderList();
+    const ready = id
+      ? "Select versions, then click Install. Installed versions appear below, ready to use."
+      : "Choose a template, then select versions to add.";
+    const unavailable = "Could not load versions. Retry when connected.";
+    const finishStatus = this.beginRegistryStatus(ready, unavailable);
     if (!id) {
-      this.status = "Choose a template.";
+      finishStatus(ready);
       this.renderList();
       return;
     }
+    this.renderList();
     try {
       const listing = await registryListing(
         publicationResourceCache(this.plugin),
@@ -325,15 +372,15 @@ export class PublishingTemplatesModal extends Modal {
       const releases = listing.items;
       if (request !== this.listingRequest) return;
       this.releases = releases;
-      this.status = listing.offline
-        ? "Offline · cached versions shown. New installations require the mirror."
-        : "Select versions, then click Install. Installed versions appear below, ready to use.";
+      finishStatus(
+        listing.offline
+          ? "Offline · cached versions shown. New installations require the mirror."
+          : ready,
+        listing.offline,
+      );
     } catch (error) {
       if (request !== this.listingRequest) return;
-      this.status =
-        error instanceof Error
-          ? error.message
-          : "Could not load versions. Retry when connected.";
+      finishStatus(error instanceof Error ? error.message : unavailable, true);
     }
     this.renderCurrentList();
   }
@@ -381,8 +428,13 @@ export class PublishingTemplatesModal extends Modal {
     this.busy = false;
     if (this.installation.signal.aborted) return;
     this.installationFailed = failures.length > 0;
+    const total = new Set(
+      (publishingTemplatesFor(this.plugin).installations ?? [])
+        .filter((manifest) => manifest.pin.metadata.templateId === family)
+        .map((manifest) => manifest.pin.metadata.version),
+    ).size;
     const success = installed
-      ? `${installed} version${installed === 1 ? "" : "s"} installed and enabled. Ready to use under Your templates.`
+      ? `Added ${installed} version${installed === 1 ? "" : "s"}. ${total} version${total === 1 ? " of this template is" : "s of this template are"} installed.`
       : "";
     this.installationStatus = [
       success,
@@ -395,11 +447,6 @@ export class PublishingTemplatesModal extends Modal {
     ]
       .filter(Boolean)
       .join("\n");
-    new Notice(
-      failures.length
-        ? "Template installation failed. See the error beside Install."
-        : success,
-    );
     this.renderCurrentList();
   }
   private installationDetails(manifest: TemplateInstallation) {
@@ -493,7 +540,7 @@ export class PublishingTemplatesModal extends Modal {
     this.contentEl.empty();
     this.setTitle("Publishing templates");
     const state = publishingTemplatesFor(this.plugin);
-    new Setting(this.contentEl)
+    const registrySetting = new Setting(this.contentEl)
       .setName("Add from registry")
       .setDesc(
         Platform.isDesktop
@@ -513,7 +560,7 @@ export class PublishingTemplatesModal extends Modal {
         dropdown.selectEl.setAttribute("aria-label", "Registry template");
       })
       .addButton((button) =>
-        button
+        styleStratumComponent(button)
           .setButtonText("Refresh")
           .setDisabled(this.busy || !Platform.isDesktop)
           .onClick(() => {
@@ -522,6 +569,18 @@ export class PublishingTemplatesModal extends Modal {
               void this.chooseFamily(this.selectedFamily);
           }),
       );
+    this.registrySetting = registrySetting;
+    registrySetting.settingEl.addClass("stratum-template-registry");
+    createStratumAction(
+      this.contentEl.createDiv({ cls: "stratum-template-registry-link" }),
+      { text: "View registry" },
+    ).addEventListener("click", () => {
+      window.open(
+        new URL("/", TEMPLATE_REGISTRY_ORIGIN).href,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    });
     const versionList = this.contentEl.createDiv({
       cls: "stratum-template-versions",
     });
@@ -762,6 +821,8 @@ export class PublishingTemplatesModal extends Modal {
   }
 
   onClose(): void {
+    window.clearTimeout(this.statusTimer);
+    this.registrySetting = undefined;
     this.installation.abort();
     this.contentEl.empty();
   }

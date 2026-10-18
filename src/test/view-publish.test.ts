@@ -115,6 +115,7 @@ function setup(state?: import("../view-publish").PublishViewState) {
     },
     academicInfo: { title: "", duplicateTitle: false, bothAuthors: false },
     academicProblem: "",
+    templateAvailabilityProblem: "Choose a template before publishing.",
     duplicateTitleWarning: false,
     preferencesSaving: false,
     propertiesMissing: false,
@@ -197,9 +198,7 @@ function setup(state?: import("../view-publish").PublishViewState) {
 
 test("ready publishing creates PDF without a file type selector", () => {
   const { root, update } = setup();
-  assert.ok(
-    root.all().some((el) => el.text === "PDF documents created for your note"),
-  );
+  assert.ok(root.all().some((el) => el.text === "From: Synthetic note title"));
   assert.ok(
     !root
       .all()
@@ -208,12 +207,12 @@ test("ready publishing creates PDF without a file type selector", () => {
       ),
   );
   assert.equal(
-    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    root.all().find((el) => el.text === "Create PDF")!.disabled,
     false,
   );
   update();
   assert.equal(
-    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    root.all().find((el) => el.text === "Create PDF")!.disabled,
     false,
   );
 });
@@ -303,9 +302,68 @@ test("a note chooses from all templates without a document type selector", () =>
       "Synthetic template",
     ],
   );
+  assert.equal(root.all().find((el) => el.text === "Create PDF")!.hidden, true);
+});
+
+test("an unconfigured note guides selection without a warning or document controls", () => {
+  const { root, publish, update } = setup();
+  publish.notePreferences.templateId = undefined;
+  update();
+  const controls = root
+    .all()
+    .find((el) => el.cls === "stratum-publish-controls")!;
+  const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
+  const hint = root
+    .all()
+    .find((el) => el.text === "Choose a template to get started.")!;
+  assert.equal(hint.hidden, false);
+  assert.equal(controls.hidden, true);
+  assert.equal(status.hidden, true);
+  publish.notePreferences.templateId = "general";
+  update();
+  assert.equal(hint.hidden, true);
+  assert.equal(controls.hidden, false);
+  publish.document = { basename: "Another synthetic note", extension: "md" };
+  update();
+  assert.ok(
+    root.all().some((el) => el.text === "From: Another synthetic note"),
+  );
+});
+
+test("no enabled templates and a missing saved template have distinct guidance", () => {
+  const { root, publish, update } = setup();
+  const templates = readPublishingTemplates(undefined);
+  Object.defineProperty(publish, "publishingTemplates", {
+    get: () => ({
+      ...templates,
+      enabledIds: [],
+      templates: [],
+    }),
+  });
+  publish.notePreferences.templateId = undefined;
+  update();
+  const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
+  const selectors = root
+    .all()
+    .find((el) => el.cls.startsWith("stratum-publish-template-selectors"))!;
+  assert.equal(selectors.hidden, true);
+  assert.equal(status.hidden, true);
   assert.equal(
-    root.all().find((el) => el.text === "Create PDF document")!.hidden,
-    true,
+    root.all().find((el) => el.text === "Enable a template to get started.")!
+      .hidden,
+    false,
+  );
+  publish.notePreferences.templateId = "registry:synthetic:1.0-r1";
+  publish.templateAvailabilityProblem =
+    "This exact template version is not installed.";
+  update();
+  assert.equal(status.hidden, false);
+  assert.ok(
+    status.all().some((el) => el.text === publish.templateAvailabilityProblem),
+  );
+  assert.equal(
+    root.all().filter((el) => el.text === "Manage templates").length,
+    1,
   );
 });
 
@@ -350,7 +408,7 @@ test("secondary selection and Documents state survive panel remounts", () => {
     "all",
   );
   second.update();
-  assert.ok(second.root.all().some((el) => el.text === "Create PDF document"));
+  assert.ok(second.root.all().some((el) => el.text === "Create PDF"));
 });
 
 test("one note Settings entry replaces scattered controls for all three templates", () => {
@@ -363,7 +421,7 @@ test("one note Settings entry replaces scattered controls for all three template
       .find((el) => el.cls === "stratum-publish-controls")!;
     assert.deepEqual(
       controls.children.map((el) => el.text),
-      ["Settings", "Create PDF document"],
+      ["Document settings", "Create PDF"],
     );
     assert.ok(
       !root
@@ -384,9 +442,12 @@ test("one note Settings entry replaces scattered controls for all three template
   assert.deepEqual(settingsCalls, ["adopt", "open", "open", "open"]);
   publish.busy = true;
   update();
-  assert.equal(root.all().find((el) => el.text === "Settings")!.disabled, true);
   assert.equal(
-    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    root.all().find((el) => el.text === "Document settings")!.disabled,
+    true,
+  );
+  assert.equal(
+    root.all().find((el) => el.text === "Create PDF")!.disabled,
     true,
   );
 });
@@ -397,7 +458,9 @@ test("the controller owns the settings window across template changes and panel 
     documents: {},
   };
   const first = setup(state);
-  const settings = first.root.all().find((el) => el.text === "Settings")!;
+  const settings = first.root
+    .all()
+    .find((el) => el.text === "Document settings")!;
   assert.deepEqual(first.launchers, [settings], "the panel offers its button");
   settings.listeners.get("click")!();
   assert.deepEqual(first.launchers, [settings, settings]);
@@ -420,7 +483,7 @@ test("the controller owns the settings window across template changes and panel 
   );
   const second = setup(state);
   assert.deepEqual(second.launchers, [
-    second.root.all().find((el) => el.text === "Settings"),
+    second.root.all().find((el) => el.text === "Document settings"),
   ]);
 });
 
@@ -433,7 +496,7 @@ test("Create status is hidden when ready and exposes only actionable requirement
   update();
   assert.equal(status.hidden, false);
   assert.equal(
-    root.all().find((el) => el.text === "Create PDF document")!.disabled,
+    root.all().find((el) => el.text === "Create PDF")!.disabled,
     true,
   );
   publish.academicProblem = "";
@@ -487,27 +550,21 @@ test("Create status is hidden when ready and exposes only actionable requirement
   assert.equal(publish.notePreferences.templateId, selectedTemplate);
 });
 
-test("template recovery waits until dependency verification finishes", () => {
+test("template management waits until dependency verification finishes", () => {
   const { root, publish, update } = setup();
+  const management = root.all().find((el) => el.text === "Manage templates")!;
+  const container = root.all().find((el) => el.children.includes(management))!;
   publish.notePreferences.templateId = "";
   publish.readiness.pdf = false;
   publish.checking = true;
   update();
-  const status = root.all().find((el) => el.cls === "stratum-publish-status")!;
-  assert.equal(status.hidden, false);
-  assert.equal(
-    status.all().some((el) => el.text === "Manage templates"),
-    false,
-  );
+  assert.equal(container.hidden, true);
   publish.readiness.pdf = true;
   update();
-  assert.equal(
-    status.all().some((el) => el.text === "Manage templates"),
-    false,
-  );
+  assert.equal(container.hidden, true);
   publish.checking = false;
   update();
-  assert.ok(status.all().some((el) => el.text === "Manage templates"));
+  assert.equal(container.hidden, false);
 });
 
 test("unchanged publishing errors retain their element and scroll position across updates", () => {
@@ -681,29 +738,15 @@ test("Documents keeps unchanged rows and rebuilds when visible document details 
   );
 });
 
-test("template manager gear shares only the Template column and leaves Version separate", () => {
+test("template management has one labelled action outside the template fields", () => {
   const { root } = setup();
   const selectors = root
     .all()
     .find((el) => el.cls === "stratum-publish-template-selectors")!;
   assert.equal(selectors.children.length, 2);
-  const first = selectors.children[0].all();
-  assert.ok(
-    first.some((el) => el.attrs.get("aria-label") === "Choose template"),
-  );
-  assert.ok(
-    first.some(
-      (el) => el.attrs.get("aria-label") === "Manage publishing templates",
-    ),
-  );
-  assert.ok(
-    !first.some(
-      (el) => el.attrs.get("aria-label") === "Choose template version",
-    ),
-  );
-  assert.ok(
-    selectors.children[1]
-      .all()
-      .some((el) => el.attrs.get("aria-label") === "Choose template version"),
+  assert.ok(!selectors.all().some((el) => el.tag === "button"));
+  assert.equal(
+    root.all().filter((el) => el.text === "Manage templates").length,
+    1,
   );
 });
