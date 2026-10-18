@@ -20,7 +20,7 @@ test("cleanup follows each template's effective mappings, including empty requir
   const source =
     '---\ntitle: ""\nauthors: []\naffiliations: []\ndate: null\nkeywords: {}\nother: null\n---\nBody\n';
   assert.equal(clean(source, DEFAULT_PUBLISH_OPTIONS), source);
-  assert.equal(clean(source), "---\nother: null\n---\nBody\n");
+  assert.equal(clean(source), '---\ntitle: ""\nother: null\n---\nBody\n');
   const titleOnly = {
     ...DEFAULT_PUBLISH_OPTIONS,
     titleSource: "properties" as const,
@@ -31,17 +31,27 @@ test("cleanup follows each template's effective mappings, including empty requir
   );
   assert.equal(clean(source, DEFAULT_PUBLISH_OPTIONS, true), source);
   assert.equal(
+    clean(source, { ...DEFAULT_ACADEMIC_OPTIONS, titleSource: "properties" }),
+    "---\nother: null\n---\nBody\n",
+  );
+  assert.equal(
     clean(source, {
       ...DEFAULT_ACADEMIC_OPTIONS,
       showDate: false,
       showKeywords: false,
     }),
-    "---\ndate: null\nkeywords: {}\nother: null\n---\nBody\n",
+    '---\ntitle: ""\ndate: null\nkeywords: {}\nother: null\n---\nBody\n',
   );
 });
 test("only literal empty values are removed, not populated or nonempty collections", () => {
   for (const value of ["null", '""', '"  "', "[]", "{}", ""])
-    assert.equal(clean(`---\ntitle: ${value}\n---\nBody`), "---\n---\nBody");
+    assert.equal(
+      clean(`---\ntitle: ${value}\n---\nBody`, {
+        ...DEFAULT_ACADEMIC_OPTIONS,
+        titleSource: "properties",
+      }),
+      "---\n---\nBody",
+    );
   for (const value of [
     "0",
     "false",
@@ -52,7 +62,10 @@ test("only literal empty values are removed, not populated or nonempty collectio
     "[{}]",
   ]) {
     const source = `---\ntitle: ${value}\n---\nBody`;
-    assert.equal(clean(source), source);
+    assert.equal(
+      clean(source, { ...DEFAULT_ACADEMIC_OPTIONS, titleSource: "properties" }),
+      source,
+    );
   }
 });
 test("structured cleanup retains rows and unknown fields and obeys renderer field boundaries", () => {
@@ -118,7 +131,7 @@ test("targeted cleanup preserves CRLF, comments, unrelated YAML and body", () =>
   const source =
     '\uFEFF---\r\n# heading\r\ntitle: "" # title comment\r\ncustom: "exact" # untouched\r\nkeywords: []\r\n# body boundary\r\n---\r\nBody [[link]]\r\n';
   assert.equal(
-    clean(source),
+    clean(source, { ...DEFAULT_ACADEMIC_OPTIONS, titleSource: "properties" }),
     '\uFEFF---\r\n# heading\r\n# title comment\r\ncustom: "exact" # untouched\r\n# body boundary\r\n---\r\nBody [[link]]\r\n',
   );
 });
@@ -129,7 +142,10 @@ test("anchors, aliases and flow mappings are preserved; malformed YAML reports a
     '---\n{title: "", keywords: []}\n---\nBody',
     "---\nstratum_publish: &details\n  authors: []\nother: *details\n---\nBody",
   ])
-    assert.equal(clean(source), source);
+    assert.equal(
+      clean(source, { ...DEFAULT_ACADEMIC_OPTIONS, titleSource: "properties" }),
+      source,
+    );
   assert.throws(() => clean("---\ntitle: [\n---\nBody"), /invalid YAML/);
 });
 

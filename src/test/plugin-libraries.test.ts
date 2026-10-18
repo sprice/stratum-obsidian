@@ -39,6 +39,7 @@ function createMockPlugin(params?: {
     tectonicPath: "",
     enabledTabs: readEnabledTabs(undefined),
     lastActiveTab: "search",
+    initialSidebarOpened: true,
     citationStyle: "apa",
     citationLanguage: "en-US",
     citationStyles: {},

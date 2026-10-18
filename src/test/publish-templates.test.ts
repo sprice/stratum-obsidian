@@ -20,7 +20,13 @@ test("built-ins remain configurable and protected without defaults or implicit s
     ["General documents", "Academic papers"],
   );
   assert.equal(state.templates[0].properties.length, 0);
-  assert.equal(state.templates[1].properties[0].required, true);
+  assert.ok(
+    state.templates.every((template) => template.layout.titleSource === "body"),
+  );
+  assert.equal(
+    state.templates[1].properties.some((property) => property.use === "title"),
+    false,
+  );
   assert.equal(selectedPublishingTemplate(state), undefined);
   assert.equal(removePublishingTemplate(state, "academic"), state);
   const custom = { ...state.templates[0], id: "custom", name: "Custom" };

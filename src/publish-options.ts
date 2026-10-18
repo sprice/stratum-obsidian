@@ -32,7 +32,7 @@ export interface AcademicDefaults {
 export interface NotePublishPreferences {
   aastex?: AastexPreferences;
   journalPackages?: Record<string, PublicationPackageReference>;
-  journalLayouts?: Record<string, PublishOptions>;
+  templateLayouts?: Record<string, PublishOptions>;
   documentType: DocumentType;
   templateId?: string;
   opening: "properties" | "body";
@@ -63,7 +63,7 @@ export const DEFAULT_ACADEMIC_OPTIONS: PublishOptions = {
   bodySize: 10,
   titleSize: 17.5,
   lineSpacing: 1,
-  titleSource: "properties",
+  titleSource: "body",
   openingAlignment: "center",
   showAuthors: true,
   showAffiliations: true,
@@ -158,6 +158,35 @@ export function readAcademicDefaults(value: unknown): AcademicDefaults {
         : "",
   };
 }
+function readTemplateLayouts(
+  value: unknown,
+  legacy: unknown,
+): Record<string, PublishOptions> | undefined {
+  // Migrate the former registry-only map at the persistence boundary. Newer
+  // per-template choices take precedence, so reset layouts cannot resurrect it.
+  const entries = [
+    ...Object.entries(record(legacy)).filter(([id]) =>
+      /^(?:journal:[a-z0-9-]+|registry:[a-z0-9._-]+:[a-z0-9._-]+)$/.test(id),
+    ),
+    ...Object.entries(record(value)).filter(([id]) =>
+      /^[a-zA-Z0-9:._-]{1,240}$/.test(id),
+    ),
+  ];
+  return entries.length
+    ? Object.fromEntries(
+        entries.map(([id, layout]) => [
+          id,
+          readPublishOptions(
+            layout,
+            id === "general"
+              ? DEFAULT_PUBLISH_OPTIONS
+              : DEFAULT_ACADEMIC_OPTIONS,
+          ),
+        ]),
+      )
+    : undefined;
+}
+
 export function readNotePreferences(
   value: unknown,
   defaults = DEFAULT_PUBLISH_OPTIONS,
@@ -166,26 +195,13 @@ export function readNotePreferences(
   const v = record(value),
     documentType = v.documentType === "academic" ? "academic" : "general";
   const base = documentType === "academic" ? academic : defaults;
+  const templateLayouts = readTemplateLayouts(
+    v.templateLayouts,
+    v.journalLayouts,
+  );
   return {
     documentType,
-    ...(v.journalLayouts &&
-    typeof v.journalLayouts === "object" &&
-    !Array.isArray(v.journalLayouts)
-      ? {
-          journalLayouts: Object.fromEntries(
-            Object.entries(v.journalLayouts)
-              .filter(([id]) =>
-                /^(?:journal:[a-z0-9-]+|registry:[a-z0-9._-]+:[a-z0-9._-]+)$/.test(
-                  id,
-                ),
-              )
-              .map(([id, value]) => [
-                id,
-                readPublishOptions(value, DEFAULT_ACADEMIC_OPTIONS),
-              ]),
-          ),
-        }
-      : {}),
+    ...(templateLayouts ? { templateLayouts } : {}),
     ...(v.journalPackages &&
     typeof v.journalPackages === "object" &&
     !Array.isArray(v.journalPackages)

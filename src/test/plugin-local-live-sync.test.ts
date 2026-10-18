@@ -214,7 +214,9 @@ test("actual mixed layout overrides cached version 2 for unchanged-source migrat
     stratum_notes_template: "## My Notes\n\n",
   };
   const managed = `${MANAGED_START}\nSynthetic source\n${MANAGED_END}\n`;
-  const modern = `---\n${JSON.stringify(fm)}\n---\n${composeLiteratureNoteBody("## My Notes\n\n", managed)}`;
+  const previous = `---\n${JSON.stringify(fm)}\n---\n${composeLiteratureNoteBody("## My Notes\n\n", managed)}`;
+  const currentFm = { ...fm, stratum_notes_template: "## My Notes\n\n\n" };
+  const modern = `---\n${JSON.stringify(currentFm)}\n---\n${composeLiteratureNoteBody(currentFm.stratum_notes_template, managed)}`;
   let content = `${modern}\n${USER_BOUNDARY_CALLOUT}\n\nMy research\n`;
   const plugin = {
     settings: {
@@ -248,7 +250,12 @@ test("actual mixed layout overrides cached version 2 for unchanged-source migrat
     identity: "user:1",
     name: "Synthetic",
   };
-  for (const needsMigration of [true, false]) {
+  for (const [text, needsMigration] of [
+    [content, true],
+    [previous, true],
+    [modern, false],
+  ] as const) {
+    content = text;
     const metadata = await runtime.getTrackedNoteMetadata(plugin, library);
     const candidates = getTrackedLibraryRefreshCandidates({
       itemFileMap: plugin.settings.itemFileMap,
@@ -260,7 +267,6 @@ test("actual mixed layout overrides cached version 2 for unchanged-source migrat
     assert.equal(candidates.length, needsMigration ? 1 : 0);
     if (needsMigration)
       assert.equal(candidates[0].identity, "user/1/UNCHANGED");
-    content = modern;
   }
   plugin.settings.notesTemplate = "## Summary";
   const metadata = await runtime.getTrackedNoteMetadata(plugin, library);

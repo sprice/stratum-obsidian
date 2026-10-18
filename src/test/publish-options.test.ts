@@ -28,6 +28,11 @@ test("publishing settings normalize malformed values and drop legacy format pref
   });
   assert.equal(options.bodyFont, "");
   assert.equal(options.titleSize, 24);
+  assert.equal(options.titleSource, "body");
+  assert.equal(
+    readPublishOptions({ titleSource: "properties" }).titleSource,
+    "properties",
+  );
   const note = readNotePreferences({
     documentType: "academic",
     format: "docx",
@@ -35,9 +40,31 @@ test("publishing settings normalize malformed values and drop legacy format pref
     docx: { bodyFont: "Arial", lineSpacing: 2 },
   });
   assert.equal(note.pdf.bodyFont, "Georgia");
+  assert.equal(note.pdf.titleSource, "body");
   assert.equal(Object.hasOwn(note, "docx"), false);
   assert.equal(note.pdf.lineSpacing, DEFAULT_ACADEMIC_OPTIONS.lineSpacing);
   assert.equal(Object.hasOwn(note, "format"), false);
+});
+
+test("legacy layouts migrate once and newer per-template choices win across serialization", () => {
+  const id = "registry:example:1.0-r1";
+  const preferences = readNotePreferences({
+    journalLayouts: {
+      [id]: { titleSource: "properties", bodySize: 13 },
+      "journal:legacy": { titleSource: "properties", bodySize: 14 },
+    },
+    templateLayouts: {
+      [id]: { titleSource: "body", bodySize: 11 },
+      general: { titleSource: "properties", bodySize: 15 },
+    },
+  });
+  const reloaded = readNotePreferences(JSON.parse(JSON.stringify(preferences)));
+  assert.deepEqual(reloaded, preferences);
+  assert.equal(Object.hasOwn(reloaded, "journalLayouts"), false);
+  assert.equal(reloaded.templateLayouts?.[id].titleSource, "body");
+  assert.equal(reloaded.templateLayouts?.[id].bodySize, 11);
+  assert.equal(reloaded.templateLayouts?.["journal:legacy"].bodySize, 14);
+  assert.equal(reloaded.templateLayouts?.general.bodySize, 15);
 });
 
 test("academic preparation preserves existing values, legacy author, and unrelated properties", () => {

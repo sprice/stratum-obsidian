@@ -29,11 +29,40 @@ test("removing settings starts onboarding and clears only orphaned Stratum auth 
   };
   await loadPluginSettings(plugin as never);
   assert.equal(plugin.settings.accountEmail, null);
+  assert.equal(plugin.settings.initialSidebarOpened, false);
   assert.equal(plugin.settings.authSessionExpiresAt, null);
   assert.deepEqual(plugin.settings.enabledLibraries, []);
   assert.equal(secrets.get(AUTH_ACCESS_TOKEN_SECRET_ID), "");
   assert.equal(secrets.get(AUTH_REFRESH_TOKEN_SECRET_ID), "");
   assert.equal(secrets.get("other-plugin-secret"), "keep");
+});
+
+test("initial sidebar opening is persisted without reopening existing installations", async () => {
+  let data: unknown = null;
+  const plugin = {
+    settings: { ...DEFAULT_SETTINGS },
+    loadData: () => Promise.resolve(data),
+    saveData: (value: unknown) => {
+      data = structuredClone(value);
+      return Promise.resolve();
+    },
+    app: { secretStorage: { getSecret: () => null, setSecret() {} } },
+  };
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.initialSidebarOpened, false);
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.initialSidebarOpened, false);
+  plugin.settings.initialSidebarOpened = true;
+  await savePluginSettings(plugin as never);
+  await loadPluginSettings(plugin as never);
+  assert.equal(plugin.settings.initialSidebarOpened, true);
+
+  for (const legacy of [{}, { lastActiveTab: "publish" }]) {
+    data = legacy;
+    await loadPluginSettings(plugin as never);
+    assert.equal(plugin.settings.initialSidebarOpened, true);
+  }
 });
 
 test("last selected tab survives reload and invalid stored tabs fall back to Search", async () => {

@@ -1366,6 +1366,23 @@ body.stratum-full-callout-colors .callout[data-callout^="stratum-"] {
 .stratum-library-filters > :only-child {
   grid-column: 1 / -1;
 }
+.stratum-sync-collection-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--size-4-2);
+}
+.stratum-sync-collection-select {
+  flex: 1;
+  min-width: 0;
+}
+.stratum-sync-collection-refresh {
+  flex: 0 0 auto;
+  width: var(--input-height);
+  height: var(--input-height);
+}
+.stratum-sync-collection-refresh.is-loading svg {
+  animation: stratum-spin 0.75s linear infinite;
+}
 @container stratum-sidebar (max-width: 28rem) {
   .stratum-library-filters {
     grid-template-columns: minmax(0, 1fr);

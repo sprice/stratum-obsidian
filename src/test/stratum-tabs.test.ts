@@ -241,6 +241,8 @@ function viewFixture(desktop: boolean) {
         Platform: { isDesktopApp: desktop },
         ButtonComponent: ButtonComponentMock,
         DropdownComponent: DropdownComponentMock,
+        setIcon() {},
+        setTooltip() {},
       },
       { get: (target, key: string) => target[key] ?? Host },
     ),
@@ -369,6 +371,7 @@ for (const desktop of [true, false]) {
 
 test("Sync keeps controls through progress, completion, and tab navigation", () => {
   const f = viewFixture(true);
+  let collectionRefreshes = 0;
   let running = false;
   let processed = 0;
   const state = buildDefaultBulkLibrarySyncState();
@@ -386,7 +389,14 @@ test("Sync keeps controls through progress, completion, and tab navigation", () 
     zoteroConnection: { connected: true },
     localSyncLibraries: libraries,
     syncCollections: [],
-    localSync: { ensureLibrariesLoaded() {}, ensureCollectionsLoaded() {} },
+    localSync: {
+      ensureLibrariesLoaded() {},
+      ensureCollectionsLoaded() {},
+      refreshCollections(library: unknown) {
+        assert.equal(library, libraries[0]);
+        collectionRefreshes++;
+      },
+    },
     isBulkLibrarySyncRunning: () => running,
     isZoteroAutoSyncRunning: () => false,
     isLoadingLocalSyncLibraries: false,
@@ -397,6 +407,19 @@ test("Sync keeps controls through progress, completion, and tab navigation", () 
   const selects = () => f.content.all().filter((el) => el.tag === "select");
   const original = selects();
   assert.equal(original.length, 2);
+  const refreshButton = () =>
+    f.content
+      .all()
+      .find((el) => el.attrs["aria-label"] === "Refresh collections")!;
+  assert.equal(refreshButton().disabled, false);
+  refreshButton().listeners.get("click")!({ key: "", preventDefault() {} });
+  assert.equal(collectionRefreshes, 1);
+  Object.assign(f.plugin, { isLoadingSyncCollections: true });
+  f.view.render();
+  assert.equal(refreshButton().disabled, true);
+  assert.equal(refreshButton().attrs["aria-busy"], "true");
+  original.forEach((select, index) => assert.equal(selects()[index], select));
+  Object.assign(f.plugin, { isLoadingSyncCollections: false });
   original[1].focus();
   running = true;
   state.phase = "running";
@@ -405,6 +428,7 @@ test("Sync keeps controls through progress, completion, and tab navigation", () 
     f.view.render();
     original.forEach((select, index) => assert.equal(selects()[index], select));
     assert.ok(selects().every((el) => el.disabled));
+    assert.equal(refreshButton().disabled, true);
   }
   running = false;
   state.phase = "completed";
@@ -427,4 +451,24 @@ test("Sync keeps controls through progress, completion, and tab navigation", () 
   f.view.render();
   assert.notEqual(selects()[0], original[0]);
   assert.equal(selects()[0].children.length, 3);
+  Object.assign(f.plugin, {
+    selectedSyncCollection: {
+      key: "REMOVED",
+      displayName: "Removed collection",
+    },
+  });
+  f.view.render();
+  assert.ok(
+    f.content
+      .all()
+      .some(
+        (el) =>
+          el.tag === "option" &&
+          el.text === "Removed collection (unavailable)" &&
+          el.disabled,
+      ),
+  );
+  const syncButton = f.content.querySelector(".stratum-control-cta")!;
+  assert.equal(syncButton.disabled, true);
+  assert.equal(refreshButton().disabled, false);
 });

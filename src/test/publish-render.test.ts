@@ -651,11 +651,11 @@ test("repeated titles keep the body heading and keywords follow the abstract", a
       "browser",
       { "./publish-document": publishDocument, "./publish-math": publishMath },
     ).renderPublication;
-  const { readNotePreferences, DEFAULT_ACADEMIC_OPTIONS } =
-    await import("../publish-options");
+  const { readNotePreferences } = await import("../publish-options");
   const { publicationProperties } = await import("../publish-properties");
   const preferences = readNotePreferences({ documentType: "academic" });
-  const definitions = publicationProperties(DEFAULT_ACADEMIC_OPTIONS);
+  preferences.pdf.titleSource = "properties";
+  const definitions = publicationProperties(preferences.pdf);
   assert.ok(definitions.some((field) => field.key === "keywords"));
   const render = (html: string, properties: object) =>
     renderer(html)(

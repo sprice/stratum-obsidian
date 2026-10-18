@@ -55,6 +55,7 @@ export interface StratumSettings {
   tectonicPath: string;
   enabledTabs: EnabledTabs;
   lastActiveTab: StratumTab;
+  initialSidebarOpened: boolean;
   citationStyle: string;
   availableCitationStyles?: string[];
   citationLanguage: string;
@@ -94,6 +95,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   tectonicPath: "",
   enabledTabs: readEnabledTabs(undefined),
   lastActiveTab: "search",
+  initialSidebarOpened: false,
   citationStyle: "apa",
   availableCitationStyles: [...INITIAL_CITATION_STYLES],
   citationLanguage: "en-US",
