@@ -9,357 +9,57 @@ import {
   readLiteratureNoteLayout,
 } from "./literature-note-layout";
 import { Platform, TFile, parseYaml } from "obsidian";
-import {
-  getTrackedChildItemKeysFromFrontmatter,
-  splitFrontmatterContent,
-} from "./literature-note-frontmatter";
-import { log } from "./log";
+import { splitFrontmatterContent } from "./literature-note-frontmatter";
 import { getLibraryAutoSyncState } from "./plugin-libraries";
-import {
-  getTrackedLibraryRefreshCandidates,
-  shouldTriggerLocalLiveSyncFromWatchEvent,
-  type TrackedRefreshCandidate,
-} from "./plugin-local-live-sync-utils";
 import { refreshOpenedLiteratureNote } from "./plugin-note-refresh";
 import type StratumPlugin from "./plugin";
+import { refreshLocalSyncLibraries } from "./plugin-local-sync";
 import {
-  getDefaultZoteroDataDir as getSharedDefaultZoteroDataDir,
-  getRuntimePlatform,
-  resolveHomeDir,
-} from "./zotero-data-dir";
-import { loadLocalZoteroItemVersions } from "./zotero-local";
+  loadLocalZoteroNoteSnapshot,
+  LocalZoteroApiError,
+  LocalZoteroUnavailableError,
+  loadLocalZoteroLibraries,
+} from "./zotero-local";
 
-const LOCAL_ZOTERO_DB_FILE_NAME = "zotero.sqlite";
-const LOCAL_LIVE_SYNC_DEBOUNCE_MS = 1500;
-type RuntimePlatform = string;
+type LiveSyncLibrary = StratumPlugin["localSyncLibraries"][number];
+const POLL_MS = 30_000;
+const RETRY_MS = 60_000;
 
-type LiveSyncLibrary = {
-  type: "user" | "group";
-  id: string;
-  identity: string;
-  name: string;
-};
-
-type PathModuleLike = {
-  normalize(target: string): string;
-  join(...parts: string[]): string;
-  posix: {
-    normalize(target: string): string;
-    join(...parts: string[]): string;
-  };
-  win32: {
-    normalize(target: string): string;
-    join(...parts: string[]): string;
-  };
-};
-
-type FsWatcherLike = {
-  close(): void;
-  on(event: "error", listener: (error: unknown) => void): unknown;
-};
-
-type FsModuleLike = {
-  existsSync(target: string): boolean;
-  statSync(target: string): {
-    isDirectory(): boolean;
-  };
-  watch(
-    target: string,
-    options: {
-      persistent: boolean;
-    },
-    listener: (
-      eventType: string,
-      filename?: string | Uint8Array | null,
-    ) => void,
-  ): FsWatcherLike;
-};
-
-function getNodeRequire(): ((moduleName: string) => unknown) | null {
-  const maybeRequire = (
-    window as Window & {
-      require?: (moduleName: string) => unknown;
-    }
-  ).require;
-  return typeof maybeRequire === "function" ? maybeRequire : null;
-}
-
-function getPathModule(platform: RuntimePlatform): PathModuleLike | null {
-  const nodeRequire = getNodeRequire();
-  if (!nodeRequire) {
-    return null;
-  }
-
-  const module = nodeRequire("node:path");
-  if (
-    module &&
-    typeof module === "object" &&
-    "posix" in module &&
-    "win32" in module &&
-    "normalize" in module &&
-    "join" in module
-  ) {
-    const pathModule = module as PathModuleLike;
-    return platform === "win32"
-      ? { ...pathModule, ...pathModule.win32 }
-      : pathModule;
-  }
-
-  return null;
-}
-
-function getFsModule(): FsModuleLike | null {
-  const nodeRequire = getNodeRequire();
-  if (!nodeRequire) {
-    return null;
-  }
-
-  const module = nodeRequire("node:fs");
-  if (
-    module &&
-    typeof module === "object" &&
-    "existsSync" in module &&
-    "statSync" in module &&
-    "watch" in module
-  ) {
-    return module as FsModuleLike;
-  }
-
-  return null;
-}
-
-export function getDefaultZoteroDataDir(options?: {
-  platform?: RuntimePlatform;
-  homeDir?: string;
-}): string {
-  return getSharedDefaultZoteroDataDir(options);
-}
-
-function normalizeZoteroDataDir(
-  value: string,
-  options?: {
-    platform?: RuntimePlatform;
-    homeDir?: string;
-  },
-): string {
-  const platform = options?.platform ?? getRuntimePlatform();
-  const homeDir = options?.homeDir ?? resolveHomeDir();
-  const pathModule = getPathModule(platform);
-  if (!pathModule) {
-    return value.trim() || getDefaultZoteroDataDir(options);
-  }
-  const trimmed = value.trim();
-  const fallback = getDefaultZoteroDataDir({
-    platform,
-    homeDir,
-  });
-  const raw = trimmed || fallback;
-  let expanded = raw;
-
-  if (raw === "~") {
-    expanded = homeDir;
-  } else if (raw.startsWith("~/") || raw.startsWith("~\\")) {
-    expanded = pathModule.join(homeDir, raw.slice(2));
-  }
-
-  return pathModule.normalize(expanded);
-}
-
-function validateZoteroDataDir(
-  value: string,
-  options?: {
-    platform?: RuntimePlatform;
-    homeDir?: string;
-  },
-): {
-  resolvedPath: string;
-  error: string | null;
-} {
-  const platform = options?.platform ?? getRuntimePlatform();
-  const resolvedPath = normalizeZoteroDataDir(value, options);
-  const pathModule = getPathModule(platform);
-  const fsModule = getFsModule();
-  if (!pathModule || !fsModule) {
-    return {
-      resolvedPath,
-      error:
-        "Desktop filesystem access is not available in this Obsidian environment.",
-    };
-  }
-
-  try {
-    const stat = fsModule.statSync(resolvedPath);
-    if (!stat.isDirectory()) {
-      return {
-        resolvedPath,
-        error: `Zotero data directory is not a folder: ${resolvedPath}`,
-      };
-    }
-  } catch {
-    return {
-      resolvedPath,
-      error: `Zotero data directory not found: ${resolvedPath}`,
-    };
-  }
-
-  const dbPath = pathModule.join(resolvedPath, LOCAL_ZOTERO_DB_FILE_NAME);
-  if (!fsModule.existsSync(dbPath)) {
-    return {
-      resolvedPath,
-      error: `Could not find ${LOCAL_ZOTERO_DB_FILE_NAME} in ${resolvedPath}.`,
-    };
-  }
-
-  return {
-    resolvedPath,
-    error: null,
-  };
-}
-
-function shouldRunLocalLiveSync(plugin: StratumPlugin): boolean {
+function enabled(plugin: StratumPlugin): boolean {
   return (
     !plugin.isUnloaded &&
     Platform.isDesktopApp &&
     plugin.settings.bulkSyncEnabled &&
     plugin.backend.hasSession() &&
-    Boolean(plugin.zoteroConnection?.connected) &&
-    plugin.localSyncLibraries.length > 0
+    Boolean(plugin.zoteroConnection?.connected)
   );
 }
 
-function clearDebounceTimer(plugin: StratumPlugin): void {
-  if (plugin.localLiveSyncDebounceTimer === null) {
-    return;
+function schedule(plugin: StratumPlugin, delay: number): void {
+  if (plugin.localLiveSyncDebounceTimer !== null) {
+    window.clearTimeout(plugin.localLiveSyncDebounceTimer);
   }
-
-  window.clearTimeout(plugin.localLiveSyncDebounceTimer);
   plugin.localLiveSyncDebounceTimer = null;
-}
-
-function clearLiveSyncBaselines(
-  plugin: StratumPlugin,
-  libraries?: LiveSyncLibrary[],
-): void {
-  if (!libraries) {
-    plugin.localLiveSyncLibraryVersions.clear();
-    plugin.localLiveSyncLibraryItemVersions.clear();
-    return;
-  }
-
-  const activeIdentities = new Set(
-    libraries.map((library) => library.identity),
-  );
-  for (const identity of plugin.localLiveSyncLibraryVersions.keys()) {
-    if (!activeIdentities.has(identity)) {
-      plugin.localLiveSyncLibraryVersions.delete(identity);
-      plugin.localLiveSyncLibraryItemVersions.delete(identity);
-    }
-  }
-}
-
-function closeLiveSyncWatcher(plugin: StratumPlugin): void {
-  plugin.localLiveSyncWatcher?.close();
-  plugin.localLiveSyncWatcher = null;
-  plugin.localLiveSyncWatchDir = null;
-  plugin.localLiveSyncWatching = false;
-}
-
-function stopLocalLiveSync(
-  plugin: StratumPlugin,
-  options?: { clearError?: boolean },
-): void {
-  clearDebounceTimer(plugin);
-  closeLiveSyncWatcher(plugin);
-  plugin.localLiveSyncDirty = false;
-  plugin.localLiveSyncQueuedAfterBulkSync = false;
-  clearLiveSyncBaselines(plugin);
-  if (options?.clearError !== false) {
-    plugin.localLiveSyncError = null;
-  }
-}
-
-function queueImmediateFlush(plugin: StratumPlugin): void {
-  clearDebounceTimer(plugin);
+  if (!enabled(plugin)) return;
   plugin.localLiveSyncDebounceTimer = window.setTimeout(() => {
     plugin.localLiveSyncDebounceTimer = null;
-    void flushLocalLiveSync(plugin);
-  }, 0);
+    void poll(plugin);
+  }, delay);
 }
 
-function scheduleLocalLiveSyncFlush(plugin: StratumPlugin): void {
-  plugin.localLiveSyncDirty = true;
-  clearDebounceTimer(plugin);
-  plugin.localLiveSyncDebounceTimer = window.setTimeout(() => {
-    plugin.localLiveSyncDebounceTimer = null;
-    void flushLocalLiveSync(plugin);
-  }, LOCAL_LIVE_SYNC_DEBOUNCE_MS);
-}
-
-async function seedMissingLibraryBaselines(
-  plugin: StratumPlugin,
-  libraries: LiveSyncLibrary[],
-): Promise<void> {
-  clearLiveSyncBaselines(plugin, libraries);
-
-  for (const library of libraries) {
-    if (!shouldRunLocalLiveSync(plugin)) return;
-    if (
-      plugin.localLiveSyncLibraryVersions.has(library.identity) &&
-      plugin.localLiveSyncLibraryItemVersions.has(library.identity)
-    ) {
-      continue;
-    }
-
-    try {
-      const versionsResponse = await loadLocalZoteroItemVersions({
-        port: plugin.settings.zoteroLocalApiPort,
-        library,
-        topLevelOnly: false,
-      });
-      if (!shouldRunLocalLiveSync(plugin)) return;
-      plugin.localLiveSyncLibraryVersions.set(
-        library.identity,
-        versionsResponse.libraryVersion,
-      );
-      plugin.localLiveSyncLibraryItemVersions.set(
-        library.identity,
-        versionsResponse.itemVersions,
-      );
-    } catch (error) {
-      console.error(
-        `stratum: failed to seed local live-sync baseline for ${library.identity}`,
-        error,
-      );
-    }
-  }
-}
-
-function resolveTrackedRefreshFile(
-  plugin: StratumPlugin,
-  library: LiveSyncLibrary,
-  candidate: TrackedRefreshCandidate,
-): TFile | null {
-  const cached = plugin.app.vault.getAbstractFileByPath(candidate.filePath);
-  if (cached instanceof TFile) {
-    return cached;
-  }
-
-  return plugin.findExistingLiteratureNoteFile({
-    libraryType: library.type,
-    libraryId: library.id,
-    itemKey: candidate.itemKey,
-  });
+function setStatus(plugin: StratumPlugin, message: string | null): void {
+  if (plugin.localLiveSyncError === message) return;
+  plugin.localLiveSyncError = message;
+  plugin.refreshViews();
 }
 
 export async function getTrackedNoteMetadata(
   plugin: StratumPlugin,
   library: LiveSyncLibrary,
 ): Promise<{
-  trackedChildKeysByIdentity: Record<string, string[]>;
   layoutMigrationIdentities: Set<string>;
 }> {
   const prefix = `${library.type}/${library.id}/`;
-  const trackedChildKeysByIdentity: Record<string, string[]> = {};
   const layoutMigrationIdentities = new Set<string>();
 
   for (const [identity, entry] of Object.entries(plugin.settings.itemFileMap)) {
@@ -410,241 +110,158 @@ export async function getTrackedNoteMetadata(
       )
         layoutMigrationIdentities.add(identity);
     }
-    trackedChildKeysByIdentity[identity] =
-      getTrackedChildItemKeysFromFrontmatter(frontmatter);
   }
 
-  return { trackedChildKeysByIdentity, layoutMigrationIdentities };
+  return { layoutMigrationIdentities };
 }
 
-async function runLocalLiveSyncFlush(plugin: StratumPlugin): Promise<void> {
-  if (!shouldRunLocalLiveSync(plugin)) {
-    return;
-  }
-
-  if (plugin.isBulkLibrarySyncRunning()) {
-    plugin.localLiveSyncQueuedAfterBulkSync = true;
-    return;
-  }
-
-  plugin.localLiveSyncQueuedAfterBulkSync = false;
-  plugin.localLiveSyncDirty = false;
-  const libraries = [...plugin.localSyncLibraries];
-  await seedMissingLibraryBaselines(plugin, libraries);
-
-  for (const library of libraries) {
-    if (!shouldRunLocalLiveSync(plugin)) {
-      return;
-    }
-
-    if (plugin.isBulkLibrarySyncRunning()) {
-      plugin.localLiveSyncQueuedAfterBulkSync = true;
-      return;
-    }
-
-    try {
-      // A Zotero watch event only tells us "something changed". Repeated edits to
-      // the same child item can be missed if we trust a cheap library-level
-      // version shortcut here, so always diff the full item-version snapshot.
-      const versionsResponse = await loadLocalZoteroItemVersions({
-        port: plugin.settings.zoteroLocalApiPort,
-        library,
-        topLevelOnly: false,
-      });
-      const previousItemVersions =
-        plugin.localLiveSyncLibraryItemVersions.get(library.identity) ?? {};
-      const candidates = getTrackedLibraryRefreshCandidates({
-        itemFileMap: plugin.settings.itemFileMap,
-        library,
-        previousItemVersions,
-        currentItemVersions: versionsResponse.itemVersions,
-        ...(await getTrackedNoteMetadata(plugin, library)),
-      });
-
-      log("live-sync", "refreshing changed literature notes", {
-        library: library.identity,
-        changedNotes: candidates.length,
-      });
-
-      for (const candidate of candidates) {
-        if (!shouldRunLocalLiveSync(plugin)) {
-          return;
-        }
-
-        if (plugin.isBulkLibrarySyncRunning()) {
-          plugin.localLiveSyncQueuedAfterBulkSync = true;
-          return;
-        }
-
-        const file = resolveTrackedRefreshFile(plugin, library, candidate);
-        if (!file) {
-          continue;
-        }
-
-        const refresh = refreshOpenedLiteratureNote(plugin, file);
-        if (!refresh) {
-          if (plugin.isBulkLibrarySyncRunning()) {
-            plugin.localLiveSyncQueuedAfterBulkSync = true;
-            return;
-          }
-          continue;
-        }
-
-        await refresh;
-        if (getLibraryAutoSyncState(plugin, library).lastError) {
-          throw new Error(
-            "A note could not be refreshed; keeping the previous live-sync baseline for retry.",
-          );
-        }
+async function runPoll(plugin: StratumPlugin): Promise<void> {
+  if (!enabled(plugin) || plugin.isBulkLibrarySyncRunning()) return;
+  const port = plugin.settings.zoteroLocalApiPort;
+  const accountId = plugin.settings.accountId;
+  const current = () =>
+    enabled(plugin) &&
+    plugin.settings.accountId === accountId &&
+    plugin.settings.zoteroLocalApiPort === port &&
+    !plugin.isBulkLibrarySyncRunning();
+  const available = await loadLocalZoteroLibraries({ port }).catch(
+    (error: unknown) => {
+      if (error instanceof LocalZoteroApiError && error.status === 404) {
+        throw new Error(
+          "Automatic refresh requires Zotero 7 or later with the local API enabled.",
+        );
       }
-
-      if (!shouldRunLocalLiveSync(plugin)) return;
-      plugin.localLiveSyncLibraryVersions.set(
-        library.identity,
-        versionsResponse.libraryVersion,
-      );
-      plugin.localLiveSyncLibraryItemVersions.set(
-        library.identity,
-        versionsResponse.itemVersions,
-      );
-    } catch (error) {
-      console.error(
-        `stratum: local live sync failed for ${library.identity}`,
-        error,
+      throw error;
+    },
+  );
+  if (
+    plugin.localZoteroUserId &&
+    available.userId !== plugin.localZoteroUserId
+  ) {
+    throw new Error(
+      "The local Zotero account changed. Reconnect the matching account to resume automatic refresh.",
+    );
+  }
+  if (!current()) return;
+  if (!plugin.localSyncLibraries.length) {
+    await refreshLocalSyncLibraries(plugin);
+    if (!plugin.localSyncLibraries.length) {
+      throw new Error(
+        plugin.localSyncLibrariesError ??
+          "No local Zotero libraries available.",
       );
     }
   }
+  for (const key of plugin.localLiveSyncSnapshots.keys()) {
+    if (
+      !Object.hasOwn(
+        plugin.settings.itemFileMap,
+        key.slice(key.indexOf("/") + 1),
+      )
+    ) {
+      plugin.localLiveSyncSnapshots.delete(key);
+    }
+  }
+  for (const library of [...plugin.localSyncLibraries]) {
+    if (
+      !available.libraries.some(
+        (entry) => entry.type === library.type && entry.id === library.id,
+      )
+    )
+      continue;
+    const libraryCurrent = () =>
+      current() &&
+      plugin.localSyncLibraries.some(
+        (entry) => entry.type === library.type && entry.id === library.id,
+      );
+    const prefix = `${library.type}/${library.id}/`;
+    const metadata = await getTrackedNoteMetadata(plugin, library);
+    for (const [identity, entry] of Object.entries(
+      plugin.settings.itemFileMap,
+    )) {
+      if (!identity.startsWith(prefix)) continue;
+      if (!libraryCurrent()) return;
+      const snapshot = await loadLocalZoteroNoteSnapshot({
+        port,
+        library,
+        itemKey: entry.zoteroItemKey,
+      });
+      if (!libraryCurrent()) return;
+      const key = `${port}/${identity}`;
+      if (
+        plugin.localLiveSyncSnapshots.get(key) === snapshot &&
+        !metadata.layoutMigrationIdentities.has(identity)
+      )
+        continue;
+      const file =
+        plugin.app.vault.getAbstractFileByPath(entry.filePath) ??
+        plugin.findExistingLiteratureNoteFile({
+          libraryType: library.type,
+          libraryId: library.id,
+          itemKey: entry.zoteroItemKey,
+        });
+      if (!(file instanceof TFile)) continue;
+      const refresh = refreshOpenedLiteratureNote(plugin, file, {
+        background: true,
+        sourceMissing: snapshot === "deleted",
+        canRefresh: libraryCurrent,
+      });
+      if (!refresh) continue;
+      await refresh;
+      if (!libraryCurrent()) return;
+      if (getLibraryAutoSyncState(plugin, library).lastError) {
+        throw new Error(
+          "Automatic refresh paused; unfinished notes will be retried.",
+        );
+      }
+      // Advance only after applying the source successfully. A fresh session
+      // refreshes each tracked note once so changes while Obsidian was closed
+      // are never silently adopted as a baseline.
+      plugin.localLiveSyncSnapshots.set(key, snapshot);
+    }
+  }
+  setStatus(plugin, null);
 }
 
-async function flushLocalLiveSync(plugin: StratumPlugin): Promise<void> {
-  if (plugin.localLiveSyncRunPromise) {
-    return plugin.localLiveSyncRunPromise;
-  }
-
-  const runPromise = runLocalLiveSyncFlush(plugin).finally(() => {
-    plugin.localLiveSyncRunPromise = null;
-    if (
-      (plugin.localLiveSyncDirty || plugin.localLiveSyncQueuedAfterBulkSync) &&
-      shouldRunLocalLiveSync(plugin) &&
-      !plugin.isBulkLibrarySyncRunning()
-    ) {
-      queueImmediateFlush(plugin);
-    }
-  });
-  plugin.localLiveSyncRunPromise = runPromise;
-  return runPromise;
+function poll(plugin: StratumPlugin): Promise<void> {
+  if (plugin.localLiveSyncRunPromise) return plugin.localLiveSyncRunPromise;
+  let delay = POLL_MS;
+  const pending = runPoll(plugin)
+    .catch((error: unknown) => {
+      delay = RETRY_MS;
+      if (!enabled(plugin)) return;
+      const message =
+        error instanceof LocalZoteroUnavailableError
+          ? "Zotero unavailable. Saved notes remain available."
+          : error instanceof LocalZoteroApiError && error.status === 403
+            ? "Enable Zotero’s local API in Settings → Advanced to resume automatic refresh."
+            : error instanceof Error
+              ? error.message
+              : "Automatic refresh paused. Will retry.";
+      setStatus(plugin, message);
+    })
+    .finally(() => {
+      plugin.localLiveSyncRunPromise = null;
+      schedule(plugin, delay);
+    });
+  plugin.localLiveSyncRunPromise = pending;
+  return pending;
 }
 
 export function notifyLocalLiveSyncAfterBulkSync(plugin: StratumPlugin): void {
-  if (!plugin.localLiveSyncQueuedAfterBulkSync) {
-    return;
-  }
-
-  plugin.localLiveSyncQueuedAfterBulkSync = false;
-  if (!shouldRunLocalLiveSync(plugin)) {
-    return;
-  }
-
-  queueImmediateFlush(plugin);
+  schedule(plugin, 0);
 }
 
-export async function reconcileLocalLiveSync(
-  plugin: StratumPlugin,
-): Promise<void> {
-  if (!Platform.isDesktopApp || !plugin.settings.bulkSyncEnabled) {
-    stopLocalLiveSync(plugin);
-    plugin.refreshSettingTab();
+export function reconcileLocalLiveSync(plugin: StratumPlugin): void {
+  if (!enabled(plugin)) {
+    schedule(plugin, 0);
+    plugin.localLiveSyncSnapshots.clear();
+    setStatus(plugin, null);
     return;
   }
-
-  const validation = validateZoteroDataDir(plugin.settings.zoteroDataDir);
-  if (validation.error) {
-    stopLocalLiveSync(plugin, {
-      clearError: false,
-    });
-    plugin.localLiveSyncError = validation.error;
-    plugin.refreshSettingTab();
-    return;
+  if (!plugin.localLiveSyncFocusRegistered) {
+    plugin.localLiveSyncFocusRegistered = true;
+    plugin.registerDomEvent(window, "focus", () => schedule(plugin, 0));
   }
-
-  if (!shouldRunLocalLiveSync(plugin)) {
-    stopLocalLiveSync(plugin);
-    plugin.refreshSettingTab();
-    return;
-  }
-
-  plugin.localLiveSyncError = null;
-
-  if (
-    !plugin.localLiveSyncWatcher ||
-    plugin.localLiveSyncWatchDir !== validation.resolvedPath
-  ) {
-    const fsModule = getFsModule();
-    if (!fsModule) {
-      stopLocalLiveSync(plugin, {
-        clearError: false,
-      });
-      plugin.localLiveSyncError =
-        "Desktop filesystem access is not available in this Obsidian environment.";
-      plugin.refreshSettingTab();
-      return;
-    }
-
-    stopLocalLiveSync(plugin);
-    plugin.localLiveSyncError = null;
-    try {
-      plugin.localLiveSyncWatchDir = validation.resolvedPath;
-      plugin.localLiveSyncWatcher = fsModule.watch(
-        validation.resolvedPath,
-        {
-          persistent: false,
-        },
-        (_eventType, filename) => {
-          if (!shouldTriggerLocalLiveSyncFromWatchEvent(filename)) {
-            return;
-          }
-
-          log("live-sync", "detected local Zotero database change", {
-            file:
-              typeof filename === "string"
-                ? filename
-                : filename
-                  ? new TextDecoder().decode(filename)
-                  : "",
-          });
-          scheduleLocalLiveSyncFlush(plugin);
-        },
-      );
-      plugin.localLiveSyncWatcher.on("error", (error) => {
-        console.error("stratum: local live-sync watcher failed", error);
-        stopLocalLiveSync(plugin, {
-          clearError: false,
-        });
-        plugin.localLiveSyncError =
-          error instanceof Error
-            ? error.message
-            : "Could not watch the Zotero data directory.";
-        plugin.refreshSettingTab();
-      });
-      plugin.localLiveSyncWatching = true;
-      log("live-sync", "watching Zotero data directory", {
-        dir: validation.resolvedPath,
-      });
-    } catch (error) {
-      stopLocalLiveSync(plugin, {
-        clearError: false,
-      });
-      plugin.localLiveSyncError =
-        error instanceof Error
-          ? error.message
-          : "Could not watch the Zotero data directory.";
-      plugin.refreshSettingTab();
-      return;
-    }
-  } else {
-    plugin.localLiveSyncWatching = true;
-  }
-
-  await seedMissingLibraryBaselines(plugin, plugin.localSyncLibraries);
-  plugin.refreshSettingTab();
+  if (!plugin.localLiveSyncRunPromise) schedule(plugin, 0);
 }

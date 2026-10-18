@@ -151,16 +151,25 @@ function recordRefreshFailure(
       : "Literature note refresh failed.";
 }
 
+type RefreshOptions = {
+  background?: boolean;
+  sourceMissing?: boolean;
+  canRefresh?: () => boolean;
+};
+
 async function runOpenedLiteratureNoteRefresh(
   plugin: StratumPlugin,
   file: TFile,
+  options: RefreshOptions = {},
 ): Promise<void> {
   const target = getRefreshTarget(plugin, file);
   if (!target) {
     return;
   }
   const { itemKey, library } = target;
-  if (!canSyncLibrary(plugin, library)) return;
+  const { background } = options;
+  if (!canSyncLibrary(plugin, library) || options.canRefresh?.() === false)
+    return;
   const {
     detail,
     usedLocal,
@@ -171,12 +180,14 @@ async function runOpenedLiteratureNoteRefresh(
   } = await loadZoteroItemDetailForNoteSync(plugin, {
     library,
     itemKey,
-    sourcePreference: "auto",
+    sourcePreference: background ? "local" : "auto",
   });
 
-  if (!canSyncLibrary(plugin, library)) return;
+  if (!canSyncLibrary(plugin, library) || options.canRefresh?.() === false)
+    return;
   if (!detail) {
     if (
+      (background && options.sourceMissing && localMissing) ||
       shouldMarkLiteratureNoteDeletedAfterRefreshMiss({
         usedLocal,
         localMissing,
@@ -187,16 +198,21 @@ async function runOpenedLiteratureNoteRefresh(
         app: plugin.app,
         file,
         identity: { libraryType: library.type, libraryId: library.id, itemKey },
-        canWrite: () => canSyncLibrary(plugin, library),
+        canWrite: () =>
+          canSyncLibrary(plugin, library) && options.canRefresh?.() !== false,
       });
       recordRefreshSuccess(plugin, library);
       return;
     }
 
-    const terminalError = resolveTerminalRefreshError(localError, backendError);
+    const terminalError =
+      resolveTerminalRefreshError(localError, backendError) ??
+      (background
+        ? new Error("The source could not be fully refreshed. Will retry.")
+        : null);
     if (terminalError) {
       recordRefreshFailure(plugin, library, terminalError);
-      showRefreshNotice(plugin, terminalError);
+      if (!background) showRefreshNotice(plugin, terminalError);
     }
     return;
   }
@@ -212,6 +228,7 @@ async function runOpenedLiteratureNoteRefresh(
 export function refreshOpenedLiteratureNote(
   plugin: StratumPlugin,
   file: TFile,
+  options: RefreshOptions = {},
 ): Promise<void> | null {
   if (plugin.isUnloaded || plugin.isBulkLibrarySyncRunning()) {
     return null;
@@ -228,16 +245,18 @@ export function refreshOpenedLiteratureNote(
     return existing;
   }
 
-  const pending = runOpenedLiteratureNoteRefresh(plugin, file)
+  const pending = runOpenedLiteratureNoteRefresh(plugin, file, options)
     .catch((error) => {
       if (!canSyncLibrary(plugin, target.library)) return;
-      if (error instanceof UnsupportedZoteroItemError) {
+      if (error instanceof UnsupportedZoteroItemError && !options.background) {
         new Notice(`${PLUGIN_NAME}: ${error.message}`);
         return;
       }
       recordRefreshFailure(plugin, target.library, error);
-      showRefreshNotice(plugin, error);
-      console.error("stratum: literature note refresh failed", error);
+      if (!options.background) {
+        showRefreshNotice(plugin, error);
+        console.error("stratum: literature note refresh failed", error);
+      }
     })
     .finally(() => {
       plugin.noteRefreshPromises.delete(refreshPath);

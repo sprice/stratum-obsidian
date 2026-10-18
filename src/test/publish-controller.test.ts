@@ -61,6 +61,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
     parse: 0,
     settings: [] as string[],
     settingsClosed: 0,
+    downloads: [] as AbortSignal[],
   };
   const payloads: unknown[] = [];
   const behavior = {
@@ -226,6 +227,18 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
           return behavior.probeError
             ? Promise.reject(new Error(behavior.probeError))
             : Promise.resolve();
+        },
+        savePublishedCopy: (
+          _bytes: ArrayBuffer,
+          _filename: string,
+          signal: AbortSignal,
+        ) => {
+          calls.downloads.push(signal);
+          return new Promise<boolean>((resolve) =>
+            signal.addEventListener("abort", () => resolve(false), {
+              once: true,
+            }),
+          );
         },
         checkPublishing: () => {
           calls.check++;
@@ -1563,4 +1576,18 @@ test("view opens a vault PDF natively, reuses its tab, and reports a missing fil
   assert.equal(f.revealed.at(-1), pdfLeaf);
   await f.controller.open({ ...doc, path: "Missing.pdf" });
   assert.match(f.controller.error, /unavailable/);
+});
+
+test("unload cancels pending PDF downloads without reporting a failure", async () => {
+  const { controller, calls } = setup();
+  const pending = controller.saveCopy({
+    path: "Exports/Example.pdf",
+    filename: "Example.pdf",
+  } as never);
+  await settle();
+  assert.equal(calls.downloads.length, 1);
+  controller.onunload();
+  await pending;
+  assert.equal(calls.downloads[0].aborted, true);
+  assert.equal(controller.error, "");
 });

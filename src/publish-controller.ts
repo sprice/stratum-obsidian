@@ -23,7 +23,6 @@ import {
 } from "./publish-templates";
 import {
   Component,
-  FileSystemAdapter,
   MarkdownView,
   Notice,
   Platform,
@@ -97,6 +96,7 @@ export class PublishController extends Component {
   historyScope: "note" | "all" = "note";
   readonly store: PublishStore;
   private listeners = new Set<() => void>();
+  private downloads = new Set<AbortController>();
   private settingsModal?: import("./publication-options-modal").PublishingSettingsModal;
   private settingsRequest = 0;
   private settingsLauncher?: HTMLElement;
@@ -224,6 +224,8 @@ export class PublishController extends Component {
     this.clearError();
     this.aborter?.abort();
     this.background?.abort();
+    for (const download of this.downloads) download.abort();
+    this.downloads.clear();
     if (this.sourceTimer !== null) window.clearTimeout(this.sourceTimer);
     this.listeners.clear();
   }
@@ -1263,12 +1265,6 @@ export class PublishController extends Component {
       this.emit();
     }
   }
-  private absolute(document: PublishedDocument): string {
-    const adapter = this.plugin.app.vault.adapter;
-    if (!(adapter instanceof FileSystemAdapter))
-      throw new Error("Desktop filesystem access is unavailable.");
-    return `${adapter.getBasePath()}/${this.store.path(document)}`;
-  }
   sourceNote(document: PublishedDocument): TFile | null {
     const note = this.catalog?.notes.find(
       (entry) => entry.id === document.noteId,
@@ -1322,25 +1318,18 @@ export class PublishController extends Component {
     }
   }
   async saveCopy(document: PublishedDocument): Promise<void> {
+    const aborter = new AbortController();
+    this.downloads.add(aborter);
     try {
       const bytes = await this.plugin.app.vault.adapter.readBinary(
         this.store.path(document),
       );
-      const directory = this.absolute(document).slice(
-        0,
-        -(document.filename.length + 1),
-      );
-      if (
-        await savePublishedCopy(
-          bytes,
-          document.filename,
-          document.format,
-          directory,
-        )
-      )
+      if (await savePublishedCopy(bytes, document.filename, aborter.signal))
         new Notice("Document copy saved.");
     } catch (error) {
-      this.fail(error);
+      if (!aborter.signal.aborted) this.fail(error);
+    } finally {
+      this.downloads.delete(aborter);
     }
   }
   async remove(document: PublishedDocument): Promise<void> {

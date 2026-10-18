@@ -7,14 +7,7 @@ import { posix } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import {
-  access,
-  mkdtemp,
-  writeFile,
-  readFile,
-  rm,
-  mkdir,
-} from "node:fs/promises";
+import { access, mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -291,55 +284,105 @@ test("missing executable yields actionable setup state", async () => {
   assert.match(status.error!, /Could not start/);
 });
 
-test("native save cancellation leaves files untouched; save copies the bytes", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "stratum-save-test-"));
-  try {
-    const protectedDir = join(directory, "published");
-    await mkdir(protectedDir);
-    const target = join(directory, "copy.pdf");
-    let cancelled = true;
-    const desktop = runtime(true, {
-      dialog: {
-        showSaveDialog: () =>
-          Promise.resolve({ canceled: cancelled, filePath: target }),
+test("native downloads report completion, cancellation and failure and clean up", async () => {
+  for (const state of [
+    "completed",
+    "cancelled",
+    "interrupted",
+    "start-error",
+    "timeout",
+    "abort",
+    "already-completed",
+  ]) {
+    const session = new EventEmitter();
+    const item = Object.assign(new EventEmitter(), {
+      getURL: () => "blob:synthetic-pdf",
+      getState: () =>
+        state === "already-completed" ? "completed" : "progressing",
+      cancel: () => {
+        cancelled = true;
       },
     });
-    const bytes = new TextEncoder().encode("%PDF-synthetic").buffer;
-    assert.equal(
-      await desktop.savePublishedCopy(
-        bytes,
-        "Example.pdf",
-        "pdf",
-        protectedDir,
-      ),
-      false,
-    );
-    cancelled = false;
-    assert.equal(
-      await desktop.savePublishedCopy(
-        bytes,
-        "Example.pdf",
-        "pdf",
-        protectedDir,
-      ),
-      true,
-    );
-    assert.equal(await readFile(target, "utf8"), "%PDF-synthetic");
-    const blocked = runtime(true, {
-      dialog: {
-        showSaveDialog: () =>
-          Promise.resolve({
-            canceled: false,
-            filePath: join(protectedDir, "Example.pdf"),
-          }),
+    let cancelled = false;
+    let removed = false;
+    let revoked = false;
+    let timeout: (() => void) | undefined;
+    const aborter = new AbortController();
+    const link = {
+      href: "",
+      download: "",
+      remove: () => {
+        removed = true;
       },
-    });
-    await assert.rejects(
-      blocked.savePublishedCopy(bytes, "Example.pdf", "pdf", protectedDir),
-      /outside/,
+      click: () => {
+        if (state === "start-error") throw new Error("Download blocked");
+        if (state === "timeout") {
+          timeout!();
+          return;
+        }
+        const unrelated = Object.assign(new EventEmitter(), {
+          getURL: () => "blob:other",
+        });
+        session.emit("will-download", {}, unrelated, { id: 1 });
+        assert.equal(unrelated.listenerCount("done"), 0);
+        session.emit("will-download", {}, item, { id: 2 });
+        assert.equal(item.listenerCount("done"), 0);
+        session.emit("will-download", {}, item, { id: 1 });
+        if (state === "abort") aborter.abort();
+        else if (state !== "already-completed") item.emit("done", {}, state);
+      },
+    };
+    const desktop = loadRuntime<typeof Desktop>(
+      "publish-desktop.ts",
+      {
+        Platform: { isDesktopApp: true },
+      },
+      {
+        Blob,
+        URL: {
+          createObjectURL: (blob: Blob) => {
+            assert.equal(blob.type, "application/pdf");
+            return "blob:synthetic-pdf";
+          },
+          revokeObjectURL: (url: string) => {
+            assert.equal(url, "blob:synthetic-pdf");
+            revoked = true;
+          },
+        },
+        window: {
+          electron: {
+            remote: { getCurrentWebContents: () => ({ id: 1, session }) },
+          },
+          document: { body: { createEl: () => link } },
+          setTimeout: (callback: () => void) => {
+            timeout = callback;
+            return 1;
+          },
+          clearTimeout: () => {},
+          require: () => {
+            throw new Error("Download must not load Node modules");
+          },
+        },
+      },
     );
-  } finally {
-    await rm(directory, { recursive: true, force: true });
+    const result = desktop.savePublishedCopy(
+      new TextEncoder().encode("%PDF-synthetic").buffer,
+      "Example.pdf",
+      aborter.signal,
+    );
+    if (["interrupted", "start-error", "timeout"].includes(state))
+      await assert.rejects(result, /interrupted|download failed|did not start/);
+    else
+      assert.equal(
+        await result,
+        state === "completed" || state === "already-completed",
+      );
+    assert.equal(link.download, "Example.pdf");
+    assert.equal(removed, true);
+    assert.equal(revoked, true);
+    assert.equal(session.listenerCount("will-download"), 0);
+    assert.equal(item.listenerCount("done"), 0);
+    assert.equal(cancelled, state === "abort");
   }
 });
 

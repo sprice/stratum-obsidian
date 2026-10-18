@@ -41,17 +41,12 @@ type HostWindow = Window & {
   electron?: {
     remote?: {
       dialog?: {
-        showSaveDialog(options: {
-          defaultPath: string;
-          filters: { name: string; extensions: string[] }[];
-          properties: string[];
-        }): Promise<{ canceled: boolean; filePath?: string }>;
         showOpenDialog(options: {
           title: string;
           properties: string[];
         }): Promise<{ canceled: boolean; filePaths: string[] }>;
       };
-      shell?: { openPath(path: string): Promise<string> };
+      getCurrentWebContents?(): DownloadContents;
     };
   };
 };
@@ -60,17 +55,29 @@ function host(): HostWindow {
     throw new Error("Publishing is available in the desktop app.");
   return window;
 }
-interface DesktopFiles {
-  writeFile(path: string, data: Uint8Array): Promise<void>;
-  realpath(path: string): Promise<string>;
-  lstat(path: string): Promise<{ isSymbolicLink(): boolean }>;
+interface DownloadItem {
+  getURL(): string;
+  getState(): string;
+  once(event: "done", listener: DownloadDone): void;
+  removeListener(event: "done", listener: DownloadDone): void;
+  cancel(): void;
+}
+type DownloadDone = (event: unknown, state: string) => void;
+type DownloadStarted = (
+  event: unknown,
+  item: DownloadItem,
+  contents: { id: number },
+) => void;
+interface DownloadContents {
+  id: number;
+  session: {
+    on(event: "will-download", listener: DownloadStarted): void;
+    removeListener(event: "will-download", listener: DownloadStarted): void;
+  };
 }
 interface DesktopPath {
   join(...parts: string[]): string;
   resolve(...parts: string[]): string;
-  dirname(path: string): string;
-  basename(path: string): string;
-  relative(from: string, to: string): string;
   isAbsolute(path: string): boolean;
   sep: string;
 }
@@ -1048,55 +1055,82 @@ export async function choosePublishExecutable(
   });
   return result.canceled ? null : (result.filePaths[0] ?? null);
 }
+/** Let Electron own the external destination, save dialog, and file write. */
 export async function savePublishedCopy(
   bytes: ArrayBuffer,
   filename: string,
-  format: PublishFormat,
-  protectedDirectory: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
-  const dialog = host().electron?.remote?.dialog;
-  if (!dialog)
+  const local = host();
+  if (signal?.aborted) return false;
+  const contents = local.electron?.remote?.getCurrentWebContents?.();
+  if (!contents)
     throw new Error(
-      "The native save dialog is unavailable in this Obsidian version.",
+      "Native downloads are unavailable in this Obsidian version.",
     );
-  const result = await dialog.showSaveDialog({
-    defaultPath: filename,
-    filters: [
-      {
-        name: "PDF document",
-        extensions: [format],
-      },
-    ],
-    properties: ["showOverwriteConfirmation"],
-  });
-  if (result.canceled || !result.filePath) return false;
-  const { path } = modules();
-  const fs = host().require!("node:fs/promises") as DesktopFiles;
-  const destination = result.filePath;
-  const realParent = await fs.realpath(path.dirname(destination));
-  const realProtected = await fs.realpath(protectedDirectory);
-  const relative = path.relative(
-    realProtected,
-    path.join(realParent, path.basename(destination)),
+  const url = URL.createObjectURL(
+    new Blob([bytes], { type: "application/pdf" }),
   );
-  if (
-    !relative ||
-    (!relative.startsWith(`..${path.sep}`) &&
-      relative !== ".." &&
-      !path.isAbsolute(relative))
-  )
-    throw new Error(
-      "Choose a location outside Stratum's published document storage.",
-    );
-  // Replacing a symlink must never overwrite its target.
-  try {
-    if ((await fs.lstat(destination)).isSymbolicLink())
-      throw new Error(
-        "Choose a regular file destination instead of a symbolic link.",
+  const link = local.document.body.createEl("a");
+  link.href = url;
+  link.download = filename;
+  return new Promise((resolve, reject) => {
+    let item: DownloadItem | undefined;
+    let timer: number | undefined;
+    let settled = false;
+    const finish = (saved: boolean, error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) local.clearTimeout(timer);
+      contents.session.removeListener("will-download", started);
+      item?.removeListener("done", done);
+      signal?.removeEventListener("abort", abort);
+      link.remove();
+      URL.revokeObjectURL(url);
+      if (error)
+        reject(
+          error instanceof Error
+            ? error
+            : new Error("The PDF download failed. Try again."),
+        );
+      else resolve(saved);
+    };
+    const done: DownloadDone = (_event, state) => {
+      if (state === "completed") finish(true);
+      else if (state === "cancelled") finish(false);
+      else
+        finish(
+          false,
+          new Error("The PDF download was interrupted. Try again."),
+        );
+    };
+    const abort = () => {
+      finish(false);
+      item?.cancel();
+    };
+    const started: DownloadStarted = (_event, download, source) => {
+      if (download.getURL() !== url || source?.id !== contents.id) return;
+      item = download;
+      local.clearTimeout(timer);
+      contents.session.removeListener("will-download", started);
+      item.once("done", done);
+      const state = item.getState();
+      if (state !== "progressing") done(undefined, state);
+    };
+    try {
+      contents.session.on("will-download", started);
+      signal?.addEventListener("abort", abort, { once: true });
+      timer = local.setTimeout(
+        () =>
+          finish(
+            false,
+            new Error("The PDF download did not start. Try again."),
+          ),
+        15_000,
       );
-  } catch (error) {
-    if ((error as { code?: string }).code !== "ENOENT") throw error;
-  }
-  await fs.writeFile(destination, new Uint8Array(bytes));
-  return true;
+      link.click();
+    } catch (error) {
+      finish(false, error);
+    }
+  });
 }

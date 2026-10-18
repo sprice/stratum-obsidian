@@ -318,15 +318,16 @@ test("desktop-only and group settings reflect current connection state", () => {
   );
   assert.ok(names.includes("Research group"));
   assert.ok(names.includes("Bulk sync"));
-  // Area images need this path even when bulk sync is disabled.
-  assert.ok(names.includes("Zotero data directory"));
-  assert.ok(names.includes("Reset Zotero data directory"));
+  assert.ok(names.includes("Zotero local API port"));
+  assert.ok(!names.includes("Zotero data directory"));
+  assert.ok(!names.includes("Reset Zotero data directory"));
   plugin.settings.bulkSyncEnabled = true;
   names = Array.from(tab.getSettingDefinitions()).flatMap((s) =>
     Array.from(s.items, (item) => item.name),
   );
-  assert.ok(names.includes("Zotero data directory"));
-  assert.ok(names.includes("Reset Zotero data directory"));
+  assert.ok(names.includes("Zotero local API port"));
+  assert.ok(!names.includes("Zotero data directory"));
+  assert.ok(!names.includes("Reset Zotero data directory"));
 });
 
 test("modern refresh uses update; older hosts render the same settings", () => {

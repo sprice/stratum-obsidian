@@ -1029,3 +1029,52 @@ export async function loadLocalZoteroItemDetail(params: {
     annotationItems: annotations,
   });
 }
+
+/** Compare source content, not synced version counters (which miss local edits in Zotero 7–9). */
+export async function loadLocalZoteroNoteSnapshot(params: {
+  port: number;
+  library: EnabledLibrary;
+  itemKey: string;
+  request?: LocalRequest;
+}): Promise<string> {
+  const base = buildLibraryBasePath(params.library);
+  let parent: LocalApiItem;
+  try {
+    parent = (
+      await requestLocalJson<LocalApiItem>({
+        ...params,
+        path: `${base}/items/${encodeURIComponent(params.itemKey)}?format=json`,
+      })
+    ).data;
+  } catch (error) {
+    if (error instanceof LocalZoteroApiError && error.status === 404)
+      return "deleted";
+    throw error;
+  }
+  const children = await requestPagedLocalArray<LocalApiItem>({
+    ...params,
+    path: `${base}/items/${encodeURIComponent(params.itemKey)}/children?format=json`,
+  });
+  const annotations = await fetchLocalAnnotationsForAttachments({
+    ...params,
+    attachments: children.filter(
+      (child) => child.data.itemType === "attachment",
+    ),
+  });
+  const items = [parent, ...children, ...annotations].sort((a, b) =>
+    a.key.localeCompare(b.key),
+  );
+  return JSON.stringify(items.map((item) => canonicalSnapshotValue(item.data)));
+}
+
+function canonicalSnapshotValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalSnapshotValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, child]) => [key, canonicalSnapshotValue(child)]),
+    );
+  }
+  return value;
+}
