@@ -214,6 +214,7 @@ const imagePlaceholder = (name: string, alt: string) =>
 export async function preparePublishLinks(
   markdown: string,
   image: (target: string) => Promise<string>,
+  format = { image: imagePlaceholder, text: escapeHtml },
 ): Promise<string> {
   const edits: DisplayEdit[] = [];
   const wiki = parseSourceOccurrences(markdown).filter(
@@ -228,8 +229,8 @@ export async function preparePublishLinks(
         .slice(1)
         .join("|") || link.target;
     const html = raw.startsWith("!")
-      ? imagePlaceholder(await image(link.target), label)
-      : escapeHtml(label);
+      ? format.image(await image(link.target), label)
+      : format.text(label);
     edits.push({ from: link.from, to: link.to, html });
   }
   const tree = parser.parse(markdown) as MarkdownNode;
@@ -250,7 +251,7 @@ export async function preparePublishLinks(
       edits.push({
         from,
         to,
-        html: imagePlaceholder(await image(target), node.alt ?? ""),
+        html: format.image(await image(target), node.alt ?? ""),
       });
     }
     for (const child of node.children ?? []) await walk(child);

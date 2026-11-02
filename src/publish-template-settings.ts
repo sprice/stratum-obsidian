@@ -1,3 +1,4 @@
+import { PackageInstallModal } from "./publication-package-installer";
 import {
   enableVerifiedInstallation,
   removeInstallation,
@@ -233,6 +234,19 @@ function renderPublishingTemplate(
 
 /** Keeps template fields out of the main plugin settings page. */
 export class PublishingTemplatesModal extends Modal {
+  private async removePackage(id: string, version: string): Promise<void> {
+    const current = publishingTemplatesFor(this.plugin);
+    await savePublishingTemplates(this.plugin, {
+      ...current,
+      packageInstallations: current.packageInstallations?.filter(
+        (i) => i.manifest.id !== id || i.manifest.version !== version,
+      ),
+      enabledIds: current.enabledIds?.filter(
+        (value) => value !== `download:${id}:${version}`,
+      ),
+    });
+    this.renderList();
+  }
   private readonly installation = new AbortController();
   private families: RegistryFamily[] = [];
   private releases: RegistryRelease[] = [];
@@ -640,6 +654,29 @@ export class PublishingTemplatesModal extends Modal {
         text: "Some saved versions need a newer plugin or repaired metadata. Their records and document selections are retained.",
         cls: "setting-item-description",
       });
+    this.contentEl.createEl("h3", { text: "Downloaded template packages" });
+    for (const installed of state.packageInstallations ?? []) {
+      const { manifest: p } = installed;
+      const row = new Setting(this.contentEl)
+        .setName(`${p.name} · ${p.version}`)
+        .setDesc(
+          `${p.variants.map((v) => v.label).join(" · ")} · Verified package. Updates install alongside existing versions.`,
+        );
+      row.addButton((b) => {
+        b.setButtonText("Verify / reinstall").onClick(() =>
+          new PackageInstallModal(this.plugin, {
+            id: p.id,
+            version: p.version,
+            sha256: installed.sha256,
+          }).open(),
+        );
+      });
+      row.addButton((b) => {
+        b.setButtonText("Remove").onClick(() => {
+          void this.removePackage(p.id, p.version).catch(fail);
+        });
+      });
+    }
     this.contentEl.createEl("h3", { text: "Your templates" });
     const all = {
       ...state,

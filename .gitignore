@@ -40,6 +40,7 @@ citation-resources.json
 
 # Runtime template-resource cache when the development plugin points at this checkout.
 /cache/bibliography/
+/package-cache/
 
 # CI validation fingerprints and Wireit task caches.
 .ci-cache/

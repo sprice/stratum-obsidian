@@ -60,6 +60,7 @@ test("publishing services, extension, command and preview are initialized only o
             "editor",
             "extension",
             "edit-publication-details",
+            "publish-template-package-experiment",
             "controller",
             "preview",
           ]

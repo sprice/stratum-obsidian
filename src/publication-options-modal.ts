@@ -1,4 +1,5 @@
-import { Modal, type App, type TFile } from "obsidian";
+import { Modal, Setting, type App, type TFile } from "obsidian";
+import { PackageFieldsModal } from "./publication-package-fields";
 import type { PublishController } from "./publish-controller";
 import type { PublicationForm } from "./publication-editor";
 import { PublicationPropertyControls } from "./publication-property-controls";
@@ -139,6 +140,15 @@ export class PublishingSettingsModal extends Modal {
       cls: "stratum-publishing-details",
     });
     this.authorContainer = this.contentEl.createDiv();
+    if (this.publish.selectedTemplate?.package && this.file)
+      new Setting(this.contentEl)
+        .setName("Template fields")
+        .setDesc("Additional fields supplied by the selected layout.")
+        .addButton((b) => {
+          b.setButtonText("Edit template fields").onClick(() =>
+            new PackageFieldsModal(this.publish, this.file!).open(),
+          );
+        });
     this.validation = this.contentEl.createDiv({
       cls: "stratum-publishing-validation",
       attr: { role: "status" },
@@ -174,7 +184,7 @@ export class PublishingSettingsModal extends Modal {
     title.addEventListener("change", () =>
       this.layout({ titleSource: title.value as "body" | "properties" }),
     );
-    if (this.publish.journalProfile) {
+    if (this.publish.journalProfile || this.publish.selectedTemplate?.package) {
       options.createEl("p", {
         text: "The selected journal profile controls layout and bibliography. Change the profile in the publishing panel. Anonymous review omits author fields and PDF author metadata; review identifying text, acknowledgments, figures and references yourself.",
         cls: "stratum-publication-help",

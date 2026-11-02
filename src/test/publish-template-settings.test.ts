@@ -1,3 +1,5 @@
+import { packageFixture } from "./publication-package-fixture";
+import { readPublishingTemplates } from "../publish-templates";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
@@ -25,6 +27,7 @@ function setup() {
     installationStatus: string;
     installSelected: () => Promise<void>;
     renderList: () => void;
+    removePackage: (id: string, version: string) => Promise<void>;
     onOpen: () => void;
     onClose: () => void;
     refreshRegistry: () => Promise<void>;
@@ -213,4 +216,29 @@ test("sequential installations report the total for the selected family", async 
   await modal.installSelected();
   assert.match(modal.installationStatus, /Installation failed/);
   assert.doesNotMatch(modal.installationStatus, /Added/);
+});
+
+test("package removal uses current settings and stable identity after a reinstall", async () => {
+  const { modal, plugin } = setup();
+  const { p } = packageFixture();
+  const installed = { manifest: p, sha256: "a".repeat(64) };
+  plugin.settings.publishingTemplates = readPublishingTemplates({
+    packageInstallations: [installed],
+  });
+  const newer = structuredClone(installed);
+  newer.manifest.version = "2.0";
+  for (const asset of newer.manifest.assets)
+    asset.download = asset.download?.replace("/1.0/", "/2.0/");
+  plugin.settings.publishingTemplates = readPublishingTemplates({
+    ...(plugin.settings.publishingTemplates as object),
+    packageInstallations: [structuredClone(installed), newer],
+    enabledIds: ["download:unfamiliar:1.0", "download:unfamiliar:2.0"],
+  });
+  await modal.removePackage(p.id, p.version);
+  const state = readPublishingTemplates(plugin.settings.publishingTemplates);
+  assert.deepEqual(
+    state.packageInstallations?.map((i) => i.manifest.version),
+    ["2.0"],
+  );
+  assert.deepEqual(state.enabledIds, ["download:unfamiliar:2.0"]);
 });

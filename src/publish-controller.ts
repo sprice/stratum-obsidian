@@ -1,3 +1,15 @@
+import {
+  installedPackageChoices,
+  verifyPackageInstallation,
+} from "./publication-package-installation";
+import {
+  packageProblems,
+  packageVariant,
+  resolvePackageResources,
+} from "./publication-package";
+import { publicationManuscript } from "./publication-manuscript";
+import { TEMPLATE_REGISTRY_ORIGIN } from "./publication-registry";
+import { downloadPublicationResource } from "./publish-desktop";
 import { publishingWorkspace } from "./publish-workspace";
 import { publishedVaultFiles } from "./publish-vault";
 import { installedPublishingTemplate } from "./publication-installed-templates";
@@ -410,6 +422,7 @@ export class PublishController extends Component {
       templates: [
         ...state.templates,
         ...(state.installations ?? []).map(installedPublishingTemplate),
+        ...(state.packageInstallations ?? []).flatMap(installedPackageChoices),
       ],
     };
   }
@@ -463,6 +476,8 @@ export class PublishController extends Component {
       this.layout,
       this.selectedTemplate?.prefill,
     );
+    if (this.selectedTemplate?.package)
+      return [...fields, ...this.selectedTemplate.properties];
     return this.journalProfile
       ? [...fields, ...journalProperties(this.journalProfile)]
       : fields;
@@ -545,6 +560,19 @@ export class PublishController extends Component {
   get academicProblem(): string {
     if (!this.selectedTemplate) return this.templateAvailabilityProblem;
     return this.noteCheck("academicProblem", () => {
+      const choice = this.selectedTemplate?.package;
+      if (choice) {
+        try {
+          return packageProblems(
+            packageVariant(choice.manifest, choice.variant),
+            publicationManuscript(this.currentText(), this.layout.titleSource),
+          ).join("\n");
+        } catch (error) {
+          return error instanceof Error
+            ? error.message
+            : "Check publication metadata.";
+        }
+      }
       if (this.journalProfile) {
         try {
           return (
@@ -584,6 +612,8 @@ export class PublishController extends Component {
       return "This template is disabled. Enable it in Manage templates before publishing.";
     if (!selected && this.notePreferences.templateId?.startsWith("package:"))
       return "This bundled template is no longer available. Choose an installed template in Manage templates before publishing; your previous selection and published documents have been kept.";
+    if (!selected && this.notePreferences.templateId?.startsWith("download:"))
+      return "This exact template package is not installed. Reinstall it from the website; your saved selection is kept.";
     if (!selected && this.notePreferences.templateId?.startsWith("registry:"))
       return "This exact template version is not installed. Reinstall it in Manage templates; your document selection has been kept.";
     return this.publishingTemplates.templates.length
@@ -606,6 +636,16 @@ export class PublishController extends Component {
         },
       ];
       let issues: PublishingIssue[];
+      if (this.selectedTemplate?.package)
+        return this.academicProblem
+          ? [
+              {
+                target: "general",
+                blocking: true,
+                message: this.academicProblem,
+              },
+            ]
+          : [];
       if (this.journalProfile) {
         try {
           issues = [...(this.journalCheck?.issues ?? [])];
@@ -1123,7 +1163,15 @@ export class PublishController extends Component {
     };
     const layout = { ...publishing[format] };
     const journal = this.journalProfile;
-    const packaged = !!journal;
+    const packageChoice = this.selectedTemplate?.package;
+    const installation =
+      packageChoice &&
+      this.allPublishingTemplates.packageInstallations?.find(
+        (i) =>
+          i.manifest.id === packageChoice.manifest.id &&
+          i.manifest.version === packageChoice.manifest.version,
+      );
+    const packaged = !!journal || !!packageChoice;
     const propertyDefinitions = this.propertyDefinitions.map((field) => ({
       ...field,
     }));
@@ -1165,49 +1213,98 @@ export class PublishController extends Component {
         };
         await this.store.setPreferences(note.id, publishing);
       }
-      const rendered: {
-        html: string;
-        assets: import("./publish-desktop").PublishAsset[];
-        journal?: JournalPublication;
-      } = journal
-        ? await (
-            await import("./publication-render")
-          ).renderJournalPublication(
-            this.plugin.app,
-            this.plugin.citations,
-            text,
-            path,
-            title,
-            publishing,
-            aborter.signal,
-            journal,
-          )
-        : await renderPublication(
-            this.plugin.app,
-            text,
-            path,
-            title,
-            formatted,
-            aborter.signal,
-            publishing,
-            propertyDefinitions,
-          );
-      if (packaged && !rendered.journal)
-        throw new Error(
-          "The journal manuscript could not be prepared. Try publishing again after reopening the note.",
+      let bytes: ArrayBuffer;
+      if (packageChoice) {
+        if (!installation) throw new Error("Reinstall this template package.");
+        await verifyPackageInstallation(installation);
+        const { preparePackageDocument } =
+          await import("./publication-package-publish");
+        const { renderTemplatePackage } =
+          await import("./publication-package-render");
+        const prepared = await preparePackageDocument(
+          this.plugin.app,
+          this.plugin.citations,
+          text,
+          path,
+          layout.titleSource,
+          aborter.signal,
         );
-      converting = true;
-      const bytes = await convertPublication(
-        rendered.html,
-        rendered.assets,
-        format,
-        tools,
-        aborter.signal,
-        120_000,
-        layout,
-        rendered.journal,
-      );
-      converting = false;
+        const resources = await resolvePackageResources(
+          {
+            adapter: this.plugin.app.vault.adapter,
+            directory: `${pluginStorageDirectory(this.plugin.app)}/package-cache`,
+          },
+          installation.manifest,
+          (spec) => downloadPublicationResource(spec, aborter.signal),
+          TEMPLATE_REGISTRY_ORIGIN,
+          true,
+          aborter.signal,
+        );
+        converting = true;
+        bytes = Uint8Array.from(
+          (
+            await renderTemplatePackage(
+              {
+                ...prepared,
+                package: installation.manifest,
+                variant: packageChoice.variant,
+                resources,
+              },
+              {
+                workspace: tools.workspace,
+                pandoc: tools.pandoc,
+                tectonic: tools.tectonic,
+              },
+              { signal: aborter.signal },
+            )
+          ).pdf,
+        ).buffer;
+        converting = false;
+      } else {
+        const rendered: {
+          html: string;
+          assets: import("./publish-desktop").PublishAsset[];
+          journal?: JournalPublication;
+        } = journal
+          ? await (
+              await import("./publication-render")
+            ).renderJournalPublication(
+              this.plugin.app,
+              this.plugin.citations,
+              text,
+              path,
+              title,
+              publishing,
+              aborter.signal,
+              journal,
+            )
+          : await renderPublication(
+              this.plugin.app,
+              text,
+              path,
+              title,
+              formatted,
+              aborter.signal,
+              publishing,
+              propertyDefinitions,
+            );
+        if (packaged && !rendered.journal)
+          throw new Error(
+            "The journal manuscript could not be prepared. Try publishing again after reopening the note.",
+          );
+        converting = true;
+        bytes = await convertPublication(
+          rendered.html,
+          rendered.assets,
+          format,
+          tools,
+          aborter.signal,
+          120_000,
+          layout,
+          rendered.journal,
+        );
+        converting = false;
+      }
       if (aborter.signal.aborted || !this.alive) return;
       const id = crypto.randomUUID(),
         date = new Date();
@@ -1217,10 +1314,25 @@ export class PublishController extends Component {
           noteId: note.id,
           format,
           createdAt: date.toISOString(),
-          citationStyle: journal ? journal.bibliography : preferences.style,
+          citationStyle: packageChoice
+            ? packageVariant(packageChoice.manifest, packageChoice.variant)
+                .citations.style
+            : journal
+              ? journal.bibliography
+              : preferences.style,
           citationLanguage: preferences.language,
           publishing: {
             ...(journal ? { template: journalReference(journal) } : {}),
+            ...(packageChoice && installation
+              ? {
+                  package: {
+                    id: packageChoice.manifest.id,
+                    version: packageChoice.manifest.version,
+                    variant: packageChoice.variant,
+                    sha256: installation.sha256,
+                  },
+                }
+              : {}),
             documentType: publishing.documentType,
             opening: publishing.opening,
             layout,
