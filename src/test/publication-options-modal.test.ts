@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { declarativePackageFixture } from "./publication-package-fixture";
 import test from "node:test";
 import { setImmediate as settle } from "node:timers/promises";
 import { loadRuntime } from "./runtime-harness";
@@ -94,6 +95,7 @@ class Element {
     this.children = [];
   }
   focus() {
+    if (this.disabled) return;
     this.focused = true;
     ownerDocument.activeElement = this;
   }
@@ -101,7 +103,7 @@ class Element {
     return [this, ...this.children.flatMap((child) => child.all())];
   }
 }
-function setup() {
+function setup(downloaded = false) {
   const listeners = new Set<() => void>();
   let release!: () => void;
   let reject!: (error: Error) => void;
@@ -115,7 +117,17 @@ function setup() {
       basename: "Synthetic",
       stat: { ctime: 1 },
     },
-    selectedTemplate: { renderer: "journal" },
+    selectedTemplate: {
+      renderer: "journal",
+      ...(downloaded
+        ? {
+            package: {
+              manifest: declarativePackageFixture().manifest,
+              variant: "main",
+            },
+          }
+        : {}),
+    },
     journalProfile: { name: "Synthetic" },
     notePreferences: { templateId: "registry:example:1.0-r1" },
     layout: { titleSource: "properties" },
@@ -143,6 +155,12 @@ function setup() {
           resolve();
         };
         reject = fail;
+      });
+    },
+    prepareTemplateProperties() {
+      return Promise.resolve({
+        added: ["title", "running_title"],
+        remaining: ["Add an author."],
       });
     },
     get settingsResetChanges() {
@@ -292,7 +310,7 @@ test("resolving a metadata close warning does not hide a retained option failure
 test("registry settings expose class-controlled layout without legacy switches or approval", () => {
   const s = setup();
   assert.ok(
-    s.content.all().some((el) => el.text.includes("profile controls layout")),
+    s.content.all().some((el) => el.text.includes("template controls layout")),
   );
   assert.ok(
     !s.content
@@ -396,5 +414,42 @@ test("opening the note reports a failure inside Settings and restores its button
   await settle();
   assert.ok(s.content.all().some((el) => el.text === "Synthetic open failure"));
   assert.equal(ownerDocument.activeElement, button);
+  s.modal.onClose();
+});
+
+test("downloaded templates offer one preparation action and report added and remaining properties", async () => {
+  const s = setup(true);
+  s.publish.publishingIssues = [
+    { target: "general", blocking: true, message: "Add an author." },
+  ];
+  s.emit();
+  const buttons = s.content.all();
+  assert.ok(
+    !buttons.some(
+      (el) =>
+        el.tag === "select" && el.attrs.get("aria-label") === "Title source",
+    ),
+  );
+  assert.ok(!buttons.some((el) => el.text === "Edit template fields"));
+  const prepare = buttons.find(
+    (el) => el.text === "Prepare template properties",
+  )!;
+  assert.ok(prepare);
+  prepare.listeners.get("click")!();
+  assert.equal(prepare.disabled, true);
+  await settle();
+  assert.equal(prepare.disabled, false);
+  assert.equal(prepare.focused, true);
+  assert.ok(
+    s.content
+      .all()
+      .some((el) => el.text.includes("Added: title, running_title.")),
+  );
+  assert.ok(s.content.all().some((el) => el.text === "Add an author."));
+  s.publish.publishingIssues = [];
+  s.emit();
+  assert.ok(
+    !s.content.all().some((el) => !el.hidden && el.text === "Add an author."),
+  );
   s.modal.onClose();
 });

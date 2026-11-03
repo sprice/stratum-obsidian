@@ -21,6 +21,8 @@ import {
   type PublicationChange,
 } from "./publication-metadata";
 
+import { preparePackageProperties } from "./publication-package-properties";
+import { packageVariant, type PackageVariant } from "./publication-package";
 import { cleanupPublicationProperties } from "./publication-cleanup";
 import type { PublishOptions } from "./publish-options";
 import { publishingIssueText } from "./publish-properties";
@@ -46,6 +48,7 @@ interface Draft {
   ctime?: number;
 }
 export interface PropertyDraft {
+  allowedKeys?: readonly string[];
   operation: PublicationPropertyOperation;
   revision: string;
   conflict: string;
@@ -140,6 +143,32 @@ export class PublicationEditor extends Component {
       );
     });
   }
+  prepareTemplateProperties(
+    file: TFile,
+    ctime: number,
+    variant: PackageVariant,
+  ) {
+    const view = this.editableView(file);
+    if (!this.alive || !view || file.stat.ctime !== ctime)
+      throw new Error(
+        "Open the original note for editing before preparing properties.",
+      );
+    if (!this.flush(file.path, view))
+      throw new Error(
+        "Resolve or discard pending publication edits before preparing properties.",
+      );
+    if (this.editableView(file) !== view || file.stat.ctime !== ctime)
+      throw new Error("The original note is no longer editable.");
+    const source = view.state.doc.toString();
+    const result = preparePackageProperties(source, file.basename, variant);
+    if (view.state.doc.toString() !== source)
+      throw new Error(
+        "The note changed while preparing properties. Try again.",
+      );
+    if (result.added.length) this.applyChange(view, file.path, result.change);
+    this.refresh();
+    return result;
+  }
   removeEmptyProperties(
     file: TFile,
     ctime: number,
@@ -218,7 +247,7 @@ export class PublicationEditor extends Component {
       throw new Error(
         "This property changed elsewhere. Your draft is retained; review the current value before applying it.",
       );
-    return changePublicationProperty(text, draft.operation);
+    return changePublicationProperty(text, draft.operation, draft.allowedKeys);
   }
   private authorChange(text: string, draft: Draft): PublicationChange {
     if (authorRevision(publicationYaml(text).properties) !== draft.revision)
@@ -625,6 +654,10 @@ export class PublicationForm {
     operation: AuthorOperation,
     key: string,
   ): void {
+    const publish = this.service.plugin.publish;
+    const choice = publish?.selectedTemplate?.package;
+    const requirements =
+      choice && packageVariant(choice.manifest, choice.variant).requires;
     const field = createStratumField(parent, label);
     const draft = this.service.session(this.path).drafts.get(key);
     const input = createStratumInput(field, {
@@ -632,14 +665,22 @@ export class PublicationForm {
       attr: {
         "aria-label": label,
         "aria-required": String(
-          this.service.plugin.publish?.document?.path === this.path &&
-            !!this.service.plugin.publish.journalProfile &&
-            !this.service.plugin.publish.journalProfile.anonymous &&
-            (key.endsWith(":name") ||
-              key.includes(":affiliation:") ||
-              (this.service.plugin.publish.journalProfile.installation.adapter
-                .frontMatter === "acmart" &&
-                /:(institution|city|country)$/.test(key))),
+          publish?.document?.path === this.path &&
+            (requirements
+              ? !packageVariant(choice.manifest, choice.variant).anonymous &&
+                (key.endsWith(":name") ||
+                  (requirements.affiliations &&
+                    key.includes(":affiliation:")) ||
+                  requirements.authorDetails.some((detail) =>
+                    key.endsWith(":" + detail),
+                  ))
+              : !!publish?.journalProfile &&
+                !publish.journalProfile.anonymous &&
+                (key.endsWith(":name") ||
+                  key.includes(":affiliation:") ||
+                  (publish.journalProfile.installation.adapter.frontMatter ===
+                    "acmart" &&
+                    /:(institution|city|country)$/.test(key)))),
         ),
       },
     });
@@ -799,6 +840,7 @@ export class PublicationForm {
       });
       if (
         !publish?.journalProfile &&
+        !publish?.selectedTemplate?.package &&
         publish?.selectedTemplate?.documentType === "academic"
       )
         this.element.createEl("p", {
@@ -824,6 +866,11 @@ export class PublicationForm {
           this.operate({ type: "import" }),
         );
       }
+      if (publish?.selectedTemplate?.package)
+        this.element.createEl("p", {
+          text: "Author requirements are defined by the selected template. Complete the required fields below.",
+          cls: "stratum-publication-help",
+        });
       if (publish?.journalProfile)
         this.element.createEl("p", {
           text: "This journal profile uses the authors and affiliations below. Complete any required institution, city and country fields. Set the corresponding author email in document details.",
@@ -852,7 +899,14 @@ export class PublicationForm {
         );
         if (
           publish?.journalProfile?.installation?.adapter.frontMatter ===
-          "acmart"
+            "acmart" ||
+          (publish?.selectedTemplate?.package &&
+            packageVariant(
+              publish.selectedTemplate.package.manifest,
+              publish.selectedTemplate.package.variant,
+            ).requires.authorDetails.some((key) =>
+              ["institution", "city", "country"].includes(key),
+            ))
         )
           for (const field of ["institution", "city", "country"] as const)
             this.input(

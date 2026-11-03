@@ -11,6 +11,7 @@ export interface PackageField {
   type: "text" | "list" | "date";
   required: boolean;
   default: string;
+  maxLength?: number;
 }
 export interface PackageVariant {
   id: string;
@@ -29,8 +30,23 @@ export interface PackageVariant {
     | { engine: "bibtex"; style: string; mode: "numeric" | "author-year" }
     | { engine: "citeproc"; style: string };
 }
+export interface PackageProperty extends Omit<PackageField, "type"> {
+  type: PackageField["type"] | "authors";
+  prefill: ("heading" | "filename" | "title" | "abstract")[];
+  affiliationsRequired?: boolean;
+  authorDetails?: PackageVariant["requires"]["authorDetails"];
+}
+export interface DeclarativePackageVariant extends Omit<
+  PackageVariant,
+  "fields" | "requires"
+> {
+  properties: PackageProperty[];
+}
 export interface TemplatePackage {
-  spec: "pandoc-latex-package-v1" | "pandoc-latex-package-v2";
+  spec:
+    | "pandoc-latex-package-v1"
+    | "pandoc-latex-package-v2"
+    | "pandoc-latex-package-v3";
   id: string;
   version: string;
   name: string;
@@ -38,7 +54,7 @@ export interface TemplatePackage {
   sources: { url: string; license: string }[];
   capabilities: ["pandoc-json-v1", "tectonic-v1"];
   defaultVariant: string;
-  variants: PackageVariant[];
+  variants: (PackageVariant | DeclarativePackageVariant)[];
   assets: {
     name: string;
     sha256: string;
@@ -119,12 +135,15 @@ export function readTemplatePackage(value: unknown): TemplatePackage {
     "assets",
   ]);
   if (
-    !["pandoc-latex-package-v1", "pandoc-latex-package-v2"].includes(
-      String(p.spec),
-    )
+    ![
+      "pandoc-latex-package-v1",
+      "pandoc-latex-package-v2",
+      "pandoc-latex-package-v3",
+    ].includes(String(p.spec))
   )
     invalid();
-  const portable = p.spec === "pandoc-latex-package-v2";
+  const declarative = p.spec === "pandoc-latex-package-v3";
+  const portable = p.spec !== "pandoc-latex-package-v1";
   const assetName = portable
     ? /^(?:[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}\/){0,4}[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}$/
     : filename;
@@ -204,15 +223,20 @@ export function readTemplatePackage(value: unknown): TemplatePackage {
     ids = new Set<string>();
   if (!variants.length) invalid();
   for (const v of variants) {
-    const a = obj(v, [
-        "id",
-        "label",
-        "template",
-        "fields",
-        "anonymous",
-        "requires",
-        "citations",
-      ]),
+    const a = obj(
+        v,
+        declarative
+          ? ["id", "label", "template", "properties", "anonymous", "citations"]
+          : [
+              "id",
+              "label",
+              "template",
+              "fields",
+              "anonymous",
+              "requires",
+              "citations",
+            ],
+      ),
       variantId = str(a.id, token);
     if (ids.has(variantId)) invalid();
     ids.add(variantId);
@@ -226,36 +250,40 @@ export function readTemplatePackage(value: unknown): TemplatePackage {
       })
     )
       invalid();
-    const r = obj(a.requires, [
-      "title",
-      "authors",
-      "affiliations",
-      "abstract",
-      "authorDetails",
-    ]);
-    [r.title, r.authors, r.affiliations, r.abstract].forEach(bool);
-    const details = list(r.authorDetails, 4);
-    if (
-      new Set(details).size !== details.length ||
-      details.some(
-        (k) => !["institution", "city", "country", "email"].includes(String(k)),
-      )
-    )
-      invalid();
-    const keys = new Set<string>();
-    for (const v of list(a.fields, 64)) {
-      const f = obj(v, ["key", "label", "type", "required", "default"]),
-        key = str(f.key, keyPattern);
-      if (keys.has(key)) invalid();
-      keys.add(key);
-      str(f.label);
-      bool(f.required);
+    if (declarative) readPackageProperties(a.properties);
+    else {
+      const r = obj(a.requires, [
+        "title",
+        "authors",
+        "affiliations",
+        "abstract",
+        "authorDetails",
+      ]);
+      [r.title, r.authors, r.affiliations, r.abstract].forEach(bool);
+      const details = list(r.authorDetails, 4);
       if (
-        !["text", "date", "list"].includes(String(f.type)) ||
-        typeof f.default !== "string" ||
-        f.default.length > 10000
+        new Set(details).size !== details.length ||
+        details.some(
+          (k) =>
+            !["institution", "city", "country", "email"].includes(String(k)),
+        )
       )
         invalid();
+      const keys = new Set<string>();
+      for (const v of list(a.fields, 64)) {
+        const f = obj(v, ["key", "label", "type", "required", "default"]),
+          key = str(f.key, keyPattern);
+        if (keys.has(key)) invalid();
+        keys.add(key);
+        str(f.label);
+        bool(f.required);
+        if (
+          !["text", "date", "list"].includes(String(f.type)) ||
+          typeof f.default !== "string" ||
+          f.default.length > 10000
+        )
+          invalid();
+      }
     }
     const c = a.citations as Record<string, unknown>;
     if (c?.engine === "bibtex") {
@@ -265,7 +293,11 @@ export function readTemplatePackage(value: unknown): TemplatePackage {
       if (
         !assets.some((v) => {
           const x = v as Record<string, unknown>;
-          return x.name === `${String(c.style)}.bst` && x.role === "resource";
+          return (
+            typeof x.name === "string" &&
+            packageFilename(x.name) === `${String(c.style)}.bst` &&
+            x.role === "resource"
+          );
         })
       )
         invalid();
@@ -290,7 +322,134 @@ export function packageVariant(
   readTemplatePackage(p);
   const v = p.variants.find((v) => v.id === id);
   if (!v) throw new Error("Unknown template variant.");
-  return v;
+  if (!("properties" in v)) return v;
+  const properties = v.properties;
+  const authors = properties.find((f) => f.type === "authors");
+  return {
+    ...v,
+    fields: properties.filter(
+      (f): f is PackageProperty & { type: PackageField["type"] } =>
+        f.type !== "authors" && !["title", "abstract"].includes(f.key),
+    ),
+    requires: {
+      title: !!properties.find((f) => f.key === "title")?.required,
+      authors: !!authors?.required,
+      affiliations: !!authors?.affiliationsRequired,
+      abstract: !!properties.find((f) => f.key === "abstract")?.required,
+      authorDetails: authors?.authorDetails ?? [],
+    },
+  };
+}
+export function packageProperties(
+  v: PackageVariant | DeclarativePackageVariant,
+): PackageProperty[] {
+  if ("properties" in v) return v.properties;
+  return [
+    {
+      key: "title",
+      label: "Title",
+      type: "text",
+      required: v.requires.title,
+      default: "",
+      prefill: ["heading", "filename"],
+    },
+    {
+      key: "authors",
+      label: "Authors",
+      type: "authors",
+      required: v.requires.authors,
+      default: "",
+      prefill: [],
+      affiliationsRequired: v.requires.affiliations,
+      authorDetails: v.requires.authorDetails,
+    },
+    {
+      key: "abstract",
+      label: "Abstract",
+      type: "text",
+      required: v.requires.abstract,
+      default: "",
+      prefill: ["abstract"],
+    },
+    ...v.fields.map((f) => ({ ...f, prefill: [] })),
+  ];
+}
+function readPackageProperties(value: unknown): void {
+  const keys = new Set<string>();
+  for (const item of list(value, 64)) {
+    if (!item || typeof item !== "object") invalid();
+    const supplied = item as Record<string, unknown>;
+    const f = obj(item, [
+      "key",
+      "label",
+      "type",
+      "required",
+      "default",
+      "prefill",
+      ...["maxLength", "affiliationsRequired", "authorDetails"].filter((k) =>
+        Object.hasOwn(supplied, k),
+      ),
+    ]);
+    const key = str(f.key, keyPattern);
+    if (
+      keys.has(key) ||
+      key.startsWith("stratum_") ||
+      ["author", "affiliations"].includes(key)
+    )
+      invalid();
+    keys.add(key);
+    str(f.label);
+    bool(f.required);
+    if (
+      !["text", "list", "date", "authors"].includes(String(f.type)) ||
+      typeof f.default !== "string" ||
+      f.default.length > 10000
+    )
+      invalid();
+    if (
+      (f.type === "authors") !== (key === "authors") ||
+      (["title", "abstract"].includes(key) && f.type !== "text")
+    )
+      invalid();
+    const rules = list(f.prefill, 4);
+    if (
+      new Set(rules).size !== rules.length ||
+      rules.some(
+        (r) =>
+          !["heading", "filename", "title", "abstract"].includes(String(r)),
+      ) ||
+      (rules.length && f.type !== "text")
+    )
+      invalid();
+    if (
+      Object.hasOwn(f, "maxLength") &&
+      (f.type !== "text" ||
+        !Number.isSafeInteger(f.maxLength) ||
+        Number(f.maxLength) < 1 ||
+        Number(f.maxLength) > 10000)
+    )
+      invalid();
+    if (f.type === "authors") {
+      if (f.default !== "" || rules.length) invalid();
+      if (Object.hasOwn(f, "affiliationsRequired"))
+        bool(f.affiliationsRequired);
+      if (Object.hasOwn(f, "authorDetails")) {
+        const details = list(f.authorDetails, 4);
+        if (
+          new Set(details).size !== details.length ||
+          details.some(
+            (d) =>
+              !["institution", "city", "country", "email"].includes(String(d)),
+          )
+        )
+          invalid();
+      }
+    } else if (
+      Object.hasOwn(f, "affiliationsRequired") ||
+      Object.hasOwn(f, "authorDetails")
+    )
+      invalid();
+  }
 }
 export function packageProblems(
   v: PackageVariant,
@@ -312,13 +471,17 @@ export function packageProblems(
   if (v.requires.abstract && !manuscript.abstract.trim())
     errors.push("Add an abstract.");
   for (const f of v.fields) {
-    const value =
-      manuscript.properties[f.key] ??
-      (f.type === "list" ? f.default.split("\n").filter(Boolean) : f.default);
+    const value = Object.hasOwn(manuscript.properties, f.key)
+      ? manuscript.properties[f.key]
+      : f.type === "list"
+        ? f.default.split("\n").filter(Boolean)
+        : f.default;
     const empty =
       value === "" ||
       (typeof value === "string" && !value.trim()) ||
-      (Array.isArray(value) && !value.length);
+      (Array.isArray(value) &&
+        (!value.length ||
+          value.every((item) => typeof item === "string" && !item.trim())));
     if (empty) {
       if (f.required) errors.push(`Add ${f.label}.`);
       continue;
@@ -336,6 +499,24 @@ export function packageProblems(
           new Date(value).toISOString().slice(0, 10) !== value))
     )
       errors.push(`Check ${f.label} (${f.type}).`);
+  }
+  for (const f of packageProperties(v)) {
+    const value =
+      f.key === "title"
+        ? manuscript.title
+        : f.key === "abstract"
+          ? manuscript.abstract
+          : Object.hasOwn(manuscript.properties, f.key)
+            ? manuscript.properties[f.key]
+            : f.default;
+    if (
+      typeof value === "string" &&
+      f.maxLength &&
+      Array.from(value).length > f.maxLength
+    )
+      errors.push(
+        `${f.label} must be ${f.maxLength} characters or fewer. Edit the suggested value.`,
+      );
   }
   return errors;
 }

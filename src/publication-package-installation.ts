@@ -1,6 +1,7 @@
 import {
   readTemplatePackage,
   resolvePackageResources,
+  packageProperties,
   type TemplatePackage,
 } from "./publication-package";
 import {
@@ -64,13 +65,15 @@ export function installedPackageChoices({
       bodyFont: "",
       titleFont: "",
     },
-    properties: v.fields.map((f) => ({
-      key: f.key,
-      type: f.type,
-      required: f.required,
-      defaultValue: f.default,
-      use: "metadata",
-    })),
+    properties: packageProperties(v)
+      .filter((f) => f.type !== "authors")
+      .map((f) => ({
+        key: f.key,
+        type: f.type as "text" | "list" | "date",
+        required: f.required,
+        defaultValue: f.default,
+        use: "metadata",
+      })),
     prefill: readAcademicDefaults(undefined),
   }));
 }

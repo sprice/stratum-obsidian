@@ -1,4 +1,8 @@
-import { packageFixture } from "./publication-package-fixture";
+import { preparePackageProperties } from "../publication-package-properties";
+import {
+  declarativePackageFixture,
+  packageFixture,
+} from "./publication-package-fixture";
 import * as packageContract from "../publication-package";
 import { createHash } from "node:crypto";
 import { manuscriptSample } from "./publication-manuscript-fixture";
@@ -1688,3 +1692,59 @@ for (const failure of ["", "Synthetic compiler failure"]) {
     }
   });
 }
+
+test("package title source changes only after explicit guarded preparation", async () => {
+  const { manifest } = declarativePackageFixture();
+  const sha256 = createHash("sha256")
+    .update(JSON.stringify(manifest))
+    .digest("hex");
+  const f = setup({
+    publishingTemplates: {
+      templates: [],
+      packageInstallations: [{ manifest, sha256 }],
+      enabledIds: ["download:unfamiliar:1.0"],
+    },
+  });
+  f.leaf.view.text =
+    "# Synthetic heading\n\n## Abstract\nSynthetic abstract.\n";
+  await f.controller.updatePreferences({
+    templateId: "download:unfamiliar:1.0:main",
+  });
+  assert.equal(f.controller.layout.titleSource, "body");
+  await assert.rejects(
+    f.controller.prepareTemplateProperties(),
+    /Open this note/,
+  );
+  assert.equal(f.controller.layout.titleSource, "body");
+  Object.assign(f.plugin, {
+    publicationEditor: {
+      prepareTemplateProperties(
+        _file: unknown,
+        _ctime: number,
+        variant: packageContract.PackageVariant,
+      ) {
+        const result = preparePackageProperties(
+          f.leaf.view.text,
+          "Synthetic filename",
+          variant,
+        );
+        const text = f.leaf.view.text;
+        f.leaf.view.text =
+          text.slice(0, result.change.from) +
+          result.change.insert +
+          text.slice(result.change.to);
+        return result;
+      },
+      refresh: () => {},
+      flush: () => true,
+      pending: () => false,
+    },
+  });
+  const result = await f.controller.prepareTemplateProperties();
+  assert.ok(result.added.includes("title"));
+  assert.equal(f.controller.layout.titleSource, "properties");
+  assert.ok(result.remaining.includes("Add an author."));
+  const before = f.leaf.view.text;
+  assert.deepEqual((await f.controller.prepareTemplateProperties()).added, []);
+  assert.equal(f.leaf.view.text, before);
+});

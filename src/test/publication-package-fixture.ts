@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import type { TemplatePackage } from "../publication-package";
+import type { TemplatePackage, PackageVariant } from "../publication-package";
 
 export function packageFixture() {
   const bytes = new TextEncoder().encode("synthetic resource"),
     sha256 = createHash("sha256").update(bytes).digest("hex");
-  const p: TemplatePackage = {
+  const p: TemplatePackage & { variants: PackageVariant[] } = {
     spec: "pandoc-latex-package-v1",
     id: "unfamiliar",
     version: "1.0",
@@ -39,4 +39,72 @@ export function packageFixture() {
     })),
   };
   return { p, bytes };
+}
+
+export function declarativePackageFixture() {
+  const { p, bytes } = packageFixture();
+  const { fields: _fields, requires: _requires, ...base } = p.variants[0];
+  const manifest: TemplatePackage = {
+    ...p,
+    spec: "pandoc-latex-package-v3",
+    assets: p.assets.map(({ download: _download, ...asset }) => asset),
+    variants: [
+      {
+        ...base,
+        properties: [
+          {
+            key: "title",
+            label: "Title",
+            type: "text",
+            required: true,
+            default: "",
+            prefill: ["heading", "filename"],
+          },
+          {
+            key: "authors",
+            label: "Authors",
+            type: "authors",
+            required: true,
+            default: "",
+            prefill: [],
+            affiliationsRequired: true,
+          },
+          {
+            key: "abstract",
+            label: "Abstract",
+            type: "text",
+            required: true,
+            default: "",
+            prefill: ["abstract"],
+          },
+          {
+            key: "short_header",
+            label: "Short header",
+            type: "text",
+            required: true,
+            default: "",
+            prefill: ["title"],
+            maxLength: 50,
+          },
+          {
+            key: "grant_code",
+            label: "Grant code",
+            type: "text",
+            required: true,
+            default: "SYNTHETIC",
+            prefill: [],
+          },
+          {
+            key: "notes",
+            label: "Notes",
+            type: "list",
+            required: false,
+            default: "",
+            prefill: [],
+          },
+        ],
+      },
+    ],
+  };
+  return { manifest, bytes };
 }

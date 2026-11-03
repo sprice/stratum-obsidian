@@ -476,8 +476,7 @@ export class PublishController extends Component {
       this.layout,
       this.selectedTemplate?.prefill,
     );
-    if (this.selectedTemplate?.package)
-      return [...fields, ...this.selectedTemplate.properties];
+    if (this.selectedTemplate?.package) return this.selectedTemplate.properties;
     return this.journalProfile
       ? [...fields, ...journalProperties(this.journalProfile)]
       : fields;
@@ -537,6 +536,11 @@ export class PublishController extends Component {
   get readinessNotices(): { text: string; settings: boolean }[] {
     if (!this.selectedTemplate) return [];
     return this.noteCheck("readinessNotices", () => {
+      if (this.selectedTemplate?.package)
+        return this.publishingIssues.map((issue) => ({
+          text: issue.message,
+          settings: true,
+        }));
       if (this.journalProfile)
         return this.publishingIssues
           .filter((i) => i.blocking)
@@ -565,7 +569,10 @@ export class PublishController extends Component {
         try {
           return packageProblems(
             packageVariant(choice.manifest, choice.variant),
-            publicationManuscript(this.currentText(), this.layout.titleSource),
+            publicationManuscript(this.currentText(), this.layout.titleSource, {
+              packageProperties:
+                choice.manifest.spec === "pandoc-latex-package-v3",
+            }),
           ).join("\n");
         } catch (error) {
           return error instanceof Error
@@ -881,6 +888,35 @@ export class PublishController extends Component {
       this.clearError();
       this.emit();
     }
+  }
+  async prepareTemplateProperties(): Promise<{
+    added: string[];
+    remaining: string[];
+  }> {
+    const file = this.document;
+    const template = this.selectedTemplate;
+    const choice = template?.package;
+    if (!file || !choice || this.busy || this.preferencesSaving)
+      throw new Error(
+        "Choose a template and finish pending edits before preparing properties.",
+      );
+    const editor = this.plugin.publicationEditor;
+    if (!editor)
+      throw new Error(
+        "Open this note for editing before preparing properties.",
+      );
+    const result = editor.prepareTemplateProperties(
+      file,
+      file.stat.ctime,
+      packageVariant(choice.manifest, choice.variant),
+    );
+    if (this.document !== file || this.selectedTemplate?.id !== template.id)
+      throw new Error(
+        "Return to the original note and layout before preparing properties.",
+      );
+    await this.updateLayout({ titleSource: "properties" });
+    this.emit();
+    return result;
   }
   async prepareAcademic(): Promise<void> {
     const file = this.document;
@@ -1228,6 +1264,7 @@ export class PublishController extends Component {
           path,
           layout.titleSource,
           aborter.signal,
+          installation.manifest.spec === "pandoc-latex-package-v3",
         );
         const resources = await resolvePackageResources(
           {

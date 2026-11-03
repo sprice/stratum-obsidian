@@ -28,108 +28,112 @@ test("unknown family and variants are accepted without a consumer registry", () 
   assert.equal(packageVariant(p).id, "main");
   assert.throws(() => packageVariant(p, "missing"));
 });
-const mutations: Record<string, (p: TemplatePackage) => void> = {
-  "unsupported ABI": (p) => {
-    p.spec = "v99" as TemplatePackage["spec"];
-  },
-  "unsupported capability": (p) => {
-    p.capabilities.push("shell" as never);
-  },
-  "traversal id": (p) => {
-    p.id = "../outside";
-  },
-  "traversal version": (p) => {
-    p.version = "..";
-  },
-  "unknown top-level": (p) => {
-    Object.assign(p, { command: "sh" });
-  },
-  "credential source": (p) => {
-    p.sources[0].url = "https://user:secret@example.org/file";
-  },
-  "http source": (p) => {
-    p.sources[0].url = "http://example.org/file";
-  },
-  "source provenance required": (p) => {
-    p.sources = [];
-  },
-  "empty variants": (p) => {
-    p.variants = [];
-  },
-  "duplicate variants": (p) => {
-    p.variants.push(structuredClone(p.variants[0]));
-  },
-  "missing default": (p) => {
-    p.defaultVariant = "unknown";
-  },
-  "wrong template role": (p) => {
-    p.assets[0].role = "source";
-  },
-  "missing style": (p) => {
-    p.variants[0].citations.style = "missing.csl";
-  },
-  "downloaded filter": (p) => {
-    Object.assign(p.variants[0], { filter: "download.lua" });
-  },
-  "unknown citation engine": (p) => {
-    p.variants[0].citations.engine = "biber" as never;
-  },
-  "javascript resource": (p) => {
-    p.assets[0].name = "execute.js";
-    p.assets[0].role = "resource";
-  },
-  "path traversal asset": (p) => {
-    p.assets[0].name = "../layout.tex";
-  },
-  "scratch collision": (p) => {
-    p.assets[0].name = "body.md";
-  },
-  "duplicate case filename": (p) => {
-    p.assets.push({ ...p.assets[0], name: "LAYOUT.TEX" });
-  },
-  "external download": (p) => {
-    p.assets[0].download = "https://evil.example/file";
-  },
-  "different package download": (p) => {
-    p.assets[0].download = p.assets[0].download!.replace("unfamiliar", "other");
-  },
-  "oversize resource": (p) => {
-    p.assets[0].bytes = 33 * 1024 * 1024;
-  },
-  "fractional resource": (p) => {
-    p.assets[0].bytes = 1.5;
-  },
-  "bad digest": (p) => {
-    p.assets[0].sha256 = "bad";
-  },
-  "unknown author requirement": (p) => {
-    p.variants[0].requires.authorDetails = ["shell" as never];
-  },
-  "duplicate author requirement": (p) => {
-    p.variants[0].requires.authorDetails = ["email", "email"];
-  },
-  "prototype field": (p) => {
-    p.variants[0].fields = [
-      {
-        key: "constructor",
-        label: "Bad",
-        type: "text",
-        required: false,
+const mutations: Record<string, (p: ReturnType<typeof fixture>["p"]) => void> =
+  {
+    "unsupported ABI": (p) => {
+      p.spec = "v99" as TemplatePackage["spec"];
+    },
+    "unsupported capability": (p) => {
+      p.capabilities.push("shell" as never);
+    },
+    "traversal id": (p) => {
+      p.id = "../outside";
+    },
+    "traversal version": (p) => {
+      p.version = "..";
+    },
+    "unknown top-level": (p) => {
+      Object.assign(p, { command: "sh" });
+    },
+    "credential source": (p) => {
+      p.sources[0].url = "https://user:secret@example.org/file";
+    },
+    "http source": (p) => {
+      p.sources[0].url = "http://example.org/file";
+    },
+    "source provenance required": (p) => {
+      p.sources = [];
+    },
+    "empty variants": (p) => {
+      p.variants = [];
+    },
+    "duplicate variants": (p) => {
+      p.variants.push(structuredClone(p.variants[0]));
+    },
+    "missing default": (p) => {
+      p.defaultVariant = "unknown";
+    },
+    "wrong template role": (p) => {
+      p.assets[0].role = "source";
+    },
+    "missing style": (p) => {
+      p.variants[0].citations.style = "missing.csl";
+    },
+    "downloaded filter": (p) => {
+      Object.assign(p.variants[0], { filter: "download.lua" });
+    },
+    "unknown citation engine": (p) => {
+      p.variants[0].citations.engine = "biber" as never;
+    },
+    "javascript resource": (p) => {
+      p.assets[0].name = "execute.js";
+      p.assets[0].role = "resource";
+    },
+    "path traversal asset": (p) => {
+      p.assets[0].name = "../layout.tex";
+    },
+    "scratch collision": (p) => {
+      p.assets[0].name = "body.md";
+    },
+    "duplicate case filename": (p) => {
+      p.assets.push({ ...p.assets[0], name: "LAYOUT.TEX" });
+    },
+    "external download": (p) => {
+      p.assets[0].download = "https://evil.example/file";
+    },
+    "different package download": (p) => {
+      p.assets[0].download = p.assets[0].download!.replace(
+        "unfamiliar",
+        "other",
+      );
+    },
+    "oversize resource": (p) => {
+      p.assets[0].bytes = 33 * 1024 * 1024;
+    },
+    "fractional resource": (p) => {
+      p.assets[0].bytes = 1.5;
+    },
+    "bad digest": (p) => {
+      p.assets[0].sha256 = "bad";
+    },
+    "unknown author requirement": (p) => {
+      p.variants[0].requires.authorDetails = ["shell" as never];
+    },
+    "duplicate author requirement": (p) => {
+      p.variants[0].requires.authorDetails = ["email", "email"];
+    },
+    "prototype field": (p) => {
+      p.variants[0].fields = [
+        {
+          key: "constructor",
+          label: "Bad",
+          type: "text",
+          required: false,
+          default: "",
+        },
+      ];
+    },
+    "duplicate field": (p) => {
+      const f = {
+        key: "course",
+        label: "Course",
+        type: "text" as const,
+        required: true,
         default: "",
-      },
-    ];
-  },
-  "duplicate field": (p) => {
-    const f = {
-      key: "course",
-      label: "Course",
-      type: "text" as const,
-      required: true,
-      default: "",
-    };
-    p.variants[0].fields = [f, f];
-  },
-};
+      };
+      p.variants[0].fields = [f, f];
+    },
+  };
 for (const [label, mutate] of Object.entries(mutations))
   test(`rejects ${label}`, () => {
     const { p } = fixture();
@@ -701,4 +705,27 @@ test("renderer rejects image collisions and excessive image collections before c
       message,
     );
   }
+});
+
+// Portable packages organize resources in folders but BibTeX uses their scratch basename.
+test("portable BibTeX packages accept a pinned nested style and reject missing or colliding resources", () => {
+  const { p } = fixture();
+  p.spec = "pandoc-latex-package-v2";
+  p.assets = p.assets.map(({ download: _download, ...asset }) => asset);
+  p.assets[1] = {
+    ...p.assets[1],
+    name: "resources/plain.bst",
+    role: "resource",
+  };
+  p.variants[0].citations = {
+    engine: "bibtex",
+    style: "plain",
+    mode: "numeric",
+  };
+  assert.equal(readTemplatePackage(p), p);
+  p.assets[1].name = "resources/other.bst";
+  assert.throws(() => readTemplatePackage(p));
+  p.assets[1].name = "resources/plain.bst";
+  p.assets.push({ ...p.assets[1], name: "other/plain.bst" });
+  assert.throws(() => readTemplatePackage(p));
 });

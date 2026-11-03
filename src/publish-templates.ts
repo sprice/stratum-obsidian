@@ -201,11 +201,22 @@ export function publishingTemplateFamilies(
       versioned: boolean;
     }
   >();
+  const legacyFamilies = new Set(
+    state.templates
+      .filter((template) => template.id.startsWith("registry:"))
+      .map((template) => template.version?.familyId),
+  );
   for (const template of state.templates) {
+    // Group downloaded releases in the picker without changing their saved
+    // per-version IDs, enablement, or management controls.
     const id =
-      individualInstallations && template.id.startsWith("registry:")
-        ? template.id
-        : (template.version?.familyId ?? template.id);
+      template.package && !individualInstallations
+        ? legacyFamilies.has(`registry:${template.package.manifest.id}`)
+          ? `registry:${template.package.manifest.id}`
+          : `download:${template.package.manifest.id}`
+        : individualInstallations && template.id.startsWith("registry:")
+          ? template.id
+          : (template.version?.familyId ?? template.id);
     let family = families.get(id);
     if (!family) {
       family = {

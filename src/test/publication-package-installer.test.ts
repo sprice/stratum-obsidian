@@ -46,6 +46,7 @@ test("installer replaces the install action with an explicit success screen; fai
   let fail!: (error: Error) => void;
   let downloads = 0;
   let saves = 0;
+  let viewed = "";
   class Modal {
     contentEl = new Element();
     title = "";
@@ -93,6 +94,14 @@ test("installer replaces the install action with an explicit success screen; fai
     { AbortController, Error },
     "browser",
     {
+      "./publish-template-settings": {
+        PublishingTemplatesModal: class {
+          constructor(_plugin: unknown, id: string) {
+            viewed = id;
+          }
+          open() {}
+        },
+      },
       "./publication-package-installation": {
         installTemplatePackage: () => {
           downloads++;
@@ -140,6 +149,10 @@ test("installer replaces the install action with an explicit success screen; fai
   assert.equal(modal.contentEl.children.length, 2);
   assert.match(modal.contentEl.children[0].text, /Example template is ready/);
   assert.match(modal.contentEl.children[1].text, /publishing panel/);
+  assert.equal(buttons.at(-2)?.text, "View installed template");
+  buttons.at(-2)?.click();
+  await settle();
+  assert.equal(viewed, "download:example:1");
   assert.equal(buttons.at(-1)?.text, "Done");
   buttons.at(-1)?.click();
   assert.equal(modal.closed, true);

@@ -19,8 +19,11 @@ export async function preparePackageDocument(
   sourcePath: string,
   titleSource: "body" | "properties",
   signal: AbortSignal,
+  declarative = false,
 ) {
-  const manuscript = publicationManuscript(text, titleSource);
+  const manuscript = publicationManuscript(text, titleSource, {
+    packageProperties: declarative,
+  });
   const keys = publicationCitationKeys(
     manuscript.body + "\n\n" + manuscript.abstract,
   );
