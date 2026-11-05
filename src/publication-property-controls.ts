@@ -1,3 +1,4 @@
+import { packageProperties, packageVariant } from "./publication-package";
 import type { TFile, ToggleComponent } from "obsidian";
 import type { PublishController } from "./publish-controller";
 import type { PublicationEditor, PropertyDraft } from "./publication-editor";
@@ -42,6 +43,7 @@ export class PublicationPropertyControls {
     key: PublicationPropertyKey;
     draft: PropertyDraft;
     original: string;
+    isList: boolean;
   };
   private alive = true;
   private render: StableRender;
@@ -66,6 +68,12 @@ export class PublicationPropertyControls {
     this.cleanup = service.registerPropertyForm(this);
     this.refresh();
   }
+  private get packageFields() {
+    const choice = this.publish.selectedTemplate?.package;
+    return choice
+      ? packageProperties(packageVariant(choice.manifest, choice.variant))
+      : undefined;
+  }
   capture(): void {
     if (!this.alive || !this.active) return;
     const { input, key, draft } = this.active;
@@ -74,7 +82,7 @@ export class PublicationPropertyControls {
       !this.service.session(this.path).properties.has(key)
     )
       return;
-    const value = list(key)
+    const value = this.active.isList
       ? input.value
           .split(/\r?\n/)
           .map((value) => value.trim())
@@ -98,9 +106,13 @@ export class PublicationPropertyControls {
       throw new Error("Open this note for editing to change its properties.");
     return publicationYaml(view.state.doc.toString()).properties;
   }
-  private draft(operation: PublicationPropertyOperation): PropertyDraft {
+  private draft(
+    operation: PublicationPropertyOperation,
+    allowedKeys?: readonly string[],
+  ): PropertyDraft {
     return {
       operation,
+      allowedKeys,
       revision: publicationPropertyRevision(this.properties(), operation.key),
       conflict: "",
       file: this.file,
@@ -180,20 +192,25 @@ export class PublicationPropertyControls {
       typeof properties.stratum_publish === "object" &&
       Object.hasOwn(properties.stratum_publish, "authors")
     );
-    const keys = (
-      Object.keys(PUBLICATION_PROPERTIES) as PublicationPropertyKey[]
-    ).filter(
-      (key) =>
-        (key.startsWith("stratum_")
-          ? !!this.publish.journalProfile &&
-            this.publish.propertyDefinitions.some((field) => field.key === key)
-          : this.publish.journalProfile
-            ? key === "title" || key === "keywords"
-            : (!structured && !academic) ||
-              !["authors", "affiliations"].includes(key)) ||
-        session.properties.has(key),
-    );
-    const requiredTitle = this.publish.layout.titleSource === "properties";
+    const packageFields = this.packageFields;
+    const keys = packageFields
+      ? packageFields.filter((f) => f.type !== "authors").map((f) => f.key)
+      : Object.keys(PUBLICATION_PROPERTIES).filter(
+          (key) =>
+            (key.startsWith("stratum_")
+              ? !!this.publish.journalProfile &&
+                this.publish.propertyDefinitions.some(
+                  (field) => field.key === key,
+                )
+              : this.publish.journalProfile
+                ? key === "title" || key === "keywords"
+                : (!structured && !academic) ||
+                  !["authors", "affiliations"].includes(key)) ||
+            session.properties.has(key),
+        );
+    const requiredTitle = packageFields
+      ? !!packageFields.find((f) => f.key === "title")?.required
+      : this.publish.layout.titleSource === "properties";
     const visible = keys.filter((key) =>
       key === "title"
         ? Object.hasOwn(properties, key) ||
@@ -202,6 +219,7 @@ export class PublicationPropertyControls {
         : true,
     );
     const enabled = (key: PublicationPropertyKey) =>
+      !!packageFields ||
       key.startsWith("stratum_") ||
       !!(
         this.pending.get(flags[key]!)?.value ?? this.publish.layout[flags[key]!]
@@ -224,6 +242,7 @@ export class PublicationPropertyControls {
     const signature = JSON.stringify([
       titleMessage,
       titleInvalid,
+      packageFields,
       keys.map((key) => [
         key,
         Object.hasOwn(properties, key),
@@ -244,6 +263,7 @@ export class PublicationPropertyControls {
     if (!this.render.changed(signature)) return;
     const structure = JSON.stringify([
       visible,
+      packageFields,
       requiredTitle,
       structured,
       this.publish.busy,
@@ -283,19 +303,24 @@ export class PublicationPropertyControls {
     this.toggles.clear();
     const restoreFocus = this.render.clear();
     for (const key of visible) {
-      const required = key === "title" && requiredTitle;
+      const definition = packageFields?.find((f) => f.key === key);
+      const label = definition?.label ?? PUBLICATION_PROPERTIES[key] ?? key;
+      const isList = definition ? definition.type === "list" : list(key);
+      const required = definition
+        ? definition.required
+        : key === "title" && requiredTitle;
       const row = this.container.createDiv({
         cls: "stratum-publishing-property",
       });
-      if (key !== "title" && !key.startsWith("stratum_"))
+      if (!packageFields && key !== "title" && !key.startsWith("stratum_"))
         this.inclusion(
           row,
           key as "authors" | "affiliations" | "date" | "keywords",
         );
       const field = createStratumField(
         row,
-        key === "title" || key.startsWith("stratum_")
-          ? PUBLICATION_PROPERTIES[key] + (required ? " · required" : "")
+        packageFields || key === "title" || key.startsWith("stratum_")
+          ? label + (required ? " · required" : "")
           : "",
       );
       if (key !== "title") {
@@ -306,16 +331,17 @@ export class PublicationPropertyControls {
       const options = {
         value: display(draft?.operation.value ?? properties[key]),
         attr: {
-          "aria-label": PUBLICATION_PROPERTIES[key],
+          "aria-label": label,
           "aria-required": String(required),
         },
       };
-      const input = list(key)
-        ? createStratumTextarea(field, options)
-        : createStratumInput(field, {
-            ...options,
-            type: key === "date" ? "date" : "text",
-          });
+      const input =
+        isList || key === "abstract"
+          ? createStratumTextarea(field, options)
+          : createStratumInput(field, {
+              ...options,
+              type: (definition?.type ?? key) === "date" ? "date" : "text",
+            });
       input.dataset.propertyControl = key;
       input.disabled = this.publish.busy;
       input.addEventListener("focus", () => {
@@ -324,14 +350,18 @@ export class PublicationPropertyControls {
           input,
           key,
           original: input.value,
+          isList,
           draft:
             session.properties.get(key) ??
-            this.draft({
-              key,
-              value:
-                (this.properties()[key] as string | string[]) ??
-                (list(key) ? [] : ""),
-            }),
+            this.draft(
+              {
+                key,
+                value:
+                  (this.properties()[key] as string | string[]) ??
+                  (isList ? [] : ""),
+              },
+              packageFields?.map((field) => field.key),
+            ),
         };
       });
       input.addEventListener("input", () => this.capture());
@@ -358,9 +388,14 @@ export class PublicationPropertyControls {
           save();
         }
       });
-      if (key === "title" && !required)
+      if (!packageFields && key === "title" && !required)
         row.createEl("p", {
           text: "The PDF uses the title in your document; this property is retained.",
+          cls: "stratum-publish-meta",
+        });
+      if (definition?.maxLength)
+        row.createEl("p", {
+          text: `Up to ${definition.maxLength} characters. Edit the suggestion as needed.`,
           cls: "stratum-publish-meta",
         });
       if (draft?.conflict) {
@@ -388,7 +423,7 @@ export class PublicationPropertyControls {
         });
       }
     }
-    if (structured || academic)
+    if (!packageFields && (structured || academic))
       for (const key of ["authors", "affiliations"] as const) {
         this.inclusion(this.container, key);
       }

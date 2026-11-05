@@ -309,7 +309,7 @@ export const authorRevision = (properties: Record<string, unknown>): string =>
       : null,
   );
 
-export const PUBLICATION_PROPERTIES = {
+export const PUBLICATION_PROPERTIES: Record<string, string> = {
   title: "Title",
   authors: "Authors",
   affiliations: "Affiliations",
@@ -322,7 +322,7 @@ export const PUBLICATION_PROPERTIES = {
   stratum_acm_year: "ACM publication year",
   stratum_acm_doi: "ACM DOI",
 } as const;
-export type PublicationPropertyKey = keyof typeof PUBLICATION_PROPERTIES;
+export type PublicationPropertyKey = string;
 export interface PublicationPropertyOperation {
   key: PublicationPropertyKey;
   value: string | string[];
@@ -338,8 +338,12 @@ export function publicationPropertyRevision(
 export function changePublicationProperty(
   text: string,
   operation: PublicationPropertyOperation,
+  allowedKeys: readonly string[] = [],
 ): PublicationChange {
-  if (!Object.hasOwn(PUBLICATION_PROPERTIES, operation.key))
+  if (
+    !Object.hasOwn(PUBLICATION_PROPERTIES, operation.key) &&
+    !allowedKeys.includes(operation.key)
+  )
     throw new Error("This property is not a publishing field.");
   const parsed = publicationYaml(text);
   const root = parsed.document.contents;

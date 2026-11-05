@@ -1,4 +1,8 @@
 import {
+  readPackageInstallation,
+  type PackageInstallation,
+} from "./publication-package-installation";
+import {
   readTemplateInstallation,
   type TemplateInstallation,
 } from "./publication-installation";
@@ -22,7 +26,11 @@ export interface PublishingTemplate {
   layout: PublishOptions;
   properties: PublishingProperty[];
   prefill: AcademicDefaults;
-  renderer?: "journal";
+  renderer?: "journal" | "package";
+  package?: {
+    manifest: import("./publication-package").TemplatePackage;
+    variant: string;
+  };
   // Runtime descriptors describe installed choices; saved templates keep existing IDs.
   version?: { familyId: string; label: string };
 }
@@ -30,6 +38,7 @@ export interface PublishingTemplates {
   templates: PublishingTemplate[];
   enabledIds?: string[];
   installations?: TemplateInstallation[];
+  packageInstallations?: PackageInstallation[];
   /** Preserve future or damaged records without making them executable. */
   unavailableInstallations?: unknown[];
 }
@@ -128,9 +137,27 @@ export function readPublishingTemplates(value: unknown): PublishingTemplates {
       unavailableInstallations.push(value);
     }
   }
+  const packageInstallations: PackageInstallation[] = [];
+  for (const entry of array(stored.packageInstallations)) {
+    try {
+      const p = readPackageInstallation(entry);
+      if (
+        packageInstallations.some(
+          (i) =>
+            i.manifest.id === p.manifest.id &&
+            i.manifest.version === p.manifest.version,
+        )
+      )
+        throw new Error("Duplicate package");
+      packageInstallations.push(p);
+    } catch {
+      unavailableInstallations.push(entry);
+    }
+  }
   return {
     templates,
     installations,
+    packageInstallations,
     unavailableInstallations,
     enabledIds: Array.isArray(stored.enabledIds)
       ? [
@@ -174,11 +201,22 @@ export function publishingTemplateFamilies(
       versioned: boolean;
     }
   >();
+  const legacyFamilies = new Set(
+    state.templates
+      .filter((template) => template.id.startsWith("registry:"))
+      .map((template) => template.version?.familyId),
+  );
   for (const template of state.templates) {
+    // Group downloaded releases in the picker without changing their saved
+    // per-version IDs, enablement, or management controls.
     const id =
-      individualInstallations && template.id.startsWith("registry:")
-        ? template.id
-        : (template.version?.familyId ?? template.id);
+      template.package && !individualInstallations
+        ? legacyFamilies.has(`registry:${template.package.manifest.id}`)
+          ? `registry:${template.package.manifest.id}`
+          : `download:${template.package.manifest.id}`
+        : individualInstallations && template.id.startsWith("registry:")
+          ? template.id
+          : (template.version?.familyId ?? template.id);
     let family = families.get(id);
     if (!family) {
       family = {

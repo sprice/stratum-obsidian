@@ -4,6 +4,7 @@ import { publicationAuthors, publicationYaml } from "./publication-metadata";
 export function publicationManuscript(
   text: string,
   titleSource: "body" | "properties",
+  options: { packageProperties?: boolean } = {},
 ) {
   const { properties, end } = publicationYaml(text);
   let body = text.slice(end);
@@ -13,6 +14,10 @@ export function publicationManuscript(
     const match = /^\s*#\s+(.+?)(?:\s+#+)?\s*(?:\r?\n|$)/.exec(body);
     title = match?.[1].trim() ?? "";
     if (match) body = body.slice(match[0].length);
+  }
+  if (options.packageProperties && titleSource === "properties") {
+    const match = /^\s*#\s+(.+?)(?:\s+#+)?\s*(?:\r?\n|$)/.exec(body);
+    if (match?.[1].trim() === title) body = body.slice(match[0].length);
   }
   const sections: { from: number; start: number; to: number; level: number }[] =
     [];
@@ -55,7 +60,14 @@ export function publicationManuscript(
       "This manuscript has multiple Abstract sections. Keep one before publishing.",
     );
   const section = sections[0];
-  const abstract = section ? body.slice(section.start, section.to).trim() : "";
+  const abstract =
+    options.packageProperties && Object.hasOwn(properties, "abstract")
+      ? typeof properties.abstract === "string"
+        ? properties.abstract.trim()
+        : ""
+      : section
+        ? body.slice(section.start, section.to).trim()
+        : "";
   if (section) body = body.slice(0, section.from) + body.slice(section.to);
   return {
     properties,

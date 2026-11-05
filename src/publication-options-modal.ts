@@ -3,6 +3,7 @@ import type { PublishController } from "./publish-controller";
 import type { PublicationForm } from "./publication-editor";
 import { PublicationPropertyControls } from "./publication-property-controls";
 import { publicationAuthors } from "./publication-metadata";
+import { packageProperties, packageVariant } from "./publication-package";
 import {
   createStratumButton,
   createStratumSelect,
@@ -86,6 +87,7 @@ export class PublishingSettingsModal extends Modal {
   private ctime: number;
   private citation?: HTMLSelectElement;
   private title?: HTMLSelectElement;
+  private prepare?: HTMLButtonElement;
   private closingError = false;
   private cleanupError = false;
   private actionListener = () => this.updateActions();
@@ -158,25 +160,50 @@ export class PublishingSettingsModal extends Modal {
       cls: "stratum-publishing-pdf-options",
     });
     options.addClass("stratum-publishing-options");
-    const title = createStratumSelect(options, {
-      label: "Title source",
-      ariaLabel: "Title source",
-      value: this.publish.layout.titleSource,
-      choices: [
-        {
-          value: "body",
-          label: "Title in document",
-        },
-        { value: "properties", label: "Title property" },
-      ],
-    });
-    this.title = title;
-    title.addEventListener("change", () =>
-      this.layout({ titleSource: title.value as "body" | "properties" }),
-    );
-    if (this.publish.journalProfile) {
+    if (this.publish.selectedTemplate?.package) {
+      const status = options.createEl("p", {
+        attr: { role: "status", "aria-live": "polite" },
+      });
+      const prepare = createStratumButton(options, {
+        text: "Prepare template properties",
+      });
+      this.prepare = prepare;
+      prepare.addEventListener("mousedown", (event) => event.preventDefault());
+      prepare.addEventListener("click", () => {
+        if (this.saving || this.publish.preferencesSaving) return;
+        // Move focus before saving disables the button and refreshes fields.
+        prepare.focus();
+        void this.saveAsync(async () => {
+          const result = await this.publish.prepareTemplateProperties();
+          status.setText(
+            result.added.length
+              ? `Added: ${result.added.join(", ")}.`
+              : "All required properties already exist.",
+          );
+          this.properties?.refresh();
+        }).catch(() => {});
+      });
+    } else {
+      const title = createStratumSelect(options, {
+        label: "Title source",
+        ariaLabel: "Title source",
+        value: this.publish.layout.titleSource,
+        choices: [
+          {
+            value: "body",
+            label: "Title in document",
+          },
+          { value: "properties", label: "Title property" },
+        ],
+      });
+      this.title = title;
+      title.addEventListener("change", () =>
+        this.layout({ titleSource: title.value as "body" | "properties" }),
+      );
+    }
+    if (this.publish.journalProfile || this.publish.selectedTemplate?.package) {
       options.createEl("p", {
-        text: "The selected journal profile controls layout and bibliography. Change the profile in the publishing panel. Anonymous review omits author fields and PDF author metadata; review identifying text, acknowledgments, figures and references yourself.",
+        text: "The selected template controls layout and bibliography. Change the layout in the publishing panel. Anonymous review omits author fields and PDF author metadata; review identifying text, acknowledgments, figures and references yourself.",
         cls: "stratum-publication-help",
       });
     } else {
@@ -445,6 +472,7 @@ export class PublishingSettingsModal extends Modal {
     this.drafts.failures.delete(key);
     this.error.hidden = this.drafts.failures.size === 0;
     this.saving++;
+    this.updateActions();
     try {
       await work();
       if (this.drafts.latest.get(key) === revision)
@@ -471,6 +499,7 @@ export class PublishingSettingsModal extends Modal {
     const busy =
       this.publish.busy || this.saving > 0 || this.publish.preferencesSaving;
     this.done.disabled = busy;
+    if (this.prepare) this.prepare.disabled = busy;
     const failedReset = [...this.drafts.failures.keys()].some((key) =>
       key.startsWith("layout:"),
     );
@@ -560,6 +589,11 @@ export class PublishingSettingsModal extends Modal {
     } catch {
       /* The field controls report malformed YAML. */
     }
+    const packageChoice = this.publish.selectedTemplate?.package;
+    if (packageChoice?.manifest.spec === "pandoc-latex-package-v3")
+      showAuthors = packageProperties(
+        packageVariant(packageChoice.manifest, packageChoice.variant),
+      ).some((field) => field.type === "authors");
     if (target && service && showAuthors && !this.authors)
       this.authors = service.mountAuthors(this.authorContainer, this.file);
     if (!showAuthors && this.authors) {
@@ -596,7 +630,11 @@ export class PublishingSettingsModal extends Modal {
         .join("\n"),
     );
     const notes = issues.filter((issue) => !issue.blocking).map(issueText);
-    if (this.publish.duplicateTitleWarning)
+    if (
+      this.publish.selectedTemplate?.package?.manifest.spec !==
+        "pandoc-latex-package-v3" &&
+      this.publish.duplicateTitleWarning
+    )
       notes.push("Title may appear twice. Review the title source.");
     patchBlock(this.validationNotes, notes.join("\n"), (container) => {
       for (const note of notes)

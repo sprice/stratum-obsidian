@@ -46,6 +46,7 @@ export interface PublishedDocument {
   citationStyle: string;
   citationLanguage: string;
   publishing?: {
+    package?: { id: string; version: string; variant: string; sha256: string };
     aastexPdfOptions?: AastexPdfOptions;
     template?: { id: string; version: string; upstreamVersion: string };
     documentType: DocumentType;

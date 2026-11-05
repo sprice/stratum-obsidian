@@ -5,7 +5,10 @@ import {
   publishingTemplateFamilies,
   removePublishingTemplate,
   selectedPublishingTemplate,
+  publishingTemplateEnabled,
 } from "../publish-templates";
+import { installedPackageChoices } from "../publication-package-installation";
+import { packageFixture } from "./publication-package-fixture";
 import {
   addPublishingProperties,
   publishingPropertyProblem,
@@ -167,4 +170,76 @@ test("installed version descriptors group choices without changing stored templa
     saved.templates.map((template) => template.id),
     templates.map((template) => template.id),
   );
+});
+
+test("downloaded package releases share one picker family while retaining version selections and enablement", () => {
+  const { p } = packageFixture();
+  const releases = ["1.0", "2.0"].flatMap((version) =>
+    installedPackageChoices({
+      manifest: {
+        ...p,
+        version,
+        variants: [
+          { ...p.variants[0], id: "student", label: "Student" },
+          { ...p.variants[0], id: "professional", label: "Professional" },
+        ],
+      },
+      sha256: "a".repeat(64),
+    }),
+  );
+  const state = {
+    templates: releases,
+    enabledIds: ["download:unfamiliar:1.0", "download:unfamiliar:2.0"],
+  };
+  const families = publishingTemplateFamilies(state);
+  assert.equal(families.length, 1);
+  assert.equal(families[0].id, "download:unfamiliar");
+  assert.deepEqual(families[0].choices, [
+    { id: "download:unfamiliar:1.0:student", label: "1.0 · Student" },
+    { id: "download:unfamiliar:1.0:professional", label: "1.0 · Professional" },
+    { id: "download:unfamiliar:2.0:student", label: "2.0 · Student" },
+    { id: "download:unfamiliar:2.0:professional", label: "2.0 · Professional" },
+  ]);
+  for (const choice of families[0].choices) {
+    const selected = selectedPublishingTemplate(state, choice.id)!;
+    assert.ok(publishingTemplateEnabled(state, selected));
+  }
+  assert.deepEqual(
+    publishingTemplateFamilies(state, true).map((family) => family.id),
+    ["download:unfamiliar:1.0", "download:unfamiliar:2.0"],
+  );
+  assert.equal(
+    publishingTemplateEnabled(
+      { ...state, enabledIds: ["download:unfamiliar:2.0"] },
+      releases[0],
+    ),
+    false,
+  );
+});
+
+test("legacy and portable installations share a picker family without changing pinned choices", () => {
+  const { p } = packageFixture();
+  const downloaded = installedPackageChoices({
+    manifest: p,
+    sha256: "a".repeat(64),
+  })[0];
+  const legacy = {
+    ...downloaded,
+    id: "registry:unfamiliar:1.0-r1",
+    package: undefined,
+    version: { familyId: "registry:unfamiliar", label: "1.0-r1" },
+  };
+  const state = {
+    templates: [legacy, downloaded],
+    enabledIds: [legacy.id, "download:unfamiliar:1.0"],
+  };
+  const families = publishingTemplateFamilies(state);
+  assert.equal(families.length, 1);
+  assert.deepEqual(
+    families[0].choices.map((c) => c.id),
+    [legacy.id, downloaded.id],
+  );
+  assert.ok(publishingTemplateEnabled(state, legacy));
+  assert.ok(publishingTemplateEnabled(state, downloaded));
+  assert.equal(publishingTemplateFamilies(state, true).length, 2);
 });

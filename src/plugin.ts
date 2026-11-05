@@ -263,6 +263,17 @@ export default class StratumPlugin extends Plugin {
             void this.publish?.openSettings(view.containerEl, view);
         },
       });
+      this.addCommand({
+        id: "publish-template-package-experiment",
+        name: "Publish with a template package (experimental)",
+        editorCallback: async (_editor, view) => {
+          if (!(view instanceof MarkdownView) || !view.file) return;
+          const { PublicationPackageModal } =
+            await import("./publication-package-modal");
+          if (!this.isUnloaded)
+            new PublicationPackageModal(this, view.file).open();
+        },
+      });
       const { PublishController } = await import("./publish-controller");
       if (this.isUnloaded) return;
       this.publish = this.addChild(new PublishController(this));
@@ -452,6 +463,17 @@ export default class StratumPlugin extends Plugin {
         void this.activateView().then(() => this.refreshViews());
       },
     });
+
+    this.registerObsidianProtocolHandler(
+      "stratum-install-template",
+      (params) => {
+        void import("./publication-package-installer")
+          .then(({ openPackageInstall }) => {
+            if (!this.isUnloaded) openPackageInstall(this, params);
+          })
+          .catch(() => new Notice("Could not open template installation."));
+      },
+    );
 
     this.registerObsidianProtocolHandler(AUTH_PROTOCOL_ACTION, (params) => {
       void handleAuthProtocol(this, params).catch(

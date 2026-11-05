@@ -1,3 +1,14 @@
+import { installedTemplateGroups } from "./publishing-template-list";
+import { onTemplateInstalled } from "./publishing-template-events";
+import type { PackageInstallation } from "./publication-package-installation";
+import {
+  PackageInstallModal,
+  installPublishingPackage,
+} from "./publication-package-installer";
+import {
+  packageRegistryListing,
+  type PackageCatalogRelease,
+} from "./publication-package-catalog";
 import {
   enableVerifiedInstallation,
   removeInstallation,
@@ -18,7 +29,6 @@ import {
   installationId,
   type TemplateInstallation,
 } from "./publication-installation";
-import { installedPublishingTemplate } from "./publication-installed-templates";
 import { Modal, Notice, Setting } from "obsidian";
 import type StratumPlugin from "./plugin";
 import { renderPublishCustomization } from "./publish-customize";
@@ -30,8 +40,6 @@ import {
   readPublishingTemplates,
   removePublishingTemplate,
   publishingTemplateEnabled,
-  publishingTemplateId,
-  publishingTemplateFamilies,
   type PublishingTemplate,
   type PublishingTemplates,
 } from "./publish-templates";
@@ -231,11 +239,31 @@ function renderPublishingTemplate(
       );
 }
 
+const openTemplateManagers = new WeakMap<
+  StratumPlugin,
+  PublishingTemplatesModal
+>();
+
 /** Keeps template fields out of the main plugin settings page. */
 export class PublishingTemplatesModal extends Modal {
+  private async removePackage(id: string, version: string): Promise<void> {
+    const current = publishingTemplatesFor(this.plugin);
+    await savePublishingTemplates(this.plugin, {
+      ...current,
+      packageInstallations: current.packageInstallations?.filter(
+        (i) => i.manifest.id !== id || i.manifest.version !== version,
+      ),
+      enabledIds: current.enabledIds?.filter(
+        (value) => value !== `download:${id}:${version}`,
+      ),
+    });
+    this.renderList();
+  }
   private readonly installation = new AbortController();
   private families: RegistryFamily[] = [];
-  private releases: RegistryRelease[] = [];
+  private releases: (RegistryRelease | PackageCatalogRelease)[] = [];
+  private packages: PackageCatalogRelease[] = [];
+  private packageCatalogOffline = false;
   private selectedFamily = "";
   private selectedVersions = new Set<string>();
   private status = "Choose a template, then select versions to add.";
@@ -244,6 +272,7 @@ export class PublishingTemplatesModal extends Modal {
   private registrySetting?: Setting;
   private installationStatus = "";
   private installationFailed = false;
+  private lastInstalledId?: string;
   private busy = false;
   private listingRequest = 0;
   private familyRequest = 0;
@@ -297,28 +326,63 @@ export class PublishingTemplatesModal extends Modal {
       unavailable,
     );
     try {
-      const result = await registryListing(
-        publicationResourceCache(this.plugin),
-        "families",
-        readRegistryFamilies,
-        async () => {
-          const items = await registryFamilies((spec) => this.download(spec));
-          return {
-            value: { schemaVersion: 1, templates: items },
-            parsed: items,
-          };
-        },
-      );
+      const [legacy, packages] = await Promise.allSettled([
+        registryListing(
+          publicationResourceCache(this.plugin),
+          "families",
+          readRegistryFamilies,
+          async () => {
+            const items = await registryFamilies((spec) => this.download(spec));
+            return {
+              value: { schemaVersion: 1, templates: items },
+              parsed: items,
+            };
+          },
+        ),
+        packageRegistryListing(publicationResourceCache(this.plugin), (spec) =>
+          this.download(spec),
+        ),
+      ]);
+      if (legacy.status === "rejected" && packages.status === "rejected")
+        throw new Error(unavailable);
+      const result =
+        legacy.status === "fulfilled"
+          ? legacy.value
+          : { items: [], offline: false };
+      const packageResult =
+        packages.status === "fulfilled"
+          ? packages.value
+          : { items: [], offline: false };
       if (request !== this.familyRequest || this.installation.signal.aborted)
         return;
-      this.families = result.items;
+      this.packages = packageResult.items;
+      this.packageCatalogOffline = packageResult.offline;
+      const families = new Map(
+        result.items.map((family) => [family.id, family]),
+      );
+      for (const entry of this.packages)
+        families.set(entry.id, {
+          id: entry.id,
+          name: entry.name,
+          versionCount: this.packages.filter((p) => p.id === entry.id).length,
+        });
+      this.families = [...families.values()];
+      const partial = [
+        ...(legacy.status === "rejected"
+          ? ["The template registry is unavailable."]
+          : []),
+        ...(packages.status === "rejected"
+          ? ["The template package catalog is unavailable."]
+          : []),
+      ].join(" ");
       finishStatus(
-        result.offline
-          ? "Offline · showing the last registry listing. Installed versions remain available."
-          : this.families.length
-            ? "Choose a template, then select versions to add."
-            : "No templates have been published yet.",
-        result.offline,
+        partial ||
+          (result.offline || packageResult.offline
+            ? "Offline · showing cached registry listings where needed. Installed versions remain available."
+            : this.families.length
+              ? "Choose a template, then select versions to add."
+              : "No templates have been published yet."),
+        !!partial || result.offline || packageResult.offline,
       );
     } catch (error) {
       if (request !== this.familyRequest || this.installation.signal.aborted)
@@ -345,6 +409,20 @@ export class PublishingTemplatesModal extends Modal {
       return;
     }
     this.renderList();
+    const packages = this.packages.filter((p) => p.id === id);
+    if (packages.length) {
+      this.releases = packages.sort((a, b) =>
+        b.version.localeCompare(a.version, "en", { numeric: true }),
+      );
+      finishStatus(
+        this.packageCatalogOffline
+          ? "Offline · cached package versions shown. Installation verifies resources with the mirror."
+          : ready,
+        this.packageCatalogOffline,
+      );
+      this.renderCurrentList();
+      return;
+    }
     try {
       const listing = await registryListing(
         publicationResourceCache(this.plugin),
@@ -398,6 +476,20 @@ export class PublishingTemplatesModal extends Modal {
       this.installationStatus = `Installing ${version} (${++completed}/${versions.length})…`;
       this.renderCurrentList();
       try {
+        const packaged = this.packages.find(
+          (p) => p.id === family && p.version === version,
+        );
+        if (packaged) {
+          await installPublishingPackage(
+            this.plugin,
+            packaged,
+            this.installation.signal,
+          );
+          this.lastInstalledId = `download:${packaged.id}:${packaged.version}`;
+          this.selectedVersions.delete(version);
+          installed++;
+          continue;
+        }
         const manifest = await registryInstallation(
           (spec) => this.download(spec),
           family,
@@ -417,6 +509,7 @@ export class PublishingTemplatesModal extends Modal {
             manifest,
           ),
         );
+        this.lastInstalledId = installationId(manifest);
         this.selectedVersions.delete(version);
         installed++;
       } catch (error) {
@@ -428,11 +521,16 @@ export class PublishingTemplatesModal extends Modal {
     this.busy = false;
     if (this.installation.signal.aborted) return;
     this.installationFailed = failures.length > 0;
-    const total = new Set(
-      (publishingTemplatesFor(this.plugin).installations ?? [])
-        .filter((manifest) => manifest.pin.metadata.templateId === family)
-        .map((manifest) => manifest.pin.metadata.version),
-    ).size;
+    const state = publishingTemplatesFor(this.plugin);
+    const total = this.packages.some((p) => p.id === family)
+      ? (state.packageInstallations ?? []).filter(
+          (p) => p.manifest.id === family,
+        ).length
+      : new Set(
+          (state.installations ?? [])
+            .filter((manifest) => manifest.pin.metadata.templateId === family)
+            .map((manifest) => manifest.pin.metadata.version),
+        ).size;
     const success = installed
       ? `Added ${installed} version${installed === 1 ? "" : "s"}. ${total} version${total === 1 ? " of this template is" : "s of this template are"} installed.`
       : "";
@@ -525,12 +623,24 @@ export class PublishingTemplatesModal extends Modal {
     modal.open();
   }
 
-  constructor(private plugin: StratumPlugin) {
+  private stopWatching?: () => void;
+  private highlightTimer?: number;
+
+  constructor(
+    private plugin: StratumPlugin,
+    private targetId?: string,
+  ) {
     super(plugin.app);
     this.modalEl.addClass("stratum-modal");
   }
 
   onOpen(): void {
+    const previous = openTemplateManagers.get(this.plugin);
+    if (previous && previous !== this) previous.close();
+    openTemplateManagers.set(this.plugin, this);
+    this.stopWatching = onTemplateInstalled(this.plugin, () =>
+      this.renderCurrentList(),
+    );
     this.renderList();
     if (Platform.isDesktop) void this.refreshRegistry();
   }
@@ -564,9 +674,10 @@ export class PublishingTemplatesModal extends Modal {
           .setButtonText("Refresh")
           .setDisabled(this.busy || !Platform.isDesktop)
           .onClick(() => {
-            void this.refreshRegistry();
-            if (this.selectedFamily)
-              void this.chooseFamily(this.selectedFamily);
+            void this.refreshRegistry().then(() => {
+              if (this.selectedFamily && !this.installation.signal.aborted)
+                void this.chooseFamily(this.selectedFamily);
+            });
           }),
       );
     this.registrySetting = registrySetting;
@@ -586,18 +697,29 @@ export class PublishingTemplatesModal extends Modal {
     });
     let updateAddButton = () => {};
     for (const release of this.releases) {
-      const installed = state.installations?.some(
-        (m) =>
-          m.pin.metadata.templateId === this.selectedFamily &&
-          m.pin.metadata.version === release.version,
-      );
+      const packaged = "sha256" in release;
+      const installed = packaged
+        ? state.packageInstallations?.some(
+            (p) =>
+              p.manifest.id === this.selectedFamily &&
+              p.manifest.version === release.version,
+          )
+        : state.installations?.some(
+            (m) =>
+              m.pin.metadata.templateId === this.selectedFamily &&
+              m.pin.metadata.version === release.version,
+          );
+      const label = packaged ? release.version : release.upstreamVersion;
+      const description = packaged
+        ? "Includes the template’s layouts and licensed resources."
+        : `Revision ${release.revision}`;
       new Setting(versionList)
-        .setName(release.upstreamVersion)
-        .setDesc(installed ? "Installed" : `Revision ${release.revision}`)
+        .setName(label)
+        .setDesc(installed ? "Installed" : description)
         .addToggle((toggle) => {
           toggle.toggleEl.setAttribute(
             "aria-label",
-            `Select ${this.selectedFamily} ${release.upstreamVersion}, revision ${release.revision}`,
+            `Select ${this.selectedFamily} ${label}${packaged ? "" : `, revision ${release.revision}`}`,
           );
           toggle
             .setValue(!!installed || this.selectedVersions.has(release.version))
@@ -634,108 +756,200 @@ export class PublishingTemplatesModal extends Modal {
       if (this.installationFailed) feedback.addClass("stratum-publish-error");
       for (const text of this.installationStatus.split("\n"))
         feedback.createEl("p", { text });
+      if (this.lastInstalledId && !this.busy)
+        new Setting(feedback).addButton((button) =>
+          button.setButtonText("View installed template").onClick(() => {
+            this.targetId = this.lastInstalledId;
+            this.renderList();
+          }),
+        );
     }
     if (state.unavailableInstallations?.length)
       this.contentEl.createEl("p", {
         text: "Some saved versions need a newer plugin or repaired metadata. Their records and document selections are retained.",
         cls: "setting-item-description",
       });
-    this.contentEl.createEl("h3", { text: "Your templates" });
-    const all = {
-      ...state,
-      templates: [
-        ...state.templates,
-        ...(state.installations ?? []).map(installedPublishingTemplate),
-      ],
-    };
-    for (const family of publishingTemplateFamilies(all, true)) {
-      const template = all.templates.find(
-        (t) => publishingTemplateId(t) === family.id,
-      )!;
-      const manifest = state.installations?.find(
-        (m) => installationId(m) === template.id,
-      );
-      const row = new Setting(this.contentEl)
-        .setName(
-          manifest
-            ? `${template.name} · ${manifest.pin.metadata.upstreamVersion}`
-            : template.name,
-        )
-        .setDesc(
-          manifest
-            ? `${manifest.pin.metadata.upstreamVersion} · ${manifest.pin.metadata.templateId === "aastex" ? "Bibliography: nonprofit use only." : "Verified registry release."}`
-            : `${template.documentType === "academic" ? "Academic paper" : "General document"} · ${isBuiltInTemplate(template.id) ? "Built-in; editable and cannot be deleted." : "Custom template."}`,
-        );
-      if (manifest)
-        row.addButton((button) =>
-          button
-            .setButtonText("Details")
-            .onClick(() => this.installationDetails(manifest)),
-        );
-      if (!template.renderer)
-        row.addButton((button) =>
-          styleStratumComponent(button)
-            .setButtonText("Configure")
-            .onClick(() => this.editTemplate(template.id)),
-        );
-      row.addToggle((toggle) => {
-        toggle.toggleEl.setAttribute(
-          "aria-label",
-          `Enable ${template.name}${template.version ? ` ${template.version.label}` : ""}`,
-        );
-        const enabled = publishingTemplateEnabled(state, template);
-        let changing = false;
-        styleStratumComponent(toggle)
-          .setValue(enabled)
-          .onChange((value) => {
-            if (changing) return;
-            changing = true;
-            toggle.setDisabled(true);
-            if (value && template.renderer)
-              row.setDesc("Installing and verifying template resources…");
-            void setPublishingTemplateEnabled(
-              this.plugin,
-              family.id,
-              value,
-              () =>
-                template.renderer
-                  ? installedTemplateResources(
-                      publicationResourceCache(this.plugin),
-                      manifest!,
-                      this.installation.signal,
-                      true,
-                    )
-                  : Promise.resolve(),
-              this.installation.signal,
-            ).then(
-              () => {
-                this.renderCurrentList();
-              },
-              (error: unknown) => {
-                if (this.installation.signal.aborted) return;
-                toggle.setValue(enabled).setDisabled(false);
-                changing = false;
-                row.setDesc(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not enable this template. Try again.",
-                );
-              },
-            );
-          });
-      });
+    this.contentEl.createEl("h3", { text: "Installed templates" });
+    for (const group of installedTemplateGroups(state)) {
+      let container = this.contentEl;
+      if (group.rows.length > 1) {
+        const details = this.contentEl.createEl("details");
+        details.open = true;
+        details.createEl("summary", {
+          text: `${group.name} · ${group.rows.length} installed versions`,
+        });
+        container = details;
+      }
+      for (const item of group.rows) {
+        const {
+          template,
+          installation: manifest,
+          packageInstallation: packaged,
+        } = item;
+        const row = new Setting(container)
+          .setName(
+            item.version ? `${template.name} · ${item.version}` : template.name,
+          )
+          .setDesc(
+            packaged
+              ? `From template registry · ${packaged.manifest.variants.map((v) => v.label).join(" · ")}`
+              : manifest
+                ? `From template registry · ${manifest.pin.metadata.templateId === "aastex" ? "Bibliography: nonprofit use only." : `Earlier registry format · revision ${manifest.pin.metadata.revision}.`}`
+                : `${template.documentType === "academic" ? "Academic paper" : "General document"} · ${isBuiltInTemplate(template.id) ? "Built-in; editable and cannot be deleted." : "Custom template."}`,
+          );
+        row.settingEl.setAttribute("data-template-id", item.id);
+        if (item.id === this.targetId) {
+          row.settingEl.addClass("stratum-template-installed-target");
+          row.settingEl.setAttribute("tabindex", "-1");
+          row.settingEl.scrollIntoView({ block: "center" });
+          row.settingEl.focus({ preventScroll: true });
+          window.clearTimeout(this.highlightTimer);
+          this.highlightTimer = window.setTimeout(() => {
+            row.settingEl.removeClass("stratum-template-installed-target");
+            if (this.targetId === item.id) this.targetId = undefined;
+          }, 4000);
+        }
+        if (packaged) {
+          row.addButton((button) =>
+            button
+              .setButtonText("Details")
+              .onClick(() => this.packageDetails(packaged)),
+          );
+          row.addButton((button) =>
+            button.setButtonText("Remove").onClick(() => {
+              new ConfirmModal(this.plugin.app, {
+                title: `Remove ${packaged.manifest.name} ${packaged.manifest.version}?`,
+                message: [
+                  "Notes and publication history are kept. You can reinstall this version later.",
+                ],
+                confirmLabel: "Remove",
+                warning: true,
+                confirm: () =>
+                  this.removePackage(
+                    packaged.manifest.id,
+                    packaged.manifest.version,
+                  ),
+                onError: fail,
+              }).open();
+            }),
+          );
+        }
+        if (manifest)
+          row.addButton((button) =>
+            button
+              .setButtonText("Details")
+              .onClick(() => this.installationDetails(manifest)),
+          );
+        if (manifest)
+          row.addButton((button) =>
+            button.setButtonText("Remove").onClick(() => {
+              new ConfirmModal(this.plugin.app, {
+                title: `Remove ${template.name} ${item.version}?`,
+                message: [
+                  "Notes and publication history are kept. You can reinstall this exact release later.",
+                ],
+                confirmLabel: "Remove",
+                warning: true,
+                confirm: async () => {
+                  await savePublishingTemplates(
+                    this.plugin,
+                    removeInstallation(
+                      publishingTemplatesFor(this.plugin),
+                      item.id,
+                    ),
+                  );
+                  this.renderCurrentList();
+                },
+                onError: fail,
+              }).open();
+            }),
+          );
+        if (!template.renderer)
+          row.addButton((button) =>
+            styleStratumComponent(button)
+              .setButtonText("Configure")
+              .onClick(() => this.editTemplate(template.id)),
+          );
+        row.addToggle((toggle) => {
+          toggle.toggleEl.setAttribute(
+            "aria-label",
+            `Enable ${template.name}${item.version ? ` ${item.version}` : ""}`,
+          );
+          const enabled = publishingTemplateEnabled(state, template);
+          let changing = false;
+          styleStratumComponent(toggle)
+            .setValue(enabled)
+            .onChange((value) => {
+              if (changing) return;
+              changing = true;
+              toggle.setDisabled(true);
+              if (value && manifest)
+                row.setDesc("Installing and verifying template resources…");
+              void setPublishingTemplateEnabled(
+                this.plugin,
+                item.id,
+                value,
+                () =>
+                  manifest
+                    ? installedTemplateResources(
+                        publicationResourceCache(this.plugin),
+                        manifest,
+                        this.installation.signal,
+                        true,
+                      )
+                    : Promise.resolve(),
+                this.installation.signal,
+              ).then(
+                () => {
+                  this.renderCurrentList();
+                },
+                (error: unknown) => {
+                  if (this.installation.signal.aborted) return;
+                  toggle.setValue(enabled).setDisabled(false);
+                  changing = false;
+                  row.setDesc(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not enable this template. Try again.",
+                  );
+                },
+              );
+            });
+        });
+      }
     }
-    this.contentEl.createEl("h3", { text: "Custom templates" });
+    this.contentEl.createEl("h3", { text: "Create a template" });
     new Setting(this.contentEl)
       .setName("Create your own template")
-      .setDesc(
-        "Start from a built-in template and customize it. Registry versions are installed above.",
-      )
+      .setDesc("Start from a built-in template and customize it.")
       .addButton((button) =>
         styleStratumComponent(button)
           .setButtonText("Create custom template")
           .onClick(() => this.addTemplate()),
       );
+  }
+
+  private packageDetails(installed: PackageInstallation): void {
+    const modal = new Modal(this.app);
+    const p = installed.manifest;
+    modal.setTitle(`${p.name} · ${p.version}`);
+    modal.contentEl.createEl("p", {
+      text: "From template registry · verified resources. Updates install alongside existing versions.",
+    });
+    modal.contentEl.createEl("p", {
+      text: p.variants.map((v) => v.label).join(" · "),
+    });
+    new Setting(modal.contentEl).addButton((button) =>
+      button.setButtonText("Verify / reinstall").onClick(() => {
+        modal.close();
+        new PackageInstallModal(this.plugin, {
+          id: p.id,
+          version: p.version,
+          sha256: installed.sha256,
+        }).open();
+      }),
+    );
+    modal.open();
   }
 
   private addTemplate(): void {
@@ -821,6 +1035,10 @@ export class PublishingTemplatesModal extends Modal {
   }
 
   onClose(): void {
+    if (openTemplateManagers.get(this.plugin) === this)
+      openTemplateManagers.delete(this.plugin);
+    this.stopWatching?.();
+    window.clearTimeout(this.highlightTimer);
     window.clearTimeout(this.statusTimer);
     this.registrySetting = undefined;
     this.installation.abort();

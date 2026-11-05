@@ -1,3 +1,10 @@
+import { preparePackageProperties } from "../publication-package-properties";
+import {
+  declarativePackageFixture,
+  packageFixture,
+} from "./publication-package-fixture";
+import * as packageContract from "../publication-package";
+import { createHash } from "node:crypto";
 import { manuscriptSample } from "./publication-manuscript-fixture";
 import { installationFixture } from "./publication-installation-fixture";
 import { readNotePreferences } from "../publish-options";
@@ -48,7 +55,11 @@ class FontError extends Error {
 }
 class Popout {}
 
-function setup(settings: Partial<StratumSettings> = {}, selected = true) {
+function setup(
+  settings: Partial<StratumSettings> = {},
+  selected = true,
+  dependencies: Record<string, unknown> = {},
+) {
   let timerId = 0;
   const timers = new Map<number, { callback: () => void; delay: number }>();
   const calls = {
@@ -265,6 +276,7 @@ function setup(settings: Partial<StratumSettings> = {}, selected = true) {
           return new ArrayBuffer(4);
         },
       },
+      ...dependencies,
     },
   );
   const first = new File("First.md"),
@@ -1590,4 +1602,149 @@ test("unload cancels pending PDF downloads without reporting a failure", async (
   await pending;
   assert.equal(calls.downloads[0].aborted, true);
   assert.equal(controller.error, "");
+});
+
+for (const failure of ["", "Synthetic compiler failure"]) {
+  test(`downloaded package uses the normal publishing controller (${failure ? "failure" : "success"})`, async () => {
+    const { p, bytes } = packageFixture();
+    p.variants[0].requires = {
+      title: false,
+      authors: false,
+      affiliations: false,
+      abstract: false,
+      authorDetails: [],
+    };
+    const sha256 = createHash("sha256").update(JSON.stringify(p)).digest("hex");
+    const prepared: string[] = [];
+    const rendered: unknown[] = [];
+    const f = setup(
+      {
+        publishingTemplates: {
+          templates: [],
+          packageInstallations: [{ manifest: p, sha256 }],
+          enabledIds: ["download:unfamiliar:1.0"],
+        },
+      },
+      true,
+      {
+        "./publication-package": {
+          ...packageContract,
+          resolvePackageResources: (
+            _cache: unknown,
+            _p: unknown,
+            _download: unknown,
+            _origin: unknown,
+            offline: boolean,
+          ) => {
+            assert.equal(offline, true);
+            return Promise.resolve({ "layout.tex": bytes, "style.csl": bytes });
+          },
+        },
+        "./publication-package-publish": {
+          preparePackageDocument: (
+            _app: unknown,
+            _service: unknown,
+            text: string,
+          ) => {
+            prepared.push(text);
+            return Promise.resolve({
+              manuscript: publicationManuscript(text, "body"),
+              references: [],
+            });
+          },
+        },
+        "./publication-package-render": {
+          renderTemplatePackage: (publication: unknown) => {
+            rendered.push(publication);
+            if (failure) return Promise.reject(new Error(failure));
+            return Promise.resolve({
+              pdf: new Uint8Array([37, 80, 68, 70]),
+              latex: "synthetic",
+            });
+          },
+        },
+      },
+    );
+    f.leaf.view.text = "# Synthetic downloaded package\n\nSynthetic body.";
+    await f.controller.updatePreferences({
+      templateId: "download:unfamiliar:1.0:main",
+    });
+    f.controller.readiness = structuredClone(readySupport);
+    await f.controller.create();
+    assert.deepEqual(prepared, [f.leaf.view.text]);
+    assert.equal(rendered.length, 1);
+    assert.equal(f.calls.format, 0);
+    const documents = (await f.controller.store.list()).documents;
+    if (failure) {
+      assert.match(f.controller.error, /Synthetic compiler failure/);
+      assert.equal(documents.length, 0);
+      assert.ok(
+        f.calls.detect > 0,
+        "compiler failure rechecks shared executables",
+      );
+    } else {
+      assert.equal(f.controller.error, "");
+      assert.equal(documents.length, 1);
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(documents[0].publishing?.package)),
+        { id: p.id, version: p.version, variant: "main", sha256 },
+      );
+    }
+  });
+}
+
+test("package title source changes only after explicit guarded preparation", async () => {
+  const { manifest } = declarativePackageFixture();
+  const sha256 = createHash("sha256")
+    .update(JSON.stringify(manifest))
+    .digest("hex");
+  const f = setup({
+    publishingTemplates: {
+      templates: [],
+      packageInstallations: [{ manifest, sha256 }],
+      enabledIds: ["download:unfamiliar:1.0"],
+    },
+  });
+  f.leaf.view.text =
+    "# Synthetic heading\n\n## Abstract\nSynthetic abstract.\n";
+  await f.controller.updatePreferences({
+    templateId: "download:unfamiliar:1.0:main",
+  });
+  assert.equal(f.controller.layout.titleSource, "body");
+  await assert.rejects(
+    f.controller.prepareTemplateProperties(),
+    /Open this note/,
+  );
+  assert.equal(f.controller.layout.titleSource, "body");
+  Object.assign(f.plugin, {
+    publicationEditor: {
+      prepareTemplateProperties(
+        _file: unknown,
+        _ctime: number,
+        variant: packageContract.PackageVariant,
+      ) {
+        const result = preparePackageProperties(
+          f.leaf.view.text,
+          "Synthetic filename",
+          variant,
+        );
+        const text = f.leaf.view.text;
+        f.leaf.view.text =
+          text.slice(0, result.change.from) +
+          result.change.insert +
+          text.slice(result.change.to);
+        return result;
+      },
+      refresh: () => {},
+      flush: () => true,
+      pending: () => false,
+    },
+  });
+  const result = await f.controller.prepareTemplateProperties();
+  assert.ok(result.added.includes("title"));
+  assert.equal(f.controller.layout.titleSource, "properties");
+  assert.ok(result.remaining.includes("Add an author."));
+  const before = f.leaf.view.text;
+  assert.deepEqual((await f.controller.prepareTemplateProperties()).added, []);
+  assert.equal(f.leaf.view.text, before);
 });

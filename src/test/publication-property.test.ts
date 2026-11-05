@@ -1,3 +1,5 @@
+import { declarativePackageFixture } from "./publication-package-fixture";
+import { packageVariant } from "../publication-package";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -53,8 +55,7 @@ test("properties support absent frontmatter, BOM, CRLF, blank required values an
 });
 test("unsupported field keys and aliased data are rejected without rewriting the note", () => {
   assert.throws(
-    () =>
-      edit(sample, { key: "zotero_item_identity" as never, value: "changed" }),
+    () => edit(sample, { key: "zotero_item_identity", value: "changed" }),
     /not a publishing field/,
   );
   assert.throws(
@@ -114,7 +115,11 @@ test("block scalar property edits preserve header comments and neighboring prope
 function runtime(initial = sample) {
   let text = initial;
   let readOnly = false;
-  const file = { path: "Synthetic.md", stat: { ctime: 1 } };
+  const file = {
+    path: "Synthetic.md",
+    basename: "Synthetic",
+    stat: { ctime: 1 },
+  };
   let currentFile = file;
   const editor = {
     getValue: () => text,
@@ -155,7 +160,7 @@ function runtime(initial = sample) {
       text = value;
     },
     replaceFile: () => {
-      currentFile = { path: file.path, stat: { ctime: 2 } };
+      currentFile = { ...file, stat: { ctime: 2 } };
     },
     setReadOnly: () => {
       readOnly = true;
@@ -264,4 +269,36 @@ test("renaming the original file preserves drafts while same-path replacement re
     false,
   );
   assert.equal(s.text(), before);
+});
+
+test("package preparation uses unsaved editor text and respects read-only, replacement and conflicting drafts", () => {
+  const variant = packageVariant(declarativePackageFixture().manifest);
+  const s = runtime("# Saved title\n");
+  s.replace("# Unsaved title\n\nUnsaved content.");
+  const result = s.service.prepareTemplateProperties(
+    s.file as never,
+    1,
+    variant,
+  );
+  assert.ok(result.added.includes("title"));
+  assert.equal(publicationYaml(s.text()).properties.title, "Unsaved title");
+  assert.ok(s.text().endsWith("# Unsaved title\n\nUnsaved content."));
+  for (const reject of ["read-only", "replacement", "conflict"] as const) {
+    const r = runtime("# Untouched\n");
+    if (reject === "read-only") r.setReadOnly();
+    if (reject === "replacement") r.replaceFile();
+    if (reject === "conflict")
+      r.service.session(r.file.path).properties.set("title", {
+        file: r.file as never,
+        ctime: 1,
+        operation: { key: "title", value: "Draft" },
+        revision: "stale",
+        conflict: "Changed elsewhere",
+      });
+    const before = r.text();
+    assert.throws(() =>
+      r.service.prepareTemplateProperties(r.file as never, 1, variant),
+    );
+    assert.equal(r.text(), before);
+  }
 });

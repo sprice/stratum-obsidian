@@ -1,10 +1,17 @@
+import { packageFixture } from "./publication-package-fixture";
+import { readPublishingTemplates } from "../publish-templates";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
 import { loadRuntime } from "./runtime-harness";
 import { installationFixture } from "./publication-installation-fixture";
 
-function setup() {
+function setup(
+  packageListing: () => Promise<{
+    items: { id: string; name: string; version: string; sha256: string }[];
+    offline: boolean;
+  }> = () => Promise.resolve({ items: [], offline: false }),
+) {
   let now = 0;
   let nextTimer = 0;
   const timers = new Map<number, { at: number; callback: () => void }>();
@@ -13,18 +20,27 @@ function setup() {
     reject: (error: unknown) => void;
   }[] = [];
   class Modal {
+    closed = false;
+    close() {
+      this.closed = true;
+      (this as unknown as { onClose(): void }).onClose();
+    }
     modalEl = { addClass() {} };
     contentEl = { empty() {} };
   }
   type Subject = {
+    closed: boolean;
     status: string;
-    families: { id: string }[];
+    families: { id: string; versionCount: number }[];
+    packages: { id: string; name: string; version: string; sha256: string }[];
+    releases: { version: string }[];
     registrySetting: { setDesc: (message: string) => void };
     selectedFamily: string;
     selectedVersions: Set<string>;
     installationStatus: string;
     installSelected: () => Promise<void>;
     renderList: () => void;
+    removePackage: (id: string, version: string) => Promise<void>;
     onOpen: () => void;
     onClose: () => void;
     refreshRegistry: () => Promise<void>;
@@ -52,6 +68,9 @@ function setup() {
     },
     "node",
     {
+      "./publication-package-catalog": {
+        packageRegistryListing: packageListing,
+      },
       "./publication-resources": {
         publicationResourceCache: () => ({}),
         installedTemplateResources: async () => {},
@@ -88,6 +107,7 @@ function setup() {
     },
   };
   return {
+    createModal: () => new PublishingTemplatesModal(plugin),
     modal,
     plugin,
     requests,
@@ -213,4 +233,127 @@ test("sequential installations report the total for the selected family", async 
   await modal.installSelected();
   assert.match(modal.installationStatus, /Installation failed/);
   assert.doesNotMatch(modal.installationStatus, /Added/);
+});
+
+test("package removal uses current settings and stable identity after a reinstall", async () => {
+  const { modal, plugin } = setup();
+  const { p } = packageFixture();
+  const installed = { manifest: p, sha256: "a".repeat(64) };
+  plugin.settings.publishingTemplates = readPublishingTemplates({
+    packageInstallations: [installed],
+  });
+  const newer = structuredClone(installed);
+  newer.manifest.version = "2.0";
+  for (const asset of newer.manifest.assets)
+    asset.download = asset.download?.replace("/1.0/", "/2.0/");
+  plugin.settings.publishingTemplates = readPublishingTemplates({
+    ...(plugin.settings.publishingTemplates as object),
+    packageInstallations: [structuredClone(installed), newer],
+    enabledIds: ["download:unfamiliar:1.0", "download:unfamiliar:2.0"],
+  });
+  await modal.removePackage(p.id, p.version);
+  const state = readPublishingTemplates(plugin.settings.publishingTemplates);
+  assert.deepEqual(
+    state.packageInstallations?.map((i) => i.manifest.version),
+    ["2.0"],
+  );
+  assert.deepEqual(state.enabledIds, ["download:unfamiliar:2.0"]);
+});
+
+test("discovery combines packages and legacy families, preferring packages for a migrated family", async () => {
+  const pin = {
+    id: "unfamiliar",
+    name: "Synthetic package",
+    version: "1.0",
+    sha256: "a".repeat(64),
+  };
+  const { modal, requests } = setup(() =>
+    Promise.resolve({
+      items: [pin, { ...pin, version: "2.0" }],
+      offline: false,
+    }),
+  );
+  const pending = modal.refreshRegistry();
+  requests[0].resolve({
+    items: [
+      { id: "legacy", name: "Legacy", versionCount: 1 },
+      { id: pin.id, name: "Old family", versionCount: 1 },
+    ],
+    offline: false,
+  });
+  await pending;
+  assert.deepEqual(
+    Array.from(modal.families, (f) => f.id),
+    ["legacy", pin.id],
+  );
+  assert.equal(modal.families[1].versionCount, 2);
+  await modal.chooseFamily(pin.id);
+  assert.deepEqual(
+    Array.from(modal.releases, (r) => r.version),
+    ["2.0", "1.0"],
+  );
+  assert.equal(
+    requests.length,
+    1,
+    "package choices need no legacy version request",
+  );
+});
+
+for (const failed of ["legacy", "package"] as const) {
+  test(`discovery retains the working catalog when ${failed} discovery fails`, async () => {
+    const pin = {
+      id: "unfamiliar",
+      name: "Synthetic package",
+      version: "1.0",
+      sha256: "a".repeat(64),
+    };
+    const { modal, requests, advance } = setup(() => {
+      if (failed === "package") return Promise.reject(Error("offline"));
+      return Promise.resolve({ items: [pin], offline: false });
+    });
+    const pending = modal.refreshRegistry();
+    if (failed === "legacy") requests[0].reject(Error("offline"));
+    else
+      requests[0].resolve({
+        items: [{ id: "legacy", name: "Legacy", versionCount: 1 }],
+        offline: false,
+      });
+    await pending;
+    advance(3000);
+    assert.equal(modal.families[0].id, failed === "legacy" ? pin.id : "legacy");
+    assert.match(modal.status, /unavailable/);
+  });
+}
+
+test("cached package versions stay browsable with an offline status", async () => {
+  const pin = {
+    id: "unfamiliar",
+    name: "Synthetic package",
+    version: "1.0",
+    sha256: "a".repeat(64),
+  };
+  const { modal, requests, advance } = setup(() =>
+    Promise.resolve({
+      items: [pin],
+      offline: true,
+    }),
+  );
+  const pending = modal.refreshRegistry();
+  requests[0].resolve({ items: [], offline: false });
+  await pending;
+  await modal.chooseFamily(pin.id);
+  advance(3000);
+  assert.match(modal.status, /Offline.*cached package/);
+  assert.equal(modal.releases[0].version, "1.0");
+});
+
+test("opening the installed-template shortcut replaces the previous manager", () => {
+  const f = setup();
+  f.modal.onOpen();
+  const next = f.createModal();
+  next.renderList = () => {};
+  next.onOpen();
+  assert.equal(f.modal.closed, true);
+  assert.equal(next.closed, false);
+  next.onClose();
 });
