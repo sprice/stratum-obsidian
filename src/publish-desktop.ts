@@ -1,3 +1,5 @@
+import { templateTestHeaders } from "./publication-test-access";
+import { registryRetryDelay } from "./publication-registry-retry";
 import { publicationTableFilter } from "./publication-table-filter";
 import type { PublishWorkspace } from "./publish-workspace";
 import {
@@ -582,7 +584,11 @@ $endif$
 
 interface BibliographyResponse {
   statusCode?: number;
-  headers: { location?: string; "content-length"?: string };
+  headers: {
+    location?: string;
+    "content-length"?: string;
+    "retry-after"?: string;
+  };
   destroy(): void;
   on(event: "data", listener: (bytes: Uint8Array) => void): void;
   on(event: "error", listener: (error: Error) => void): void;
@@ -611,7 +617,8 @@ interface BibliographyCrypto {
 export async function downloadPublicationResource(
   specification: { url: string; sha256?: string; maxBytes?: number },
   signal?: AbortSignal,
-  timeout = 30_000,
+  // Allow three 60-second Retry-After waits plus one ordinary download.
+  timeout = 210_000,
 ): Promise<Uint8Array> {
   if (!Platform.isDesktop)
     throw new Error("PDF publishing requires desktop Obsidian.");
@@ -633,20 +640,37 @@ export async function downloadPublicationResource(
   return new Promise((resolve, reject) => {
     let active: BibliographyRequest | undefined;
     let settled = false;
+    let attempts = 0;
+    let retryTimer: number | undefined;
+    let attemptTimer: number | undefined;
+    const deadline = Date.now() + timeout;
+    const abort = () => {
+      const error = new Error("Publishing cancelled.");
+      finish(error);
+      active?.destroy(error);
+    };
     const finish = (error?: Error, bytes?: Uint8Array) => {
       if (settled) return;
       settled = true;
       window.clearTimeout(timer);
+      window.clearTimeout(retryTimer);
+      window.clearTimeout(attemptTimer);
+      signal?.removeEventListener("abort", abort);
       if (error) reject(error);
       else resolve(bytes!);
     };
-    const timer = window.setTimeout(() => {
+    const timedOut = () => {
       const error = new Error("Downloading the template resource timed out.");
       finish(error);
       active?.destroy(error);
-    }, timeout);
+    };
+    const timer = window.setTimeout(timedOut, timeout);
     const download = (url: string) => {
       if (settled) return;
+      attemptTimer = window.setTimeout(
+        timedOut,
+        Math.min(30_000, Math.max(0, deadline - Date.now())),
+      );
       try {
         const target = new URL(url);
         const loopback =
@@ -669,6 +693,7 @@ export async function downloadPublicationResource(
           {
             signal,
             headers: {
+              ...templateTestHeaders(target.origin, require),
               "Cache-Control": "no-store",
               "User-Agent": "Stratum-Obsidian (publishing templates)",
             },
@@ -686,8 +711,6 @@ export async function downloadPublicationResource(
                     : "The template resource download was interrupted. Enable the template again to retry.",
                 ),
               );
-            response.on("aborted", interrupted);
-            response.on("error", interrupted);
             if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0)) {
               finish(
                 new Error(
@@ -695,6 +718,18 @@ export async function downloadPublicationResource(
                 ),
               );
               response.destroy();
+              return;
+            }
+            const delay = registryRetryDelay(
+              response.statusCode,
+              response.headers["retry-after"],
+              attempts,
+            );
+            if (delay !== null && Date.now() + delay < deadline) {
+              window.clearTimeout(attemptTimer);
+              response.destroy();
+              attempts++;
+              retryTimer = window.setTimeout(() => download(url), delay);
               return;
             }
             if (response.statusCode === 429) {
@@ -715,6 +750,8 @@ export async function downloadPublicationResource(
               response.destroy();
               return;
             }
+            response.on("aborted", interrupted);
+            response.on("error", interrupted);
             const advertised = response.headers["content-length"];
             if (
               advertised &&
@@ -787,6 +824,7 @@ export async function downloadPublicationResource(
         finish(error instanceof Error ? error : new Error(String(error)));
       }
     };
+    signal?.addEventListener("abort", abort, { once: true });
     download(specification.url);
   });
 }

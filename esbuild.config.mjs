@@ -94,6 +94,9 @@ const context = await esbuild.context({
   outfile: "main.js",
   minify: prod,
   define: {
+    __STRATUM_TEMPLATE_TEST_CONFIG_PATH__: JSON.stringify(
+      process.env.STRATUM_TEMPLATE_TEST_CONFIG_PATH ?? "",
+    ),
     __STRATUM_WEB_APP_URL__: JSON.stringify(webAppUrl),
     __STRATUM_TEMPLATE_REGISTRY_ORIGIN__: JSON.stringify(
       templateRegistryOrigin,

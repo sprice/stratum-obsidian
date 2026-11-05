@@ -1,3 +1,4 @@
+import { setTimeout as schedule } from "node:timers";
 import { testPublishingWorkspace } from "./publishing-workspace";
 import { manuscriptSample } from "./publication-manuscript-fixture";
 import assert from "node:assert/strict";
@@ -38,7 +39,9 @@ test(
         setImmediate(() => response.destroy());
         return;
       }
-      response.writeHead(mode === "unavailable" ? 503 : 200);
+      response.writeHead(mode === "unavailable" ? 503 : 200, {
+        "Retry-After": "0",
+      });
       response.end(mode === "mismatch" ? "Changed style" : body);
     });
     await new Promise<void>((resolve) =>
@@ -101,6 +104,7 @@ test(
         desktop.downloadPublicationResource({ url, sha256 }),
         /could not supply.*HTTP 503/,
       );
+      assert.equal(count, 7, "Unavailable downloads stop after three retries");
       mode = "interrupted";
       await assert.rejects(
         desktop.downloadPublicationResource({ url, sha256 }),
@@ -299,4 +303,82 @@ test("development registry requests use only the configured app origin", async (
     desktop.downloadPublicationResource({ url, sha256 }),
     /requires HTTPS from Stratum/,
   );
+});
+
+test("downloader recovers from 429 and 503 and cancels during retry waits", async () => {
+  let waiting!: () => void;
+  const retryScheduled = new Promise<void>((resolve) => {
+    waiting = resolve;
+  });
+  let calls = 0;
+  let cancelMode = false;
+  const server = createServer((_request, response) => {
+    calls++;
+    response.writeHead(
+      cancelMode ? 503 : calls === 1 ? 429 : calls === 2 ? 503 : 200,
+      { "Retry-After": cancelMode ? "60" : "0" },
+    );
+    response.end(body);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  const desktop = loadRuntime<typeof import("../publish-desktop")>(
+    "publish-desktop.ts",
+    { Platform: { isDesktopApp: true, isDesktop: true } },
+    {
+      TextDecoder,
+      TextEncoder,
+      Uint8Array,
+      URL,
+      Date,
+      window: {
+        setTimeout: (callback: () => void, delay: number) => {
+          const timer = schedule(callback, delay);
+          if (delay === 60_000) waiting();
+          return timer;
+        },
+        clearTimeout,
+        require: (name: string): unknown =>
+          name === "node:https"
+            ? {
+                get: (
+                  target: string,
+                  options: Parameters<typeof get>[1],
+                  callback: Parameters<typeof get>[2],
+                ) => {
+                  assert.equal(target, url);
+                  return get(
+                    `http://127.0.0.1:${address.port}/resource`,
+                    options,
+                    callback,
+                  );
+                },
+              }
+            : require(name),
+      },
+    },
+    "browser",
+  );
+  try {
+    assert.equal(
+      new TextDecoder().decode(
+        await desktop.downloadPublicationResource({ url, sha256 }),
+      ),
+      body,
+    );
+    assert.equal(calls, 3);
+    cancelMode = true;
+    const controller = new AbortController();
+    const pending = desktop.downloadPublicationResource(
+      { url },
+      controller.signal,
+    );
+    await retryScheduled;
+    controller.abort();
+    await assert.rejects(pending, /cancelled/);
+    assert.equal(calls, 4);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
