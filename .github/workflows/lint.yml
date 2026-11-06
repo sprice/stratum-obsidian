@@ -47,21 +47,37 @@ jobs:
           cache: "pnpm"
       - name: Inspect local validation
         id: local-validation
-        if: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.uncached != true && vars.STRATUM_CI_CACHE_DISABLED != 'true' }}
+        if: ${{ inputs.uncached != true && vars.STRATUM_CI_CACHE_DISABLED != 'true' }}
         run: node scripts/ci-local-validation.mjs
       - uses: ./.github/actions/setup-publishing-tests
         if: steps.local-validation.outputs.validated != 'true'
       - run: pnpm install --frozen-lockfile
       - name: Enable validation caching
-        if: ${{ steps.local-validation.outputs.validated != 'true' && !startsWith(github.ref, 'refs/tags/') && inputs.uncached != true && vars.STRATUM_CI_CACHE_DISABLED != 'true' }}
+        if: ${{ steps.local-validation.outputs.validated != 'true' && inputs.uncached != true && vars.STRATUM_CI_CACHE_DISABLED != 'true' }}
         uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2
       - name: Check plugin (cached tasks)
         if: steps.local-validation.outputs.validated != 'true'
         run: pnpm ci:check
+        env:
+          STRATUM_RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/') && format('{0}-{1}', github.run_id, github.run_attempt) || '' }}
         timeout-minutes: 12
       - name: Bundle locally validated plugin
         if: steps.local-validation.outputs.validated == 'true'
         run: node scripts/run-quiet.mjs node esbuild.config.mjs production
+      - name: Verify release metadata
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        run: node scripts/release-metadata.mjs "$GITHUB_REF_NAME"
+      - name: Upload release assets
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-release-assets
+          overwrite: true
+          path: |
+            main.js
+            manifest.json
+            styles.css
+          if-no-files-found: error
       - name: Upload publishing test artifacts
         if: ${{ always() && steps.local-validation.outputs.validated != 'true' }}
         uses: actions/upload-artifact@v4
@@ -85,36 +101,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-
-      - name: Use Node.js
-        uses: actions/setup-node@v4
+      - name: Download validated release assets
+        uses: actions/download-artifact@v4
         with:
-          node-version: "22.x"
-          cache: "pnpm"
-
-      - name: Verify release version
-        run: |
-          node --input-type=module -e '
-            import { readFileSync } from "node:fs";
-            const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
-            if (manifest.version !== process.env.GITHUB_REF_NAME) {
-              throw new Error("Release tag must match manifest.json version");
-            }
-          '
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Build plugin
-        run: pnpm build
+          name: plugin-release-assets
+          path: release-assets
 
       - name: Attest release assets
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: |
-            main.js
-            manifest.json
-            styles.css
+            release-assets/main.js
+            release-assets/manifest.json
+            release-assets/styles.css
 
       - name: Create release
         env:
@@ -122,7 +121,17 @@ jobs:
         run: |
           tag="${GITHUB_REF#refs/tags/}"
 
-          gh release create "$tag" \
-            --title="$tag" \
-            --draft \
-            main.js manifest.json styles.css
+          if draft=$(gh release view "$tag" --json isDraft --jq .isDraft); then
+            if [ "$draft" != "true" ]; then
+              echo "Refusing to replace assets on a published release" >&2
+              exit 1
+            fi
+            gh release upload "$tag" --clobber \
+              release-assets/main.js release-assets/manifest.json release-assets/styles.css
+          else
+            gh release create "$tag" \
+              --verify-tag \
+              --title="$tag" \
+              --draft \
+              release-assets/main.js release-assets/manifest.json release-assets/styles.css
+          fi

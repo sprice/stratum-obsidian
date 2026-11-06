@@ -54,6 +54,8 @@ export async function prepareCiCache(
   if (`pnpm@${pnpm}` !== manifest.packageManager)
     throw new Error(`Run pnpm ci:prepare with ${manifest.packageManager}.`);
 
+  // Version-only changes do not affect source checks; retain every other field.
+  const { version: _version, ...executionInputs } = manifest;
   const publishing = {
     tools: await fingerprint(env),
     templates: env.STRATUM_TEST_TEMPLATE_CACHE
@@ -85,6 +87,10 @@ export async function prepareCiCache(
     `${JSON.stringify(publishing)}\n`,
   );
   await writeIfChanged(join(directory, "environment.json"), contents);
+  await writeIfChanged(
+    join(directory, "package-inputs.json"),
+    `${JSON.stringify(executionInputs)}\n`,
+  );
 }
 
 async function writeIfChanged(target, contents) {

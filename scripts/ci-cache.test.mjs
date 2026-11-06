@@ -55,6 +55,12 @@ async function fixture(t, name) {
     }),
   );
   await put(directory, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
+  await put(
+    directory,
+    "manifest.json",
+    JSON.stringify({ version: "0.6.1", minAppVersion: "1.0.0" }),
+  );
+  await put(directory, "versions.json", JSON.stringify({ "0.6.1": "1.0.0" }));
   await put(directory, "src/example.ts", "export const value = 1;\n");
   await put(
     directory,
@@ -80,6 +86,14 @@ async function fixture(t, name) {
 }
 
 async function run(directory, name, extraEnv = {}) {
+  const { version: _version, ...inputs } = JSON.parse(
+    await readFile(join(directory, "package.json"), "utf8"),
+  );
+  await put(
+    directory,
+    ".ci-cache/package-inputs.json",
+    JSON.stringify(inputs) + "\n",
+  );
   const child = spawn(process.execPath, [binary], {
     cwd: directory,
     env: {
@@ -122,6 +136,29 @@ for (const name of cachedTasks) {
     }
     await expectRun(1);
     await expectRun(0);
+    const versionBump = JSON.parse(
+      await readFile(join(directory, "package.json"), "utf8"),
+    );
+    const nextVersion = versionBump.version.split(".");
+    nextVersion[2] = String(Number(nextVersion[2]) + 1);
+    versionBump.version = nextVersion.join(".");
+    await put(directory, "package.json", JSON.stringify(versionBump));
+    await expectRun(name === "ci:release-metadata" ? 1 : 0);
+    await put(
+      directory,
+      "manifest.json",
+      JSON.stringify({ version: versionBump.version, minAppVersion: "1.0.0" }),
+    );
+    await expectRun(
+      ["ci:release-metadata", "ci:lint-review"].includes(name) ? 1 : 0,
+    );
+    await expectRun(name === "ci:build" ? 1 : 0, {
+      STRATUM_TEMPLATE_TEST_CONFIG_PATH: "/synthetic/test-config.json",
+    });
+    await expectRun(name === "ci:build" ? 1 : 0, {
+      STRATUM_RELEASE_BUILD: "synthetic-tag-attempt",
+    });
+    await expectRun(0);
     // A fresh checkout must restore a cached result, not just use local freshness.
     for (const entry of await readdir(join(directory, ".wireit")))
       await rm(join(directory, ".wireit", entry, "fingerprint"), {
@@ -134,8 +171,11 @@ for (const name of cachedTasks) {
       await expectRun(0);
       assert.equal(await readFile(path, "utf8"), "synthetic output");
     }
-    const sourceTask =
-      name !== "ci:test-tooling" && name !== "ci:publishing-preflight";
+    const sourceTask = ![
+      "ci:test-tooling",
+      "ci:publishing-preflight",
+      "ci:release-metadata",
+    ].includes(name);
     for (const file of [
       "src/example.ts",
       "eslint.config.mts",
@@ -283,7 +323,7 @@ test("GitHub cache service outage executes validation", async (t) => {
   assert.equal(await readFile(join(directory, "executions"), "utf8"), "run\n");
 });
 
-test("CI prepares cached inputs and disables task caches for tags", async () => {
+test("CI accepts exact receipts and caches for tags, sharing one release bundle", async () => {
   const workflow = parse(
     await readFile(join(root, ".github/workflows/lint.yml"), "utf8"),
   );
@@ -291,7 +331,7 @@ test("CI prepares cached inputs and disables task caches for tags", async () => 
   const steps = workflow.jobs.build.steps;
   const setup = steps.find((step) => step.uses?.startsWith("google/wireit@"));
   assert.match(setup.uses, /@[a-f0-9]{40}$/);
-  assert.match(setup.if, /!startsWith\(github.ref, 'refs\/tags\/'\)/);
+  assert.doesNotMatch(setup.if, /!startsWith/);
   assert.match(setup.if, /inputs.uncached != true/);
   assert.match(setup.if, /vars.STRATUM_CI_CACHE_DISABLED != 'true'/);
   const check = steps.find((step) => step.run === "pnpm ci:check");
@@ -303,15 +343,22 @@ test("CI prepares cached inputs and disables task caches for tags", async () => 
   );
   assert.equal(workflow.jobs.build.env.WIREIT_PARALLEL, 2);
   const receipt = steps.find((step) => step.id === "local-validation");
-  assert.match(receipt.if, /!startsWith/);
+  assert.doesNotMatch(receipt.if, /!startsWith/);
   assert.match(receipt.if, /inputs.uncached != true/);
   assert.match(receipt.if, /STRATUM_CI_CACHE_DISABLED/);
 
-  assert.equal(
-    workflow.jobs.release.steps.find((step) => step.name === "Build plugin")
-      .run,
-    "pnpm build",
+  assert(
+    !workflow.jobs.release.steps.some((step) =>
+      step.run?.includes("pnpm build"),
+    ),
   );
+  assert(steps.some((step) => step.with?.name === "plugin-release-assets"));
+  assert(
+    workflow.jobs.release.steps.some(
+      (step) => step.with?.name === "plugin-release-assets",
+    ),
+  );
+  assert.match(check.env.STRATUM_RELEASE_BUILD, /github.run_attempt/);
 });
 
 test("publishing fingerprints include stderr and every font, and reject unavailable tools", async () => {
